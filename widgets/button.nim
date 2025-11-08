@@ -1,0 +1,100 @@
+## Button Widget
+##
+## A clickable button with text, hover and pressed states
+
+import ../core/[types, widget_dsl]
+import ../drawing_primitives/drawing_primitives
+
+when defined(useGraphics):
+  import raylib
+
+export types
+
+type ButtonCallback* = proc()
+
+defineWidget(Button):
+  props:
+    text: string
+    backgroundColor: Color
+    hoverColor: Color
+    pressedColor: Color
+    textColor: Color
+    borderRadius: float32
+    onClick: ButtonCallback
+
+  init:
+    widget.text = "Button"
+    when defined(useGraphics):
+      widget.backgroundColor = Color(r: 70, g: 130, b: 180, a: 255)  # Steel blue
+      widget.hoverColor = Color(r: 90, g: 150, b: 200, a: 255)       # Lighter blue
+      widget.pressedColor = Color(r: 50, g: 110, b: 160, a: 255)     # Darker blue
+      widget.textColor = Color(r: 255, g: 255, b: 255, a: 255)       # White
+    widget.borderRadius = 4.0
+    widget.onClick = nil
+    widget.bounds.width = 120
+    widget.bounds.height = 40
+
+  render:
+    when defined(useGraphics):
+      # Choose color based on state
+      var bgColor = widget.backgroundColor
+      if widget.pressed:
+        bgColor = widget.pressedColor
+      elif widget.hovered:
+        bgColor = widget.hoverColor
+
+      # Draw button background
+      drawRoundedRect(widget.bounds, widget.borderRadius, bgColor, true)
+
+      # Draw border when focused
+      if widget.focused:
+        let borderColor = Color(r: 255, g: 255, b: 255, a: 180)
+        drawRoundedRect(widget.bounds, widget.borderRadius, borderColor, false)
+
+      # Draw text centered
+      if widget.text.len > 0:
+        let textStyle = TextStyle(
+          fontFamily: "",  # Use default font
+          fontSize: 16.0,
+          color: widget.textColor,
+          bold: false,
+          italic: false,
+          underline: false
+        )
+        drawText(widget.text, widget.bounds, textStyle, TextAlign.Center)
+
+  measure:
+    # Measure based on text size + padding
+    when defined(useGraphics):
+      # For now, use fixed size
+      # TODO: Measure actual text size
+      result = Size(width: widget.bounds.width, height: widget.bounds.height)
+
+  input:
+    when defined(useGraphics):
+      if event.kind == evMouseDown:
+        # Check if click is inside button
+        let mouseX = event.mousePos.x
+        let mouseY = event.mousePos.y
+
+        if mouseX >= widget.bounds.x and mouseX <= widget.bounds.x + widget.bounds.width and
+           mouseY >= widget.bounds.y and mouseY <= widget.bounds.y + widget.bounds.height:
+          widget.pressed = true
+          return true
+
+      elif event.kind == evMouseUp:
+        if widget.pressed:
+          widget.pressed = false
+
+          # Check if release is still inside button (complete click)
+          let mouseX = event.mousePos.x
+          let mouseY = event.mousePos.y
+
+          if mouseX >= widget.bounds.x and mouseX <= widget.bounds.x + widget.bounds.width and
+             mouseY >= widget.bounds.y and mouseY <= widget.bounds.y + widget.bounds.height:
+            # Call onClick callback
+            if widget.onClick != nil:
+              widget.onClick()
+            return true
+
+    return false

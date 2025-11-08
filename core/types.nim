@@ -1,0 +1,291 @@
+## Core type definitions for RUI
+##
+## This file contains the fundamental types used throughout the framework.
+
+import std/[tables, sets, hashes, options, times, monotimes]
+export sets, tables, options  # Export for use in other modules
+
+when defined(useGraphics):
+  import raylib
+  export raylib.Color
+else:
+  # Stub types when graphics not available
+  type
+    Texture2D* = object
+    Color* = object
+    KeyboardKey* = enum
+      KEY_NULL
+
+# Size type - define locally for now
+type Size* = object
+  width*, height*: float32
+
+# ============================================================================
+# Basic Types
+# ============================================================================
+
+type
+  WidgetId* = distinct int  # Internal numeric ID for fast lookups
+
+  Rect* = object
+    x*, y*: float32
+    width*, height*: float32
+
+  Point* = object
+    x*, y*: float32
+
+  EdgeInsets* = object
+    top*, right*, bottom*, left*: float32
+
+# Flutter-style EdgeInsets helpers
+proc edgeInsets*(all: float32): EdgeInsets =
+  ## EdgeInsets.all(value) - Same padding on all sides
+  EdgeInsets(top: all, right: all, bottom: all, left: all)
+
+proc edgeInsetsSymmetric*(horizontal, vertical: float32): EdgeInsets =
+  ## EdgeInsets.symmetric(horizontal, vertical)
+  EdgeInsets(
+    top: vertical,
+    bottom: vertical,
+    left: horizontal,
+    right: horizontal
+  )
+
+proc edgeInsetsOnly*(left = 0.0f32, top = 0.0f32, right = 0.0f32, bottom = 0.0f32): EdgeInsets =
+  ## EdgeInsets.only(left, top, right, bottom)
+  EdgeInsets(left: left, top: top, right: right, bottom: bottom)
+
+proc edgeInsetsLTRB*(left, top, right, bottom: float32): EdgeInsets =
+  ## EdgeInsets.fromLTRB(left, top, right, bottom)
+  EdgeInsets(left: left, top: top, right: right, bottom: bottom)
+
+# ============================================================================
+# Layout Types
+# ============================================================================
+
+type
+  Constraints* = object
+    minWidth*, maxWidth*: float32
+    minHeight*, maxHeight*: float32
+
+# ============================================================================
+# Widget Tree
+# ============================================================================
+
+type
+  Widget* = ref object of RootObj
+    # Identity
+    id*: WidgetId              # Internal numeric ID
+    stringId*: string          # User-facing ID for scripting (e.g., "login_button")
+
+    # Geometry
+    bounds*: Rect
+    previousBounds*: Rect      # For incremental hit-test updates
+
+    # State
+    visible*: bool
+    enabled*: bool
+    hovered*: bool             # Mouse is over this widget
+    pressed*: bool             # Mouse button down on this widget
+    focused*: bool             # Has keyboard focus
+
+    # Dirty flags
+    isDirty*: bool             # Needs re-render
+    layoutDirty*: bool         # Needs layout calculation
+
+    # Rendering
+    cachedTexture*: Option[Texture2D]
+    zIndex*: int
+
+    # Hierarchy
+    parent*: Widget
+    children*: seq[Widget]
+
+  WidgetTree* = ref object
+    root*: Widget
+    anyDirty*: bool                           # Tree-level optimization flag
+    widgetMap*: Table[WidgetId, Widget]       # Numeric ID -> Widget
+    widgetsByStringId*: Table[string, Widget] # String ID -> Widget (for scripting)
+
+# ============================================================================
+# Reactive System
+# ============================================================================
+
+type
+  Link*[T] = ref object
+    valueInternal*: T  # Internal field accessed by link.nim
+    dependentWidgets*: HashSet[Widget]  # Direct references for O(1) updates!
+    onChange*: proc(oldVal, newVal: T)
+
+  Store* = ref object of RootObj
+    # User defines fields with Link[T] types
+    # Example:
+    # counter*: Link[int]
+    # username*: Link[string]
+
+# ============================================================================
+# Event Types
+# ============================================================================
+
+type
+  EventKind* = enum
+    # Mouse
+    evMouseMove
+    evMouseDown
+    evMouseUp
+    evMouseWheel
+    evMouseHover
+
+    # Keyboard
+    evKeyDown
+    evKeyUp
+    evChar
+
+    # Window
+    evWindowResize
+    evWindowClose
+    evWindowFocus
+    evWindowBlur
+
+    # Touch/Gesture
+    evTouchStart
+    evTouchMove
+    evTouchEnd
+    evGesture
+
+  EventPriority* = enum
+    epHigh      # Input feedback, clicks
+    epNormal    # Regular updates
+    epLow       # Background operations
+
+  GuiEvent* = object
+    kind*: EventKind
+    priority*: EventPriority
+    timestamp*: MonoTime
+
+    # Event data (variant would go here in full implementation)
+    # For now, just the essentials
+    mousePos*: Point
+    key*: KeyboardKey
+    char*: char
+    windowSize*: Size
+
+  EventPattern* = enum
+    epNormal      # Process immediately
+    epReplaceable # Only last matters (mouse move)
+    epDebounced   # Wait for quiet period (resize)
+    epThrottled   # Rate limited (scroll)
+    epBatched     # Collect related (touch gestures)
+    epOrdered     # Sequence matters (keyboard combo)
+
+  EventTiming* = object
+    count*: int
+    totalTime*: Duration
+    avgTime*: Duration
+    maxTime*: Duration
+
+# ============================================================================
+# Rendering Types
+# ============================================================================
+
+type
+  RenderOpKind* = enum
+    ropRect
+    ropTexture
+    ropText
+
+  RenderOp* = object
+    case kind*: RenderOpKind
+    of ropRect:
+      rect*: Rect
+      bgcolor*: Color
+    of ropTexture:
+      texture*: Texture2D
+      source*, dest*: Rect
+    of ropText:
+      text*: string
+      textCache*: Option[Texture2D]
+      fgcolor*: Color
+
+# ============================================================================
+# Application Types
+# ============================================================================
+
+type
+  WindowConfig* = object
+    width*: int
+    height*: int
+    title*: string
+    fps*: int
+
+  App* = ref object
+    # Core state
+    tree*: WidgetTree
+    store*: Store
+    window*: WindowConfig
+
+    # Managers (to be defined in managers/ module)
+    # renderManager*: RenderManager
+    # layoutManager*: LayoutManager
+    # eventManager*: EventManager
+
+    # Event processing
+    eventTimings*: Table[EventKind, EventTiming]
+    currentEventBudget*: Duration
+
+    # Scripting support
+    scriptingEnabled*: bool
+    scriptDir*: string
+    lastScriptPoll*: MonoTime
+
+# ============================================================================
+# Helper Functions
+# ============================================================================
+
+proc hash*(id: WidgetId): Hash =
+  hash(id.int)
+
+proc `==`*(a, b: WidgetId): bool =
+  a.int == b.int
+
+proc hash*(widget: Widget): Hash =
+  ## Hash function for Widget (uses id)
+  hash(widget.id)
+
+proc `<`*(a, b: GuiEvent): bool =
+  ## Comparison for priority queue (higher priority first, then FIFO by timestamp)
+  if a.priority != b.priority:
+    return a.priority < b.priority
+  else:
+    return a.timestamp < b.timestamp
+
+# WidgetId generator
+var nextWidgetId {.global.} = 0
+
+proc newWidgetId*(): WidgetId =
+  result = WidgetId(nextWidgetId)
+  inc nextWidgetId
+
+# ============================================================================
+# Base Widget Methods (to be overridden by specific widgets)
+# ============================================================================
+
+method render*(widget: Widget) {.base.} =
+  ## Render this widget. Override in derived types.
+  ## Base implementation does nothing.
+  discard
+
+method measure*(widget: Widget, constraints: Constraints): Size {.base.} =
+  ## Calculate the preferred size of this widget given constraints.
+  ## Base implementation returns current bounds size.
+  result = Size(width: widget.bounds.width, height: widget.bounds.height)
+
+method layout*(widget: Widget) {.base.} =
+  ## Position and size children of this widget.
+  ## Base implementation does nothing (leaf widgets don't need layout).
+  discard
+
+method handleInput*(widget: Widget, event: GuiEvent): bool {.base.} =
+  ## Handle input event. Return true if handled (stops propagation).
+  ## Base implementation returns false (not handled).
+  result = false
