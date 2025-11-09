@@ -32,6 +32,7 @@ type
     spacing*: Option[float32]
     textStyle*: Option[TextStyle]
     fontSize*: Option[float32]
+    fontFamily*: Option[string]  # Font family for text rendering
     
 
     

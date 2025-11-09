@@ -1,18 +1,20 @@
-## Baby-step test: Two buttons in a Column container
+## Baby-step test: Two buttons in a VStack container
+## (Migrated from Column - VStack provides same functionality with consistent naming)
 ##
 ## Expected: Buttons should be vertically arranged and NOT overlap
 
 import raylib
 import ../core/types
-import ../widgets/[button_yaml, column]
+import ../widgets/basic/button_yaml
+import ../widgets/containers/vstack
 
 proc main() =
-  initWindow(800, 600, "Column Layout Test")
+  initWindow(800, 600, "VStack Layout Test")
   defer: closeWindow()
   setTargetFPS(60)
 
-  # Create a Column container
-  let col = newColumn()
+  # Create a VStack container (formerly Column)
+  let col = newVStack()
   col.bounds = Rect(x: 100, y: 100, width: 300, height: 400)
   col.spacing = 16.0
 
@@ -73,12 +75,12 @@ proc main() =
 
     # Render
     beginDrawing()
-    clearBackground(Color(r: 40, g: 40, b: 50, a: 255))
+    clearBackground(raylib.Color(r: 40, g: 40, b: 50, a: 255))
 
-    raylib.drawText("Column Layout Test", 10'i32, 10'i32, 24'i32, WHITE)
+    raylib.drawText("VStack Layout Test", 10'i32, 10'i32, 24'i32, WHITE)
     raylib.drawText("Two buttons should be vertically stacked", 10'i32, 40'i32, 16'i32, LIGHTGRAY)
 
-    # Draw column bounds (debug)
+    # Draw vstack bounds (debug)
     drawRectangleLines(
       int32(col.bounds.x),
       int32(col.bounds.y),
@@ -87,7 +89,7 @@ proc main() =
       YELLOW
     )
 
-    # Render the column (which renders its children)
+    # Render the vstack (which renders its children)
     col.render()
 
     # Debug info

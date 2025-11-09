@@ -2,19 +2,18 @@
 ##
 ## This file contains the fundamental types used throughout the framework.
 
-import std/[tables, sets, hashes, options, times, monotimes]
-export sets, tables, options  # Export for use in other modules
+import std/[tables, sets, hashes, options, times, monotimes, json]
+export sets, tables, options, json  # Export for use in other modules
 
 when defined(useGraphics):
   import raylib
-  export raylib.Color
+  export raylib.Color, raylib.KeyboardKey
 else:
   # Stub types when graphics not available
   type
     Texture2D* = object
     Color* = object
-    KeyboardKey* = enum
-      KEY_NULL
+    KeyboardKey* = object
 
 # Size type - define locally for now
 type Size* = object
@@ -69,6 +68,22 @@ type
     minHeight*, maxHeight*: float32
 
 # ============================================================================
+# Scripting System Types
+# ============================================================================
+
+type
+  ScriptAction* = enum
+    ## Actions that can be performed via scripting
+    saClick       # Click a button
+    saSetText     # Set text in input
+    saGetText     # Read text value
+    saGetState    # Query widget state
+    saEnable      # Enable/disable widget
+    saFocus       # Set focus
+    saSetValue    # Set generic value
+    saQuery       # Query widget properties
+
+# ============================================================================
 # Widget Tree
 # ============================================================================
 
@@ -96,6 +111,11 @@ type
     # Rendering
     cachedTexture*: Option[Texture2D]
     zIndex*: int
+
+    # Scripting support
+    scriptable*: bool                    # Can be controlled via scripting
+    blockReading*: bool                  # Prevent reading sensitive data (passwords, etc.)
+    allowedActions*: set[ScriptAction]   # Permitted actions
 
     # Hierarchy
     parent*: Widget
@@ -217,6 +237,9 @@ type
     height*: int
     title*: string
     fps*: int
+    resizable*: bool  # Allow window to be resized by user
+    minWidth*: int    # Minimum window width (0 = no minimum)
+    minHeight*: int   # Minimum window height (0 = no minimum)
 
   App* = ref object
     # Core state
@@ -289,3 +312,30 @@ method handleInput*(widget: Widget, event: GuiEvent): bool {.base.} =
   ## Handle input event. Return true if handled (stops propagation).
   ## Base implementation returns false (not handled).
   result = false
+
+method handleScriptAction*(widget: Widget, action: string, params: JsonNode): JsonNode {.base.} =
+  ## Handle a scripting action. Override in derived widgets.
+  ## Returns JSON response (success, error, or data).
+  ## Base implementation returns error for unknown action.
+  result = %*{
+    "success": false,
+    "error": "Action not supported: " & action
+  }
+
+method getScriptableState*(widget: Widget): JsonNode {.base.} =
+  ## Get the current state of this widget as JSON.
+  ## Base implementation returns basic widget properties.
+  ## Override in derived widgets to include widget-specific state.
+  result = %*{
+    "id": widget.stringId,
+    "type": "Widget",
+    "visible": widget.visible,
+    "enabled": widget.enabled,
+    "scriptable": widget.scriptable,
+    "bounds": {
+      "x": widget.bounds.x,
+      "y": widget.bounds.y,
+      "width": widget.bounds.width,
+      "height": widget.bounds.height
+    }
+  }

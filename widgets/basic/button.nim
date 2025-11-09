@@ -2,8 +2,8 @@
 ##
 ## A clickable button with text, hover and pressed states
 
-import ../core/[types, widget_dsl]
-import ../drawing_primitives/drawing_primitives
+import ../../core/[types, widget_dsl]
+import ../../drawing_primitives/drawing_primitives
 
 when defined(useGraphics):
   import raylib

@@ -12,8 +12,8 @@
 
 import raylib
 import std/math
-import ../core/[types, widget_dsl]
-import ../drawing_primitives/[theme_sys_core, drawing_primitives]
+import ../../core/[types, widget_dsl]
+import ../../drawing_primitives/[theme_sys_core, drawing_primitives]
 
 export types, widget_dsl, theme_sys_core
 export raylib.KeyboardKey  # Re-export for macro context

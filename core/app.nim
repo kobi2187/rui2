@@ -46,7 +46,10 @@ type
 proc newApp*(title = "RUI Application",
              width = 800,
              height = 600,
-             fps = 60): App =
+             fps = 60,
+             resizable = true,
+             minWidth = 320,
+             minHeight = 240): App =
   ## Create a new RUI application
   result = App(
     tree: WidgetTree(
@@ -59,7 +62,10 @@ proc newApp*(title = "RUI Application",
       width: width,
       height: height,
       title: title,
-      fps: fps
+      fps: fps,
+      resizable: resizable,
+      minWidth: minWidth,
+      minHeight: minHeight
     ),
     eventManager: newEventManager(defaultBudget = initDuration(milliseconds = 8)),
     lastFrameTime: getMonoTime(),
@@ -87,6 +93,22 @@ proc enableScripting*(app: App, scriptDir: string) =
   app.scriptDir = scriptDir
   if not dirExists(scriptDir):
     createDir(scriptDir)
+
+when defined(useGraphics):
+  proc setWindowSize*(app: App, width, height: int) =
+    ## Programmatically resize the window
+    setWindowSize(width.int32, height.int32)
+    app.window.width = width
+    app.window.height = height
+    app.tree.anyDirty = true  # Trigger relayout
+
+  proc setWindowResizable*(app: App, resizable: bool) =
+    ## Enable or disable window resizing
+    if resizable:
+      setWindowState(flags(WindowResizable))
+    else:
+      clearWindowState(flags(WindowResizable))
+    app.window.resizable = resizable
 
 # ============================================================================
 # Event Collection (Raylib Integration)
@@ -177,7 +199,9 @@ proc handleEvent(app: App, event: GuiEvent) =
 
   case event.kind
   of evWindowResize:
-    # Mark all widgets for relayout
+    # Update window config and mark for relayout
+    app.window.width = int(event.windowSize.width)
+    app.window.height = int(event.windowSize.height)
     app.tree.anyDirty = true
     echo "[Event] Window resized to ", event.windowSize.width, "x", event.windowSize.height
 
@@ -253,11 +277,22 @@ when defined(useGraphics):
     # Initialize window
     initWindow(app.window.width.int32, app.window.height.int32, app.window.title)
     setTargetFPS(app.window.fps.int32)
+
+    # Configure window resizability
+    if app.window.resizable:
+      setWindowState(flags(WindowResizable))
+      # Set minimum window size if specified
+      if app.window.minWidth > 0 and app.window.minHeight > 0:
+        setWindowMinSize(app.window.minWidth.int32, app.window.minHeight.int32)
+
     defer: closeWindow()
 
     echo "RUI Application Started"
     echo "  Window: ", app.window.width, "x", app.window.height
     echo "  Target FPS: ", app.window.fps
+    echo "  Resizable: ", app.window.resizable
+    if app.window.resizable:
+      echo "  Min size: ", app.window.minWidth, "x", app.window.minHeight
     echo "  Event budget: ", app.eventManager.defaultBudget.inMilliseconds, "ms"
     echo ""
 

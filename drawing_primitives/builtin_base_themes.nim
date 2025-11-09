@@ -16,7 +16,8 @@ proc themedProps(
     spacingValue = 8.0,
     borderWidthValue = 1.0,
     cornerRadiusValue = 4.0,
-    fontSizeValue = 14.0
+    fontSizeValue = 14.0,
+    fontFamilyValue = "sans-serif"
   ): ThemeProps =
   result = ThemeProps()
   result.backgroundColor = some(makeColor(bg.r, bg.g, bg.b))
@@ -25,6 +26,7 @@ proc themedProps(
   result.borderWidth = some(borderWidthValue.float32)
   result.cornerRadius = some(cornerRadiusValue.float32)
   result.fontSize = some(fontSizeValue.float32)
+  result.fontFamily = some(fontFamilyValue)
   result.padding = some(edgeInsets(paddingValue.float32))
   result.spacing = some(spacingValue.float32)
 

@@ -2,8 +2,8 @@
 ##
 ## Demonstrates the new on_click: section matching YAML-UI syntax
 
-import ../core/[types, widget_dsl]
-import ../drawing_primitives/drawing_primitives
+import ../../core/[types, widget_dsl]
+import ../../drawing_primitives/drawing_primitives
 
 when defined(useGraphics):
   import raylib

@@ -7,8 +7,8 @@
 ## - YAML-UI compatible
 
 import raylib
-import ../core/[types, widget_dsl]
-import ../drawing_primitives/[theme_sys_core, drawing_primitives]
+import ../../core/[types, widget_dsl]
+import ../../drawing_primitives/[theme_sys_core, drawing_primitives]
 
 export types, widget_dsl, theme_sys_core, drawing_primitives.TextAlign
 
@@ -69,8 +69,13 @@ defineWidget(Label):
                      else:
                       14'i32
 
+      let fontFamily = if props.fontFamily.isSome:
+                         props.fontFamily.get()
+                       else:
+                         ""  # Empty = use default
+
       let textStyle = TextStyle(
-        fontFamily: "",
+        fontFamily: fontFamily,
         fontSize: float32(fontSize),
         color: fgColor,
         bold: false,

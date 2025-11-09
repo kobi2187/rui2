@@ -1,5 +1,20 @@
 ## Column Widget - Vertical layout container (Flutter-style)
 ##
+## DEPRECATED: Use VStack instead, which provides the same functionality
+## with more consistent naming (Justify/Alignment).
+##
+## Migration guide:
+##   Column -> VStack
+##   MainAxisAlignment -> Justify
+##     MainStart -> Start
+##     MainCenter -> Center
+##     MainEnd -> End
+##   CrossAxisAlignment -> Alignment
+##     CrossStart -> Leading
+##     CrossCenter -> Center
+##     CrossEnd -> Trailing
+##     CrossStretch -> Stretch
+##
 ## Arranges children vertically with spacing
 ##
 ## Flutter equivalent:
@@ -9,7 +24,9 @@
 ##     children: [...]
 ##   )
 
-import ../core/[types, widget_dsl]
+{.deprecated: "Use VStack instead - provides same functionality with consistent naming".}
+
+import ../../core/[types, widget_dsl]
 import std/math
 
 export types, widget_dsl
