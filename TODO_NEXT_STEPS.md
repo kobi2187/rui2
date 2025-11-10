@@ -165,7 +165,7 @@ VStack(spacing = 10):
 ## Priority 3: Add Remaining Specialty Widgets
 
 ### 5. Implement Remaining Widgets
-**Status**: 7 widgets remaining (16% of library)
+**Status**: 5 widgets remaining (11% of library, 2 optional)
 
 **Phase 7: Specialized Input Widgets**
 - [ ] **ColorPicker** (`widgets/specialized/colorpicker.nim`)
@@ -198,13 +198,6 @@ VStack(spacing = 10):
   - Axes and legends
   - Tooltips on hover
 
-- [ ] **CodeEditor** (`widgets/specialized/codeeditor.nim`)
-  - Syntax highlighting
-  - Line numbers
-  - Bracket matching
-  - Auto-indentation
-  - Find/replace
-
 - [ ] **GradientEditor** (`widgets/specialized/gradienteditor.nim`)
   - Color stops
   - Gradient preview
@@ -212,14 +205,14 @@ VStack(spacing = 10):
   - Add/remove stops
   - Export to CSS
 
-- [ ] **RichText** (`widgets/specialized/richtext.nim`)
-  - Bold, italic, underline
-  - Font sizes and colors
-  - Paragraphs and lists
-  - Links
-  - Images (optional)
+**Optional/Future Consideration** (Not prioritized):
+- **RichText/Markdown** - Consider using existing markdown renderer library to generate image/texture
+  - Alternative: Simple markdown widget that renders to formatted text
+  - Too complex for initial version
+- **CodeEditor** - Too complex, not needed for most applications
+  - If needed, integrate existing editor library
 
-**Estimated Time**: 4-5 hours for all 7 widgets
+**Estimated Time**: 2-3 hours for 2 core visualization widgets (Chart, GradientEditor)
 
 ---
 
@@ -291,8 +284,8 @@ tests/
 - [ ] Add 3 specialty widgets (ColorPicker, Calendar, DateTimePicker) (Day 5)
 
 **Week 3** (Medium Priority):
-- [ ] Add 4 visualization widgets (Chart, CodeEditor, GradientEditor, RichText) (Day 1-3)
-- [ ] Create unit tests for complex widgets (Day 4-5)
+- [ ] Add 2 visualization widgets (Chart, GradientEditor) (Day 1-2)
+- [ ] Create unit tests for complex widgets (Day 3-5)
 
 **Week 4** (Lower Priority):
 - [ ] Write documentation and tutorials (Day 1-3)
@@ -356,12 +349,16 @@ getThemeColor(ColorKind.Background)
 - [ ] All 38 widgets refactored with internal pattern
 - [ ] All examples use DSL instead of manual/Raylib code
 - [ ] All widgets use `app.currentTheme.*` instead of hardcoded values
-- [ ] 45+ total widgets (38 existing + 7 new)
+- [ ] 43 total widgets (38 existing + 5 new specialty/visualization)
 - [ ] 90%+ test coverage for internal functions
 - [ ] Complete documentation
 - [ ] 5+ example applications
 - [ ] Dark mode working perfectly
 - [ ] Performance: 60 FPS with 1M rows in DataGrid
+
+**Optional Future Additions** (not counted in metrics):
+- [ ] Markdown renderer integration for rich text display
+- [ ] Code editor integration (if needed)
 
 ---
 
