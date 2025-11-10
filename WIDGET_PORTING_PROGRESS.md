@@ -1,7 +1,7 @@
 # Widget Porting Progress - Hummingbird to RUI2
 
 **Last Updated**: 2025-11-10
-**Current Phase**: Phase 1 Complete ✅
+**Current Phase**: Phase 2 Complete ✅
 
 ## Overview
 
@@ -109,17 +109,64 @@ widgets/
 
 ## Next Steps
 
-### Phase 2: Selection & Display (7 widgets)
-**Goal**: Lists and data display
-**Priority**: Start with ComboBox, ListBox, ListView
+## Phase 2: Selection & Display ✅ COMPLETE
 
-1. [ ] **ComboBox** (combo_box.nim / combo_box2.nim)
-2. [ ] **ListBox** (list_box.nim)
-3. [ ] **ListView** (list_view.nim / list_view2.nim)
-4. [ ] **Separator** (separator.nim)
-5. [ ] **Tooltip** (tooltip.nim)
-6. [ ] **IconButton** (icon_button.nim)
-7. [ ] **Link** (link.nim)
+**Goal**: Lists and data display
+**Status**: 7/7 widgets ported
+**Time**: ~1.5 hours
+
+### Completed Widgets
+
+1. ✅ **Separator** (`widgets/basic/separator.nim`)
+   - Props: vertical, thickness, color
+   - No state, no actions
+   - Simple line drawing (horizontal or vertical)
+   - Uses: DrawLineEx from raylib
+
+2. ✅ **Link** (`widgets/basic/link.nim`)
+   - Props: text, url, colorUnvisited, colorVisited, colorHover, underline, disabled
+   - State: visited (Link[bool]), hovered
+   - Actions: onClick(), onNavigate(url: string)
+   - Events: on_mouse_down, on_mouse_enter, on_mouse_leave
+   - Uses: GuiLabelButton from raygui
+   - Features: Color changes on visit, underline decoration
+
+3. ✅ **IconButton** (`widgets/basic/iconbutton.nim`)
+   - Props: iconText, iconTexturePath, tooltip, size, disabled
+   - State: pressed, hovered, texture
+   - Actions: onClick()
+   - Events: on_mouse_down, on_mouse_up, on_mouse_enter, on_mouse_leave
+   - Uses: GuiButton from raygui
+   - Features: Text icons (emoji/Unicode) or texture support, tooltip display
+
+4. ✅ **Tooltip** (`widgets/basic/tooltip.nim`)
+   - Props: text, delay, offsetX, offsetY, backgroundColor, textColor, borderColor, padding
+   - State: visible, hoverStartTime, mouseX, mouseY
+   - Events: on_mouse_enter, on_mouse_leave, on_mouse_move
+   - Custom rendering with background, border, and positioned text
+   - Features: Delay before showing, follows mouse position
+
+5. ✅ **ComboBox** (`widgets/basic/combobox.nim`)
+   - Props: items (seq[string]), initialSelected, placeholder, disabled
+   - State: selectedIndex (Link[int]), isOpen
+   - Actions: onSelect(index: int)
+   - Events: on_mouse_down
+   - Uses: GuiComboBox from raygui
+   - Features: Dropdown list, selection tracking
+
+6. ✅ **ListBox** (`widgets/basic/listbox.nim`)
+   - Props: items (seq[string]), multiSelect, disabled
+   - State: selection (Link[HashSet[int]]), scrollIndex, focusIndex
+   - Actions: onSelect(selection: HashSet[int]), onItemActivate(index: int)
+   - Uses: GuiListView from raygui
+   - Features: Single or multi-select, scroll support
+
+7. ✅ **ListView** (`widgets/basic/listview.nim`)
+   - Props: items (seq[string]), itemHeight, multiSelect, showScrollbar, disabled
+   - State: selection (Link[HashSet[int]]), scrollIndex, hoverIndex
+   - Actions: onSelect(selection: HashSet[int]), onItemClick(index: int), onItemDoubleClick(index: int)
+   - Uses: GuiListView from raygui
+   - Features: Enhanced list with customizable item height, hover tracking
 
 ### Phase 3: Containers & Layout (5 widgets)
 1. [ ] **GroupBox** (group_box.nim / group_box2.nim)
@@ -199,18 +246,22 @@ For each widget, create:
 ## Statistics
 
 **Total Widgets**:
-- Ported: 7
-- Remaining: ~28
-- Progress: 20%
+- Ported: 14 (Phase 1: 7, Phase 2: 7)
+- Remaining: ~21
+- Progress: 40%
 
 **Lines of Code**:
 - Phase 1: ~500 lines
+- Phase 2: ~600 lines
+- Total so far: ~1100 lines
 - Estimated total: ~2500 lines
 - Code reduction vs manual: ~15%
 
 **Time Estimate**:
 - Phase 1: ~2 hours (actual)
-- Remaining: ~8 hours (estimated)
+- Phase 2: ~1.5 hours (actual)
+- Completed: ~3.5 hours
+- Remaining: ~6 hours (estimated)
 - Total project: ~10 hours
 
 ## Commit Strategy
@@ -234,6 +285,6 @@ Before committing:
 
 ---
 
-**Status**: 🎯 Phase 1 Complete! Ready for Phase 2.
+**Status**: 🎯 Phase 2 Complete! Ready for Phase 3.
 
-*7 widgets ported, 28 to go. The DSL is working beautifully!*
+*14 widgets ported, 21 to go. Making great progress!*
