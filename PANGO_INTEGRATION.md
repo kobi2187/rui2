@@ -1,535 +1,335 @@
-# Pango Text Rendering Integration
+# Pango Text Rendering Integration Plan
 
 **Last Updated**: 2025-11-10
-**Status**: ✅ Complete - Full Unicode/BiDi/Rich Text Support
+**Status**: 📋 Planned - Wrapper exists as stub, not yet implemented
 
-## Overview
+## Current Reality
 
-RUI2 uses Pango+Cairo for professional text rendering with comprehensive Unicode support, bidirectional text (BiDi), complex script shaping, and rich text formatting.
+### What Actually Exists ✅
+- **Pango wrapper stub** - `pango_integration/pangowrapper.nim` (35 lines)
+  - Contains placeholder types and functions
+  - Comment: "Placeholder - will integrate real Pango later"
+  - Returns dummy TextLayoutSimple with hardcoded dimensions
 
----
+- **Pango examples** - Test files that attempt to use pangolib_binding
+  - `examples/pango_basic_test.nim` - Imports external pangolib_binding
+  - `examples/pango_stress_test.nim` - Performance test scaffolding
+  - **Status**: Reference code, not currently working
 
-## Current Status
+- **Raylib text rendering** - Currently used throughout
+  - All widgets use Raylib's DrawText functions
+  - Works fine for ASCII and basic Unicode
+  - Limited BiDi/shaping support
 
-### What Works ✅
-- **Full Unicode Support** - Emoji, Chinese, Arabic, Thai, all scripts
-- **BiDi (Bidirectional)** - Hebrew, Arabic, mixed LTR/RTL text
-- **Text Shaping** - Complex scripts (Devanagari, Thai, etc.)
-- **Rich Formatting** - Bold, italic, colors, fonts, sizes
-- **Pango Markup** - `<b>`, `<i>`, `<span>` tags supported
-- **Performance** - 60 FPS with texture caching
-- **Raylib Integration** - Seamless Pango→Cairo→Texture pipeline
-
-### Integration Points
-- **Label Widget** - Uses Pango for text display
-- **Drawing Primitives** - `drawText()` uses Pango backend
-- **Theme System** - Fonts and colors from theme
-- **Texture Caching** - Rendered text cached for performance
-
----
-
-## Architecture
-
-```
-User Code (drawText call)
-    ↓
-drawing_primitives/text.nim
-    ↓
-    ├─ usePango defined → text_pango.nim
-    │       ↓
-    │   Pango Layout (text shaping, wrapping)
-    │       ↓
-    │   Cairo Surface (render to bitmap)
-    │       ↓
-    │   Texture Cache (reuse rendered text)
-    │       ↓
-    │   Raylib Texture2D
-    │
-    └─ noPango defined → text_raylib.nim
-            ↓
-        Raylib DrawText (fallback)
-```
-
-### Key Components
-
-**Pango Rendering Pipeline**:
-1. Create Pango layout with text and style
-2. Render layout to Cairo surface
-3. Convert Cairo bitmap to Raylib texture
-4. Cache texture for reuse
-5. Draw texture to screen
-
-**Benefits**:
-- Transparent to widgets (use `drawText()`)
-- Cached textures for performance
-- Fallback to Raylib if Pango unavailable
-- Professional text quality
+### What Doesn't Exist Yet ❌
+- **Real Pango integration** - Wrapper is just placeholder
+- **Cairo surface conversion** - Not implemented
+- **Texture caching for Pango** - Not needed yet
+- **Unicode shaping pipeline** - Not connected
+- **BiDi text support** - Not working
+- **Rich text markup** - Not implemented
 
 ---
 
-## API Usage
+## Why This Matters
 
-### Basic Text Rendering
+**Current text rendering works fine** for most use cases with Raylib:
+- ASCII text renders perfectly
+- Basic Unicode (Latin, numbers, symbols) works
+- Simple applications don't need Pango
+
+**Pango would add** (when implemented):
+- Full Unicode support (emoji, complex scripts)
+- BiDi text (Arabic, Hebrew mixed with English)
+- Text shaping (Thai, Devanagari, Arabic ligatures)
+- Rich text markup (`<b>`, `<i>`, `<span>`)
+- Professional typography (kerning, ligatures)
+
+---
+
+## Implementation Plan
+
+### Phase 1: Fix External Dependency
+**Goal**: Get pangolib_binding working
+
+1. **Options**:
+   - Use existing `pangolib_binding` from sibling directory
+   - Create minimal Pango/Cairo bindings specific to RUI2 needs
+   - Use community Pango wrapper package
+
+2. **Challenges**:
+   - Pragma issues mentioned in stub comments
+   - Cross-platform compatibility (Linux/Mac/Windows)
+   - Dependency management (Pango/Cairo libraries)
+
+### Phase 2: Pango→Raylib Bridge
+**Goal**: Render Pango text to Raylib textures
 
 ```nim
-import drawing_primitives/drawing_primitives
+# Proposed API (not yet implemented)
+proc renderTextWithPango*(text: string, style: TextStyle): Texture2D =
+  # 1. Create Pango layout
+  let layout = pango_layout_new(context)
+  pango_layout_set_text(layout, text)
 
-# Simple text
-drawText("Hello World", rect, style)
+  # 2. Render to Cairo surface
+  let surface = cairo_image_surface_create(...)
+  let cr = cairo_create(surface)
+  pango_cairo_show_layout(cr, layout)
 
-# Unicode text
-drawText("🎨 こんにちは العربية", rect, style)
+  # 3. Convert Cairo bitmap to Raylib texture
+  let pixels = cairo_image_surface_get_data(surface)
+  let texture = LoadTextureFromImage(...)
 
-# Rich text with Pango markup
-drawText("<b>Bold</b> and <i>italic</i>", rect, style, markup = true)
+  # 4. Cleanup
+  cairo_destroy(cr)
+  cairo_surface_destroy(surface)
+  g_object_unref(layout)
+
+  return texture
 ```
 
-### Text Measurement
+### Phase 3: Text Caching
+**Goal**: Avoid re-rendering unchanged text
 
 ```nim
-let size = measureText("Sample Text", style)
-echo "Width: ", size.width, ", Height: ", size.height
-```
-
-### In Widgets
-
-```nim
-definePrimitive(Label):
-  props:
-    text: string
-    fontSize: float = 16.0
-
-  render:
-    let style = TextStyle(
-      fontSize: widget.fontSize,
-      color: widget.textColor
-    )
-    # Uses Pango automatically if compiled with -d:usePango
-    drawText(widget.text, widget.bounds, style)
-```
-
----
-
-## Compilation Flags
-
-```bash
-# Use Pango (default, recommended)
-nim c -d:usePango -d:useGraphics myapp.nim
-
-# Force Raylib fallback (simple ASCII text)
-nim c -d:noPango -d:useGraphics myapp.nim
-
-# In config.nims:
-when not defined(noPango):
-  switch("define", "usePango")
-```
-
----
-
-## Performance Benchmarks
-
-### Stress Test Results
-
-Test: `examples/pango_stress_test.nim` - 150 labels with dynamic updates
-
-**Test Phases**:
-1. **Phase 0**: Static rendering (no updates)
-2. **Phase 1**: Occasional updates (5 labels/sec)
-3. **Phase 2**: Frequent updates (200 labels/sec)
-4. **Phase 3**: Continuous updates (3000 labels/sec)
-
-**Results**:
-```
-Total Frames:       1200
-Average FPS:        59.8 ✓
-Average Frame Time: 14ms ✓
-Min Frame Time:     12ms
-Max Frame Time:     18ms
-Dropped Frames:     2 ✓
-Flicker Events:     0 ✓✓
-Cache Hits:         2450
-Cache Misses:       150
-Hit Ratio:          94.2%
-```
-
-**Performance Targets Met**:
-- ✅ 60 FPS maintained throughout
-- ✅ No text flickering
-- ✅ Cache hit rate > 90%
-- ✅ Frame time < 16ms average
-- ✅ Minimal dropped frames
-
-### Performance Characteristics
-
-| Operation | Time | Notes |
-|-----------|------|-------|
-| First render | < 5ms | Pango + texture creation |
-| Cached render | < 0.1ms | Texture blit only |
-| Text update | 2-3ms | Re-render to texture |
-| Large text (10k chars) | < 20ms | Still 60 FPS |
-
-### Cache Strategy
-
-```nim
+# Proposed cache system (not yet implemented)
 type
-  TextCacheEntry = object
+  TextCache = object
+    entries: Table[string, CachedText]
+    maxSize: int
+
+  CachedText = object
     texture: Texture2D
     lastUsed: Time
     refCount: int
 
-  TextCache = object
-    entries: Table[string, TextCacheEntry]
-    maxEntries: int = 1000
-    maxMemoryMB: int = 100
+proc getCachedText(cache: var TextCache, text: string, style: TextStyle): Texture2D =
+  let key = hashTextAndStyle(text, style)
+  if key in cache.entries:
+    cache.entries[key].lastUsed = now()
+    return cache.entries[key].texture
+  else:
+    let texture = renderTextWithPango(text, style)
+    cache.entries[key] = CachedText(texture: texture, lastUsed: now())
+    return texture
 ```
 
-**Cache Features**:
-- LRU eviction for memory management
-- Per-widget texture caching
-- Automatic invalidation on text/style changes
-- Memory limit: ~100MB default
-
----
-
-## Unicode & BiDi Support
-
-### Supported Scripts
-
-**Full support for**:
-- Latin, Cyrillic, Greek
-- Chinese (Simplified, Traditional)
-- Japanese (Hiragana, Katakana, Kanji)
-- Korean (Hangul)
-- Arabic, Hebrew (RTL with BiDi)
-- Thai, Devanagari, Tamil (complex shaping)
-- Emoji (color emoji support)
-
-### BiDi Example
+### Phase 4: Widget Integration
+**Goal**: Widgets use Pango optionally
 
 ```nim
-# Mixed Hebrew and English
-drawText("Hello עברית World", rect, style)
+# Proposed usage (not yet implemented)
+definePrimitive(Label):
+  props:
+    text: string
+    usePango: bool = false  # Feature flag
 
-# Arabic with proper shaping
-drawText("مرحبا بك", rect, style)
-
-# Automatic text direction detection
+  render:
+    when defined(useGraphics):
+      if widget.usePango and pangoAvailable():
+        # Use Pango rendering
+        let texture = renderTextWithPango(widget.text, style)
+        DrawTexture(texture, widget.bounds.x, widget.bounds.y, WHITE)
+      else:
+        # Fallback to Raylib
+        DrawText(widget.text, ...)
 ```
-
-**Pango handles**:
-- Automatic script detection
-- Proper text shaping
-- Cursor positioning in BiDi text
-- Selection handling in mixed LTR/RTL
 
 ---
 
-## Rich Text Support
+## Estimated Implementation
 
-### Pango Markup
+### Time Required
+- **Phase 1** (Fix Pango bindings): 4-6 hours
+  - Debug pragma issues
+  - Cross-platform testing
+  - Basic render test
+
+- **Phase 2** (Pango→Raylib bridge): 6-8 hours
+  - Cairo surface creation
+  - Bitmap conversion
+  - Memory management
+  - Testing with various scripts
+
+- **Phase 3** (Text caching): 3-4 hours
+  - Cache implementation
+  - LRU eviction
+  - Performance testing
+
+- **Phase 4** (Widget integration): 2-3 hours
+  - Update Label widget
+  - Add feature flags
+  - Update examples
+
+**Total**: 15-21 hours of focused work
+
+### Complexity Assessment
+- **High complexity** - Requires understanding:
+  - Pango layout system
+  - Cairo rendering
+  - Memory management (ref counting)
+  - Bitmap format conversion
+  - Cross-platform C library integration
+
+---
+
+## Alternative: Current Raylib Approach
+
+**What works now** (no Pango needed):
 
 ```nim
-# Bold and italic
-drawText("<b>Bold</b> <i>Italic</i>", rect, style, markup = true)
+# Simple text rendering (works today)
+DrawText("Hello World", x, y, fontSize, color)
 
-# Font and size
-drawText("<span font='Arial 24'>Large</span>", rect, style, markup = true)
+# Unicode that works
+DrawText("Hello 世界 🎨", x, y, fontSize, color)  # Basic Unicode OK
 
-# Colors
-drawText("<span color='#FF0000'>Red</span> Text", rect, style, markup = true)
-
-# Combined
-drawText("""
-  <b>Header</b>
-  <span size='12000' color='blue'>Subheading</span>
-  Normal text with <i>emphasis</i>
-""", rect, style, markup = true)
+# What doesn't work well:
+# - BiDi: "Hello עברית" (Hebrew mixed with English)
+# - Complex scripts: "สวัสดี" (Thai) may not shape correctly
+# - Rich formatting: No <b> or <i> support
 ```
 
-### Supported Tags
+**Raylib limitations**:
+- No BiDi support
+- Limited text shaping
+- No rich text markup
+- Basic font rendering only
 
-- `<b>`, `<i>`, `<u>` - Bold, italic, underline
-- `<span font='...' size='...' color='...'>` - Font styling
-- `<tt>` - Monospace
-- `<s>` - Strikethrough
-- `<sub>`, `<sup>` - Subscript, superscript
+**Raylib strengths**:
+- Simple API
+- Fast rendering
+- Cross-platform
+- Works out of the box
+- Sufficient for most UI needs
 
 ---
 
-## Integration with Theme System
+## Decision Points
 
-### Font Configuration
+### When to implement Pango?
 
-```nim
-# Theme defines fonts
-type ThemeProps = object
-  fontFamily: string = "Sans"
-  fontSize: float = 14.0
-  fontWeight: FontWeight = Normal
-  fontStyle: FontStyle = Normal
+**Implement Pango if**:
+- Need to support Arabic/Hebrew users (BiDi critical)
+- Need complex script shaping (Thai, Devanagari)
+- Want rich text formatting (bold, italic, colors in single label)
+- Building text editor or document viewer
+- Professional typography required
 
-# Widget uses theme fonts
-let props = theme.getThemeProps(intent, state)
-let style = TextStyle(
-  fontFamily: props.fontFamily,
-  fontSize: props.fontSize,
-  color: props.textColor
-)
-drawText(widget.text, widget.bounds, style)
-```
+**Stick with Raylib if**:
+- Building simple UI (buttons, forms, menus)
+- Target audience uses Latin scripts
+- Don't need BiDi or complex scripts
+- Want simplest possible setup
+- Performance is critical (Pango has overhead)
 
-### Theme Example
+### Current Recommendation
 
-```json
-{
-  "light": {
-    "default": {
-      "normal": {
-        "fontFamily": "Noto Sans",
-        "fontSize": 14,
-        "textColor": "#000000"
-      },
-      "hovered": {
-        "textColor": "#0000FF"
-      }
-    }
-  }
-}
-```
+**For RUI2 right now**: Continue using Raylib
+- Widget library is comprehensive without Pango
+- Most applications don't need BiDi/shaping
+- Can add Pango later if users request it
+- Reduces dependencies and complexity
+
+**Add Pango later when**:
+- User requests BiDi support
+- Someone volunteers to implement it
+- Need rich text editor widget
+- Building internationalized app
 
 ---
 
-## Text Input Widgets (Future)
+## Files and Structure
 
-### Planned Widgets
+### Current Files
+```
+pango_integration/
+├── pangowrapper.nim          # 35 lines, stub/placeholder
+└── (future files)
 
-**TextInput** (single-line):
-- Text editing with cursor
-- Selection support
-- Copy/paste
-- Unicode input (IME)
-- on_submit event
+examples/
+├── pango_basic_test.nim      # References external pangolib_binding
+└── pango_stress_test.nim     # Test scaffolding
 
-**TextArea** (multi-line):
-- Multi-line editing
-- Line wrapping (word/char)
-- Scrolling
-- Rich text formatting
-- Undo/redo
-
-**TextDisplay** (read-only):
-- Formatted text display
-- Selectable text
-- Rich markup
-- Used for labels, paragraphs
-
-### Implementation Status
-
-| Widget | Status | Notes |
-|--------|--------|-------|
-| Label | ✅ Complete | Using Pango |
-| TextInput | 📋 Planned | Single-line editor |
-| TextArea | 📋 Planned | Multi-line editor |
-| TextDisplay | 📋 Planned | Read-only rich text |
-
----
-
-## Advanced Features
-
-### Custom Fonts
-
-```nim
-# Load custom font file
-loadFont("MyFont.ttf")
-
-# Use in text style
-let style = TextStyle(
-  fontFamily: "MyFont",
-  fontSize: 18.0
-)
-drawText("Custom Font", rect, style)
+drawing_primitives/
+└── pango_render.nim          # May have partial code, needs investigation
 ```
 
-### Text Wrapping
-
-```nim
-# Word wrap
-let style = TextStyle(
-  wrapMode: WrapWord,
-  maxWidth: 300.0
-)
-drawText(longText, rect, style)
-
-# Character wrap
-let style = TextStyle(
-  wrapMode: WrapChar,
-  maxWidth: 300.0
-)
+### Future Structure (when implemented)
 ```
+pango_integration/
+├── pangowrapper.nim          # Real Pango/Cairo wrapper
+├── pango_cache.nim           # Texture caching
+├── pango_raylib_bridge.nim   # Convert Cairo → Raylib
+└── pango_helpers.nim         # Utility functions
 
-### Text Alignment
-
-```nim
-# Left, center, right
-drawText(text, rect, style, align = TextAlign.Center)
-
-# Justify
-drawText(text, rect, style, align = TextAlign.Justify)
+text_rendering/
+├── text_backend.nim          # Abstract interface
+├── raylib_backend.nim        # Current Raylib implementation
+└── pango_backend.nim         # Future Pango implementation
 ```
 
 ---
 
-## Troubleshooting
+## Success Criteria (When Implemented)
 
-### Common Issues
+**Must work**:
+- [ ] Render ASCII text via Pango
+- [ ] Render Unicode (emoji, CJK) via Pango
+- [ ] Render BiDi text (Hebrew+English) correctly
+- [ ] Complex script shaping (Thai, Arabic)
+- [ ] Rich text markup (`<b>`, `<i>`, colors)
+- [ ] Cache textures (no re-render unless changed)
+- [ ] Performance: 60 FPS with 100+ labels
+- [ ] Memory: No leaks, proper cleanup
 
-**Issue**: Text not rendering
-- **Check**: Compiled with `-d:usePango`?
-- **Check**: Pango libraries installed?
-- **Fix**: Install `libpango-1.0-dev`
-
-**Issue**: Low FPS with text updates
-- **Cause**: Text being re-rendered every frame
-- **Fix**: Use texture caching, only update on change
-- **Check**: Set dirty flag only when text/style changes
-
-**Issue**: Flickering text
-- **Cause**: Texture recreated every frame
-- **Fix**: Reuse texture, update only on text change
-- **Check**: Texture ID should stay constant
-
-**Issue**: Missing Unicode characters
-- **Cause**: Font doesn't support script
-- **Fix**: Install comprehensive fonts (Noto Sans, Noto Serif)
-- **Check**: Font fallback working
-
-### Performance Tips
-
-1. **Cache aggressively** - Don't re-render unchanged text
-2. **Dirty flags** - Only update texture on text/style change
-3. **Batch updates** - Update multiple labels together
-4. **Font preloading** - Load fonts at startup
-5. **Limit cache** - Set reasonable memory limits
+**Integration requirements**:
+- [ ] Works with Label widget
+- [ ] Works with Button widget (text labels)
+- [ ] Optional via compile flag `-d:usePango`
+- [ ] Fallback to Raylib if Pango unavailable
+- [ ] Theme fonts work with Pango
+- [ ] Cross-platform (Linux, Mac, Windows)
 
 ---
 
-## Dependencies
+## Current Workaround
 
-**External Libraries**:
-- Pango (libpango-1.0)
-- Cairo (libcairo2)
-- FreeType (libfreetype6)
+**For internationalized apps today**:
 
-**Install on Ubuntu/Debian**:
-```bash
-sudo apt-get install libpango-1.0-dev libcairo2-dev libfreetype6-dev
-```
+1. **Use Raylib with Unicode fonts**:
+   - Load Noto Sans (supports most scripts)
+   - Basic Unicode will render
+   - BiDi won't work correctly but readable
 
-**Install on macOS**:
-```bash
-brew install pango cairo freetype
-```
+2. **Preprocess BiDi text**:
+   - Use external library to reorder BiDi
+   - Feed reordered text to Raylib
+   - Not perfect but may be acceptable
 
-**Install on Windows**:
-```bash
-pacman -S mingw-w64-x86_64-pango mingw-w64-x86_64-cairo
-```
+3. **Use images for complex text**:
+   - Pre-render complex text elsewhere
+   - Load as images in UI
+   - Not dynamic but works
 
----
-
-## Testing
-
-### Run Stress Test
-
-```bash
-# Compile stress test
-nim c -d:usePango -d:useGraphics examples/pango_stress_test.nim
-
-# Run test
-./examples/pango_stress_test
-
-# Watch for:
-# - FPS staying at 60
-# - No flicker warnings
-# - Cache hit ratio > 90%
-```
-
-### Visual Tests
-
-Create test app:
-```nim
-import raylib
-import widgets/basic/label
-
-proc main() =
-  initWindow(800, 600, "Pango Test")
-  setTargetFPS(60)
-
-  let label = newLabel()
-  label.text = "🎨 Hello 世界 مرحبا"
-  label.bounds = Rectangle(x: 100, y: 100, width: 600, height: 50)
-
-  while not windowShouldClose():
-    beginDrawing()
-    clearBackground(RAYWHITE)
-    label.render()
-    endDrawing()
-
-  closeWindow()
-
-when isMainModule:
-  main()
-```
+4. **Wait for Pango** (recommended):
+   - Current Raylib works for most cases
+   - Implement Pango when actually needed
+   - Don't over-engineer prematurely
 
 ---
 
-## Future Improvements
+## Summary
 
-### Phase 1: Text Input Widgets
-- [ ] Implement TextInput widget (single-line)
-- [ ] Implement TextArea widget (multi-line)
-- [ ] Add cursor positioning and blinking
-- [ ] Add text selection with mouse/keyboard
+**Reality**: Pango integration is planned but not implemented. The `pangowrapper.nim` file is a 35-line stub with placeholder functions. All current text rendering uses Raylib.
 
-### Phase 2: Advanced Editing
-- [ ] Copy/paste support
-- [ ] Undo/redo system
-- [ ] Find/replace
-- [ ] Syntax highlighting
+**Good news**: Raylib text rendering works fine for most applications. The widget library is complete and functional without Pango.
 
-### Phase 3: Performance
-- [ ] GPU texture caching
-- [ ] Partial texture updates
-- [ ] Font atlas for common characters
-- [ ] Sub-pixel rendering
+**Future**: Pango integration is a 15-21 hour project that would add professional text rendering, BiDi support, and rich text. Implement it when actually needed by users.
 
-### Phase 4: Accessibility
-- [ ] Screen reader support
-- [ ] Keyboard navigation
-- [ ] High contrast themes
-- [ ] Font size scaling
+**For now**: Be honest that this is planned future work, not a completed feature. The documentation previously overstated the implementation status.
 
 ---
 
-## Success Criteria
-
-**Current Achievement**: ✅✅✅
-
-- ✅ Full Unicode rendering (all scripts)
-- ✅ BiDi text (Hebrew, Arabic)
-- ✅ Rich text markup (bold, italic, colors)
-- ✅ 60 FPS performance
-- ✅ Zero flickering
-- ✅ Texture caching working
-- ✅ Theme integration
-- ✅ Transparent widget API
-
-**Next Goals**:
-- 🎯 Interactive text editing (TextInput)
-- 🎯 Multi-line editing (TextArea)
-- 🎯 Copy/paste support
-- 🎯 Undo/redo system
-
----
-
-**Status**: 🎯 Pango integration complete! Professional text rendering with full Unicode support at 60 FPS.
+**Status**: 📋 Planned - Comprehensive design exists, wrapper is stub, implementation needed when BiDi/shaping required.

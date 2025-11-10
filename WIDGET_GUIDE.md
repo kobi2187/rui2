@@ -4,9 +4,10 @@
 
 ## Current Widget Library Status
 
-**Completion**: 38/45 widgets (84%)
-**DSL**: v2 system with `definePrimitive` and `defineWidget` macros
+**Completion**: 44 unique widgets (52 files including variants)
+**DSL**: v2 system with `definePrimitive` and `defineWidget` macros (widget_dsl_v2.nim, 866 lines)
 **Organization**: Categorized by functionality in subdirectories
+**Total Code**: 6,280 lines of widget code across all files
 
 ---
 
@@ -14,53 +15,68 @@
 
 ```
 widgets/
-├── basic/                    # 18 basic UI elements
-│   ├── label.nim                  - Text display with theme support
+├── basic/                    # 19 files (16 unique + variants)
 │   ├── button.nim                 - Basic button widget
+│   ├── button_v2.nim              - Button variant
 │   ├── button_yaml.nim            - Button with YAML-UI style events
 │   ├── checkbox.nim               - Toggle checkbox
-│   ├── radiobutton.nim            - Radio button control
-│   ├── slider.nim                 - Value slider
-│   ├── progressbar.nim            - Progress indicator
-│   ├── spinner.nim                - Numeric spinner
-│   ├── numberinput.nim            - Numeric text input
-│   ├── separator.nim              - Visual separator line
-│   ├── link.nim                   - Clickable hyperlink
-│   ├── iconbutton.nim             - Icon-based button
-│   ├── tooltip.nim                - Hover tooltip
 │   ├── combobox.nim               - Dropdown selection
+│   ├── iconbutton.nim             - Icon-based button
+│   ├── label.nim                  - Text display with theme support
+│   ├── link.nim                   - Clickable hyperlink
 │   ├── listbox.nim                - List selection
 │   ├── listview.nim               - Enhanced list view
-│   └── scrollbar.nim              - Scrollbar control
-├── containers/               # 9 layout containers
-│   ├── vstack.nim                 - Vertical stack layout
-│   ├── hstack.nim                 - Horizontal stack layout
+│   ├── numberinput.nim            - Numeric text input
+│   ├── progressbar.nim            - Progress indicator
+│   ├── radiobutton.nim            - Radio button control
+│   ├── scrollbar.nim              - Scrollbar control
+│   ├── separator.nim              - Visual separator line
+│   ├── slider.nim                 - Value slider
+│   ├── spinner.nim                - Numeric spinner
+│   ├── toolbutton.nim             - Toolbar button
+│   └── tooltip.nim                - Hover tooltip
+├── containers/               # 14 files (10 unique + variants)
 │   ├── column.nim                 - Legacy column (use vstack)
-│   ├── panel.nim                  - Bordered container
-│   ├── spacer.nim                 - Flexible spacing
-│   ├── radiogroup.nim             - Radio button group
-│   ├── statusbar.nim              - Status bar
 │   ├── groupbox.nim               - Titled group box
+│   ├── hstack.nim                 - Horizontal stack layout
+│   ├── hstack_v2.nim              - HStack variant
+│   ├── panel.nim                  - Bordered container
+│   ├── radiogroup.nim             - Radio button group
+│   ├── scrollview.nim             - Scrollable container
+│   ├── spacer.nim                 - Flexible spacing
+│   ├── statusbar.nim              - Status bar
 │   ├── tabcontrol.nim             - Tabbed interface
-│   └── scrollview.nim             - Scrollable container
+│   ├── toolbar.nim                - Toolbar container
+│   ├── vstack.nim                 - Vertical stack layout
+│   ├── vstack_v2.nim              - VStack variant
+│   └── zstack_v2.nim              - Z-axis stacking container
 ├── menus/                    # 4 menu widgets
-│   ├── menuitem.nim               - Menu item
+│   ├── contextmenu.nim            - Context menu
 │   ├── menu.nim                   - Dropdown menu
 │   ├── menubar.nim                - Menu bar
-│   └── contextmenu.nim            - Context menu
+│   └── menuitem.nim               - Menu item
 ├── dialogs/                  # 3 dialog widgets
-│   ├── messagebox.nim             - Message dialog
 │   ├── filedialog.nim             - File selection dialog
-│   └── filepicker.nim             - File picker widget
-├── data/                     # 3 data widgets
-│   ├── treeview.nim               - Hierarchical tree
-│   ├── datagrid.nim               - Data grid
-│   └── datatable.nim              - Filterable data table
-└── modern/                   # 4 modern widgets
-    ├── dragdroparea.nim           - File drag-drop
-    ├── timeline.nim               - Timeline visualization
-    ├── canvas.nim                 - Drawing canvas
-    └── mapwidget.nim              - Map visualization
+│   ├── filepicker.nim             - File picker widget
+│   └── messagebox.nim             - Message dialog
+├── data/                     # 4 files (3 widgets + helpers)
+│   ├── datagrid.nim               - Data grid with virtual scrolling
+│   ├── datatable.nim              - Filterable data table
+│   ├── datatable_helpers.nim      - Helper functions for datatable
+│   └── treeview.nim               - Hierarchical tree
+├── modern/                   # 4 modern widgets
+│   ├── canvas.nim                 - Interactive drawing canvas
+│   ├── dragdroparea.nim           - File drag-drop area
+│   ├── mapwidget.nim              - Map visualization
+│   └── timeline.nim               - Timeline visualization
+├── input/                    # 1 input widget
+│   └── textinput.nim              - Single-line text input
+└── primitives/               # 3 primitive widgets
+    ├── circle.nim                 - Circle primitive
+    ├── label.nim                  - Label primitive
+    └── rectangle.nim              - Rectangle primitive
+
+Total: 52 files, 44 unique widgets
 ```
 
 ---
@@ -578,4 +594,4 @@ proc main() =
 
 ---
 
-**Status**: 🎯 38/45 widgets complete! Well-organized, tested, and documented.
+**Status**: 🎯 44 unique widgets complete (52 files)! Comprehensive widget library, well-organized and functional.
