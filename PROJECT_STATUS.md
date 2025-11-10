@@ -18,7 +18,7 @@
 2. **Layout System** - VStack/HStack with Flutter-style parameters (spacing, align, justify)
 3. **Theme System** - 5 built-in themes (light, dark, beos, joy, wide) with runtime switching
 4. **Hit Testing** - Dual interval trees for efficient spatial queries
-5. **Text Rendering** - Raylib text rendering (Pango wrapper ready, needs external pangolib_binding)
+5. **Text Rendering** - Pango+Cairo for all text (full Unicode, BiDi, text shaping)
 6. **Reactive State** - Link[T] for state management
 7. **Virtual Scrolling** - Implemented in data widgets for large datasets
 
@@ -131,7 +131,7 @@ vstack.layout()  # Calculates positions
 - dsl_test_combined.nim, dsl_test_manual_vs_macro.nim
 - test_macro.nim, test_primitives_v2.nim, test_widgets_v2.nim
 
-**Pango Tests** (require external pangolib_binding):
+**Pango Tests** (working examples):
 - pango_basic_test.nim, pango_stress_test.nim
 
 **Full Applications**:
@@ -149,12 +149,12 @@ vstack.layout()  # Calculates positions
 | Hit Testing | ✅ Complete | O(log n) spatial queries |
 | Widget DSL v2 | ✅ Complete | definePrimitive/defineWidget (866 lines) |
 | Layout System | ✅ Complete | VStack/HStack with Flutter params |
-| Text Rendering | ✅ Raylib | Using Raylib, Pango wrapper ready (needs external lib) |
+| Text Rendering | ✅ Pango | Pango+Cairo for all text, automatic caching |
 | Widget Library | ✅ Complete | 44 widgets (52 files), very comprehensive |
 | Virtual Scrolling | ✅ Complete | Data widgets handle millions of rows |
 | Event System | ✅ Complete | YAML-UI event handlers |
 | Reactive State | ✅ Complete | Link[T] implementation |
-| Pango Integration | 🔧 Wrapper Ready | Conditional import, needs pangolib_binding installed |
+| Pango Integration | ✅ Complete | text_render.nim provides drawText API with caching |
 
 ---
 
