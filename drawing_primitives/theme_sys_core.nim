@@ -13,16 +13,36 @@ type
     Focused    # Keyboard focus
     Selected   # For lists, tabs etc
     DragOver   # When dragging something over this widget
-    
+
   ThemeIntent* = enum
     Default    # Normal appearance
     Info       # Informational elements
     Success    # Positive actions/states
     Warning    # Caution required
     Danger     # Destructive or error states
-    
+
+  # Visual effect styles
+  BevelStyle* = enum
+    Flat       # No bevel (default flat design)
+    Raised     # Classic 3D raised button (BeOS, Windows 98)
+    Sunken     # Classic 3D pressed/inset
+    Ridge      # Windows 98 panel ridge effect
+    Groove     # Windows 98 panel groove effect
+
+  GradientDirection* = enum
+    Vertical
+    Horizontal
+    Radial
+
+  ShadowLayer* = object
+    offsetX*: float32
+    offsetY*: float32
+    blur*: float32
+    opacity*: float32
+
   # Core visual properties
   ThemeProps* = object
+    # Basic colors and dimensions
     backgroundColor*: Option[Color]
     foregroundColor*: Option[Color]
     borderColor*: Option[Color]
@@ -30,9 +50,35 @@ type
     cornerRadius*: Option[float32]
     padding*: Option[EdgeInsets]
     spacing*: Option[float32]
+
+    # Text properties
     textStyle*: Option[TextStyle]
     fontSize*: Option[float32]
     fontFamily*: Option[string]  # Font family for text rendering
+
+    # 3D Bevel effects (BeOS, Windows 98, classic UIs)
+    bevelStyle*: Option[BevelStyle]
+    highlightColor*: Option[Color]      # Top-left edge for raised bevel (typically white)
+    shadowColor*: Option[Color]         # Bottom-right inner edge (typically gray)
+    darkShadowColor*: Option[Color]     # Bottom-right outer edge (typically black)
+
+    # Gradient effects (Mac OS X Aqua, modern UIs)
+    gradientStart*: Option[Color]
+    gradientEnd*: Option[Color]
+    gradientDirection*: Option[GradientDirection]
+
+    # Shadow effects (modern flat design, depth)
+    dropShadowOffset*: Option[tuple[x, y: float32]]
+    dropShadowBlur*: Option[float32]
+    dropShadowColor*: Option[Color]
+
+    # Glow effects (focus states, highlights)
+    glowColor*: Option[Color]
+    glowRadius*: Option[float32]
+
+    # Inner shadow (inset depth)
+    insetShadowDepth*: Option[float32]
+    insetShadowOpacity*: Option[float32]
     
 
     

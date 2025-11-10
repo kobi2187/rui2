@@ -249,6 +249,275 @@ textStyle:
 
 ---
 
+### 3D Bevel Effects (Classic UIs)
+
+For authentic BeOS, Windows 98, and classic Mac OS themes.
+
+#### `bevelStyle`
+Type of 3D bevel effect to apply.
+
+**Values**:
+- `Flat` - No bevel (default modern flat design)
+- `Raised` - Classic 3D raised button (light top-left, dark bottom-right)
+- `Sunken` - Pressed/inset appearance (dark top-left, light bottom-right)
+- `Ridge` - Windows 98 panel ridge effect
+- `Groove` - Windows 98 panel groove effect
+
+**Example**:
+```yaml
+bevelStyle: Raised    # BeOS/Windows 98 style button
+bevelStyle: Sunken    # Pressed button appearance
+bevelStyle: Flat      # Modern flat design
+```
+
+#### `highlightColor`
+Color for top-left bevel edge (light highlight).
+
+**Type**: Color
+**Default**: White (#FFFFFF)
+
+**Example**:
+```yaml
+highlightColor: "#FFFFFF"    # Bright white highlight
+highlightColor: "#F0F0F0"    # Subtle highlight
+```
+
+#### `shadowColor`
+Color for bottom-right inner bevel edge.
+
+**Type**: Color
+**Default**: Gray (#808080)
+
+**Example**:
+```yaml
+shadowColor: "#808080"    # Classic gray shadow
+shadowColor: "#999999"    # Lighter shadow
+```
+
+#### `darkShadowColor`
+Color for bottom-right outer bevel edge (darkest shadow).
+
+**Type**: Color
+**Default**: Black (#000000)
+
+**Example**:
+```yaml
+darkShadowColor: "#000000"    # Deep black shadow
+darkShadowColor: "#666666"    # Softer shadow
+```
+
+**Complete Bevel Example**:
+```yaml
+# Windows 98 Button
+bevelStyle: Raised
+backgroundColor: "#C0C0C0"
+highlightColor: "#FFFFFF"
+shadowColor: "#808080"
+darkShadowColor: "#000000"
+cornerRadius: 0.0    # Sharp corners
+
+states:
+  default:
+    pressed:
+      bevelStyle: Sunken    # Invert bevel when clicked!
+```
+
+---
+
+### Gradient Effects (Modern UIs)
+
+For Mac OS X Aqua, glossy buttons, and modern gradients.
+
+#### `gradientStart`
+Starting color for gradient fill.
+
+**Type**: Color
+
+**Example**:
+```yaml
+gradientStart: "#E0E8F0"    # Light blue top
+```
+
+#### `gradientEnd`
+Ending color for gradient fill.
+
+**Type**: Color
+
+**Example**:
+```yaml
+gradientEnd: "#B0C0D0"    # Darker blue bottom
+```
+
+#### `gradientDirection`
+Direction of gradient.
+
+**Values**:
+- `Vertical` - Top to bottom
+- `Horizontal` - Left to right
+- `Radial` - Center outward
+
+**Example**:
+```yaml
+gradientDirection: Vertical    # Default
+gradientDirection: Horizontal
+gradientDirection: Radial
+```
+
+**Complete Gradient Example**:
+```yaml
+# Mac OS X Aqua Button
+gradientStart: "#E0E8F0"
+gradientEnd: "#B0C0D0"
+gradientDirection: Vertical
+borderColor: "#88A0B8"
+borderWidth: 1.0
+cornerRadius: 8.0
+
+states:
+  default:
+    hovered:
+      gradientStart: "#F0F8FF"    # Lighter on hover
+      gradientEnd: "#C0D0E0"
+```
+
+---
+
+### Shadow Effects (Depth and Elevation)
+
+For modern flat design with depth.
+
+#### `dropShadowOffset`
+Offset of drop shadow from element.
+
+**Type**: Tuple of (x, y) floats
+
+**Example**:
+```yaml
+dropShadowOffset: [4.0, 4.0]      # Shadow 4px right and down
+dropShadowOffset: [0.0, 8.0]      # Shadow directly below
+dropShadowOffset: [-2.0, -2.0]    # Shadow up and left
+```
+
+#### `dropShadowBlur`
+Blur radius of drop shadow (softness).
+
+**Type**: Float
+**Default**: 8.0
+
+**Example**:
+```yaml
+dropShadowBlur: 4.0     # Sharp shadow
+dropShadowBlur: 16.0    # Very soft shadow
+dropShadowBlur: 0.0     # No blur (hard edge)
+```
+
+#### `dropShadowColor`
+Color of drop shadow.
+
+**Type**: Color
+**Default**: Semi-transparent black
+
+**Example**:
+```yaml
+dropShadowColor: "rgba(0, 0, 0, 0.3)"      # 30% black
+dropShadowColor: "rgba(100, 100, 150, 0.2)" # Colored shadow
+```
+
+**Complete Shadow Example**:
+```yaml
+# Modern Elevated Card
+backgroundColor: "#FFFFFF"
+cornerRadius: 8.0
+dropShadowOffset: [0.0, 4.0]
+dropShadowBlur: 12.0
+dropShadowColor: "rgba(0, 0, 0, 0.15)"
+padding: 16.0
+```
+
+---
+
+### Glow Effects (Focus and Highlights)
+
+For welcoming focus states and soft highlights.
+
+#### `glowColor`
+Color of outer glow.
+
+**Type**: Color
+
+**Example**:
+```yaml
+glowColor: "#4A90E2"            # Blue glow
+glowColor: "rgba(74, 144, 226, 0.5)"  # Semi-transparent blue
+```
+
+#### `glowRadius`
+Radius of glow effect.
+
+**Type**: Float
+**Default**: 8.0
+
+**Example**:
+```yaml
+glowRadius: 4.0     # Subtle glow
+glowRadius: 16.0    # Strong glow
+```
+
+**Complete Glow Example**:
+```yaml
+# Focus State with Glow
+states:
+  default:
+    focused:
+      glowColor: "#4A90E2"
+      glowRadius: 12.0
+      borderColor: "#4A90E2"
+      borderWidth: 2.0
+```
+
+---
+
+### Inner Shadow Effects (Inset Depth)
+
+For recessed elements and input fields.
+
+#### `insetShadowDepth`
+Depth of inner shadow in pixels.
+
+**Type**: Float
+
+**Example**:
+```yaml
+insetShadowDepth: 2.0    # Subtle inset
+insetShadowDepth: 4.0    # Deeper inset
+```
+
+#### `insetShadowOpacity`
+Opacity of inner shadow.
+
+**Type**: Float (0.0 to 1.0)
+**Default**: 0.2
+
+**Example**:
+```yaml
+insetShadowOpacity: 0.1    # Very subtle
+insetShadowOpacity: 0.4    # More pronounced
+```
+
+**Complete Inset Example**:
+```yaml
+# Recessed Input Field
+backgroundColor: "#F5F5F5"
+insetShadowDepth: 3.0
+insetShadowOpacity: 0.2
+borderColor: "#CCCCCC"
+borderWidth: 1.0
+cornerRadius: 4.0
+padding: 8.0
+```
+
+---
+
 ## Complete Example Theme
 
 ```yaml
@@ -542,11 +811,201 @@ Verify your theme for all common states:
 
 ---
 
+## Authentic OS Theme Examples
+
+Complete themes that authentically recreate classic operating systems.
+
+### BeOS R5 Theme
+
+```yaml
+name: beos-authentic
+description: Authentic BeOS R5 look and feel
+
+base:
+  default:
+    backgroundColor: "#D9D9D9"
+    foregroundColor: "#000000"
+    bevelStyle: Raised
+    highlightColor: "#FFFFFF"
+    shadowColor: "#999999"
+    darkShadowColor: "#666666"
+    cornerRadius: 0.0           # Sharp corners
+    fontSize: 12.0
+    fontFamily: "Noto Sans"     # Close to BeOS fonts
+    padding:
+      top: 4.0
+      right: 6.0
+      bottom: 4.0
+      left: 6.0
+
+states:
+  default:
+    pressed:
+      bevelStyle: Sunken        # Invert bevel when clicked
+
+    disabled:
+      backgroundColor: "#CCCCCC"
+      foregroundColor: "#999999"
+```
+
+### Windows 98 Theme
+
+```yaml
+name: windows-98-authentic
+description: Classic Windows 98 look and feel
+
+base:
+  default:
+    backgroundColor: "#C0C0C0"
+    foregroundColor: "#000000"
+    bevelStyle: Raised
+    highlightColor: "#FFFFFF"
+    shadowColor: "#808080"
+    darkShadowColor: "#000000"
+    cornerRadius: 0.0           # Sharp corners
+    fontSize: 11.0
+    fontFamily: "MS Sans Serif"
+    padding: 4.0
+
+states:
+  default:
+    pressed:
+      bevelStyle: Sunken
+
+    focused:
+      borderColor: "#000000"
+      borderWidth: 1.0
+
+    disabled:
+      backgroundColor: "#C0C0C0"
+      foregroundColor: "#808080"
+```
+
+### Mac OS X Aqua Theme
+
+```yaml
+name: aqua-authentic
+description: Mac OS X Aqua look and feel
+
+base:
+  default:
+    gradientStart: "#E0E8F0"
+    gradientEnd: "#B0C0D0"
+    gradientDirection: Vertical
+    foregroundColor: "#000000"
+    borderColor: "#88A0B8"
+    borderWidth: 1.0
+    cornerRadius: 8.0           # Rounded Aqua buttons
+    fontSize: 13.0
+    fontFamily: "Lucida Grande"
+    padding: 8.0
+
+states:
+  default:
+    hovered:
+      gradientStart: "#F0F8FF"
+      gradientEnd: "#C0D0E0"
+
+    pressed:
+      gradientStart: "#B0C0D0"
+      gradientEnd: "#88A0B8"
+
+    focused:
+      borderColor: "#4A90E2"
+      borderWidth: 3.0          # Aqua focus ring
+      glowColor: "#4A90E2"
+      glowRadius: 4.0
+```
+
+### Modern Material Design Theme
+
+```yaml
+name: material-modern
+description: Google Material Design inspired
+
+base:
+  default:
+    backgroundColor: "#FFFFFF"
+    foregroundColor: "#212121"
+    cornerRadius: 4.0
+    fontSize: 14.0
+    fontFamily: "Roboto"
+    padding: 12.0
+    dropShadowOffset: [0.0, 2.0]
+    dropShadowBlur: 4.0
+    dropShadowColor: "rgba(0, 0, 0, 0.2)"
+
+  info:
+    backgroundColor: "#2196F3"
+    foregroundColor: "#FFFFFF"
+
+  success:
+    backgroundColor: "#4CAF50"
+    foregroundColor: "#FFFFFF"
+
+  warning:
+    backgroundColor: "#FF9800"
+    foregroundColor: "#FFFFFF"
+
+  danger:
+    backgroundColor: "#F44336"
+    foregroundColor: "#FFFFFF"
+
+states:
+  default:
+    hovered:
+      dropShadowOffset: [0.0, 4.0]
+      dropShadowBlur: 8.0
+      dropShadowColor: "rgba(0, 0, 0, 0.3)"
+
+    pressed:
+      dropShadowOffset: [0.0, 1.0]
+      dropShadowBlur: 2.0
+      dropShadowColor: "rgba(0, 0, 0, 0.2)"
+
+    focused:
+      glowColor: "#2196F3"
+      glowRadius: 8.0
+```
+
+### Neumorphic Theme (Calming Soft UI)
+
+```yaml
+name: neumorphic-soft
+description: Soft UI for calming applications
+
+base:
+  default:
+    backgroundColor: "#E0E5EC"
+    foregroundColor: "#4A5568"
+    cornerRadius: 12.0
+    fontSize: 14.0
+    fontFamily: "Inter"
+    padding: 16.0
+    # Neumorphism uses dual shadows
+    dropShadowOffset: [6.0, 6.0]
+    dropShadowBlur: 12.0
+    dropShadowColor: "rgba(163, 177, 198, 0.6)"
+    # Plus a light highlight shadow (use glow for this)
+    glowColor: "#FFFFFF"
+    glowRadius: 4.0
+
+states:
+  default:
+    pressed:
+      insetShadowDepth: 4.0
+      insetShadowOpacity: 0.3
+```
+
+---
+
 ## Summary
 
 **Required Fields**: Only `name` (all visual properties are optional)
 
 **All Available Fields**:
+
+**Basic**:
 - `backgroundColor` (color)
 - `foregroundColor` (color)
 - `borderColor` (color)
@@ -554,9 +1013,35 @@ Verify your theme for all common states:
 - `cornerRadius` (float)
 - `padding` (float or object)
 - `spacing` (float)
+
+**Text**:
 - `fontSize` (float)
 - `fontFamily` (string)
 - `textStyle` (object)
+
+**3D Bevel** (Classic UIs):
+- `bevelStyle` (Flat/Raised/Sunken/Ridge/Groove)
+- `highlightColor` (color)
+- `shadowColor` (color)
+- `darkShadowColor` (color)
+
+**Gradients** (Modern UIs):
+- `gradientStart` (color)
+- `gradientEnd` (color)
+- `gradientDirection` (Vertical/Horizontal/Radial)
+
+**Shadows** (Depth):
+- `dropShadowOffset` ([x, y])
+- `dropShadowBlur` (float)
+- `dropShadowColor` (color)
+
+**Glow** (Focus):
+- `glowColor` (color)
+- `glowRadius` (float)
+
+**Inner Shadow** (Inset):
+- `insetShadowDepth` (float)
+- `insetShadowOpacity` (float)
 
 **Color Formats**: `#RRGGBB`, `#RRGGBBAA`, `rgb(r,g,b)`, `rgba(r,g,b,a)`
 
@@ -564,6 +1049,10 @@ Verify your theme for all common states:
 
 **State Types**: normal, disabled, hovered, pressed, focused, selected, dragOver
 
+**Bevel Styles**: Flat, Raised, Sunken, Ridge, Groove
+
+**Gradient Directions**: Vertical, Horizontal, Radial
+
 ---
 
-**Status**: ✅ Theme system complete and documented
+**Status**: ✅ Theme system with visual effects complete and documented
