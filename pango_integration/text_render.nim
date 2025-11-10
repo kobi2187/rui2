@@ -9,6 +9,7 @@ import ./pangowrapper
 
 type
   TextStyle* = object
+    fontFamily*: string  # e.g. "Sans", "Serif", "Monospace"
     fontSize*: int32
     color*: Color
     maxWidth*: int32  # -1 for unlimited
@@ -28,6 +29,7 @@ proc hash(text: string, style: TextStyle): Hash =
   ## Hash text and style for caching
   var h: Hash = 0
   h = h !& hash(text)
+  h = h !& hash(style.fontFamily)
   h = h !& hash(style.fontSize)
   h = h !& hash(style.color.r)
   h = h !& hash(style.color.g)
@@ -50,13 +52,14 @@ proc evictOldCacheEntries() =
     unloadTexture(textCache[oldestKey].texture)
     textCache.del(oldestKey)
 
-proc drawText*(text: string, x, y: float32, fontSize: int32 = 20, color: Color = BLACK) =
+proc drawText*(text: string, x, y: float32, fontSize: int32 = 20, color: Color = BLACK, fontFamily: string = "Sans") =
   ## Draw text using Pango rendering
   ## Text is cached for performance
 
   inc frameCounter
 
   let style = TextStyle(
+    fontFamily: fontFamily,
     fontSize: fontSize,
     color: color,
     maxWidth: -1  # unlimited width for simple drawText
@@ -140,12 +143,12 @@ proc drawTextEx*(text: string, x, y: float32, style: TextStyle) =
       # Fallback
       raylib.drawText(text.cstring, x.int32, y.int32, style.fontSize, style.color)
 
-proc measureText*(text: string, fontSize: int32 = 20): int32 =
+proc measureText*(text: string, fontSize: int32 = 20, fontFamily: string = "Sans"): int32 =
   ## Measure text width using Pango
   ## Returns width in pixels
 
   # Check cache first
-  let style = TextStyle(fontSize: fontSize, color: BLACK, maxWidth: -1)
+  let style = TextStyle(fontFamily: fontFamily, fontSize: fontSize, color: BLACK, maxWidth: -1)
   let cacheKey = hash(text, style)
 
   if cacheKey in textCache:
@@ -178,6 +181,10 @@ proc clearTextCache*() =
 ##   import pango_integration/text_render
 ##   drawText("Hello", 100, 100, 20, BLACK)
 ##
+## With custom font:
+##   drawText("Hello", 100, 100, 20, BLACK, "Serif")
+##   drawText("Code", 100, 150, 16, GREEN, "Monospace")
+##
 ## Or with explicit style:
-##   let style = TextStyle(fontSize: 24, color: RED, maxWidth: 300)
+##   let style = TextStyle(fontFamily: "Sans", fontSize: 24, color: RED, maxWidth: 300)
 ##   drawTextEx("Long text that wraps", 100, 100, style)
