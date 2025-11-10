@@ -96,6 +96,9 @@ export slider
 import widgets/basic/progressbar
 export progressbar
 
+import widgets/basic/image
+export image
+
 # Containers
 import widgets/containers/vstack
 export vstack
