@@ -114,3 +114,17 @@ proc clearOnChange*[T](link: Link[T]) =
 proc `$`*[T](link: Link[T]): string =
   ## String representation for debugging
   "Link[" & $T & "](" & $link.value & ", " & $link.dependentCount & " deps)"
+
+# ============================================================================
+# Convenience Methods (Aliases for .value)
+# ============================================================================
+
+proc get*[T](link: Link[T]): T =
+  ## Convenience method - same as .value
+  ## Read the current value of the link
+  link.value
+
+proc set*[T](link: Link[T], val: T) =
+  ## Convenience method - same as .value = val
+  ## Set a new value and mark dependent widgets dirty
+  link.value = val
