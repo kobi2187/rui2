@@ -811,6 +811,304 @@ Verify your theme for all common states:
 
 ---
 
+## Branding System
+
+Make your apps instantly recognizable with RUI2's comprehensive branding system. Create a bold, consistent visual identity across all your applications.
+
+### Brand Color Palette
+
+Define your company's color system separately from intent colors:
+
+```yaml
+brandPalette:
+  primaryColor: "#FF6B35"        # Main brand color (logo, primary CTAs)
+  secondaryColor: "#004E89"      # Supporting color
+  accentColor: "#F7C545"         # Highlights, attention-grabbers
+  neutralLight: "#F5F5F5"        # Light backgrounds
+  neutralDark: "#333333"         # Dark text, icons
+  surfaceColor: "#FFFFFF"        # Card/panel backgrounds
+  errorColor: "#D32F2F"          # Custom error color
+  successColor: "#388E3C"        # Custom success color
+```
+
+**Then reference brand colors in your theme:**
+```yaml
+base:
+  default:
+    backgroundColor: ${brandPalette.surfaceColor}
+    foregroundColor: ${brandPalette.neutralDark}
+
+  # Primary actions use brand color
+  info:
+    backgroundColor: ${brandPalette.primaryColor}
+    foregroundColor: "#FFFFFF"
+```
+
+**Note**: Color references (`${...}`) are future planned feature. Currently set colors directly.
+
+---
+
+### Typography System
+
+Create a consistent font hierarchy:
+
+```yaml
+typography:
+  primaryFont: "Montserrat"      # Bold, modern - for headings/buttons
+  secondaryFont: "Open Sans"     # Clean, readable - for body text
+  monoFont: "JetBrains Mono"     # Code/monospace elements
+
+  defaultWeight: Regular         # 400
+  headingWeight: Bold            # 700
+
+  lineHeight: 1.6                # Comfortable reading
+  letterSpacing: 0.02            # Slight spacing for elegance
+```
+
+**Font Weights**:
+- `Light` (300)
+- `Regular` (400)
+- `Medium` (500)
+- `SemiBold` (600)
+- `Bold` (700)
+- `ExtraBold` (800)
+
+**Usage in ThemeProps:**
+```yaml
+base:
+  default:
+    fontFamily: ${typography.secondaryFont}
+    fontSize: 14.0
+```
+
+---
+
+### Spacing/Scale System
+
+Design tokens for consistent spacing across all widgets:
+
+```yaml
+spacing:
+  baseUnit: 8.0                  # 8px grid system
+  xs: 4.0                        # 0.5x base
+  sm: 8.0                        # 1x base
+  md: 16.0                       # 2x base
+  lg: 24.0                       # 3x base
+  xl: 32.0                       # 4x base
+  xxl: 48.0                      # 6x base
+```
+
+**Benefits**:
+- Rhythm and harmony in layouts
+- Predictable sizing
+- Easy to maintain consistency
+
+**Usage:**
+```yaml
+base:
+  default:
+    padding: ${spacing.md}       # 16px
+    spacing: ${spacing.sm}       # 8px between children
+
+  # Headers get more breathing room
+  heading:
+    padding: ${spacing.lg}       # 24px
+```
+
+---
+
+### Animation/Motion Settings
+
+Define your app's motion personality:
+
+```yaml
+animation:
+  durationFast: 150              # Quick feedback (ms)
+  durationNormal: 250            # Standard transitions
+  durationSlow: 400              # Dramatic entrances
+
+  defaultEasing: EaseOut         # Smooth, natural feel
+```
+
+**Easing Options**:
+- `Linear` - No easing, constant speed
+- `EaseIn` - Slow start, fast end
+- `EaseOut` - Fast start, slow end (most natural)
+- `EaseInOut` - Slow start and end
+- `Bounce` - Playful, energetic
+- `Elastic` - Springy, attention-grabbing
+
+**Brand Personality**:
+- **Professional**: `EaseOut`, 250ms
+- **Playful**: `Bounce`, 350ms
+- **Instant/Snappy**: `Linear`, 100ms
+- **Elegant**: `EaseInOut`, 400ms
+
+---
+
+### Brand Assets
+
+Integrate custom visuals:
+
+```yaml
+assets:
+  logoPath: "assets/acme-logo.png"
+  iconPackPath: "assets/icons/"
+  cursorPath: "assets/cursor.png"
+  backgroundPattern: "assets/noise-texture.png"
+  backgroundPatternOpacity: 0.05
+```
+
+**Logo**: Company logo displayed in app chrome
+**Icon Pack**: Custom icon set matching brand style
+**Cursor**: Branded cursor for immersive experience
+**Background Pattern**: Subtle texture/noise for depth
+
+---
+
+### Theme Metadata
+
+Document your theme:
+
+```yaml
+metadata:
+  brandName: "Acme Corporation"
+  version: "2.1.0"
+  author: "Acme Design Team"
+  website: "https://acme.com"
+  description: "Official Acme brand theme for all products"
+```
+
+---
+
+### Complete Branded Theme Example
+
+```yaml
+name: acme-brand
+description: Official Acme Corporation brand theme
+
+# Brand Identity
+metadata:
+  brandName: "Acme Corporation"
+  version: "1.0.0"
+  author: "Design Team"
+  website: "https://acme.com"
+  description: "Consistent branding across all Acme apps"
+
+# Brand Colors
+brandPalette:
+  primaryColor: "#FF6B35"        # Acme Orange
+  secondaryColor: "#004E89"      # Acme Navy
+  accentColor: "#F7C545"         # Acme Gold
+  neutralLight: "#F8F9FA"
+  neutralDark: "#212529"
+  surfaceColor: "#FFFFFF"
+
+# Typography
+typography:
+  primaryFont: "Raleway"         # Acme's signature font
+  secondaryFont: "Inter"
+  monoFont: "Fira Code"
+  defaultWeight: Regular
+  headingWeight: Bold
+  lineHeight: 1.6
+  letterSpacing: 0.01
+
+# Spacing System
+spacing:
+  baseUnit: 8.0
+  xs: 4.0
+  sm: 8.0
+  md: 16.0
+  lg: 24.0
+  xl: 32.0
+  xxl: 48.0
+
+# Motion
+animation:
+  durationFast: 150
+  durationNormal: 250
+  durationSlow: 400
+  defaultEasing: EaseOut
+
+# Assets
+assets:
+  logoPath: "assets/acme-logo.svg"
+  iconPackPath: "assets/acme-icons/"
+  backgroundPattern: "assets/subtle-grid.png"
+  backgroundPatternOpacity: 0.03
+
+# Visual Style
+base:
+  default:
+    backgroundColor: "#FFFFFF"
+    foregroundColor: "#212529"
+    borderColor: "#DEE2E6"
+    borderWidth: 1.0
+    cornerRadius: 8.0              # Soft, friendly
+    fontSize: 14.0
+    fontFamily: "Inter"            # Brand secondary font
+    padding: 16.0                  # spacing.md
+    spacing: 8.0                   # spacing.sm
+
+    # Acme signature: subtle shadow
+    dropShadowOffset: [0.0, 2.0]
+    dropShadowBlur: 8.0
+    dropShadowColor: "rgba(0, 0, 0, 0.08)"
+
+  info:
+    backgroundColor: "#FF6B35"     # Acme Orange
+    foregroundColor: "#FFFFFF"
+    cornerRadius: 20.0             # Pill-shaped for impact
+
+  success:
+    backgroundColor: "#38B000"     # Acme Green
+    foregroundColor: "#FFFFFF"
+
+  warning:
+    backgroundColor: "#F7C545"     # Acme Gold
+    foregroundColor: "#212529"
+
+  danger:
+    backgroundColor: "#DC3545"
+    foregroundColor: "#FFFFFF"
+
+states:
+  default:
+    hovered:
+      dropShadowOffset: [0.0, 4.0]
+      dropShadowBlur: 12.0
+      dropShadowColor: "rgba(0, 0, 0, 0.12)"
+
+    pressed:
+      dropShadowOffset: [0.0, 1.0]
+      dropShadowBlur: 4.0
+
+    focused:
+      glowColor: "#FF6B35"         # Acme Orange glow
+      glowRadius: 8.0
+      borderColor: "#FF6B35"
+      borderWidth: 2.0
+
+  info:
+    hovered:
+      backgroundColor: "#FF8555"   # Lighter orange
+
+    pressed:
+      backgroundColor: "#E55525"   # Darker orange
+```
+
+This creates a **complete brand identity** with:
+- ✅ Signature colors (Acme Orange, Navy, Gold)
+- ✅ Custom typography (Raleway headings)
+- ✅ Consistent spacing (8px grid)
+- ✅ Smooth animations (250ms ease-out)
+- ✅ Recognizable style (pill buttons, orange glow)
+
+**Result**: All Acme apps look and feel unified, instantly recognizable as part of the Acme family.
+
+---
+
 ## Authentic OS Theme Examples
 
 Complete themes that authentically recreate classic operating systems.
@@ -1005,6 +1303,8 @@ states:
 
 **All Available Fields**:
 
+### ThemeProps (Per Intent/State)
+
 **Basic**:
 - `backgroundColor` (color)
 - `foregroundColor` (color)
@@ -1043,6 +1343,55 @@ states:
 - `insetShadowDepth` (float)
 - `insetShadowOpacity` (float)
 
+### Branding System (Theme-Wide)
+
+**Brand Palette**:
+- `brandPalette.primaryColor` (color)
+- `brandPalette.secondaryColor` (color)
+- `brandPalette.accentColor` (color)
+- `brandPalette.neutralLight` (color)
+- `brandPalette.neutralDark` (color)
+- `brandPalette.surfaceColor` (color)
+- `brandPalette.errorColor` (color)
+- `brandPalette.successColor` (color)
+
+**Typography**:
+- `typography.primaryFont` (string)
+- `typography.secondaryFont` (string)
+- `typography.monoFont` (string)
+- `typography.defaultWeight` (Light/Regular/Medium/SemiBold/Bold/ExtraBold)
+- `typography.headingWeight` (Light/Regular/Medium/SemiBold/Bold/ExtraBold)
+- `typography.lineHeight` (float)
+- `typography.letterSpacing` (float)
+
+**Spacing**:
+- `spacing.baseUnit` (float)
+- `spacing.xs`, `spacing.sm`, `spacing.md`, `spacing.lg`, `spacing.xl`, `spacing.xxl` (float)
+
+**Animation**:
+- `animation.durationFast` (ms)
+- `animation.durationNormal` (ms)
+- `animation.durationSlow` (ms)
+- `animation.defaultEasing` (Linear/EaseIn/EaseOut/EaseInOut/Bounce/Elastic)
+
+**Assets**:
+- `assets.logoPath` (string)
+- `assets.iconPackPath` (string)
+- `assets.cursorPath` (string)
+- `assets.backgroundPattern` (string)
+- `assets.backgroundPatternOpacity` (float)
+
+**Metadata**:
+- `metadata.brandName` (string)
+- `metadata.version` (string)
+- `metadata.author` (string)
+- `metadata.website` (string)
+- `metadata.description` (string)
+
+---
+
+### Reference Tables
+
 **Color Formats**: `#RRGGBB`, `#RRGGBBAA`, `rgb(r,g,b)`, `rgba(r,g,b,a)`
 
 **Intent Types**: default, info, success, warning, danger
@@ -1053,6 +1402,10 @@ states:
 
 **Gradient Directions**: Vertical, Horizontal, Radial
 
+**Font Weights**: Light (300), Regular (400), Medium (500), SemiBold (600), Bold (700), ExtraBold (800)
+
+**Animation Easings**: Linear, EaseIn, EaseOut, EaseInOut, Bounce, Elastic
+
 ---
 
-**Status**: ✅ Theme system with visual effects complete and documented
+**Status**: ✅ Theme system with visual effects and branding complete and documented
