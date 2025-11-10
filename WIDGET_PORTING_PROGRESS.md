@@ -1,7 +1,7 @@
 # Widget Porting Progress - Hummingbird to RUI2
 
 **Last Updated**: 2025-11-10
-**Current Phase**: Phase 2 Complete ✅
+**Current Phase**: Phase 3 Complete ✅
 
 ## Overview
 
@@ -168,12 +168,60 @@ widgets/
    - Uses: GuiListView from raygui
    - Features: Enhanced list with customizable item height, hover tracking
 
-### Phase 3: Containers & Layout (5 widgets)
-1. [ ] **GroupBox** (group_box.nim / group_box2.nim)
-2. [ ] **TabControl** (tab_control.nim / tab_container.nim)
-3. [ ] **ScrollView** (scroll_view.nim)
-4. [ ] **ScrollBar** (scroll_bar.nim)
-5. [ ] **StatusBar** (status_bar.nim)
+## Phase 3: Containers & Layout ✅ COMPLETE
+
+**Goal**: Organize content with containers
+**Status**: 5/5 widgets ported (+ 2 infrastructure widgets)
+**Time**: ~1.5 hours
+
+### Completed Widgets
+
+1. ✅ **StatusBar** (`widgets/containers/statusbar.nim`)
+   - Props: text, rightText, height, backgroundColor, textColor, fontSize
+   - No state or actions (display-only)
+   - Uses: GuiStatusBar from raygui
+   - Features: Left-aligned and right-aligned text
+
+2. ✅ **GroupBox** (`widgets/containers/groupbox.nim`)
+   - Props: title, padding, titleHeight, borderColor, titleColor, backgroundColor
+   - defineWidget (container for children)
+   - Uses: GuiGroupBox from raygui
+   - Features: Titled border, child positioning with padding
+
+3. ✅ **ScrollBar** (`widgets/basic/scrollbar.nim`)
+   - Props: initialValue, minValue, maxValue, pageSize, vertical, disabled
+   - State: value (Link[float]), dragging, thumbHovered
+   - Actions: onChange(value: float), onScroll(delta: float)
+   - Uses: GuiScrollBar from raygui
+   - Features: Vertical/horizontal orientation, mouse wheel support
+
+4. ✅ **TabControl** (`widgets/containers/tabcontrol.nim`)
+   - Props: tabs (seq[string]), initialActiveTab, tabBarHeight
+   - State: activeTab (Link[int])
+   - Actions: onTabChanged(newTab: int)
+   - defineWidget (manages multiple child panels)
+   - Uses: GuiTabBar from raygui
+   - Features: Tab buttons, shows only active tab content
+
+5. ✅ **ScrollView** (`widgets/containers/scrollview.nim`)
+   - Props: contentWidth, contentHeight, scrollX, scrollY, scrollBarWidth, showScrollBars
+   - State: scrollOffsetX (Link[float]), scrollOffsetY
+   - Actions: onScroll(offsetX, offsetY)
+   - defineWidget (scrollable container)
+   - Uses: GuiScrollBar + BeginScissorMode from raylib
+   - Features: Horizontal/vertical scrolling, clipped rendering, mouse wheel
+
+### Additional Infrastructure Created
+
+6. ✅ **Panel** (`widgets/containers/panel.nim`)
+   - defineWidget foundation for bordered containers
+   - Props: padding, backgroundColor, borderColor, borderWidth, cornerRadius
+   - Features: Rounded corners, optional background/border
+
+7. ✅ **Spacer** (`widgets/containers/spacer.nim`)
+   - definePrimitive for flexible spacing
+   - Props: minWidth, minHeight, flexGrow, backgroundColor, showDebug
+   - Features: Debug visualization, flexible layout support
 
 ### Phase 4: Data Widgets (5 widgets)
 1. [ ] **DataGrid** (data_grid.nim)
@@ -246,23 +294,25 @@ For each widget, create:
 ## Statistics
 
 **Total Widgets**:
-- Ported: 14 (Phase 1: 7, Phase 2: 7)
-- Remaining: ~21
-- Progress: 40%
+- Ported: 21 (Phase 1: 7, Phase 2: 7, Phase 3: 7)
+- Remaining: ~14
+- Progress: 60%
 
 **Lines of Code**:
 - Phase 1: ~500 lines
 - Phase 2: ~600 lines
-- Total so far: ~1100 lines
-- Estimated total: ~2500 lines
+- Phase 3: ~700 lines (5 widgets + 2 infrastructure)
+- Total so far: ~1800 lines
+- Estimated total: ~2800 lines
 - Code reduction vs manual: ~15%
 
 **Time Estimate**:
 - Phase 1: ~2 hours (actual)
 - Phase 2: ~1.5 hours (actual)
-- Completed: ~3.5 hours
-- Remaining: ~6 hours (estimated)
-- Total project: ~10 hours
+- Phase 3: ~1.5 hours (actual)
+- Completed: ~5 hours
+- Remaining: ~4 hours (estimated)
+- Total project: ~9 hours
 
 ## Commit Strategy
 
@@ -285,6 +335,6 @@ Before committing:
 
 ---
 
-**Status**: 🎯 Phase 2 Complete! Ready for Phase 3.
+**Status**: 🎯 Phase 3 Complete! 60% done!
 
-*14 widgets ported, 21 to go. Making great progress!*
+*21 widgets ported (including infrastructure), 14 to go. Over halfway there!*
