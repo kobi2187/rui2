@@ -7,11 +7,12 @@ export sets, tables, options, json  # Export for use in other modules
 
 when defined(useGraphics):
   import raylib
-  export raylib.Color, raylib.KeyboardKey
+  export raylib.Color, raylib.KeyboardKey, raylib.RenderTexture2D
 else:
   # Stub types when graphics not available
   type
     Texture2D* = object
+    RenderTexture2D* = object
     Color* = object
     KeyboardKey* = object
 
@@ -109,7 +110,7 @@ type
     layoutDirty*: bool         # Needs layout calculation
 
     # Rendering
-    cachedTexture*: Option[Texture2D]
+    cachedTexture*: Option[RenderTexture2D]  # Cached render target for this widget
     zIndex*: int
 
     # Scripting support
