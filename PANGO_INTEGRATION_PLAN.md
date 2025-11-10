@@ -204,6 +204,9 @@ definePrimitive(Label):
 
 This is what we should do for widgets!
 
+TODO: Caching is smart, but this depends on text style, not just string. It also depends on current theme fonts/colors/etc...
+
+
 ## Decision
 
 **Recommended approach**:

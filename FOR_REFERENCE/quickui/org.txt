@@ -1,0 +1,13 @@
+basic code organization
+
+quickui/
+├── src/
+│   ├── types.nim        # Core type definitions
+│   ├── state.nim        # State management
+│   ├── theme.nim        # Theming system
+│   ├── layout.nim       # Layout management
+│   ├── widgets.nim      # Widget definitions
+│   ├── render.nim       # Rendering system
+│   └── quickui.nim      # Main module
+└── examples/
+    └── basic_app.nim    # Example usage

@@ -1,0 +1,216 @@
+first_notes.txt
+
+# QuickUI System Architecture
+
+## Overview
+QuickUI is a GUI system for Nim built on Naylib, following immediate mode principles while offering a clean, declarative API. It combines the performance benefits of IMGUI with ergonomic widget definitions and state management.
+
+## Core Design Principles
+1. **Immediate Mode Foundation**
+   - Built on Naylib/Raylib's immediate mode GUI system
+   - State-driven updates rather than event callbacks
+   - Redraw every frame for predictable behavior
+
+2. **Declarative API**
+   - Clear widget definitions using macros
+   - Minimal boilerplate for users
+   - Type-safe property handling
+
+3. **State Management**
+   - Simple yet effective global store
+   - Type-safe state access via <- and -> operators
+   - Automatic UI updates based on state changes
+
+4. **Layout System**
+   - Flexible layout options (Flow, Grid, Stack)
+   - Constraint-based positioning
+   - Automatic size calculations
+
+## Key Components
+
+### Widget System
+```nim
+type Widget = ref object
+  id: string
+  x, y: float32
+  width, height: float32
+  visible: bool
+  layout: Option[Layout]
+  style: Style
+  children: seq[Widget]
+
+macro defineWidget*(name: untyped, body: untyped): untyped =
+  # Generates widget type and render method from declarative definition
+```
+
+### State Management
+```nim
+type Store = ref object
+  data: Table[string, any]
+
+template `<-`*(key: static[string], value: untyped) =
+  globalStore.data[key] = value
+
+template `->`*(key: static[string]): untyped =
+  globalStore.data[key]
+```
+
+### Theme System
+```nim
+type Theme = ref object
+  colors: ThemeColors
+  spacing: ThemeSpacing
+  typography: ThemeTypography
+
+macro defineTheme*(name: untyped, body: untyped): untyped =
+  # Creates theme from declarative definition
+```
+
+### Layout System
+```nim
+type
+  LayoutKind = enum
+    lkFlow, lkGrid, lkStack
+  
+  Layout = object
+    case kind: LayoutKind
+    of lkFlow: flowConfig: FlowLayout
+    of lkGrid: gridConfig: GridLayout
+    of lkStack: stackConfig: StackLayout
+```
+
+## Usage Patterns
+
+### Widget Definition
+```nim
+defineWidget Button:
+  props:
+    text: string
+    onClick: proc()
+  
+  render:
+    if GuiButton(Rectangle(x: widget.x, y: widget.y, 
+                          width: widget.width, height: widget.height),
+                 widget.text):
+      widget.onClick()
+```
+
+### State Usage
+```nim
+"count" <- 0  # Set state
+let currentCount = "count"->  # Get state
+```
+
+### Layout Configuration
+```nim
+Panel:
+  layout: some(flow(Vertical))
+  children:
+    Button:
+      text: "Click me"
+      onClick: proc() = echo "clicked"
+```
+
+## Advantages
+
+1. **Simplicity**
+   - Clear, declarative syntax
+   - Minimal boilerplate
+   - Easy to understand data flow
+
+2. **Performance**
+   - Immediate mode rendering
+   - Efficient state updates
+   - No complex event system
+
+3. **Flexibility**
+   - Easy to add new widgets
+   - Customizable layouts
+   - Themeable components
+
+4. **Type Safety**
+   - Compile-time widget property checking
+   - Type-safe state access
+   - Clear error messages
+
+## Limitations and Considerations
+
+1. **Memory Usage**
+   - IMGUI style requires redrawing every frame
+   - State is stored globally
+
+2. **Current Constraints**
+   - Limited to Naylib/Raylib capabilities
+   - No native platform widgets
+   - Single window application model
+
+3. **Future Improvements**
+   - Add animation system
+   - Implement more complex layouts
+   - Add accessibility features
+   - Improve text input for Unicode/RTL
+
+## Code Organization
+
+```
+quickui/
+├── src/
+│   ├── types.nim        # Core type definitions
+│   ├── state.nim        # State management
+│   ├── theme.nim        # Theming system
+│   ├── layout.nim       # Layout management
+│   ├── widgets.nim      # Widget definitions
+│   ├── render.nim       # Rendering system
+│   └── quickui.nim      # Main module
+└── examples/
+    └── basic_app.nim    # Example usage
+```
+
+## Best Practices
+
+1. **Widget Design**
+   - Keep widgets focused and single-purpose
+   - Use composition for complex UIs
+   - Maintain consistent prop naming
+
+2. **State Management**
+   - Keep state minimal and flat
+   - Use meaningful state keys
+   - Update state atomically
+
+3. **Layout Usage**
+   - Choose appropriate layout for the use case
+   - Avoid deep nesting of containers
+   - Use consistent spacing
+
+4. **Performance**
+   - Minimize state updates
+   - Use efficient layouts
+   - Avoid unnecessary widget recreation
+
+## Example Application
+
+```nim
+import quickui
+
+defineTheme LightTheme:
+  colors:
+    background: Color(r: 255, g: 255, b: 255, a: 255)
+    text: Color(r: 0, g: 0, b: 0, a: 255)
+    primary: Color(r: 0, g: 122, b: 255, a: 255)
+
+"count" <- 0
+
+let ui = Panel:
+  layout: some(flow(Vertical))
+  children:
+    Button:
+      text: "Count: " & $("count"->)
+      onClick: proc() = "count" <- "count"-> + 1
+
+    Button:
+      text: "Reset"
+      onClick: proc() = "count" <- 0
+
+run(ui)
+```
