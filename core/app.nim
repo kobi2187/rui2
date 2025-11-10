@@ -4,7 +4,11 @@
 
 import types, link
 import ../managers/event_manager
+import ../drawing_primitives/primitives/text_cache
+import ../drawing_primitives/theme_sys_core
 export event_manager  # Export for users to access eventManager
+export text_cache     # Export text cache types
+export theme_sys_core # Export theme types
 when defined(useGraphics):
   import raylib
 import std/[monotimes, times, os]
@@ -12,6 +16,9 @@ import std/[monotimes, times, os]
 # ============================================================================
 # Application State
 # ============================================================================
+
+# Global app instance (for convenience - can also be passed explicitly)
+var app*: App
 
 type
   App* = ref object
@@ -24,6 +31,10 @@ type
     eventManager*: EventManager
     # renderManager*: RenderManager  # TODO: implement
     # layoutManager*: LayoutManager  # TODO: implement
+
+    # Theme and rendering
+    currentTheme*: Theme
+    textCache*: TextCache
 
     # Frame timing
     lastFrameTime: MonoTime
@@ -68,6 +79,14 @@ proc newApp*(title = "RUI Application",
       minHeight: minHeight
     ),
     eventManager: newEventManager(defaultBudget = initDuration(milliseconds = 8)),
+    currentTheme: newTheme("Default"),
+    textCache: TextCache(
+      measurements: initTable[MeasurementKey, TextMetrics](),
+      textures: initTable[RenderKey, TextureCacheEntry](),
+      maxTextureMemoryMB: 100,
+      maxEntries: 1000,
+      currentMemoryBytes: 0
+    ),
     lastFrameTime: getMonoTime(),
     frameCount: 0,
     fpsUpdateTime: getMonoTime(),
@@ -93,6 +112,37 @@ proc enableScripting*(app: App, scriptDir: string) =
   app.scriptDir = scriptDir
   if not dirExists(scriptDir):
     createDir(scriptDir)
+
+# ============================================================================
+# Theme Management
+# ============================================================================
+
+proc setTheme*(app: App, theme: Theme) =
+  ## Change the application theme
+  ## This invalidates the text cache since colors/fonts may have changed
+  app.currentTheme = theme
+  clearCache(app.textCache)  # Clear cache since theme affects rendering
+  app.tree.anyDirty = true   # Trigger re-render
+
+proc getTheme*(app: App): Theme =
+  ## Get the current theme
+  app.currentTheme
+
+# ============================================================================
+# Text Cache Management
+# ============================================================================
+
+proc clearTextCache*(app: App) =
+  ## Clear the text rendering cache
+  clearCache(app.textCache)
+
+proc getTextCacheStats*(app: App): auto =
+  ## Get text cache statistics
+  getCacheStats(app.textCache)
+
+proc printTextCacheStats*(app: App) =
+  ## Print text cache statistics for debugging
+  printCacheStats(app.textCache)
 
 when defined(useGraphics):
   proc setWindowSize*(app: App, width, height: int) =

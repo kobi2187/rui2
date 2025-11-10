@@ -21,8 +21,7 @@ definePrimitive(ToolButton):
     disabled: bool = false
 
   state:
-    pressed: bool
-    hovered: bool
+    isPressed: bool
     toggled: bool                # For toggleable buttons
 
   actions:
@@ -32,13 +31,13 @@ definePrimitive(ToolButton):
   events:
     on_mouse_down:
       if not widget.disabled:
-        widget.pressed.set(true)
+        widget.isPressed.set(true)
         return true
       return false
 
     on_mouse_up:
-      if widget.pressed.get() and not widget.disabled:
-        widget.pressed.set(false)
+      if widget.isPressed.get() and not widget.disabled:
+        widget.isPressed.set(false)
 
         if widget.toggleable:
           widget.toggled.set(not widget.toggled.get())
@@ -51,19 +50,10 @@ definePrimitive(ToolButton):
         return true
       return false
 
-    on_mouse_enter:
-      widget.hovered.set(true)
-      return false
-
-    on_mouse_leave:
-      widget.hovered.set(false)
-      widget.pressed.set(false)
-      return false
-
   render:
     when defined(useGraphics):
-      let isPressed = widget.pressed.get() or widget.toggled.get()
-      let isHovered = widget.hovered.get()
+      let isPressed = widget.isPressed.get() or widget.toggled.get()
+      let isHovered = widget.isHovered.get()
 
       # Draw button background on hover or pressed
       if isHovered or isPressed:

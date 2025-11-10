@@ -17,7 +17,6 @@ definePrimitive(Checkbox):
 
   state:
     checked: bool
-    hovered: bool
 
   actions:
     onToggle(checked: bool)
@@ -31,14 +30,6 @@ definePrimitive(Checkbox):
         if widget.onToggle.isSome:
           widget.onToggle.get()(widget.checked.get())
         return true
-      return false
-
-    on_mouse_enter:
-      widget.hovered.set(true)
-      return false
-
-    on_mouse_leave:
-      widget.hovered.set(false)
       return false
 
   render:

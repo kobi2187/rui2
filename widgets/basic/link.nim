@@ -22,7 +22,6 @@ definePrimitive(Link):
 
   state:
     visited: bool
-    hovered: bool
 
   actions:
     onClick()
@@ -43,20 +42,12 @@ definePrimitive(Link):
         return true
       return false
 
-    on_mouse_enter:
-      widget.hovered.set(true)
-      return false
-
-    on_mouse_leave:
-      widget.hovered.set(false)
-      return false
-
   render:
     when defined(useGraphics):
       # Determine color based on state
       let color = if widget.disabled:
                     Color(r: 160, g: 160, b: 160, a: 255)  # Gray
-                  elif widget.hovered.get():
+                  elif widget.isHovered.get():
                     widget.colorHover
                   elif widget.visited.get():
                     widget.colorVisited
