@@ -1,34 +1,36 @@
 ## Wrapper for pangolib_binding that works with RUI2
-## Fixes pragma issues and provides cleaner API
+## Re-exports the Pango+Cairo→Raylib pipeline
+##
+## pangolib_binding must be available as a sibling directory:
+##   /home/user/
+##     ├── rui2/
+##     └── pangolib_binding/
+##         └── src/
+##             ├── pangotypes.nim
+##             └── pangocore.nim
 
 import raylib
 import std/[options, results]
 
-# For now, let's create a minimal working version
-# We'll import the full pangolib_binding once we fix the pragma issues
+# Import from sibling directory pangolib_binding
+# From pango_integration/ we go ../.. to reach sibling
+import ../../pangolib_binding/src/[pangotypes, pangocore]
 
-type
-  PangoError* = enum
-    peInitFailed
-    peRenderFailed
-    peInvalidInput
+# Re-export everything
+export pangotypes, pangocore
+export initTextLayout, freeTextLayout
+export getCursorPosition, getTextIndexFromPosition
 
-  PangoErrorInfo* = object
-    kind*: PangoError
-    message*: string
-
-  TextLayoutSimple* = object
-    text*: string
-    texture*: Texture2D
-    width*, height*: int32
-
-# Placeholder - will integrate real Pango later
-proc initTextLayoutSimple*(text: string): Result[TextLayoutSimple, PangoErrorInfo] =
-  # For now, just create a placeholder
-  # We'll integrate real Pango after fixing the binding
-  var layout: TextLayoutSimple
-  layout.text = text
-  layout.width = 200
-  layout.height = 30
-  ok(layout)
-
+## Usage:
+##
+## ```nim
+## import pango_integration/pangowrapper
+##
+## let result = initTextLayout("Hello World", maxWidth = 400)
+## if result.isOk:
+##   var layout = result.get()
+##   defer: freeTextLayout(layout)
+##   drawTexture(layout.texture, 100, 100, WHITE)
+## else:
+##   echo "Error: ", result.error.message
+## ```
