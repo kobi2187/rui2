@@ -20,8 +20,7 @@ definePrimitive(IconButton):
     disabled: bool = false
 
   state:
-    pressed: bool
-    hovered: bool
+    isPressed: bool
     texture: Texture2D  # Loaded texture (if using iconTexturePath)
 
   actions:
@@ -30,31 +29,22 @@ definePrimitive(IconButton):
   events:
     on_mouse_down:
       if not widget.disabled:
-        widget.pressed.set(true)
+        widget.isPressed.set(true)
         return true
       return false
 
     on_mouse_up:
-      if widget.pressed.get() and not widget.disabled:
-        widget.pressed.set(false)
+      if widget.isPressed.get() and not widget.disabled:
+        widget.isPressed.set(false)
         if widget.onClick.isSome:
           widget.onClick.get()()
         return true
       return false
 
-    on_mouse_enter:
-      widget.hovered.set(true)
-      return false
-
-    on_mouse_leave:
-      widget.hovered.set(false)
-      widget.pressed.set(false)
-      return false
-
   render:
     when defined(useGraphics):
-      let isPressed = widget.pressed.get()
-      let isHovered = widget.hovered.get()
+      let isPressed = widget.isPressed.get()
+      let isHovered = widget.isHovered.get()
 
       # If using texture and not loaded yet, try to load it
       if widget.iconTexturePath.len > 0:

@@ -22,7 +22,7 @@ definePrimitive(Spinner):
 
   state:
     value: float
-    focused: bool
+    isFocused: bool
     editing: bool
 
   actions:
@@ -31,23 +31,23 @@ definePrimitive(Spinner):
   events:
     on_mouse_down:
       if not widget.disabled:
-        widget.focused.set(true)
+        widget.isFocused.set(true)
         return true
       return false
 
     on_focus_gained:
-      widget.focused.set(true)
+      widget.isFocused.set(true)
       return false
 
     on_focus_lost:
-      widget.focused.set(false)
+      widget.isFocused.set(false)
       widget.editing.set(false)
       return false
 
   render:
     when defined(useGraphics):
       var value = widget.value.get()
-      let isFocused = widget.focused.get()
+      let isFocused = widget.isFocused.get()
 
       if GuiSpinner(
         Rectangle(

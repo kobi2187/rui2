@@ -32,17 +32,22 @@ proc parseActions(actionsBody: NimNode): seq[tuple[name: string, params: seq[tup
   for action in actionsBody:
     case action.kind:
     of nnkCall:
-      # actionName() or actionName(params)
+      # actionName() - no parameters
+      let actionName = action[0].strVal
+      var params: seq[tuple[name: string, typ: NimNode]] = @[]
+      var returnType: NimNode = ident("void")
+      result.add((actionName, params, returnType))
+
+    of nnkObjConstr:
+      # actionName(param: Type, ...) - with parameters
       let actionName = action[0].strVal
       var params: seq[tuple[name: string, typ: NimNode]] = @[]
       var returnType: NimNode = ident("void")
 
-      # Parse parameters if present
-      if action.len > 1 and action[1].kind == nnkStmtList:
-        for param in action[1]:
-          if param.kind == nnkExprColonExpr:
-            # param: Type
-            params.add((param[0].strVal, param[1]))
+      # Parse parameters (skip first element which is the name)
+      for i in 1 ..< action.len:
+        if action[i].kind == nnkExprColonExpr:
+          params.add((action[i][0].strVal, action[i][1]))
 
       result.add((actionName, params, returnType))
 
@@ -53,14 +58,20 @@ proc parseActions(actionsBody: NimNode): seq[tuple[name: string, params: seq[tup
         let returnType = action[2]
 
         if callNode.kind == nnkCall:
+          # actionName() -> ReturnType
+          let actionName = callNode[0].strVal
+          var params: seq[tuple[name: string, typ: NimNode]] = @[]
+          result.add((actionName, params, returnType))
+
+        elif callNode.kind == nnkObjConstr:
+          # actionName(param: Type) -> ReturnType
           let actionName = callNode[0].strVal
           var params: seq[tuple[name: string, typ: NimNode]] = @[]
 
           # Parse parameters
-          if callNode.len > 1 and callNode[1].kind == nnkStmtList:
-            for param in callNode[1]:
-              if param.kind == nnkExprColonExpr:
-                params.add((param[0].strVal, param[1]))
+          for i in 1 ..< callNode.len:
+            if callNode[i].kind == nnkExprColonExpr:
+              params.add((callNode[i][0].strVal, callNode[i][1]))
 
           result.add((actionName, params, returnType))
 
@@ -408,8 +419,7 @@ macro definePrimitive*(name: untyped, body: untyped): untyped =
       of "on_mouse_down": "evMouseDown"
       of "on_mouse_up": "evMouseUp"
       of "on_mouse_move": "evMouseMove"
-      of "on_mouse_enter": "evMouseEnter"  # Custom, need to implement
-      of "on_mouse_leave": "evMouseLeave"  # Custom, need to implement
+      of "on_mouse_hover": "evMouseHover"
       of "on_key_down": "evKeyDown"
       of "on_key_up": "evKeyUp"
       of "on_char": "evChar"
@@ -789,8 +799,7 @@ macro defineWidget*(name: untyped, body: untyped): untyped =
       of "on_mouse_down": "evMouseDown"
       of "on_mouse_up": "evMouseUp"
       of "on_mouse_move": "evMouseMove"
-      of "on_mouse_enter": "evMouseEnter"
-      of "on_mouse_leave": "evMouseLeave"
+      of "on_mouse_hover": "evMouseHover"
       of "on_key_down": "evKeyDown"
       of "on_key_up": "evKeyUp"
       of "on_char": "evChar"

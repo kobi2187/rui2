@@ -17,9 +17,6 @@ definePrimitive(RadioButton):
     selectedValue: string = ""   # Currently selected value in the group
     disabled: bool = false
 
-  state:
-    hovered: bool
-
   actions:
     onChange(value: string)
 
@@ -31,14 +28,6 @@ definePrimitive(RadioButton):
           if widget.onChange.isSome:
             widget.onChange.get()(widget.value)
         return true
-      return false
-
-    on_mouse_enter:
-      widget.hovered.set(true)
-      return false
-
-    on_mouse_leave:
-      widget.hovered.set(false)
       return false
 
   render:

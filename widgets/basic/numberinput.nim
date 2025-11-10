@@ -22,7 +22,7 @@ definePrimitive(NumberInput):
 
   state:
     value: float
-    focused: bool
+    isFocused: bool
     textValue: string    # String representation while editing
 
   actions:
@@ -31,13 +31,13 @@ definePrimitive(NumberInput):
 
   events:
     on_focus_gained:
-      widget.focused.set(true)
+      widget.isFocused.set(true)
       # Convert value to text for editing
       widget.textValue.set(fmt(widget.format) % widget.value.get())
       return false
 
     on_focus_lost:
-      widget.focused.set(false)
+      widget.isFocused.set(false)
       # Parse and validate text input
       try:
         let newValue = parseFloat(widget.textValue.get())
@@ -55,7 +55,7 @@ definePrimitive(NumberInput):
   render:
     when defined(useGraphics):
       var value = widget.value.get()
-      let isFocused = widget.focused.get()
+      let isFocused = widget.isFocused.get()
 
       # Use GuiSpinner for number input with spinners
       if GuiSpinner(
@@ -77,7 +77,7 @@ definePrimitive(NumberInput):
     else:
       # Non-graphics mode: just echo
       let value = widget.value.get()
-      let display = if widget.focused.get():
+      let display = if widget.isFocused.get():
                       widget.textValue.get()
                     else:
                       fmt(widget.format) % value

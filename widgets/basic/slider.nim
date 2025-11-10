@@ -23,7 +23,6 @@ definePrimitive(Slider):
   state:
     value: float32
     dragging: bool
-    hovered: bool
 
   actions:
     onChange(value: float32)
@@ -39,14 +38,6 @@ definePrimitive(Slider):
       if widget.dragging.get():
         widget.dragging.set(false)
         return true
-      return false
-
-    on_mouse_enter:
-      widget.hovered.set(true)
-      return false
-
-    on_mouse_leave:
-      widget.hovered.set(false)
       return false
 
   render:

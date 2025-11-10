@@ -21,7 +21,6 @@ definePrimitive(MenuItem):
 
   state:
     checked: bool
-    hovered: bool
 
   actions:
     onClick()
@@ -39,14 +38,6 @@ definePrimitive(MenuItem):
           widget.onClick.get()()
 
         return true
-      return false
-
-    on_mouse_enter:
-      widget.hovered.set(true)
-      return false
-
-    on_mouse_leave:
-      widget.hovered.set(false)
       return false
 
   render:
