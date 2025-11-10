@@ -3,7 +3,7 @@
 **Fast, lightweight, immediate-mode GUI framework for Nim**
 
 RUI (Raylib UI) is a professional GUI framework built on Raylib, designed for building responsive desktop applications with minimal overhead and maximum performance.
-
+Using Claude AI to complete my half-finished ambitious projects
 ## Features
 
 - ⚡ **Sub-millisecond UI latency** - Game-like responsiveness
