@@ -170,39 +170,73 @@ proc createDarkTheme*(): Theme =
 
 # BeOS Theme
 proc createBeosTheme*(): Theme =
-  result = newTheme("Classic BeOS")
+  result = newTheme("Classic BeOS (Authentic)")
 
   when defined(useGraphics):
-    result.base[Default] = makeThemeProps(
-      backgroundColor = makeColor(217, 217, 217),
-      foregroundColor = makeColor(0, 0, 0),
-      borderColor = makeColor(180, 180, 180),
-      borderWidth = 1.0,
-      cornerRadius = 0.0,  # Sharp corners!
-      fontSize = 12.0,
-      paddingH = 6.0,
-      paddingV = 4.0,
-      spacing = 6.0
+    # Create base with 3D bevel for authentic BeOS look
+    result.base[Default] = ThemeProps(
+      backgroundColor: some(makeColor(217, 217, 217)),    # BeOS gray
+      foregroundColor: some(makeColor(0, 0, 0)),
+      bevelStyle: some(Raised),                           # 3D raised button
+      highlightColor: some(makeColor(255, 255, 255)),     # White highlight
+      shadowColor: some(makeColor(153, 153, 153)),        # Gray shadow
+      darkShadowColor: some(makeColor(102, 102, 102)),    # Dark shadow
+      cornerRadius: some(0.0),                            # Sharp corners!
+      fontSize: some(12.0),
+      padding: some(EdgeInsets(top: 4.0, right: 6.0, bottom: 4.0, left: 6.0)),
+      spacing: some(6.0)
     )
 
-    result.base[Info] = makeThemeProps(
-      backgroundColor = makeColor(255, 255, 200),
-      foregroundColor = makeColor(0, 0, 0)
+    result.base[Info] = ThemeProps(
+      backgroundColor: some(makeColor(255, 255, 200)),
+      foregroundColor: some(makeColor(0, 0, 0)),
+      bevelStyle: some(Raised),
+      highlightColor: some(makeColor(255, 255, 255)),
+      shadowColor: some(makeColor(200, 200, 150)),
+      darkShadowColor: some(makeColor(150, 150, 100))
     )
 
-    result.base[Success] = makeThemeProps(
-      backgroundColor = makeColor(200, 255, 200),
-      foregroundColor = makeColor(0, 100, 0)
+    result.base[Success] = ThemeProps(
+      backgroundColor: some(makeColor(200, 255, 200)),
+      foregroundColor: some(makeColor(0, 100, 0)),
+      bevelStyle: some(Raised),
+      highlightColor: some(makeColor(255, 255, 255)),
+      shadowColor: some(makeColor(150, 200, 150)),
+      darkShadowColor: some(makeColor(100, 150, 100))
     )
 
-    result.base[Warning] = makeThemeProps(
-      backgroundColor = makeColor(255, 200, 150),
-      foregroundColor = makeColor(100, 50, 0)
+    result.base[Warning] = ThemeProps(
+      backgroundColor: some(makeColor(255, 200, 150)),
+      foregroundColor: some(makeColor(100, 50, 0)),
+      bevelStyle: some(Raised),
+      highlightColor: some(makeColor(255, 255, 255)),
+      shadowColor: some(makeColor(200, 150, 100)),
+      darkShadowColor: some(makeColor(150, 100, 50))
     )
 
-    result.base[Danger] = makeThemeProps(
-      backgroundColor = makeColor(255, 200, 200),
-      foregroundColor = makeColor(150, 0, 0)
+    result.base[Danger] = ThemeProps(
+      backgroundColor: some(makeColor(255, 200, 200)),
+      foregroundColor: some(makeColor(150, 0, 0)),
+      bevelStyle: some(Raised),
+      highlightColor: some(makeColor(255, 255, 255)),
+      shadowColor: some(makeColor(200, 150, 150)),
+      darkShadowColor: some(makeColor(150, 100, 100))
+    )
+
+    # State overrides - pressed buttons get sunken bevel
+    result.states[Default][Pressed] = ThemeProps(
+      bevelStyle: some(Sunken)  # Invert bevel when pressed!
+    )
+    result.states[Info][Pressed] = ThemeProps(bevelStyle: some(Sunken))
+    result.states[Success][Pressed] = ThemeProps(bevelStyle: some(Sunken))
+    result.states[Warning][Pressed] = ThemeProps(bevelStyle: some(Sunken))
+    result.states[Danger][Pressed] = ThemeProps(bevelStyle: some(Sunken))
+
+    # Disabled state - no bevel
+    result.states[Default][Disabled] = ThemeProps(
+      backgroundColor: some(makeColor(204, 204, 204)),
+      foregroundColor: some(makeColor(153, 153, 153)),
+      bevelStyle: some(Flat)
     )
 
 # Joy Theme (Playful)

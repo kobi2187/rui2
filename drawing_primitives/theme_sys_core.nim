@@ -14,16 +14,106 @@ type
     Focused    # Keyboard focus
     Selected   # For lists, tabs etc
     DragOver   # When dragging something over this widget
-    
+
   ThemeIntent* = enum
     Default    # Normal appearance
     Info       # Informational elements
     Success    # Positive actions/states
     Warning    # Caution required
     Danger     # Destructive or error states
-    
+
+  # Visual effect styles
+  BevelStyle* = enum
+    Flat       # No bevel (default flat design)
+    Raised     # Classic 3D raised button (BeOS, Windows 98)
+    Sunken     # Classic 3D pressed/inset
+    Ridge      # Windows 98 panel ridge effect
+    Groove     # Windows 98 panel groove effect
+
+  GradientDirection* = enum
+    Vertical
+    Horizontal
+    Radial
+
+  ShadowLayer* = object
+    offsetX*: float32
+    offsetY*: float32
+    blur*: float32
+    opacity*: float32
+
+  # Branding: Color Palette
+  BrandPalette* = object
+    primaryColor*: Option[Color]      # Main brand color (logo, primary actions)
+    secondaryColor*: Option[Color]    # Supporting color
+    accentColor*: Option[Color]       # Highlights, CTAs, important elements
+    neutralLight*: Option[Color]      # Light backgrounds, dividers
+    neutralDark*: Option[Color]       # Dark text, icons
+    surfaceColor*: Option[Color]      # Card/panel backgrounds
+    errorColor*: Option[Color]        # Error states (can differ from Danger intent)
+    successColor*: Option[Color]      # Success states (can differ from Success intent)
+
+  # Branding: Typography System
+  FontWeight* = enum
+    Light = 300
+    Regular = 400
+    Medium = 500
+    SemiBold = 600
+    Bold = 700
+    ExtraBold = 800
+
+  TypographySystem* = object
+    primaryFont*: Option[string]      # Headings, buttons (e.g., "Montserrat")
+    secondaryFont*: Option[string]    # Body text (e.g., "Open Sans")
+    monoFont*: Option[string]         # Code, monospace (e.g., "JetBrains Mono")
+    defaultWeight*: Option[FontWeight]
+    headingWeight*: Option[FontWeight]
+    lineHeight*: Option[float32]      # e.g., 1.5
+    letterSpacing*: Option[float32]   # e.g., 0.02 for slight spacing
+
+  # Branding: Spacing/Scale System (Design Tokens)
+  SpacingScale* = object
+    baseUnit*: Option[float32]        # Base grid unit (4.0 or 8.0 typical)
+    xs*: Option[float32]              # Extra small (baseUnit * 0.5)
+    sm*: Option[float32]              # Small (baseUnit * 1)
+    md*: Option[float32]              # Medium (baseUnit * 2)
+    lg*: Option[float32]              # Large (baseUnit * 3)
+    xl*: Option[float32]              # Extra large (baseUnit * 4)
+    xxl*: Option[float32]             # Extra extra large (baseUnit * 6)
+
+  # Branding: Animation/Motion Settings
+  AnimationEasing* = enum
+    Linear          # No easing
+    EaseIn          # Slow start
+    EaseOut         # Slow end
+    EaseInOut       # Slow start and end
+    Bounce          # Bouncy, playful
+    Elastic         # Springy effect
+
+  AnimationSettings* = object
+    durationFast*: Option[float32]    # Fast transitions (e.g., 150ms)
+    durationNormal*: Option[float32]  # Normal transitions (e.g., 250ms)
+    durationSlow*: Option[float32]    # Slow transitions (e.g., 400ms)
+    defaultEasing*: Option[AnimationEasing]
+
+  # Branding: Custom Assets
+  BrandAssets* = object
+    logoPath*: Option[string]               # Path to company logo
+    iconPackPath*: Option[string]           # Directory with custom icons
+    cursorPath*: Option[string]             # Custom cursor image
+    backgroundPattern*: Option[string]      # Background texture/pattern path
+    backgroundPatternOpacity*: Option[float32]  # Opacity of pattern (0.0-1.0)
+
+  # Branding: Theme Metadata
+  ThemeMetadata* = object
+    brandName*: Option[string]              # Company/product name
+    version*: Option[string]                # Theme version
+    author*: Option[string]                 # Theme author
+    website*: Option[string]                # Brand website
+    description*: Option[string]            # Theme description
+
   # Core visual properties
   ThemeProps* = object
+    # Basic colors and dimensions
     backgroundColor*: Option[Color]
     foregroundColor*: Option[Color]
     borderColor*: Option[Color]
@@ -31,6 +121,8 @@ type
     cornerRadius*: Option[float32]
     padding*: Option[EdgeInsets]
     spacing*: Option[float32]
+
+    # Text properties
     textStyle*: Option[TextStyle]
     fontSize*: Option[float32]
     fontFamily*: Option[string]  # Font family for text rendering
@@ -40,6 +132,29 @@ type
     focusRingWidth*: Option[float32]    # Width of focus ring
     focusGlowRadius*: Option[float32]   # Glow/shadow radius when focused
     focusGlowColor*: Option[Color]      # Glow/shadow color
+    # 3D Bevel effects (BeOS, Windows 98, classic UIs)
+    bevelStyle*: Option[BevelStyle]
+    highlightColor*: Option[Color]      # Top-left edge for raised bevel (typically white)
+    shadowColor*: Option[Color]         # Bottom-right inner edge (typically gray)
+    darkShadowColor*: Option[Color]     # Bottom-right outer edge (typically black)
+
+    # Gradient effects (Mac OS X Aqua, modern UIs)
+    gradientStart*: Option[Color]
+    gradientEnd*: Option[Color]
+    gradientDirection*: Option[GradientDirection]
+
+    # Shadow effects (modern flat design, depth)
+    dropShadowOffset*: Option[tuple[x, y: float32]]
+    dropShadowBlur*: Option[float32]
+    dropShadowColor*: Option[Color]
+
+    # Glow effects (focus states, highlights)
+    glowColor*: Option[Color]
+    glowRadius*: Option[float32]
+
+    # Inner shadow (inset depth)
+    insetShadowDepth*: Option[float32]
+    insetShadowOpacity*: Option[float32]
     
 
     
@@ -50,6 +165,14 @@ type
     base*: Table[ThemeIntent, ThemeProps]
     # State overrides for each intent
     states*: Table[ThemeIntent, Table[ThemeState, ThemeProps]]
+
+    # Branding features (optional)
+    brandPalette*: BrandPalette           # Brand color system
+    typography*: TypographySystem         # Font system
+    spacing*: SpacingScale                # Spacing tokens
+    animation*: AnimationSettings         # Motion settings
+    assets*: BrandAssets                  # Logo, icons, patterns
+    metadata*: ThemeMetadata              # Brand info
 
 proc initThemeTables(theme: var Theme) =
   if theme.base.len == 0:

@@ -294,12 +294,11 @@ proc handleEvent(app: App, event: GuiEvent) =
 # Layout Pass
 # ============================================================================
 
-proc updateLayout(app: App) =
-  ## Run layout pass if needed
-  if app.tree.anyDirty and app.tree.root != nil:
-    echo "[Layout] Running layout pass (tree is dirty)"
-    # TODO: Implement layout manager
-    # app.layoutManager.layout(app.tree.root)
+proc updateLayoutAndRender(app: App) =
+  ## Run layout and render passes if needed
+  if app.tree.root != nil:
+    # Run the two-pass system from main_loop
+    app.tree.root.frame()  # Calls layoutPass() and renderPass()
     app.tree.anyDirty = false
 
 # ============================================================================
@@ -312,14 +311,19 @@ when defined(useGraphics):
     beginDrawing()
     clearBackground(RayWhite)
 
-    # TODO: Implement render manager
-    # app.renderManager.render(app.tree.root)
+    # Composite root widget's cached texture to screen
+    if app.tree.root != nil and app.tree.root.cachedTexture.isSome:
+      let rootTex = app.tree.root.cachedTexture.get()
+      # Draw at root's position (typically 0, 0)
+      drawTexture(rootTex.texture,
+                  app.tree.root.bounds.x.int32,
+                  app.tree.root.bounds.y.int32,
+                  White)
 
-    # For now, just draw placeholder
-    if app.tree.root != nil:
-      drawText("RUI Application Running", 10'i32, 10'i32, 20'i32, DarkGray)
-      drawText("FPS: " & $app.currentFPS, 10'i32, 40'i32, 16'i32, Green)
-      drawText("Events in queue: " & $app.eventManager.queueLength, 10'i32, 60'i32, 16'i32, Blue)
+    # Debug overlay (optional - can be removed later)
+    when defined(debugUI):
+      drawText("FPS: " & $app.currentFPS, 10'i32, 10'i32, 16'i32, DarkGray)
+      drawText("Events: " & $app.eventManager.queueLength, 10'i32, 30'i32, 16'i32, DarkGray)
 
     endDrawing()
 
@@ -387,10 +391,10 @@ when defined(useGraphics):
       # 4. Poll script commands (once per second)
       app.pollScriptCommands()
 
-      # 5. Layout pass (if tree is dirty)
-      app.updateLayout()
+      # 5. Layout and render passes (if tree is dirty)
+      app.updateLayoutAndRender()
 
-      # 6. Render frame
+      # 6. Composite to screen
       app.renderFrame()
 
       # Update FPS counter
@@ -423,8 +427,8 @@ proc runHeadless*(app: App, frames: int = -1) =
     # 3. Poll scripts
     app.pollScriptCommands()
 
-    # 4. Layout
-    app.updateLayout()
+    # 4. Layout and render
+    app.updateLayoutAndRender()
 
     inc frameCount
 

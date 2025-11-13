@@ -1,10 +1,47 @@
 ## Main Loop - Two-Pass Rendering
 ##
 ## Pass 1: Layout - Calculate positions/sizes, mark dirty if changed
-## Pass 2: Render - Draw dirty widgets, use cache for clean ones
+## Pass 2: Render - Draw dirty widgets to textures, use cache for clean ones
+##
+## Texture Caching:
+## - Each widget renders to its own RenderTexture2D
+## - Children are rendered first (bottom-up)
+## - Parent composites children's textures into its own
+## - Cached Texture2D is reused when widget is clean
 
 import types
 import std/algorithm
+
+when defined(useGraphics):
+  import raylib
+
+# ============================================================================
+# Texture Management Helpers
+# ============================================================================
+
+when defined(useGraphics):
+  proc createWidgetTexture(widget: Widget): RenderTexture2D =
+    ## Create a render texture for the widget
+    ## Size is based on widget's bounds
+    let width = max(1, widget.bounds.width.int32)
+    let height = max(1, widget.bounds.height.int32)
+    result = loadRenderTexture(width, height)
+
+  proc freeWidgetTexture(widget: Widget) =
+    ## Free the cached render texture if present
+    if widget.cachedTexture.isSome:
+      unloadRenderTexture(widget.cachedTexture.get())
+      widget.cachedTexture = none(RenderTexture2D)
+
+  proc compositeChildTexture(child: Widget, offsetX, offsetY: float32) =
+    ## Draw a child's cached texture at its position relative to parent
+    ## Called during parent rendering
+    if child.cachedTexture.isSome and child.visible:
+      let renderTex = child.cachedTexture.get()
+      # Extract the Texture2D from RenderTexture2D for drawing
+      let relX = child.bounds.x - offsetX
+      let relY = child.bounds.y - offsetY
+      drawTexture(renderTex.texture, relX.int32, relY.int32, White)
 
 # ============================================================================
 # Dirty Tracking Helpers
@@ -70,12 +107,16 @@ proc layoutPass*(widget: Widget) =
 # ============================================================================
 
 proc renderPass*(widget: Widget) =
-  ## Recursively render dirty widgets
+  ## Recursively render dirty widgets to textures (bottom-up)
   ##
-  ## Dirty widgets re-render and cache the result.
-  ## Clean widgets use their cached texture.
-  ##
-  ## Both primitives and composites have render() method.
+  ## Strategy:
+  ## 1. Render children first (so their textures are available)
+  ## 2. If widget is dirty:
+  ##    - Create RenderTexture2D
+  ##    - Render widget's own content
+  ##    - Composite children's cached textures
+  ##    - Store resulting Texture2D in cache
+  ## 3. If widget is clean: use existing cached texture
 
   if not widget.visible:
     return
@@ -113,6 +154,55 @@ proc renderPass*(widget: Widget) =
     # Normal case: render in tree order
     for child in widget.children:
       child.renderPass()
+
+  # Step 2: Render this widget if dirty
+  if widget.isDirty:
+    when defined(useGraphics):
+      # Free old cached texture
+      freeWidgetTexture(widget)
+
+      # Create render target for this widget
+      let renderTex = createWidgetTexture(widget)
+
+      # Begin rendering to texture
+      beginTextureMode(renderTex)
+      clearBackground(Color(r: 0, g: 0, b: 0, a: 0))  # Transparent background
+
+      # Render widget's own content
+      # Note: widget.render() draws at widget.bounds coordinates
+      # We need to draw at (0, 0) in texture space
+      # Save original position, temporarily offset to (0, 0)
+      let originalX = widget.bounds.x
+      let originalY = widget.bounds.y
+      widget.bounds.x = 0
+      widget.bounds.y = 0
+
+      widget.render()
+
+      # Restore original position
+      widget.bounds.x = originalX
+      widget.bounds.y = originalY
+
+      # Composite children's cached textures into this widget's texture
+      for child in widget.children:
+        if child.visible and child.cachedTexture.isSome:
+          let childRenderTex = child.cachedTexture.get()
+          # Draw at child's relative position (relative to parent)
+          let relX = child.bounds.x - originalX
+          let relY = child.bounds.y - originalY
+          drawTexture(childRenderTex.texture, relX.int32, relY.int32, White)
+
+      # End texture mode
+      endTextureMode()
+
+      # Store the complete RenderTexture2D in cache
+      widget.cachedTexture = some(renderTex)
+
+      widget.isDirty = false
+    else:
+      # Non-graphics mode: just call render directly
+      widget.render()
+      widget.isDirty = false
 
 # ============================================================================
 # Main Frame Function

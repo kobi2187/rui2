@@ -90,6 +90,9 @@ export primitives
 import widgets/basic
 export basic
 
+import widgets/basic/image
+export image
+
 # Containers
 import widgets/containers
 export containers

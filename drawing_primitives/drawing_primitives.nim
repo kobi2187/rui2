@@ -1,19 +1,14 @@
 ## Drawing Primitives - Unified Module
 ##
-## This module has been refactored into focused, composable sub-modules
-## following the Forth philosophy: small, obvious functions that compose.
+## This module provides drawing utilities for RUI2 widgets.
 ##
 ## Module Structure:
-## - primitives/shapes.nim      (~240 lines) - Basic geometric shapes and effects
-## - primitives/text.nim        (~210 lines) - Text rendering and measurement
-## - primitives/controls.nim    (~380 lines) - Interactive UI controls
-## - primitives/panels.nim      (~180 lines) - Containers, cards, panels
-## - primitives/indicators.nim  (~210 lines) - Status symbols and progress
+## - drawing_effects.nim   (~730 lines) - Visual effects (bevels, gradients, shadows, glow)
+## - brand_helpers.nim     (~270 lines) - Brand feature extraction utilities
+## - theme_sys_core.nim    - Theme system types
+## - builtin_themes.nim    - Built-in themes
 ##
-## Total: ~1220 lines split into 5 focused modules (was 1292 in one file)
-##
-## This file re-exports all primitives for backward compatibility.
-## All existing code continues to work unchanged.
+## This file re-exports all utilities for easy access.
 
 import primitives/shapes
 # text module not imported to avoid identifier conflicts with common field name "text"
@@ -29,6 +24,12 @@ export shapes
 export controls
 export panels
 export indicators
+import drawing_effects
+import brand_helpers
+
+# Re-export everything
+export drawing_effects
+export brand_helpers
 
 ## Migration Notes:
 ##
