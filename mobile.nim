@@ -1,6 +1,7 @@
 ## Mobile Support Module for RUI
 ##
 ## Complete mobile support including:
+## - Touch input provider (bridges raylib touch events)
 ## - Gesture recognition (tap, swipe, pinch, rotate, long press)
 ## - Display management (orientation, safe areas, responsive layout)
 ## - Virtual keyboard handling
@@ -9,14 +10,17 @@
 ## Usage:
 ##   import mobile
 ##
-##   # Create managers
+##   # Complete setup with input provider
+##   let mobile = initMobileSupport()
+##
+##   # In your main loop:
+##   mobile.input.update()  # Poll touch events and recognize gestures
+##
+##   # Or manually:
 ##   let gestureManager = newGestureManager()
+##   let inputProvider = createInputProvider(gestureManager)
 ##   let displayManager = initDisplayManager()
 ##   let keyboardManager = newKeyboardManager()
-##
-##   # Use mobile widgets
-##   let scrollView = newMomentumScroll(contentWidget)
-##   let refreshView = newPullToRefresh(listWidget)
 ##
 ## For detailed examples, see: mobile/MOBILE_GUIDE.md
 
@@ -37,6 +41,16 @@ export TouchFeedbackType, ScrollBehavior, MobileWidgetProps
 # Export constants
 export MinTouchTargetSize, RecommendedTouchTargetSize, MinTouchTargetSpacing
 export CompactMaxWidth, MediumMaxWidth
+
+# ============================================================================
+# Input Provider
+# ============================================================================
+
+import mobile/input_provider
+export input_provider
+
+# Re-export input provider types
+export RaylibInputProvider, newRaylibInputProvider, createInputProvider
 
 # ============================================================================
 # Managers
@@ -76,18 +90,29 @@ export MomentumScroll, newMomentumScroll, ScrollPhase
 # Convenience Procedures
 # ============================================================================
 
-proc initMobileSupport*(autoDetect: bool = true): tuple[
+proc initMobileSupport*(autoDetect: bool = true, mouseSimulation: bool = true): tuple[
+  input: RaylibInputProvider,
   gesture: GestureManager,
   display: DisplayManager,
   keyboard: KeyboardManager
 ] =
-  ## Initialize all mobile managers at once
+  ## Initialize all mobile managers and input provider at once
+  ##
+  ## autoDetect: Auto-detect display info from platform
+  ## mouseSimulation: Use mouse as touch input on desktop (for testing)
   ##
   ## Example:
   ##   let mobile = initMobileSupport()
-  ##   mobile.gesture.onGesture = proc(g: GestureData) = echo "Gesture: ", g.kind
+  ##
+  ##   # Configure callbacks
+  ##   mobile.gesture.onGesture = proc(g: GestureData) =
+  ##     echo "Gesture: ", g.kind
+  ##
+  ##   # In your main loop:
+  ##   mobile.input.update()  # Polls touch/mouse and recognizes gestures
   ##
   result.gesture = newGestureManager()
+  result.input = createInputProvider(result.gesture, mouseSimulation)
   result.display = initDisplayManager(autoDetect = autoDetect)
   result.keyboard = newKeyboardManager()
 
@@ -119,42 +144,88 @@ when isMainModule:
 
   import core/types
 
-  # Initialize mobile support
+  # ========================================
+  # 1. Initialize mobile support
+  # ========================================
+
   let mobile = initMobileSupport()
 
-  # Configure gesture manager
+  # ========================================
+  # 2. Configure gesture callbacks
+  # ========================================
+
   mobile.gesture.onGesture = proc(gesture: GestureData) =
     case gesture.kind
     of gkTap:
-      echo "Tap at: ", gesture.position
+      echo "✓ Tap at: (", gesture.position.x, ", ", gesture.position.y, ")"
+    of gkDoubleTap:
+      echo "✓ Double tap!"
+    of gkLongPress:
+      echo "✓ Long press"
     of gkSwipe:
-      echo "Swipe ", gesture.direction
+      echo "✓ Swipe ", gesture.direction, " velocity: ", gesture.velocity
+    of gkPan:
+      echo "✓ Pan delta: ", gesture.delta, " state: ", gesture.state
     of gkPinch:
-      echo "Pinch scale: ", gesture.scale
+      echo "✓ Pinch scale: ", gesture.scale
+    of gkRotate:
+      echo "✓ Rotate angle: ", gesture.rotation, " radians"
     else:
-      echo "Gesture: ", gesture.kind
+      echo "✓ Gesture: ", gesture.kind
 
-  # Configure display manager
+  # ========================================
+  # 3. Configure display & keyboard
+  # ========================================
+
   mobile.display.onOrientationChange = proc(oldOr, newOr: Orientation) =
-    echo "Orientation changed: ", oldOr, " -> ", newOr
+    echo "↻ Orientation: ", oldOr, " → ", newOr
 
-  # Configure keyboard manager
   mobile.keyboard.onKeyboardShow = proc(info: KeyboardInfo) =
-    echo "Keyboard shown, height: ", info.height
+    echo "⌨ Keyboard shown, height: ", info.height
 
-  # Create a mobile-optimized scroll view
-  # let content = ... your content widget ...
+  # ========================================
+  # 4. Create mobile widgets (examples)
+  # ========================================
+
+  # let content = buildYourContent()
   # let scrollView = newMomentumScroll(content)
   # scrollView.bounceEnabled = true
-
-  # Create pull-to-refresh
+  #
   # let refreshView = newPullToRefresh(scrollView)
   # refreshView.onRefresh = proc() =
   #   echo "Refreshing..."
-  #   # Load new data
+  #   loadNewData()
   #   refreshView.completeRefresh()
 
+  # ========================================
+  # 5. Main Loop (pseudo-code)
+  # ========================================
+
+  echo ""
   echo "Mobile support initialized!"
+  echo "==========================="
   echo "Platform: ", detectPlatform()
   echo "Is mobile: ", detectMobilePlatform()
   echo "Screen size: ", mobile.display.getScreenSize()
+  echo "Mouse simulation: ", mobile.input.mouseSimulation
+  echo ""
+  echo "Main loop structure:"
+  echo "-------------------"
+  echo "while not windowShouldClose():"
+  echo "  # 1. Poll touch/mouse input and recognize gestures"
+  echo "  mobile.input.update()"
+  echo ""
+  echo "  # 2. Update keyboard animations"
+  echo "  mobile.keyboard.update()"
+  echo ""
+  echo "  # 3. Update mobile widgets"
+  echo "  # scrollView.update(deltaTime)"
+  echo "  # refreshView.update()"
+  echo ""
+  echo "  # 4. Regular app update & render"
+  echo "  # app.update()"
+  echo "  # app.render()"
+  echo ""
+  echo "✓ Ready for mobile input!"
+  echo "  - Try clicking/dragging (simulates touch on desktop)"
+  echo "  - Gestures will be recognized and printed above"

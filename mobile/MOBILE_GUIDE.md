@@ -45,17 +45,39 @@ app.start()
 
 ```nim
 # In your main loop
-proc mainLoop(app: App, mobile: MobileManagers) =
-  while not windowShouldClose():
-    # Update mobile managers
-    mobile.gesture.recognizeGestures()
-    mobile.keyboard.update()
-    mobile.display.update()  # If handling orientation changes
+while not windowShouldClose():
+  # 1. Poll touch input and recognize gestures (CRITICAL!)
+  mobile.input.update()
+  # This calls:
+  #   - Polls raylib touch functions (or mouse for desktop testing)
+  #   - Feeds touch events to gesture manager
+  #   - Recognizes gestures and calls your callbacks
 
-    # Regular app update
-    app.update()
-    app.render()
+  # 2. Update keyboard animations
+  mobile.keyboard.update()
+
+  # 3. Update mobile widgets
+  let deltaTime = getFrameTime()
+  scrollView.update(deltaTime)
+  refreshView.update()
+
+  # 4. Regular app update & render
+  app.update()
+  app.render()
 ```
+
+**Important:** You MUST call `mobile.input.update()` every frame to poll touch events!
+
+### How Touch Events Flow
+
+See [EVENT_FLOW.md](EVENT_FLOW.md) for complete details, but here's the summary:
+
+1. **Physical Touch** → OS generates touch event
+2. **Raylib** → Provides touch via `GetTouchPosition()`, etc.
+3. **RaylibInputProvider** (`mobile.input`) → Polls raylib and tracks touches
+4. **GestureManager** → Recognizes high-level gestures
+5. **Your Callback** → `onGesture` fires with gesture data
+6. **Your App** → Handles the gesture
 
 ---
 
@@ -116,7 +138,28 @@ gestureManager.onGesture = proc(gesture: GestureData) =
     discard
 ```
 
-### Feeding Touch Events
+### Input Provider (Automatic Touch Handling)
+
+The `RaylibInputProvider` automatically handles touch events for you:
+
+```nim
+let gestureManager = newGestureManager()
+let inputProvider = createInputProvider(gestureManager)
+
+# In main loop - that's it!
+inputProvider.update()
+# This automatically:
+#   - Polls raylib for touch input
+#   - Tracks touch starts/moves/ends
+#   - Feeds events to gesture manager
+#   - Recognizes gestures
+```
+
+**Desktop Testing**: The input provider automatically uses mouse as touch when no real touch input is available, so you can test on your desktop!
+
+### Manual Touch Events (Advanced)
+
+If you need to manually feed touch events (e.g., custom input source):
 
 ```nim
 # When touch starts
