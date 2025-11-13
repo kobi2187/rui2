@@ -4,7 +4,7 @@
 ## Displays tab buttons at the top and the active tab's content below.
 ## Ported from Hummingbird to RUI2's defineWidget DSL.
 
-import ../../core/widget_dsl_v2
+import ../../core/widget_dsl_v3
 import std/[options, strutils]
 
 when defined(useGraphics):
@@ -34,7 +34,7 @@ defineWidget(TabControl):
 
   render:
     when defined(useGraphics):
-      var activeIdx = widget.activeTab.get()
+      var activeIdx = widget.activeTab
 
       # Join tab titles with semicolon separator
       let tabsStr = if widget.tabs.len > 0:
@@ -54,8 +54,8 @@ defineWidget(TabControl):
         addr activeIdx
       ):
         # Tab changed
-        if activeIdx != widget.activeTab.get():
-          widget.activeTab.set(activeIdx)
+        if activeIdx != widget.activeTab:
+          widget.activeTab = activeIdx
           if widget.onTabChanged.isSome:
             widget.onTabChanged.get()(activeIdx)
 
@@ -64,7 +64,7 @@ defineWidget(TabControl):
         widget.children[activeIdx].render()
     else:
       # Non-graphics mode
-      let activeIdx = widget.activeTab.get()
+      let activeIdx = widget.activeTab
       echo "Tabs: ", widget.tabs.join(" | ")
       if activeIdx >= 0 and activeIdx < widget.tabs.len:
         echo "Active: [", widget.tabs[activeIdx], "]"

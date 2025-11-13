@@ -2,7 +2,7 @@
 ##
 ## Pure drawing primitive that renders circles using drawing_primitives
 
-import ../../core/widget_dsl_v2
+import ../../core/widget_dsl_v3
 import ../../drawing_primitives/drawing_primitives
 import raylib
 

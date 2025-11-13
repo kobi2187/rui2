@@ -111,11 +111,16 @@ type
     # Rendering
     cachedTexture*: Option[Texture2D]
     zIndex*: int
+    hasOverlay*: bool          # If true, children are sorted by z-index during rendering
 
     # Scripting support
     scriptable*: bool                    # Can be controlled via scripting
     blockReading*: bool                  # Prevent reading sensitive data (passwords, etc.)
     allowedActions*: set[ScriptAction]   # Permitted actions
+
+    # Focus callbacks
+    onFocus*: Option[proc() {.closure.}]       # Called when widget gains focus
+    onBlur*: Option[proc() {.closure.}]        # Called when widget loses focus
 
     # Hierarchy
     parent*: Widget
@@ -123,7 +128,10 @@ type
 
   WidgetTree* = ref object
     root*: Widget
-    anyDirty*: bool                           # Tree-level optimization flag
+
+    anyDirty*: bool # Tree-level optimization flag
+    isDirty*: bool
+
     widgetMap*: Table[WidgetId, Widget]       # Numeric ID -> Widget
     widgetsByStringId*: Table[string, Widget] # String ID -> Widget (for scripting)
 
@@ -133,7 +141,7 @@ type
 
 type
   Link*[T] = ref object
-    valueInternal*: T  # Internal field accessed by link.nim
+    value*: T  # Internal field accessed by link.nim
     dependentWidgets*: HashSet[Widget]  # Direct references for O(1) updates!
     onChange*: proc(oldVal, newVal: T)
 
@@ -204,6 +212,18 @@ type
     avgTime*: Duration
     maxTime*: Duration
 
+  EventConfig* = object
+    pattern*: EventPattern
+    debounceTime*: Duration        # For epDebounced
+    throttleInterval*: Duration    # For epThrottled
+    batchSize*: int                # For epBatched
+    maxSequenceTime*: Duration     # For epBatched, epOrdered
+
+  EventSequence* = object
+    events*: seq[GuiEvent]
+    startTime*: MonoTime
+    lastEventTime*: MonoTime
+
 # ============================================================================
 # Rendering Types
 # ============================================================================
@@ -241,25 +261,8 @@ type
     minWidth*: int    # Minimum window width (0 = no minimum)
     minHeight*: int   # Minimum window height (0 = no minimum)
 
-  App* = ref object
-    # Core state
-    tree*: WidgetTree
-    store*: Store
-    window*: WindowConfig
-
-    # Managers (to be defined in managers/ module)
-    # renderManager*: RenderManager
-    # layoutManager*: LayoutManager
-    # eventManager*: EventManager
-
-    # Event processing
-    eventTimings*: Table[EventKind, EventTiming]
-    currentEventBudget*: Duration
-
-    # Scripting support
-    scriptingEnabled*: bool
-    scriptDir*: string
-    lastScriptPoll*: MonoTime
+  # App type is defined in core/app.nim to avoid circular dependencies
+  # and because it depends on managers that are defined later
 
 # ============================================================================
 # Helper Functions
@@ -270,6 +273,9 @@ proc hash*(id: WidgetId): Hash =
 
 proc `==`*(a, b: WidgetId): bool =
   a.int == b.int
+
+proc `$`*(id: WidgetId): string =
+  $id.int
 
 proc hash*(widget: Widget): Hash =
   ## Hash function for Widget (uses id)
@@ -298,22 +304,22 @@ method render*(widget: Widget) {.base.} =
   ## Base implementation does nothing.
   discard
 
-method measure*(widget: Widget, constraints: Constraints): Size {.base.} =
+method measure*(widget: Widget, constraints: Constraints): Size =
   ## Calculate the preferred size of this widget given constraints.
   ## Base implementation returns current bounds size.
   result = Size(width: widget.bounds.width, height: widget.bounds.height)
 
-method layout*(widget: Widget) {.base.} =
+method layout*(widget: Widget) =
   ## Position and size children of this widget.
   ## Base implementation does nothing (leaf widgets don't need layout).
   discard
 
-method handleInput*(widget: Widget, event: GuiEvent): bool {.base.} =
+method handleInput*(widget: Widget, event: GuiEvent): bool =
   ## Handle input event. Return true if handled (stops propagation).
   ## Base implementation returns false (not handled).
   result = false
 
-method handleScriptAction*(widget: Widget, action: string, params: JsonNode): JsonNode {.base.} =
+method handleScriptAction*(widget: Widget, action: string, params: JsonNode): JsonNode =
   ## Handle a scripting action. Override in derived widgets.
   ## Returns JSON response (success, error, or data).
   ## Base implementation returns error for unknown action.

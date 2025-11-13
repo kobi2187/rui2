@@ -2,11 +2,14 @@
 ##
 ## Main application loop with integrated event processing, layout, and rendering
 
-import types, link
-import ../managers/event_manager
+import types
+import ../managers/event_manager_refactored
+import ../managers/focus_manager
 import ../drawing_primitives/primitives/text_cache
 import ../drawing_primitives/theme_sys_core
-export event_manager  # Export for users to access eventManager
+export types                      # Export types (re-export what we import)
+export event_manager_refactored   # Export for users to access eventManager
+export focus_manager              # Export focus manager
 export text_cache     # Export text cache types
 export theme_sys_core # Export theme types
 when defined(useGraphics):
@@ -17,9 +20,6 @@ import std/[monotimes, times, os]
 # Application State
 # ============================================================================
 
-# Global app instance (for convenience - can also be passed explicitly)
-var app*: App
-
 type
   App* = ref object
     # Core state
@@ -29,8 +29,10 @@ type
 
     # Managers (exported for testing)
     eventManager*: EventManager
-    # renderManager*: RenderManager  # TODO: implement
-    # layoutManager*: LayoutManager  # TODO: implement
+    focusManager*: FocusManager
+
+    currentFocusWidget: Widget
+    currentFocusLayout: Widget
 
     # Theme and rendering
     currentTheme*: Theme
@@ -49,6 +51,9 @@ type
 
     # Control
     shouldClose*: bool
+
+# Global app instance (for convenience - can also be passed explicitly)
+var app*: App
 
 # ============================================================================
 # Initialization
@@ -79,6 +84,7 @@ proc newApp*(title = "RUI Application",
       minHeight: minHeight
     ),
     eventManager: newEventManager(defaultBudget = initDuration(milliseconds = 8)),
+    focusManager: newFocusManager(),
     currentTheme: newTheme("Default"),
     textCache: TextCache(
       measurements: initTable[MeasurementKey, TextMetrics](),
@@ -91,6 +97,7 @@ proc newApp*(title = "RUI Application",
     frameCount: 0,
     fpsUpdateTime: getMonoTime(),
     currentFPS: 0.0,
+
     scriptingEnabled: false,
     scriptDir: "",
     lastScriptPoll: getMonoTime(),
@@ -121,8 +128,9 @@ proc setTheme*(app: App, theme: Theme) =
   ## Change the application theme
   ## This invalidates the text cache since colors/fonts may have changed
   app.currentTheme = theme
-  clearCache(app.textCache)  # Clear cache since theme affects rendering
+  # clearCache(app.textCache)  # Clear cache since theme affects rendering
   app.tree.anyDirty = true   # Trigger re-render
+  app.tree.isDirty = true
 
 proc getTheme*(app: App): Theme =
   ## Get the current theme
@@ -245,7 +253,7 @@ when defined(useGraphics):
 
 proc handleEvent(app: App, event: GuiEvent) =
   ## Handle a single event
-  ## TODO: Route to widgets via hit testing
+  ## Routes events to appropriate widgets via hit-testing and focus manager
 
   case event.kind
   of evWindowResize:
@@ -255,15 +263,29 @@ proc handleEvent(app: App, event: GuiEvent) =
     app.tree.anyDirty = true
     echo "[Event] Window resized to ", event.windowSize.width, "x", event.windowSize.height
 
-  of evMouseDown, evMouseUp:
-    # TODO: Hit testing and widget event routing
-    echo "[Event] Mouse ", event.kind, " at ", event.mousePos
+  of evMouseDown:
+    # Hit-test to find widget under mouse and request focus
+    # TODO: Build hit-test system in layout pass
+    # let widgets = app.hitTestSystem.findWidgetsAt(event.mousePos.x, event.mousePos.y)
+    # if widgets.len > 0:
+    #   let topWidget = widgets[0]  # Already sorted by z-index
+    #   app.focusManager.requestFocus(topWidget)
+    #   topWidget.handleInput(event)
+    echo "[Event] Mouse down at ", event.mousePos
 
-  of evKeyDown:
-    echo "[Event] Key pressed: ", event.key
+  of evMouseUp:
+    # Route to widget under mouse
+    # TODO: Implement with hit-testing
+    echo "[Event] Mouse up at ", event.mousePos
 
-  of evChar:
-    echo "[Event] Char input: ", event.char
+  of evKeyDown, evChar:
+    # Route keyboard events through focus manager
+    if app.tree.root != nil:
+      let handled = app.focusManager.handleKeyboardEvent(event, app.tree.root)
+      if not handled:
+        echo "[Event] Keyboard event not handled: ", event.kind
+    else:
+      echo "[Event] No root widget - keyboard event ignored"
 
   else:
     discard

@@ -4,7 +4,7 @@
 ## Supports drawing commands, render textures, and interactive drawing.
 ## Similar to HTML5 Canvas API but for Nim/Raylib.
 
-import ../../core/widget_dsl_v2
+import ../../core/widget_dsl_v3
 import std/[options, sequtils, math]
 
 when defined(useGraphics):
@@ -148,7 +148,7 @@ defineWidget(Canvas):
       )
 
       # Execute all draw commands
-      for cmd in widget.commands.get():
+      for cmd in widget.commands:
         case cmd.kind
         of dcLine:
           DrawLineEx(cmd.lineStart, cmd.lineEnd, cmd.lineThickness, cmd.lineColor)
@@ -240,19 +240,19 @@ defineWidget(Canvas):
         if mouseInBounds:
           # Start drawing
           if IsMouseButtonPressed(MOUSE_LEFT_BUTTON):
-            widget.isDrawing.set(true)
-            widget.drawStart.set(mousePos)
+            widget.isDrawing = true
+            widget.drawStart = mousePos
 
             if widget.drawingMode == dmFreehand:
-              widget.currentPath.set(@[mousePos])
+              widget.currentPath = @[mousePos]
 
           # Continue drawing
-          if widget.isDrawing.get() and IsMouseButtonDown(MOUSE_LEFT_BUTTON):
+          if widget.isDrawing and IsMouseButtonDown(MOUSE_LEFT_BUTTON):
             case widget.drawingMode
             of dmFreehand:
-              var path = widget.currentPath.get()
+              var path = widget.currentPath
               path.add(mousePos)
-              widget.currentPath.set(path)
+              widget.currentPath = path
 
               # Draw current path
               if path.len >= 2:
@@ -267,7 +267,7 @@ defineWidget(Canvas):
             of dmLine:
               # Draw preview line
               DrawLineEx(
-                widget.drawStart.get(),
+                widget.drawStart,
                 mousePos,
                 widget.defaultThickness,
                 ColorAlpha(widget.defaultColor, 0.5)
@@ -275,7 +275,7 @@ defineWidget(Canvas):
 
             of dmRect:
               # Draw preview rectangle
-              let start = widget.drawStart.get()
+              let start = widget.drawStart
               let previewRect = Rectangle(
                 x: min(start.x, mousePos.x),
                 y: min(start.y, mousePos.y),
@@ -290,7 +290,7 @@ defineWidget(Canvas):
 
             of dmCircle:
               # Draw preview circle
-              let start = widget.drawStart.get()
+              let start = widget.drawStart
               let radius = sqrt(
                 pow(mousePos.x - start.x, 2) +
                 pow(mousePos.y - start.y, 2)
@@ -306,17 +306,17 @@ defineWidget(Canvas):
               discard
 
           # End drawing
-          if IsMouseButtonReleased(MOUSE_LEFT_BUTTON) and widget.isDrawing.get():
-            widget.isDrawing.set(false)
+          if IsMouseButtonReleased(MOUSE_LEFT_BUTTON) and widget.isDrawing:
+            widget.isDrawing = false
 
             var newCommand: DrawCommand
 
             case widget.drawingMode
             of dmFreehand:
-              let path = widget.currentPath.get()
+              let path = widget.currentPath
               if path.len >= 2:
                 # Convert path to multiple line commands
-                var cmds = widget.commands.get()
+                var cmds = widget.commands
                 for i in 0..<path.len-1:
                   cmds.add(DrawCommand(
                     kind: dcLine,
@@ -325,31 +325,31 @@ defineWidget(Canvas):
                     lineColor: widget.defaultColor,
                     lineThickness: widget.defaultThickness
                   ))
-                widget.commands.set(cmds)
+                widget.commands = cmds
 
                 if widget.onDrawComplete.isSome:
                   widget.onDrawComplete.get()(cmds)
 
-              widget.currentPath.set(@[])
+              widget.currentPath = @[]
 
             of dmLine:
               newCommand = DrawCommand(
                 kind: dcLine,
-                lineStart: widget.drawStart.get(),
+                lineStart: widget.drawStart,
                 lineEnd: mousePos,
                 lineColor: widget.defaultColor,
                 lineThickness: widget.defaultThickness
               )
 
-              var cmds = widget.commands.get()
+              var cmds = widget.commands
               cmds.add(newCommand)
-              widget.commands.set(cmds)
+              widget.commands = cmds
 
               if widget.onDraw.isSome:
                 widget.onDraw.get()(newCommand)
 
             of dmRect:
-              let start = widget.drawStart.get()
+              let start = widget.drawStart
               newCommand = DrawCommand(
                 kind: dcRectFilled,
                 rect: Rectangle(
@@ -363,15 +363,15 @@ defineWidget(Canvas):
                 rectRoundness: 0.0
               )
 
-              var cmds = widget.commands.get()
+              var cmds = widget.commands
               cmds.add(newCommand)
-              widget.commands.set(cmds)
+              widget.commands = cmds
 
               if widget.onDraw.isSome:
                 widget.onDraw.get()(newCommand)
 
             of dmCircle:
-              let start = widget.drawStart.get()
+              let start = widget.drawStart
               let radius = sqrt(
                 pow(mousePos.x - start.x, 2) +
                 pow(mousePos.y - start.y, 2)
@@ -384,9 +384,9 @@ defineWidget(Canvas):
                 circleColor: widget.defaultColor
               )
 
-              var cmds = widget.commands.get()
+              var cmds = widget.commands
               cmds.add(newCommand)
-              widget.commands.set(cmds)
+              widget.commands = cmds
 
               if widget.onDraw.isSome:
                 widget.onDraw.get()(newCommand)
@@ -407,11 +407,11 @@ defineWidget(Canvas):
       # Non-graphics mode
       echo "Canvas:"
       echo "  Drawing mode: ", widget.drawingMode
-      echo "  Commands: ", widget.commands.get().len
-      echo "  Drawing: ", widget.isDrawing.get()
+      echo "  Commands: ", widget.commands.len
+      echo "  Drawing: ", widget.isDrawing
       echo "  Grid: ", widget.showGrid
 
-      if widget.commands.get().len > 0:
+      if widget.commands.len > 0:
         echo "  Recent commands:"
-        for i, cmd in widget.commands.get()[max(0, widget.commands.get().len - 5)..^1]:
+        for i, cmd in widget.commands[max(0, widget.commands.len - 5)..^1]:
           echo "    ", i, ": ", cmd.kind

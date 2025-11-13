@@ -168,7 +168,7 @@ macro definePrimitive*(name: untyped, body: untyped): untyped =
             error("Use 'name: Type = value' syntax for props with defaults", prop)
 
     of "state":
-      # Parse state fields - will be wrapped in Link[T]
+      # Parse state fields - plain types (Link[T] only for explicit store bindings)
       if sectionBody.kind == nnkStmtList:
         for stateField in sectionBody:
           if stateField.kind == nnkCall and stateField.len == 2:
@@ -178,11 +178,11 @@ macro definePrimitive*(name: untyped, body: untyped): untyped =
                            else:
                              stateField[1]
 
-            # Wrap in Link[T]
-            let linkType = nnkBracketExpr.newTree(ident("Link"), fieldType)
+            # State fields are plain types (NOT wrapped in Link)
+            # Link[T] is only used when binding to store explicitly
             stateFields.add(nnkIdentDefs.newTree(
               fieldName,
-              linkType,
+              fieldType,
               newEmptyNode()
             ))
 
@@ -334,6 +334,7 @@ macro definePrimitive*(name: untyped, body: untyped): untyped =
     result.isDirty = true
     result.layoutDirty = true
     result.zIndex = 0
+    result.hasOverlay = false
     result.children = @[]
     result.parent = nil
     result.bounds = Rect(x: 0, y: 0, width: 100, height: 30)
@@ -342,32 +343,30 @@ macro definePrimitive*(name: untyped, body: untyped): untyped =
   # Add prop assignments
   constructorBody.add(propAssignments)
 
-  # Initialize state fields with Link
+  # Initialize state fields (plain values, no Link wrapping)
   for field in stateFields:
     if field.kind == nnkIdentDefs:
       let fieldName = field[0]
-      let linkType = field[1]  # Link[T]
-
-      # Extract T from Link[T]
-      let innerType =
-        if linkType.kind == nnkBracketExpr and linkType[0].strVal == "Link":
-          linkType[1]
-        else:
-          linkType
+      let fieldType = field[1]  # Plain type (bool, int, etc.)
 
       # Get default value based on type
       var defaultValue: NimNode
-      case innerType.strVal
+      let typeStr = if fieldType.kind == nnkIdent: fieldType.strVal else: ""
+
+      case typeStr
       of "bool": defaultValue = ident("false")
       of "int": defaultValue = newLit(0)
-      of "float", "float32", "float64": defaultValue = newLit(0.0)
+      of "float32":
+        defaultValue = newCall(ident("float32"), newLit(0.0))
+      of "float", "float64":
+        defaultValue = newLit(0.0)
       of "string": defaultValue = newLit("")
       else:
         # For complex types, use default constructor
-        defaultValue = newCall(innerType)
+        defaultValue = newCall(fieldType)
 
       constructorBody.add(quote do:
-        result.`fieldName` = newLink(`defaultValue`)
+        result.`fieldName` = `defaultValue`
       )
 
   # Add action assignments
@@ -554,7 +553,7 @@ macro defineWidget*(name: untyped, body: untyped): untyped =
             error("Use 'name: Type = value' syntax for props with defaults", prop)
 
     of "state":
-      # Parse state fields - will be wrapped in Link[T]
+      # Parse state fields - plain types (Link[T] only for explicit store bindings)
       if sectionBody.kind == nnkStmtList:
         for stateField in sectionBody:
           if stateField.kind == nnkCall and stateField.len == 2:
@@ -564,10 +563,11 @@ macro defineWidget*(name: untyped, body: untyped): untyped =
                            else:
                              stateField[1]
 
-            let linkType = nnkBracketExpr.newTree(ident("Link"), fieldType)
+            # State fields are plain types (NOT wrapped in Link)
+            # Link[T] is only used when binding to store explicitly
             stateFields.add(nnkIdentDefs.newTree(
               fieldName,
-              linkType,
+              fieldType,
               newEmptyNode()
             ))
 
@@ -707,6 +707,7 @@ macro defineWidget*(name: untyped, body: untyped): untyped =
     result.isDirty = true
     result.layoutDirty = true
     result.zIndex = 0
+    result.hasOverlay = false
     result.children = @[]
     result.parent = nil
     result.bounds = Rect(x: 0, y: 0, width: 100, height: 30)
@@ -714,29 +715,28 @@ macro defineWidget*(name: untyped, body: untyped): untyped =
 
   constructorBody.add(propAssignments)
 
-  # Initialize state fields
+  # Initialize state fields (plain values, no Link wrapping)
   for field in stateFields:
     if field.kind == nnkIdentDefs:
       let fieldName = field[0]
-      let linkType = field[1]
-
-      let innerType =
-        if linkType.kind == nnkBracketExpr and linkType[0].strVal == "Link":
-          linkType[1]
-        else:
-          linkType
+      let fieldType = field[1]  # Plain type (bool, int, etc.)
 
       var defaultValue: NimNode
-      case innerType.strVal
+      let typeStr = if fieldType.kind == nnkIdent: fieldType.strVal else: ""
+
+      case typeStr
       of "bool": defaultValue = ident("false")
       of "int": defaultValue = newLit(0)
-      of "float", "float32", "float64": defaultValue = newLit(0.0)
+      of "float32":
+        defaultValue = newCall(ident("float32"), newLit(0.0))
+      of "float", "float64":
+        defaultValue = newLit(0.0)
       of "string": defaultValue = newLit("")
       else:
-        defaultValue = newCall(innerType)
+        defaultValue = newCall(fieldType)
 
       constructorBody.add(quote do:
-        result.`fieldName` = newLink(`defaultValue`)
+        result.`fieldName` = `defaultValue`
       )
 
   constructorBody.add(actionAssignments)

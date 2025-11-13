@@ -2,7 +2,7 @@
 ##
 ## Pure drawing primitive that renders rectangles using drawing_primitives
 
-import ../../core/widget_dsl_v2
+import ../../core/widget_dsl_v3
 import ../../drawing_primitives/drawing_primitives
 import raylib
 

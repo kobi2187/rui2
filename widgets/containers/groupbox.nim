@@ -4,7 +4,7 @@
 ## Groups related controls together visually.
 ## Ported from Hummingbird to RUI2's defineWidget DSL.
 
-import ../../core/widget_dsl_v2
+import ../../core/widget_dsl_v3
 import std/options
 
 when defined(useGraphics):

@@ -4,6 +4,7 @@
 ## Each function does ONE thing clearly
 
 import macros
+import strutils
 
 # ============================================================================
 # Type Definitions
@@ -175,13 +176,22 @@ proc makeActionDef*(action: NimNode): ActionDef =
 
 proc genPropField*(prop: PropDef): NimNode =
   ## Generate exported field definition for prop
-  let exportedName = nnkPostfix.newTree(ident("*"), prop.name)
-  nnkIdentDefs.newTree(exportedName, prop.typ, prop.default)
+  # DON'T use the captured ident node - create a completely fresh one
+  # This prevents any symbol binding from the calling scope
+  let fieldName = newIdentNode(prop.name.strVal)
+  let exportedName = nnkPostfix.newTree(ident("*"), fieldName)
+
+  # For type, also create fresh ident
+  let typeNode = if prop.typ.kind == nnkIdent:
+    newIdentNode(prop.typ.strVal)
+  else:
+    prop.typ
+
+  nnkIdentDefs.newTree(exportedName, typeNode, prop.default)
 
 proc genStateField*(state: StateDef): NimNode =
-  ## Generate Link[T] wrapped field for state
-  let linkType = nnkBracketExpr.newTree(ident("Link"), state.typ)
-  nnkIdentDefs.newTree(state.name, linkType, newEmptyNode())
+  ## Generate plain type field for state (Link only used for explicit store bindings)
+  nnkIdentDefs.newTree(state.name, state.typ, newEmptyNode())
 
 proc genActionField*(action: ActionDef): NimNode =
   ## Generate Option[proc(...)] field for action
@@ -211,15 +221,22 @@ proc genActionField*(action: ActionDef): NimNode =
 
 proc genPropParam*(prop: PropDef): NimNode =
   ## Generate constructor parameter for prop
-  if prop.default.kind != nnkEmpty:
-    nnkIdentDefs.newTree(prop.name, prop.typ, prop.default)
+  # Use fresh ident for parameter name to ensure hygiene
+  let paramName = ident(prop.name.strVal)
+  let paramType = if prop.typ.kind == nnkIdent:
+    ident(prop.typ.strVal)
   else:
-    nnkIdentDefs.newTree(prop.name, prop.typ, newEmptyNode())
+    prop.typ
+
+  if prop.default.kind != nnkEmpty:
+    nnkIdentDefs.newTree(paramName, paramType, prop.default)
+  else:
+    nnkIdentDefs.newTree(paramName, paramType, newEmptyNode())
 
 proc genStateInit*(state: StateDef): NimNode =
-  ## Generate state initialization: fieldName: newLink(default)
+  ## Generate state initialization: fieldName: default(Type)
   let initValue = quote do:
-    newLink(default(`state.typ`))
+    default(`state.typ`)
   nnkExprColonExpr.newTree(state.name, initValue)
 
 proc genActionParam*(action: ActionDef): NimNode =
@@ -245,11 +262,12 @@ proc genActionParam*(action: ActionDef): NimNode =
 
 proc genActionInit*(action: ActionDef): NimNode =
   ## Generate action initialization in constructor
+  let actionIdent = ident(action.name)
   quote do:
-    if `ident(action.name)`.isSome:
-      some(`ident(action.name)`.get())
+    if `actionIdent`.isSome:
+      some(`actionIdent`.get())
     else:
-      none(type(`ident(action.name)`.get()))
+      none(type(`actionIdent`.get()))
 
 # ============================================================================
 # Event Handling
@@ -353,15 +371,15 @@ proc parseEvents*(eventsBody: NimNode): seq[EventDef] =
 # Utilities
 # ============================================================================
 
-proc makeWidgetTypeName*(name: untyped): NimNode =
+proc makeWidgetTypeName*(name: NimNode): NimNode =
   ## Generate widget type name (e.g., Button -> Button)
   name
 
-proc makeConstructorName*(name: untyped): NimNode =
+proc makeConstructorName*(name: NimNode): NimNode =
   ## Generate constructor name (e.g., Button -> newButton)
   ident("new" & name.strVal)
 
-proc checkInternalFile*(name: untyped): NimNode =
+proc checkInternalFile*(name: NimNode): NimNode =
   ## Generate import statement for {name}_internal.nim if it exists
   ## Returns empty node if file doesn't exist
   let internalName = name.strVal.toLowerAscii() & "_internal"

@@ -4,7 +4,7 @@
 ## Supports expand/collapse, selection, and custom node data.
 ## Uses virtual scrolling to efficiently handle thousands of nodes.
 
-import ../../core/widget_dsl_v2
+import ../../core/widget_dsl_v3
 import std/[options, sets, json]
 
 when defined(useGraphics):
@@ -67,10 +67,10 @@ defineWidget(TreeView):
 
       var idx = 0
       flattenNode(widget.rootNode, 0, idx)
-      widget.flatNodes.set(flatList)
+      widget.flatNodes = flatList
 
       # Calculate visible range (virtual scrolling)
-      let scroll = widget.scrollY.get()
+      let scroll = widget.scrollY
       let viewHeight = widget.bounds.height
       let nodeH = widget.nodeHeight
 
@@ -82,8 +82,8 @@ defineWidget(TreeView):
       let visStart = max(0, int(scroll / nodeH) - bufferNodes)
       let visEnd = min(flatList.len - 1, int((scroll + viewHeight) / nodeH) + bufferNodes)
 
-      widget.visibleStart.set(visStart)
-      widget.visibleEnd.set(visEnd)
+      widget.visibleStart = visStart
+      widget.visibleEnd = visEnd
 
       # Draw background
       DrawRectangleRec(
@@ -132,8 +132,8 @@ defineWidget(TreeView):
           newHovered = node.id
 
         # Draw selection highlight
-        let isSelected = node.id == widget.selected.get()
-        let isHovered = node.id == widget.hovered.get()
+        let isSelected = node.id == widget.selected
+        let isHovered = node.id == widget.hovered
 
         if isSelected:
           DrawRectangleRec(nodeRect, Color(r: 100, g: 150, b: 255, a: 100))
@@ -210,7 +210,7 @@ defineWidget(TreeView):
         # Handle node click
         if mouseInBounds and IsMouseButtonPressed(MOUSE_LEFT_BUTTON):
           if CheckCollisionPointRec(mousePos, nodeRect):
-            widget.selected.set(node.id)
+            widget.selected = node.id
             if widget.onSelect.isSome:
               widget.onSelect.get()(node.id)
 
@@ -221,7 +221,7 @@ defineWidget(TreeView):
             if widget.onDoubleClick.isSome:
               widget.onDoubleClick.get()(node.id)
 
-      widget.hovered.set(newHovered)
+      widget.hovered = newHovered
 
       EndScissorMode()
 
@@ -255,14 +255,14 @@ defineWidget(TreeView):
         if mouseInBounds and IsMouseButtonDown(MOUSE_LEFT_BUTTON):
           if CheckCollisionPointRec(mousePos, scrollbarRect):
             let newScroll = ((mousePos.y - widget.bounds.y) / viewHeight) * maxScroll
-            widget.scrollY.set(clamp(newScroll, 0.0, maxScroll))
+            widget.scrollY = clamp(newScroll, 0.0, maxScroll)
 
       # Handle mouse wheel scrolling
       if mouseInBounds:
         let wheel = GetMouseWheelMove()
         if wheel != 0.0:
-          let newScroll = widget.scrollY.get() - (wheel * nodeH * 3.0)
-          widget.scrollY.set(clamp(newScroll, 0.0, maxScroll))
+          let newScroll = widget.scrollY - (wheel * nodeH * 3.0)
+          widget.scrollY = clamp(newScroll, 0.0, maxScroll)
 
       # Draw border
       DrawRectangleLinesEx(
@@ -275,7 +275,7 @@ defineWidget(TreeView):
       # Non-graphics mode - simple text output
       proc printNode(node: TreeNode, level: int) =
         let indent = "  ".repeat(level)
-        let marker = if node.id == widget.selected.get(): "[X]" else: "[ ]"
+        let marker = if node.id == widget.selected: "[X]" else: "[ ]"
         let expandIcon = if node.children.len > 0:
                           (if node.expanded: "[-]" else: "[+]")
                         else: "   "
@@ -287,5 +287,5 @@ defineWidget(TreeView):
 
       echo "TreeView:"
       printNode(widget.rootNode, 0)
-      echo "  Visible nodes: ", widget.visibleStart.get(), " to ", widget.visibleEnd.get()
-      echo "  Total nodes: ", widget.flatNodes.get().len
+      echo "  Visible nodes: ", widget.visibleStart, " to ", widget.visibleEnd
+      echo "  Total nodes: ", widget.flatNodes.len

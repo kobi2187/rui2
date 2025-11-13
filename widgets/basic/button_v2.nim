@@ -3,7 +3,7 @@
 ## Composite widget: Rectangle (background) + Label (text)
 ## Responds to mouse clicks
 
-import ../../core/widget_dsl_v2
+import ../../core/widget_dsl_v3
 import ../primitives/[rectangle, label]
 import raylib
 import std/options
@@ -25,13 +25,13 @@ defineWidget(Button):
   events:
     on_mouse_down:
       if not widget.disabled:
-        widget.isPressed.set(true)
+        widget.isPressed = true
         return true
       return false
 
     on_mouse_up:
-      if widget.isPressed.get() and not widget.disabled:
-        widget.isPressed.set(false)
+      if widget.isPressed and not widget.disabled:
+        widget.isPressed = false
         if widget.onClick.isSome:
           widget.onClick.get()()
         return true
@@ -45,7 +45,7 @@ defineWidget(Button):
                    mouseX <= widget.bounds.x + widget.bounds.width and
                    mouseY >= widget.bounds.y and
                    mouseY <= widget.bounds.y + widget.bounds.height
-      widget.isHovered.set(isOver)
+      widget.isHovered = isOver
       return false
 
   layout:
@@ -56,9 +56,9 @@ defineWidget(Button):
     var buttonColor = widget.bgColor
     if widget.disabled:
       buttonColor = LIGHTGRAY
-    elif widget.isPressed.get():
+    elif widget.isPressed:
       buttonColor = DARKGRAY
-    elif widget.isHovered.get():
+    elif widget.isHovered:
       # Lighten color slightly
       buttonColor = raylib.Color(
         r: uint8(min(255, int(widget.bgColor.r) + 20)),

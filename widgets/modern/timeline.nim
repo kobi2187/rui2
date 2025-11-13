@@ -4,7 +4,7 @@
 ## Supports horizontal time axis, event blocks, and interactive selection.
 ## Useful for scheduling, project management, history visualization.
 
-import ../../core/widget_dsl_v2
+import ../../core/widget_dsl_v3
 import std/[options, times, json, algorithm, math, strformat]
 
 when defined(useGraphics):
@@ -89,7 +89,7 @@ defineWidget(Timeline):
                            of tsYear: widget.pixelsPerUnit / 31536000.0   # ~365 days
 
       let totalWidth = timeRangeSeconds * pixelsPerSecond
-      let scroll = widget.scrollOffset.get()
+      let scroll = widget.scrollOffset
 
       # Begin scissor mode for clipping
       BeginScissorMode(
@@ -206,8 +206,8 @@ defineWidget(Timeline):
           newHoverEvent = event.id
 
         # Draw event block
-        let isSelected = event.id == widget.selectedEvent.get()
-        let isHovered = event.id == widget.hoverEvent.get()
+        let isSelected = event.id == widget.selectedEvent
+        let isHovered = event.id == widget.hoverEvent
 
         var displayColor = event.color
         if isSelected:
@@ -262,7 +262,7 @@ defineWidget(Timeline):
         # Handle click
         if mouseInBounds and IsMouseButtonPressed(MOUSE_LEFT_BUTTON):
           if CheckCollisionPointRec(mousePos, eventRect):
-            widget.selectedEvent.set(event.id)
+            widget.selectedEvent = event.id
 
             if widget.onEventClick.isSome:
               widget.onEventClick.get()(event)
@@ -274,7 +274,7 @@ defineWidget(Timeline):
         #     if widget.onEventDoubleClick.isSome:
         #       widget.onEventDoubleClick.get()(event)
 
-      widget.hoverEvent.set(newHoverEvent)
+      widget.hoverEvent = newHoverEvent
 
       EndScissorMode()
 
@@ -309,7 +309,7 @@ defineWidget(Timeline):
         if mouseInBounds and IsMouseButtonDown(MOUSE_LEFT_BUTTON):
           if CheckCollisionPointRec(mousePos, scrollbarRect):
             let newScroll = ((mousePos.x - widget.bounds.x) / widget.bounds.width) * maxScroll
-            widget.scrollOffset.set(clamp(newScroll, 0.0, maxScroll))
+            widget.scrollOffset = clamp(newScroll, 0.0, maxScroll)
 
             if widget.onScroll.isSome:
               widget.onScroll.get()(newScroll)
@@ -319,8 +319,8 @@ defineWidget(Timeline):
         let wheel = GetMouseWheelMove()
         if wheel != 0.0:
           let maxScroll = max(0.0, totalWidth - widget.bounds.width)
-          let newScroll = widget.scrollOffset.get() - (wheel * widget.pixelsPerUnit)
-          widget.scrollOffset.set(clamp(newScroll, 0.0, maxScroll))
+          let newScroll = widget.scrollOffset - (wheel * widget.pixelsPerUnit)
+          widget.scrollOffset = clamp(newScroll, 0.0, maxScroll)
 
           if widget.onScroll.isSome:
             widget.onScroll.get()(newScroll)
@@ -338,11 +338,11 @@ defineWidget(Timeline):
       echo "  Time range: ", widget.startTime.format("yyyy-MM-dd HH:mm"), " to ", widget.endTime.format("yyyy-MM-dd HH:mm")
       echo "  Scale: ", widget.scale
       echo "  Events: ", widget.events.len
-      echo "  Selected: ", widget.selectedEvent.get()
-      echo "  Scroll: ", widget.scrollOffset.get()
+      echo "  Selected: ", widget.selectedEvent
+      echo "  Scroll: ", widget.scrollOffset
 
       for event in widget.events:
-        let marker = if event.id == widget.selectedEvent.get(): "[X]" else: "[ ]"
+        let marker = if event.id == widget.selectedEvent: "[X]" else: "[ ]"
         let timeStr = event.startTime.format("HH:mm")
         let durationStr = if event.isDuration:
                            " -> " & event.endTime.format("HH:mm")

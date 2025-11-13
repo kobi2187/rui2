@@ -3,7 +3,7 @@
 ## A checkbox input widget with a label that can be toggled on/off.
 ## Ported from Hummingbird to RUI2's definePrimitive DSL.
 
-import ../../core/widget_dsl_v2
+import ../../core/widget_dsl_v3
 import std/options
 
 when defined(useGraphics):
@@ -25,17 +25,17 @@ definePrimitive(Checkbox):
     on_mouse_down:
       if not widget.disabled:
         # Toggle the checked state
-        widget.checked.set(not widget.checked.get())
+        widget.checked = not widget.checked
         # Call the callback
         if widget.onToggle.isSome:
-          widget.onToggle.get()(widget.checked.get())
+          widget.onToggle.get()(widget.checked)
         return true
       return false
 
   render:
     when defined(useGraphics):
       # Use raygui for rendering
-      var checked = widget.checked.get()
+      var checked = widget.checked
 
       if GuiCheckBox(
         Rectangle(
@@ -48,9 +48,9 @@ definePrimitive(Checkbox):
         addr checked
       ):
         # GuiCheckBox returns true when clicked
-        widget.checked.set(checked)
+        widget.checked = checked
         if widget.onToggle.isSome:
           widget.onToggle.get()(checked)
     else:
       # Non-graphics mode: just echo
-      echo "Checkbox: ", widget.text, " [", (if widget.checked.get(): "X" else: " "), "]"
+      echo "Checkbox: ", widget.text, " [", (if widget.checked: "X" else: " "), "]"

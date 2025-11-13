@@ -4,7 +4,7 @@
 ## Similar to IconButton but optimized for toolbar layout.
 ## Uses definePrimitive.
 
-import ../../core/widget_dsl_v2
+import ../../core/widget_dsl_v3
 import std/options
 
 when defined(useGraphics):
@@ -31,18 +31,18 @@ definePrimitive(ToolButton):
   events:
     on_mouse_down:
       if not widget.disabled:
-        widget.isPressed.set(true)
+        widget.isPressed = true
         return true
       return false
 
     on_mouse_up:
-      if widget.isPressed.get() and not widget.disabled:
-        widget.isPressed.set(false)
+      if widget.isPressed and not widget.disabled:
+        widget.isPressed = false
 
         if widget.toggleable:
-          widget.toggled.set(not widget.toggled.get())
+          widget.toggled = not widget.toggled
           if widget.onToggle.isSome:
-            widget.onToggle.get()(widget.toggled.get())
+            widget.onToggle.get()(widget.toggled)
 
         if widget.onClick.isSome:
           widget.onClick.get()()
@@ -52,8 +52,8 @@ definePrimitive(ToolButton):
 
   render:
     when defined(useGraphics):
-      let isPressed = widget.isPressed.get() or widget.toggled.get()
-      let isHovered = widget.isHovered.get()
+      let isPressed = widget.isPressed or widget.toggled
+      let isHovered = widget.isHovered
 
       # Draw button background on hover or pressed
       if isHovered or isPressed:
@@ -105,5 +105,5 @@ definePrimitive(ToolButton):
     else:
       # Non-graphics mode
       let icon = if widget.iconText.len > 0: widget.iconText else: "[?]"
-      let state = if widget.toggled.get(): "[ON]" else: ""
+      let state = if widget.toggled: "[ON]" else: ""
       echo "ToolButton: [", icon, "] ", widget.text, " ", state

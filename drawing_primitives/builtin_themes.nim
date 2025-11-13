@@ -21,7 +21,11 @@ proc makeThemeProps*(
   spacing: float32 = 0.0,
   paddingAll: float32 = 0.0,
   paddingH: float32 = 0.0,
-  paddingV: float32 = 0.0
+  paddingV: float32 = 0.0,
+  focusRingColor: Color = Color(),
+  focusRingWidth: float32 = 0.0,
+  focusGlowRadius: float32 = 0.0,
+  focusGlowColor: Color = Color()
 ): ThemeProps =
   result = ThemeProps()
 
@@ -32,6 +36,10 @@ proc makeThemeProps*(
       result.foregroundColor = some(foregroundColor)
     if borderColor.a > 0:
       result.borderColor = some(borderColor)
+    if focusRingColor.a > 0:
+      result.focusRingColor = some(focusRingColor)
+    if focusGlowColor.a > 0:
+      result.focusGlowColor = some(focusGlowColor)
 
   if borderWidth > 0:
     result.borderWidth = some(borderWidth)
@@ -41,6 +49,10 @@ proc makeThemeProps*(
     result.fontSize = some(fontSize)
   if spacing > 0:
     result.spacing = some(spacing)
+  if focusRingWidth > 0:
+    result.focusRingWidth = some(focusRingWidth)
+  if focusGlowRadius > 0:
+    result.focusGlowRadius = some(focusGlowRadius)
 
   if paddingAll > 0:
     result.padding = some(EdgeInsets(top: paddingAll, right: paddingAll, bottom: paddingAll, left: paddingAll))
@@ -97,6 +109,13 @@ proc createLightTheme*(): Theme =
       backgroundColor = makeColor(240, 240, 240)
     )
 
+    result.states[Default][Focused] = makeThemeProps(
+      borderColor = makeColor(66, 133, 244),  # Blue focus ring
+      borderWidth = 2.0,
+      focusRingColor = makeColor(66, 133, 244, 128),  # Semi-transparent blue
+      focusRingWidth = 3.0
+    )
+
 # Dark Theme
 proc createDarkTheme*(): Theme =
   result = newTheme("Modern Dark")
@@ -140,6 +159,13 @@ proc createDarkTheme*(): Theme =
 
     result.states[Default][Pressed] = makeThemeProps(
       backgroundColor = makeColor(24, 24, 24)
+    )
+
+    result.states[Default][Focused] = makeThemeProps(
+      borderColor = makeColor(100, 181, 246),  # Lighter blue for dark theme
+      borderWidth = 2.0,
+      focusRingColor = makeColor(100, 181, 246, 128),
+      focusRingWidth = 3.0
     )
 
 # BeOS Theme

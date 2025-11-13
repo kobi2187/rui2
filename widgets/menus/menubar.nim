@@ -4,7 +4,7 @@
 ## Contains Menu widgets as children (File, Edit, View, etc.).
 ## Uses defineWidget to manage multiple Menu children.
 
-import ../../core/widget_dsl_v2
+import ../../core/widget_dsl_v3
 import std/options
 
 when defined(useGraphics):
@@ -24,6 +24,10 @@ defineWidget(MenuBar):
   actions:
     onMenuOpen(index: int)
     onMenuClose()
+
+  init:
+    # Enable z-index sorting for dropdown menus to render on top
+    widget.hasOverlay = true
 
   layout:
     # Arrange menu titles horizontally
@@ -64,14 +68,14 @@ defineWidget(MenuBar):
 
       # Render menu titles and active menu
       var x = widget.bounds.x
-      let activeIdx = widget.activeMenuIndex.get()
+      let activeIdx = widget.activeMenuIndex
 
       for i, child in widget.children:
         # Get menu title (would be a property of Menu widget)
         let menuWidth = 80.0  # Fixed for now
 
         # Draw hover/active background
-        if i == activeIdx or i == widget.hoverIndex.get():
+        if i == activeIdx or i == widget.hoverIndex:
           DrawRectangle(
             x.cint,
             widget.bounds.y.cint,

@@ -4,7 +4,7 @@
 ## Provides visual feedback during drag-over and handles file drops.
 ## Also supports click-to-browse as fallback.
 
-import ../../core/widget_dsl_v2
+import ../../core/widget_dsl_v3
 import std/[options, sets, os, strutils]
 
 when defined(useGraphics):
@@ -62,8 +62,8 @@ defineWidget(DragDropArea):
       let mouseInBounds = CheckCollisionPointRec(mousePos, widget.bounds)
 
       # Update hover state
-      if mouseInBounds != widget.isHovered.get():
-        widget.isHovered.set(mouseInBounds)
+      if mouseInBounds != widget.isHovered:
+        widget.isHovered = mouseInBounds
 
       # Check for file drops (simplified - raylib provides IsFileDropped)
       if IsFileDropped():
@@ -125,21 +125,21 @@ defineWidget(DragDropArea):
           if not widget.multiple and validFiles.len > 1:
             validFiles = @[validFiles[0]]
 
-          widget.lastDroppedFiles.set(validFiles)
-          widget.errorMessage.set("")
+          widget.lastDroppedFiles = validFiles
+          widget.errorMessage = ""
 
           if widget.onFilesDropped.isSome:
             widget.onFilesDropped.get()(validFiles)
 
         if rejectedFiles.len > 0 and widget.onFilesRejected.isSome:
           widget.onFilesRejected.get()(rejectedFiles, rejectionReason)
-          widget.errorMessage.set(rejectionReason)
+          widget.errorMessage = rejectionReason
 
-        widget.isDragOver.set(false)
+        widget.isDragOver = false
 
       # Determine colors based on state
-      let isDragOver = widget.isDragOver.get()
-      let isHovered = widget.isHovered.get()
+      let isDragOver = widget.isDragOver
+      let isHovered = widget.isHovered
 
       let bgColor = if isDragOver: widget.hoverColor else: widget.backgroundColor
       let borderCol = if isDragOver: widget.borderColorHover else: widget.borderColor
@@ -272,7 +272,7 @@ defineWidget(DragDropArea):
         textY += 20.0
 
       # Draw error message if present
-      let errorMsg = widget.errorMessage.get()
+      let errorMsg = widget.errorMessage
       if errorMsg.len > 0:
         let errorTextWidth = MeasureText(errorMsg.cstring, 12)
         DrawText(
@@ -284,7 +284,7 @@ defineWidget(DragDropArea):
         )
 
       # Show last dropped files count
-      let lastFiles = widget.lastDroppedFiles.get()
+      let lastFiles = widget.lastDroppedFiles
       if lastFiles.len > 0:
         let countText = $lastFiles.len & " file(s) uploaded"
         let countWidth = MeasureText(countText.cstring, 11)
@@ -303,15 +303,15 @@ defineWidget(DragDropArea):
 
       # Simulated drag detection (in real impl, need OS integration)
       # For now, use hover as proxy for drag-over
-      if mouseInBounds and not widget.isDragOver.get():
+      if mouseInBounds and not widget.isDragOver:
         # Could trigger onDragEnter
         if widget.onDragEnter.isSome:
           widget.onDragEnter.get()()
-        widget.isDragOver.set(true)
-      elif not mouseInBounds and widget.isDragOver.get():
+        widget.isDragOver = true
+      elif not mouseInBounds and widget.isDragOver:
         if widget.onDragLeave.isSome:
           widget.onDragLeave.get()()
-        widget.isDragOver.set(false)
+        widget.isDragOver = false
 
     else:
       # Non-graphics mode
@@ -320,15 +320,15 @@ defineWidget(DragDropArea):
       echo "  Multiple: ", widget.multiple
       echo "  Accepted extensions: ", widget.acceptedExtensions
       echo "  Max file size: ", widget.maxFileSize div 1_000_000, "MB"
-      echo "  Drag over: ", widget.isDragOver.get()
+      echo "  Drag over: ", widget.isDragOver
 
-      let lastFiles = widget.lastDroppedFiles.get()
+      let lastFiles = widget.lastDroppedFiles
       if lastFiles.len > 0:
         echo "  Last dropped files:"
         for file in lastFiles:
           let typeStr = if file.isDirectory: "[DIR]" else: "[FILE]"
           echo "    ", typeStr, " ", file.path, " (", file.size, " bytes)"
 
-      let errorMsg = widget.errorMessage.get()
+      let errorMsg = widget.errorMessage
       if errorMsg.len > 0:
         echo "  Error: ", errorMsg

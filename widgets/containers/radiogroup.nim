@@ -4,7 +4,7 @@
 ## Only one radio button can be selected at a time.
 ## Ported from Hummingbird to RUI2's defineWidget DSL.
 
-import ../../core/widget_dsl_v2
+import ../../core/widget_dsl_v3
 import std/options
 
 when defined(useGraphics):
@@ -37,7 +37,7 @@ defineWidget(RadioGroup):
   render:
     when defined(useGraphics):
       # Render each radio button
-      var selectedIdx = widget.selectedIndex.get()
+      var selectedIdx = widget.selectedIndex
 
       for i, option in widget.options:
         if GuiRadioButton(
@@ -51,12 +51,12 @@ defineWidget(RadioGroup):
           selectedIdx == i
         ):
           # Update selected index
-          widget.selectedIndex.set(i)
+          widget.selectedIndex = i
           if widget.onSelect.isSome:
             widget.onSelect.get()(i)
     else:
       # Non-graphics mode: just echo
       echo "RadioGroup:"
       for i, option in widget.options:
-        let marker = if widget.selectedIndex.get() == i: "●" else: "○"
+        let marker = if widget.selectedIndex == i: "●" else: "○"
         echo "  ", marker, " ", option

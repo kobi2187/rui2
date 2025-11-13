@@ -2,7 +2,7 @@
 ##
 ## Arranges children vertically with spacing
 
-import ../../core/widget_dsl_v2
+import ../../core/widget_dsl_v3
 
 defineWidget(VStack):
   props:

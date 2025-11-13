@@ -4,7 +4,7 @@
 ## Similar to ListBox but with enhanced features like item height customization.
 ## Ported from Hummingbird to RUI2's definePrimitive DSL.
 
-import ../../core/widget_dsl_v2
+import ../../core/widget_dsl_v3
 import std/[options, strutils, sets]
 
 when defined(useGraphics):
@@ -40,7 +40,7 @@ definePrimitive(ListView):
       var selectedIndex = -1
 
       # Get first selected item for GuiListView
-      for idx in widget.selection.get():
+      for idx in widget.selection:
         selectedIndex = idx
         break
 
@@ -51,7 +51,7 @@ definePrimitive(ListView):
                        ""
 
       # GuiListView with scroll support
-      var scrollIdx = widget.scrollIndex.get().cint
+      var scrollIdx = widget.scrollIndex.cint
 
       if GuiListView(
         Rectangle(
@@ -65,10 +65,10 @@ definePrimitive(ListView):
         addr selectedIndex
       ):
         # Selection changed
-        widget.scrollIndex.set(scrollIdx.int)
+        widget.scrollIndex = scrollIdx.int
 
         if selectedIndex >= 0:
-          var newSelection = widget.selection.get()
+          var newSelection = widget.selection
 
           if widget.multiSelect:
             # Toggle selection
@@ -80,7 +80,7 @@ definePrimitive(ListView):
             # Single selection - replace
             newSelection = [selectedIndex].toHashSet
 
-          widget.selection.set(newSelection)
+          widget.selection = newSelection
 
           # Trigger callbacks
           if widget.onItemClick.isSome:
@@ -91,7 +91,7 @@ definePrimitive(ListView):
     else:
       # Non-graphics mode: just echo
       echo "ListView:"
-      let selection = widget.selection.get()
+      let selection = widget.selection
       for i, item in widget.items:
         let marker = if i in selection: "►" else: " "
         echo "  ", marker, " ", item

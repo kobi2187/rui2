@@ -4,7 +4,7 @@
 ## Displays a scrollable list with selectable items.
 ## Ported from Hummingbird to RUI2's definePrimitive DSL.
 
-import ../../core/widget_dsl_v2
+import ../../core/widget_dsl_v3
 import std/[options, strutils, sets]
 
 when defined(useGraphics):
@@ -37,7 +37,7 @@ definePrimitive(ListBox):
       var selectedIndex = -1
 
       # Get first selected item for GuiListView (which only supports single selection)
-      for idx in widget.selection.get():
+      for idx in widget.selection:
         selectedIndex = idx
         break
 
@@ -48,7 +48,7 @@ definePrimitive(ListBox):
                        ""
 
       # GuiListView signature: (bounds, text, scrollIndex, active)
-      var scrollIdx = widget.scrollIndex.get().cint
+      var scrollIdx = widget.scrollIndex.cint
       if GuiListView(
         Rectangle(
           x: widget.bounds.x,
@@ -61,10 +61,10 @@ definePrimitive(ListBox):
         addr selectedIndex
       ):
         # Selection changed
-        widget.scrollIndex.set(scrollIdx.int)
+        widget.scrollIndex = scrollIdx.int
 
         if selectedIndex >= 0:
-          var newSelection = widget.selection.get()
+          var newSelection = widget.selection
 
           if widget.multiSelect:
             # Toggle selection
@@ -76,14 +76,14 @@ definePrimitive(ListBox):
             # Single selection - replace
             newSelection = [selectedIndex].toHashSet
 
-          widget.selection.set(newSelection)
+          widget.selection = newSelection
 
           if widget.onSelect.isSome:
             widget.onSelect.get()(newSelection)
     else:
       # Non-graphics mode: just echo
       echo "ListBox:"
-      let selection = widget.selection.get()
+      let selection = widget.selection
       for i, item in widget.items:
         let marker = if i in selection: "[X]" else: "[ ]"
         echo "  ", marker, " ", item

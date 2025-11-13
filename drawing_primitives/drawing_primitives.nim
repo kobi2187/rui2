@@ -16,14 +16,16 @@
 ## All existing code continues to work unchanged.
 
 import primitives/shapes
-import primitives/text
+# text module not imported to avoid identifier conflicts with common field name "text"
+# import it directly where needed: import drawing_primitives/primitives/text
 import primitives/controls
 import primitives/panels
 import primitives/indicators
 
 # Re-export everything for backward compatibility
+# Note: text module not exported to avoid conflicts with common field name "text"
+# Widgets can import primitives/text directly if needed
 export shapes
-export text
 export controls
 export panels
 export indicators

@@ -4,7 +4,7 @@
 ## Supports horizontal and/or vertical scrolling with scrollbars.
 ## Ported from Hummingbird to RUI2's defineWidget DSL.
 
-import ../../core/widget_dsl_v2
+import ../../core/widget_dsl_v3
 import std/options
 
 when defined(useGraphics):
@@ -32,14 +32,14 @@ defineWidget(ScrollView):
       when defined(useGraphics):
         if widget.scrollY:
           let wheelDelta = 0.0  # Would come from event
-          let currentOffset = widget.scrollOffsetY.get()
+          let currentOffset = widget.scrollOffsetY
           let maxOffset = max(0.0, widget.contentHeight - widget.bounds.height)
           let newOffset = clamp(currentOffset - wheelDelta * 20.0, 0.0, maxOffset)
 
-          widget.scrollOffsetY.set(newOffset)
+          widget.scrollOffsetY = newOffset
 
           if widget.onScroll.isSome:
-            widget.onScroll.get()(widget.scrollOffsetX.get(), newOffset)
+            widget.onScroll.get()(widget.scrollOffsetX, newOffset)
 
           return true
       return false
@@ -47,8 +47,8 @@ defineWidget(ScrollView):
   layout:
     # Children are positioned relative to scroll offset
     for child in widget.children:
-      child.bounds.x = widget.bounds.x - widget.scrollOffsetX.get()
-      child.bounds.y = widget.bounds.y - widget.scrollOffsetY.get()
+      child.bounds.x = widget.bounds.x - widget.scrollOffsetX
+      child.bounds.y = widget.bounds.y - widget.scrollOffsetY
 
       # If contentWidth/Height not specified, use child's size
       if widget.contentWidth == 0.0:
@@ -78,7 +78,7 @@ defineWidget(ScrollView):
 
       # Draw vertical scrollbar if enabled
       if widget.scrollY and widget.showScrollBars:
-        var scrollY = widget.scrollOffsetY.get().cint
+        var scrollY = widget.scrollOffsetY.cint
         let maxScroll = max(0.0, widget.contentHeight - viewHeight).cint
 
         if GuiScrollBar(
@@ -92,11 +92,11 @@ defineWidget(ScrollView):
           0,
           maxScroll
         ):
-          widget.scrollOffsetY.set(scrollY.float)
+          widget.scrollOffsetY = scrollY.float
 
       # Draw horizontal scrollbar if enabled
       if widget.scrollX and widget.showScrollBars:
-        var scrollX = widget.scrollOffsetX.get().cint
+        var scrollX = widget.scrollOffsetX.cint
         let maxScroll = max(0.0, widget.contentWidth - viewWidth).cint
 
         if GuiScrollBar(
@@ -110,7 +110,7 @@ defineWidget(ScrollView):
           0,
           maxScroll
         ):
-          widget.scrollOffsetX.set(scrollX.float)
+          widget.scrollOffsetX = scrollX.float
 
       # Use scissor mode to clip content to visible area
       BeginScissorMode(
@@ -128,6 +128,6 @@ defineWidget(ScrollView):
     else:
       # Non-graphics mode
       echo "ScrollView (", widget.contentWidth, "x", widget.contentHeight, "):"
-      echo "  Offset: (", widget.scrollOffsetX.get(), ", ", widget.scrollOffsetY.get(), ")"
+      echo "  Offset: (", widget.scrollOffsetX, ", ", widget.scrollOffsetY, ")"
       for child in widget.children:
         echo "  ", child

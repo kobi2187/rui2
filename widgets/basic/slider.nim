@@ -4,8 +4,8 @@
 ## Supports optional value display and formatting.
 ## Ported from Hummingbird (slider2.nim) to RUI2's definePrimitive DSL.
 
-import ../../core/widget_dsl_v2
-import std/[options, strformat]
+import ../../core/widget_dsl_v3
+import std/[options, strformat, strutils]
 
 when defined(useGraphics):
   import raylib
@@ -30,19 +30,19 @@ definePrimitive(Slider):
   events:
     on_mouse_down:
       if not widget.disabled:
-        widget.dragging.set(true)
+        widget.dragging = true
         return true
       return false
 
     on_mouse_up:
-      if widget.dragging.get():
-        widget.dragging.set(false)
+      if widget.dragging:
+        widget.dragging = false
         return true
       return false
 
   render:
     when defined(useGraphics):
-      var value = widget.value.get()
+      var value = widget.value
 
       # Format the right text (value display)
       let rightText = if widget.showValue:
@@ -64,11 +64,11 @@ definePrimitive(Slider):
         widget.maxValue
       ):
         # GuiSlider returns true when value changes
-        widget.value.set(value)
+        widget.value = value
         if widget.onChange.isSome:
           widget.onChange.get()(value)
     else:
       # Non-graphics mode: just echo
-      let value = widget.value.get()
+      let value = widget.value
       let pct = int((value - widget.minValue) / (widget.maxValue - widget.minValue) * 100)
       echo "Slider: [", "=".repeat(pct div 10), " ".repeat(10 - pct div 10), "] ", fmt"{value:.1f}"

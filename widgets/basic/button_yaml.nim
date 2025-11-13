@@ -67,4 +67,4 @@ defineWidget(ButtonYAML):
     # YAML-UI style event handler!
     echo "Button clicked: ", widget.text
     if widget.onClick != nil:
-      widget.onClick()
+      widget.onClick.get()()

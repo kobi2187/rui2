@@ -3,8 +3,9 @@
 ## Pure drawing primitive that renders text
 ## TODO: Integrate Pango for proper Unicode/RTL support
 
-import ../../core/widget_dsl_v2
+import ../../core/widget_dsl_v3
 import ../../drawing_primitives/drawing_primitives
+import ../../drawing_primitives/primitives/text
 import raylib
 
 definePrimitive(Label):
@@ -14,8 +15,6 @@ definePrimitive(Label):
     color: raylib.Color = BLACK
 
   render:
-    # Use drawing_primitives text rendering
-    # TODO: Integrate Pango for proper Unicode/RTL/emoji support
     let style = TextStyle(
       fontFamily: "",
       fontSize: widget.fontSize,

@@ -4,7 +4,7 @@
 ## Typically attached to another widget.
 ## Ported from Hummingbird to RUI2's definePrimitive DSL.
 
-import ../../core/widget_dsl_v2
+import ../../core/widget_dsl_v3
 import std/[options, times]
 
 when defined(useGraphics):
@@ -33,30 +33,30 @@ definePrimitive(Tooltip):
   events:
     on_mouse_enter:
       # Start hover timer
-      widget.hoverStartTime.set(GetTime())
-      widget.visible.set(false)
+      widget.hoverStartTime = GetTime()
+      widget.visible = false
       return false
 
     on_mouse_leave:
-      widget.visible.set(false)
+      widget.visible = false
       return false
 
     on_mouse_move:
       # Update mouse position for tooltip placement
       when defined(useGraphics):
         let mousePos = GetMousePosition()
-        widget.mouseX.set(mousePos.x)
-        widget.mouseY.set(mousePos.y)
+        widget.mouseX = mousePos.x
+        widget.mouseY = mousePos.y
 
         # Check if delay has elapsed
-        let elapsed = GetTime() - widget.hoverStartTime.get()
+        let elapsed = GetTime() - widget.hoverStartTime
         if elapsed >= widget.delay:
-          widget.visible.set(true)
+          widget.visible = true
       return false
 
   render:
     when defined(useGraphics):
-      if widget.visible.get():
+      if widget.visible:
         # Measure text size
         let textWidth = MeasureText(widget.text.cstring, 10)
         let textHeight = 10
@@ -65,8 +65,8 @@ definePrimitive(Tooltip):
         let tooltipWidth = float32(textWidth) + widget.padding * 2
         let tooltipHeight = float32(textHeight) + widget.padding * 2
 
-        let tooltipX = widget.mouseX.get() + widget.offsetX
-        let tooltipY = widget.mouseY.get() + widget.offsetY
+        let tooltipX = widget.mouseX + widget.offsetX
+        let tooltipY = widget.mouseY + widget.offsetY
 
         let tooltipRect = Rectangle(
           x: tooltipX,
@@ -91,5 +91,5 @@ definePrimitive(Tooltip):
         )
     else:
       # Non-graphics mode: just echo when visible
-      if widget.visible.get():
+      if widget.visible:
         echo "Tooltip: ", widget.text

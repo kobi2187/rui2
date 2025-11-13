@@ -4,6 +4,7 @@
 ## Pass 2: Render - Draw dirty widgets, use cache for clean ones
 
 import types
+import std/algorithm
 
 # ============================================================================
 # Dirty Tracking Helpers
@@ -100,8 +101,18 @@ proc renderPass*(widget: Widget) =
     widget.isDirty = false
 
   # Recurse to children
-  for child in widget.children:
-    child.renderPass()
+  # If this widget has overlays, sort children by z-index before rendering
+  if widget.hasOverlay and widget.children.len > 1:
+    var sortedChildren = widget.children
+    sortedChildren.sort(proc(a, b: Widget): int =
+      result = cmp(a.zIndex, b.zIndex)  # Ascending: lower z-index renders first
+    )
+    for child in sortedChildren:
+      child.renderPass()
+  else:
+    # Normal case: render in tree order
+    for child in widget.children:
+      child.renderPass()
 
 # ============================================================================
 # Main Frame Function

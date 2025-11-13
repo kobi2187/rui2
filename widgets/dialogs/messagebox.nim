@@ -4,7 +4,7 @@
 ## Supports different types: Info, Warning, Error, Question.
 ## Uses defineWidget with built-in buttons.
 
-import ../../core/widget_dsl_v2
+import ../../core/widget_dsl_v3
 import std/options
 
 when defined(useGraphics):
@@ -59,9 +59,9 @@ defineWidget(MessageBox):
       # ESC closes the dialog
       when defined(useGraphics):
         # Would check for ESC key
-        if widget.isVisible.get():
-          widget.isVisible.set(false)
-          widget.result.set(mrCancel)
+        if widget.isVisible:
+          widget.isVisible = false
+          widget.result = mrCancel
           if widget.onClose.isSome:
             widget.onClose.get()(mrCancel)
           return true
@@ -69,7 +69,7 @@ defineWidget(MessageBox):
 
   render:
     when defined(useGraphics):
-      if widget.isVisible.get():
+      if widget.isVisible:
         # Draw semi-transparent overlay
         DrawRectangle(
           0, 0,
@@ -137,8 +137,8 @@ defineWidget(MessageBox):
             Rectangle(x: buttonX, y: buttonY, width: 80, height: 30),
             "OK".cstring
           ):
-            widget.isVisible.set(false)
-            widget.result.set(mrOK)
+            widget.isVisible = false
+            widget.result = mrOK
             if widget.onClose.isSome:
               widget.onClose.get()(mrOK)
 
@@ -147,8 +147,8 @@ defineWidget(MessageBox):
             Rectangle(x: buttonX, y: buttonY, width: 80, height: 30),
             "OK".cstring
           ):
-            widget.isVisible.set(false)
-            widget.result.set(mrOK)
+            widget.isVisible = false
+            widget.result = mrOK
             if widget.onClose.isSome:
               widget.onClose.get()(mrOK)
 
@@ -157,8 +157,8 @@ defineWidget(MessageBox):
             Rectangle(x: buttonX, y: buttonY, width: 80, height: 30),
             "Cancel".cstring
           ):
-            widget.isVisible.set(false)
-            widget.result.set(mrCancel)
+            widget.isVisible = false
+            widget.result = mrCancel
             if widget.onClose.isSome:
               widget.onClose.get()(mrCancel)
 
@@ -167,8 +167,8 @@ defineWidget(MessageBox):
             Rectangle(x: buttonX, y: buttonY, width: 80, height: 30),
             "No".cstring
           ):
-            widget.isVisible.set(false)
-            widget.result.set(mrNo)
+            widget.isVisible = false
+            widget.result = mrNo
             if widget.onClose.isSome:
               widget.onClose.get()(mrNo)
 
@@ -177,8 +177,8 @@ defineWidget(MessageBox):
             Rectangle(x: buttonX, y: buttonY, width: 80, height: 30),
             "Yes".cstring
           ):
-            widget.isVisible.set(false)
-            widget.result.set(mrYes)
+            widget.isVisible = false
+            widget.result = mrYes
             if widget.onClose.isSome:
               widget.onClose.get()(mrYes)
 
@@ -187,7 +187,7 @@ defineWidget(MessageBox):
           discard
     else:
       # Non-graphics mode
-      if widget.isVisible.get():
+      if widget.isVisible:
         echo "╔═══ ", widget.title, " ", "═".repeat(max(0, 30 - widget.title.len)), "═╗"
         echo "║ ", widget.message
         echo "╚", "═".repeat(35), "╝"

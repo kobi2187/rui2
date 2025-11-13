@@ -4,7 +4,7 @@
 ## Can have text, icon, shortcut key, checkbox state, and submenu.
 ## Ported from Hummingbird to RUI2's definePrimitive DSL.
 
-import ../../core/widget_dsl_v2
+import ../../core/widget_dsl_v3
 import std/options
 
 when defined(useGraphics):
@@ -30,9 +30,9 @@ definePrimitive(MenuItem):
     on_mouse_down:
       if not widget.disabled and not widget.separator:
         if widget.checkable:
-          widget.checked.set(not widget.checked.get())
+          widget.checked = not widget.checked
           if widget.onToggle.isSome:
-            widget.onToggle.get()(widget.checked.get())
+            widget.onToggle.get()(widget.checked)
 
         if widget.onClick.isSome:
           widget.onClick.get()()
@@ -70,15 +70,15 @@ definePrimitive(MenuItem):
           # Item was clicked
           if not widget.disabled:
             if widget.checkable:
-              widget.checked.set(not widget.checked.get())
+              widget.checked = not widget.checked
               if widget.onToggle.isSome:
-                widget.onToggle.get()(widget.checked.get())
+                widget.onToggle.get()(widget.checked)
 
             if widget.onClick.isSome:
               widget.onClick.get()()
 
         # Draw check mark if checked
-        if widget.checkable and widget.checked.get():
+        if widget.checkable and widget.checked:
           DrawText(
             "✓".cstring,
             (widget.bounds.x + 4).cint,
@@ -91,6 +91,6 @@ definePrimitive(MenuItem):
       if widget.separator:
         echo "  ─────────────────"
       else:
-        let check = if widget.checkable and widget.checked.get(): "[✓] " else: "    "
+        let check = if widget.checkable and widget.checked: "[✓] " else: "    "
         let shortcut = if widget.shortcut.len > 0: " (" & widget.shortcut & ")" else: ""
         echo "  ", check, widget.text, shortcut

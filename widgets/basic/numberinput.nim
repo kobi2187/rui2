@@ -4,7 +4,7 @@
 ## Similar to Spinner but with more direct text input capabilities.
 ## Ported from Hummingbird to RUI2's definePrimitive DSL.
 
-import ../../core/widget_dsl_v2
+import ../../core/widget_dsl_v3
 import std/[options, strformat, strutils]
 
 when defined(useGraphics):
@@ -31,31 +31,31 @@ definePrimitive(NumberInput):
 
   events:
     on_focus_gained:
-      widget.isFocused.set(true)
+      widget.isFocused = true
       # Convert value to text for editing
-      widget.textValue.set(fmt(widget.format) % widget.value.get())
+      widget.textValue = fmt(widget.format % widget.value)
       return false
 
     on_focus_lost:
-      widget.isFocused.set(false)
+      widget.isFocused = false
       # Parse and validate text input
       try:
-        let newValue = parseFloat(widget.textValue.get())
+        let newValue = parseFloat(widget.textValue)
         let clamped = clamp(newValue, widget.minValue, widget.maxValue)
-        widget.value.set(clamped)
+        widget.value = clamped
 
         if widget.onChange.isSome:
           widget.onChange.get()(clamped)
       except:
         # Invalid input, revert to current value
         if widget.onValidationError.isSome:
-          widget.onValidationError.get()(widget.textValue.get())
+          widget.onValidationError.get()(widget.textValue)
       return false
 
   render:
     when defined(useGraphics):
-      var value = widget.value.get()
-      let isFocused = widget.isFocused.get()
+      var value = widget.value
+      let isFocused = widget.isFocused
 
       # Use GuiSpinner for number input with spinners
       if GuiSpinner(
@@ -71,14 +71,14 @@ definePrimitive(NumberInput):
         widget.maxValue.cint,
         isFocused
       ):
-        widget.value.set(value)
+        widget.value = value
         if widget.onChange.isSome:
           widget.onChange.get()(value)
     else:
       # Non-graphics mode: just echo
-      let value = widget.value.get()
-      let display = if widget.isFocused.get():
-                      widget.textValue.get()
+      let value = widget.value
+      let display = if widget.isFocused:
+                      widget.textValue
                     else:
                       fmt(widget.format) % value
       echo "NumberInput: [", display, "]"

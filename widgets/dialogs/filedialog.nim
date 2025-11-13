@@ -4,7 +4,7 @@
 ## Provides file browsing, filtering, and selection.
 ## Uses defineWidget with internal ListView and path navigation.
 
-import ../../core/widget_dsl_v2
+import ../../core/widget_dsl_v3
 import std/[options, os, strutils]
 
 when defined(useGraphics):
@@ -48,8 +48,8 @@ defineWidget(FileDialog):
     on_key_down:
       # ESC closes the dialog
       when defined(useGraphics):
-        if widget.isVisible.get():
-          widget.isVisible.set(false)
+        if widget.isVisible:
+          widget.isVisible = false
           if widget.onCancel.isSome:
             widget.onCancel.get()()
           return true
@@ -57,7 +57,7 @@ defineWidget(FileDialog):
 
   render:
     when defined(useGraphics):
-      if widget.isVisible.get():
+      if widget.isVisible:
         # Draw semi-transparent overlay
         DrawRectangle(
           0, 0,
@@ -100,7 +100,7 @@ defineWidget(FileDialog):
         )
 
         DrawText(
-          widget.currentPath.get().cstring,
+          widget.currentPath.cstring,
           (widget.bounds.x + 50).cint,
           pathY.cint,
           12,
@@ -135,10 +135,10 @@ defineWidget(FileDialog):
           Rectangle(x: buttonX, y: buttonY, width: 80, height: 30),
           okLabel.cstring
         ):
-          widget.isVisible.set(false)
-          widget.result.set(true)
+          widget.isVisible = false
+          widget.result = true
           if widget.onSelect.isSome:
-            widget.onSelect.get()(widget.selectedFiles.get())
+            widget.onSelect.get()(widget.selectedFiles)
 
         # Cancel button
         buttonX -= 90
@@ -146,16 +146,16 @@ defineWidget(FileDialog):
           Rectangle(x: buttonX, y: buttonY, width: 80, height: 30),
           "Cancel".cstring
         ):
-          widget.isVisible.set(false)
-          widget.result.set(false)
+          widget.isVisible = false
+          widget.result = false
           if widget.onCancel.isSome:
             widget.onCancel.get()()
     else:
       # Non-graphics mode
-      if widget.isVisible.get():
+      if widget.isVisible:
         echo "╔═══ ", widget.title, " ", "═".repeat(max(0, 30 - widget.title.len)), "═╗"
-        echo "║ Path: ", widget.currentPath.get()
+        echo "║ Path: ", widget.currentPath
         echo "║ Files:"
-        for f in widget.files.get():
+        for f in widget.files:
           echo "║   ", f
         echo "╚", "═".repeat(40), "╝"

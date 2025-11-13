@@ -94,7 +94,7 @@ defineWidget(Button):
              mouseY >= widget.bounds.y and mouseY <= widget.bounds.y + widget.bounds.height:
             # Call onClick callback
             if widget.onClick != nil:
-              widget.onClick()
+              widget.onClick.get()()
             return true
 
     return false

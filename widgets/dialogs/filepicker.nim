@@ -5,7 +5,7 @@
 ## Not a modal dialog - can be embedded in any container.
 ## Uses defineWidget.
 
-import ../../core/widget_dsl_v2
+import ../../core/widget_dsl_v3
 import std/[options, os, strutils, sets]
 
 when defined(useGraphics):
@@ -48,7 +48,7 @@ defineWidget(FilePicker):
         height: 28
       )
 
-      var pathStr = widget.currentPath.get()
+      var pathStr = widget.currentPath
       # Simple text display for now (full GuiTextBox needs char buffer)
       DrawRectangleRec(pathRect, Color(r: 255, g: 255, b: 255, a: 255))
       DrawRectangleLinesEx(pathRect, 1.0, Color(r: 180, g: 180, b: 180, a: 255))
@@ -70,11 +70,11 @@ defineWidget(FilePicker):
       )
 
       # Build file list string (in real implementation, scan directory)
-      let files = widget.fileList.get()
+      let files = widget.fileList
       let filesStr = if files.len > 0: files.join(";") else: "<empty>"
 
       var selectedIdx = -1
-      var scrollIdx = widget.scrollIndex.get().cint
+      var scrollIdx = widget.scrollIndex.cint
 
       if GuiListView(
         listRect,
@@ -82,11 +82,11 @@ defineWidget(FilePicker):
         addr scrollIdx,
         addr selectedIdx
       ):
-        widget.scrollIndex.set(scrollIdx.int)
+        widget.scrollIndex = scrollIdx.int
 
         if selectedIdx >= 0 and selectedIdx < files.len:
           let selectedPath = files[selectedIdx]
-          var newSelection = widget.selectedFiles.get()
+          var newSelection = widget.selectedFiles
 
           # Simple selection logic
           if widget.multiSelect:
@@ -97,14 +97,14 @@ defineWidget(FilePicker):
           else:
             newSelection = [selectedPath].toHashSet
 
-          widget.selectedFiles.set(newSelection)
+          widget.selectedFiles = newSelection
 
           if widget.onSelect.isSome:
             widget.onSelect.get()(newSelection)
     else:
       # Non-graphics mode
-      echo "FilePicker: ", widget.currentPath.get()
-      let files = widget.fileList.get()
+      echo "FilePicker: ", widget.currentPath
+      let files = widget.fileList
       for f in files:
-        let marker = if f in widget.selectedFiles.get(): "[X]" else: "[ ]"
+        let marker = if f in widget.selectedFiles: "[X]" else: "[ ]"
         echo "  ", marker, " ", f

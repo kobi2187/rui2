@@ -4,7 +4,7 @@
 ## Supports column sorting, row selection, and custom formatting.
 ## Uses virtual scrolling to efficiently handle millions of rows.
 
-import ../../core/widget_dsl_v2
+import ../../core/widget_dsl_v3
 import std/[options, sets, json, algorithm, strutils]
 
 when defined(useGraphics):
@@ -61,7 +61,7 @@ defineWidget(DataGrid):
     when defined(useGraphics):
       let headerH = if widget.showHeader: widget.headerHeight else: 0.0
       let rowH = widget.rowHeight
-      let scroll = widget.scrollY.get()
+      let scroll = widget.scrollY
 
       # Calculate total content height
       let totalRows = widget.data.len
@@ -74,8 +74,8 @@ defineWidget(DataGrid):
       let visStart = max(0, int(scroll / rowH) - bufferRows)
       let visEnd = min(totalRows - 1, int((scroll + viewHeight) / rowH) + bufferRows)
 
-      widget.visibleStart.set(visStart)
-      widget.visibleEnd.set(visEnd)
+      widget.visibleStart = visStart
+      widget.visibleEnd = visEnd
 
       # Draw background
       DrawRectangleRec(
@@ -119,8 +119,8 @@ defineWidget(DataGrid):
           DrawRectangleRec(headerRect, bgColor)
 
           # Sort indicator
-          let sortIndicator = if colIdx == widget.sortColumn.get():
-                               case widget.sortOrder.get()
+          let sortIndicator = if colIdx == widget.sortColumn:
+                               case widget.sortOrder
                                of soAscending: " ▲"
                                of soDescending: " ▼"
                                of soNone: ""
@@ -140,19 +140,19 @@ defineWidget(DataGrid):
           # Handle header click for sorting
           if col.sortable and mouseInBounds and IsMouseButtonPressed(MOUSE_LEFT_BUTTON):
             if CheckCollisionPointRec(mousePos, headerRect):
-              if colIdx == widget.sortColumn.get():
+              if colIdx == widget.sortColumn:
                 # Toggle sort order
-                let newOrder = case widget.sortOrder.get()
+                let newOrder = case widget.sortOrder
                                of soNone: soAscending
                                of soAscending: soDescending
                                of soDescending: soNone
-                widget.sortOrder.set(newOrder)
+                widget.sortOrder = newOrder
               else:
-                widget.sortColumn.set(colIdx)
-                widget.sortOrder.set(soAscending)
+                widget.sortColumn = colIdx
+                widget.sortOrder = soAscending
 
               if widget.onSort.isSome:
-                widget.onSort.get()(widget.sortColumn.get(), widget.sortOrder.get())
+                widget.onSort.get()(widget.sortColumn, widget.sortOrder)
 
           # Draw header border
           if widget.showGrid:
@@ -186,8 +186,8 @@ defineWidget(DataGrid):
           newHovered = rowIdx
 
         # Draw row background
-        let isSelected = rowIdx in widget.selected.get()
-        let isHovered = rowIdx == widget.hovered.get()
+        let isSelected = rowIdx in widget.selected
+        let isHovered = rowIdx == widget.hovered
         let isAltRow = widget.alternateRowColor and (rowIdx mod 2 == 1)
 
         if isSelected:
@@ -248,7 +248,7 @@ defineWidget(DataGrid):
             let ctrlDown = IsKeyDown(KEY_LEFT_CONTROL) or IsKeyDown(KEY_RIGHT_CONTROL)
             let shiftDown = IsKeyDown(KEY_LEFT_SHIFT) or IsKeyDown(KEY_RIGHT_SHIFT)
 
-            var newSelection = widget.selected.get()
+            var newSelection = widget.selected
 
             if ctrlDown:
               # Toggle selection
@@ -263,7 +263,7 @@ defineWidget(DataGrid):
               # Single selection
               newSelection = [rowIdx].toHashSet
 
-            widget.selected.set(newSelection)
+            widget.selected = newSelection
 
             if widget.onSelect.isSome:
               widget.onSelect.get()(newSelection)
@@ -275,7 +275,7 @@ defineWidget(DataGrid):
         #     if widget.onDoubleClick.isSome:
         #       widget.onDoubleClick.get()(rowIdx)
 
-      widget.hovered.set(newHovered)
+      widget.hovered = newHovered
 
       EndScissorMode()
 
@@ -309,14 +309,14 @@ defineWidget(DataGrid):
         if mouseInBounds and IsMouseButtonDown(MOUSE_LEFT_BUTTON):
           if CheckCollisionPointRec(mousePos, scrollbarRect):
             let newScroll = ((mousePos.y - scrollbarRect.y) / viewHeight) * maxScroll
-            widget.scrollY.set(clamp(newScroll, 0.0, maxScroll))
+            widget.scrollY = clamp(newScroll, 0.0, maxScroll)
 
       # Handle mouse wheel scrolling
       if mouseInBounds:
         let wheel = GetMouseWheelMove()
         if wheel != 0.0:
-          let newScroll = widget.scrollY.get() - (wheel * rowH * 3.0)
-          widget.scrollY.set(clamp(newScroll, 0.0, maxScroll))
+          let newScroll = widget.scrollY - (wheel * rowH * 3.0)
+          widget.scrollY = clamp(newScroll, 0.0, maxScroll)
 
       # Draw border
       DrawRectangleLinesEx(
@@ -330,9 +330,9 @@ defineWidget(DataGrid):
       echo "DataGrid:"
       echo "  Columns: ", widget.columns.len
       echo "  Total rows: ", widget.data.len
-      echo "  Visible rows: ", widget.visibleStart.get(), " to ", widget.visibleEnd.get()
-      echo "  Selected rows: ", widget.selected.get().card
-      echo "  Sort: column ", widget.sortColumn.get(), ", order: ", widget.sortOrder.get()
+      echo "  Visible rows: ", widget.visibleStart, " to ", widget.visibleEnd
+      echo "  Selected rows: ", widget.selected.card
+      echo "  Sort: column ", widget.sortColumn, ", order: ", widget.sortOrder
 
       # Print header
       var headerLine = "  "
@@ -341,12 +341,12 @@ defineWidget(DataGrid):
       echo headerLine
 
       # Print visible rows only
-      let visStart = widget.visibleStart.get()
-      let visEnd = min(widget.visibleEnd.get(), widget.data.len - 1)
+      let visStart = widget.visibleStart
+      let visEnd = min(widget.visibleEnd, widget.data.len - 1)
 
       for rowIdx in visStart..visEnd:
         let row = widget.data[rowIdx]
-        let marker = if rowIdx in widget.selected.get(): "[X]" else: "[ ]"
+        let marker = if rowIdx in widget.selected: "[X]" else: "[ ]"
         var rowLine = "  " & marker & " "
 
         for colIdx, col in widget.columns:

@@ -4,7 +4,7 @@
 ## Supports multiple filter types per column and efficient rendering
 ## of large datasets (millions of rows).
 
-import ../../core/widget_dsl_v2
+import ../../core/widget_dsl_v3
 import std/[options, sets, json, algorithm, strutils, tables]
 
 when defined(useGraphics):
@@ -96,11 +96,11 @@ defineWidget(DataTable):
       let headerH = if widget.showHeader: widget.headerHeight else: 0.0
       let topOffset = filterH + headerH
       let rowH = widget.rowHeight
-      let scroll = widget.scrollY.get()
+      let scroll = widget.scrollY
 
       # Apply filters to get filtered row indices
       proc matchesFilters(row: TableRow): bool =
-        let filters = widget.filters.get()
+        let filters = widget.filters
         for colId, filter in filters:
           if filter.kind == fkNone:
             continue
@@ -155,7 +155,7 @@ defineWidget(DataTable):
         if matchesFilters(row):
           filtered.add(i)
 
-      widget.filteredIndices.set(filtered)
+      widget.filteredIndices = filtered
 
       # Virtual scrolling on filtered data
       let totalRows = filtered.len
@@ -167,8 +167,8 @@ defineWidget(DataTable):
       let visStart = max(0, int(scroll / rowH) - bufferRows)
       let visEnd = min(totalRows - 1, int((scroll + viewHeight) / rowH) + bufferRows)
 
-      widget.visibleStart.set(visStart)
-      widget.visibleEnd.set(visEnd)
+      widget.visibleStart = visStart
+      widget.visibleEnd = visEnd
 
       # Draw background
       DrawRectangleRec(
@@ -206,7 +206,7 @@ defineWidget(DataTable):
           )
 
           # Get current filter for this column
-          let currentFilter = widget.filters.get().getOrDefault(
+          let currentFilter = widget.filters.getOrDefault(
             col.id,
             Filter(column: col.id, kind: fkNone)
           )
@@ -303,8 +303,8 @@ defineWidget(DataTable):
           DrawRectangleRec(headerRect, bgColor)
 
           # Sort indicator
-          let sortIndicator = if col.id == widget.sortColumn.get():
-                               case widget.sortOrder.get()
+          let sortIndicator = if col.id == widget.sortColumn:
+                               case widget.sortOrder
                                of soAscending: " ▲"
                                of soDescending: " ▼"
                                of soNone: ""
@@ -323,18 +323,18 @@ defineWidget(DataTable):
           # Handle header click for sorting
           if col.sortable and mouseInBounds and IsMouseButtonPressed(MOUSE_LEFT_BUTTON):
             if CheckCollisionPointRec(mousePos, headerRect):
-              if col.id == widget.sortColumn.get():
-                let newOrder = case widget.sortOrder.get()
+              if col.id == widget.sortColumn:
+                let newOrder = case widget.sortOrder
                                of soNone: soAscending
                                of soAscending: soDescending
                                of soDescending: soNone
-                widget.sortOrder.set(newOrder)
+                widget.sortOrder = newOrder
               else:
-                widget.sortColumn.set(col.id)
-                widget.sortOrder.set(soAscending)
+                widget.sortColumn = col.id
+                widget.sortOrder = soAscending
 
               if widget.onSort.isSome:
-                widget.onSort.get()(widget.sortColumn.get(), widget.sortOrder.get())
+                widget.onSort.get()(widget.sortColumn, widget.sortOrder)
 
           if widget.showGrid:
             DrawRectangleLinesEx(headerRect, 1.0, widget.gridColor)
@@ -368,8 +368,8 @@ defineWidget(DataTable):
           newHovered = rowIdx
 
         # Draw row background
-        let isSelected = rowIdx in widget.selected.get()
-        let isHovered = rowIdx == widget.hovered.get()
+        let isSelected = rowIdx in widget.selected
+        let isHovered = rowIdx == widget.hovered
         let isAltRow = widget.alternateRowColor and (visIdx mod 2 == 1)
 
         if isSelected:
@@ -426,7 +426,7 @@ defineWidget(DataTable):
           if CheckCollisionPointRec(mousePos, rowRect):
             let ctrlDown = IsKeyDown(KEY_LEFT_CONTROL) or IsKeyDown(KEY_RIGHT_CONTROL)
 
-            var newSelection = widget.selected.get()
+            var newSelection = widget.selected
 
             if ctrlDown:
               if rowIdx in newSelection:
@@ -436,12 +436,12 @@ defineWidget(DataTable):
             else:
               newSelection = [rowIdx].toHashSet
 
-            widget.selected.set(newSelection)
+            widget.selected = newSelection
 
             if widget.onSelect.isSome:
               widget.onSelect.get()(newSelection)
 
-      widget.hovered.set(newHovered)
+      widget.hovered = newHovered
 
       EndScissorMode()
 
@@ -472,14 +472,14 @@ defineWidget(DataTable):
         if mouseInBounds and IsMouseButtonDown(MOUSE_LEFT_BUTTON):
           if CheckCollisionPointRec(mousePos, scrollbarRect):
             let newScroll = ((mousePos.y - scrollbarRect.y) / viewHeight) * maxScroll
-            widget.scrollY.set(clamp(newScroll, 0.0, maxScroll))
+            widget.scrollY = clamp(newScroll, 0.0, maxScroll)
 
       # Mouse wheel
       if mouseInBounds:
         let wheel = GetMouseWheelMove()
         if wheel != 0.0:
-          let newScroll = widget.scrollY.get() - (wheel * rowH * 3.0)
-          widget.scrollY.set(clamp(newScroll, 0.0, maxScroll))
+          let newScroll = widget.scrollY - (wheel * rowH * 3.0)
+          widget.scrollY = clamp(newScroll, 0.0, maxScroll)
 
       # Draw border
       DrawRectangleLinesEx(
@@ -493,7 +493,7 @@ defineWidget(DataTable):
       echo "DataTable:"
       echo "  Columns: ", widget.columns.len
       echo "  Total rows: ", widget.data.len
-      echo "  Filtered rows: ", widget.filteredIndices.get().len
-      echo "  Visible rows: ", widget.visibleStart.get(), " to ", widget.visibleEnd.get()
-      echo "  Active filters: ", widget.filters.get().len
-      echo "  Sort: ", widget.sortColumn.get(), ", ", widget.sortOrder.get()
+      echo "  Filtered rows: ", widget.filteredIndices.len
+      echo "  Visible rows: ", widget.visibleStart, " to ", widget.visibleEnd
+      echo "  Active filters: ", widget.filters.len
+      echo "  Sort: ", widget.sortColumn, ", ", widget.sortOrder

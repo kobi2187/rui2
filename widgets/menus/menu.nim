@@ -4,7 +4,7 @@
 ## Can be used in MenuBar or as a standalone ContextMenu.
 ## Uses defineWidget to manage MenuItems.
 
-import ../../core/widget_dsl_v2
+import ../../core/widget_dsl_v3
 import std/options
 
 when defined(useGraphics):
@@ -40,7 +40,7 @@ defineWidget(Menu):
 
   render:
     when defined(useGraphics):
-      if widget.isOpen.get():
+      if widget.isOpen:
         # Draw menu background
         DrawRectangleRec(
           widget.bounds,
@@ -59,7 +59,7 @@ defineWidget(Menu):
           child.render()
     else:
       # Non-graphics mode
-      if widget.isOpen.get():
+      if widget.isOpen:
         echo "┌─ ", widget.title, " ", "─".repeat(max(0, 20 - widget.title.len)), "┐"
         for child in widget.children:
           echo child

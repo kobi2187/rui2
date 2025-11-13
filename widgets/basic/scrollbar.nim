@@ -4,7 +4,7 @@
 ## Can be vertical or horizontal.
 ## Ported from Hummingbird to RUI2's definePrimitive DSL.
 
-import ../../core/widget_dsl_v2
+import ../../core/widget_dsl_v3
 import std/options
 
 when defined(useGraphics):
@@ -31,13 +31,13 @@ definePrimitive(ScrollBar):
   events:
     on_mouse_down:
       if not widget.disabled:
-        widget.dragging.set(true)
+        widget.dragging = true
         return true
       return false
 
     on_mouse_up:
-      if widget.dragging.get():
-        widget.dragging.set(false)
+      if widget.dragging:
+        widget.dragging = false
         return true
       return false
 
@@ -51,7 +51,7 @@ definePrimitive(ScrollBar):
 
   render:
     when defined(useGraphics):
-      var val = widget.value.get()
+      var val = widget.value
 
       # GuiScrollBar signature: (bounds, value, minValue, maxValue)
       if GuiScrollBar(
@@ -66,12 +66,12 @@ definePrimitive(ScrollBar):
         widget.maxValue.cint
       ):
         # Value changed
-        widget.value.set(val)
+        widget.value = val
         if widget.onChange.isSome:
           widget.onChange.get()(val)
     else:
       # Non-graphics mode
-      let val = widget.value.get()
+      let val = widget.value
       let pct = int((val - widget.minValue) / (widget.maxValue - widget.minValue) * 100)
 
       if widget.vertical:

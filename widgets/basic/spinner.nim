@@ -4,7 +4,7 @@
 ## Allows stepping through numeric values within a range.
 ## Ported from Hummingbird to RUI2's definePrimitive DSL.
 
-import ../../core/widget_dsl_v2
+import ../../core/widget_dsl_v3
 import std/[options, strformat]
 
 when defined(useGraphics):
@@ -31,23 +31,23 @@ definePrimitive(Spinner):
   events:
     on_mouse_down:
       if not widget.disabled:
-        widget.isFocused.set(true)
+        widget.isFocused = true
         return true
       return false
 
     on_focus_gained:
-      widget.isFocused.set(true)
+      widget.isFocused = true
       return false
 
     on_focus_lost:
-      widget.isFocused.set(false)
-      widget.editing.set(false)
+      widget.isFocused = false
+      widget.editing = false
       return false
 
   render:
     when defined(useGraphics):
-      var value = widget.value.get()
-      let isFocused = widget.isFocused.get()
+      var value = widget.value
+      let isFocused = widget.isFocused
 
       if GuiSpinner(
         Rectangle(
@@ -65,11 +65,11 @@ definePrimitive(Spinner):
         # GuiSpinner returns true when value changes
         # Clamp to step increments
         let stepped = round(value / widget.step) * widget.step
-        widget.value.set(stepped)
+        widget.value = stepped
 
         if widget.onChange.isSome:
           widget.onChange.get()(stepped)
     else:
       # Non-graphics mode: just echo
-      let value = widget.value.get()
+      let value = widget.value
       echo "Spinner: [▼] ", fmt(widget.format) % value, " [▲]"

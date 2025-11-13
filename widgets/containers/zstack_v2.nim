@@ -2,7 +2,7 @@
 ##
 ## Layers children on top of each other (z-order)
 
-import ../../core/widget_dsl_v2
+import ../../core/widget_dsl_v3
 
 defineWidget(ZStack):
   props:

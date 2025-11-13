@@ -4,8 +4,8 @@
 ## Supports optional text display with formatting.
 ## Ported from Hummingbird to RUI2's definePrimitive DSL.
 
-import ../../core/widget_dsl_v2
-import std/[options, strformat]
+import ../../core/widget_dsl_v3
+import std/[options, strutils]
 
 when defined(useGraphics):
   import raylib
@@ -28,7 +28,7 @@ definePrimitive(ProgressBar):
 
   render:
     when defined(useGraphics):
-      let currentValue = widget.value.get()
+      let currentValue = widget.value
 
       # Calculate percentage for display
       let percent = (currentValue / widget.maxValue) * 100.0
@@ -63,7 +63,7 @@ definePrimitive(ProgressBar):
           widget.onComplete.get()()
     else:
       # Non-graphics mode: just echo
-      let currentValue = widget.value.get()
+      let currentValue = widget.value
       let pct = int((currentValue / widget.maxValue) * 100)
       let filled = pct div 10
       let empty = 10 - filled

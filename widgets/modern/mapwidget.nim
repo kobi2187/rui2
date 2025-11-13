@@ -4,7 +4,7 @@
 ## Supports pan, zoom, markers, and custom overlays.
 ## Simplified implementation - can be extended with tile servers.
 
-import ../../core/widget_dsl_v2
+import ../../core/widget_dsl_v3
 import std/[options, tables, math, json]
 
 when defined(useGraphics):
@@ -75,16 +75,16 @@ defineWidget(MapWidget):
   render:
     when defined(useGraphics):
       # Initialize state if first render
-      if widget.center.get().lat == 0.0 and widget.center.get().lon == 0.0:
-        widget.center.set(widget.initialCenter)
-        widget.zoom.set(widget.initialZoom)
+      if widget.center.lat == 0.0 and widget.center.lon == 0.0:
+        widget.center = widget.initialCenter
+        widget.zoom = widget.initialZoom
 
       # Coordinate conversion functions
       proc worldToScreen(coord: MapCoord): Vector2 =
         ## Convert geographic coordinates to screen pixels
-        let centerCoord = widget.center.get()
-        let z = widget.zoom.get()
-        let offset = widget.panOffset.get()
+        let centerCoord = widget.center
+        let z = widget.zoom
+        let offset = widget.panOffset
 
         case widget.projection
         of mpMercator:
@@ -114,9 +114,9 @@ defineWidget(MapWidget):
 
       proc screenToWorld(screenPos: Vector2): MapCoord =
         ## Convert screen pixels to geographic coordinates
-        let centerCoord = widget.center.get()
-        let z = widget.zoom.get()
-        let offset = widget.panOffset.get()
+        let centerCoord = widget.center
+        let z = widget.zoom
+        let offset = widget.panOffset
 
         case widget.projection
         of mpMercator:
@@ -178,7 +178,7 @@ defineWidget(MapWidget):
       let mouseInBounds = CheckCollisionPointRec(mousePos, widget.bounds)
       var newHoveredMarker = ""
 
-      for marker in widget.markers.get():
+      for marker in widget.markers:
         let screenPos = worldToScreen(marker.coord)
 
         # Skip if outside viewport
@@ -187,8 +187,8 @@ defineWidget(MapWidget):
           continue
 
         let markerSize = marker.size
-        let isSelected = marker.id == widget.selectedMarker.get()
-        let isHovered = marker.id == widget.hoveredMarker.get()
+        let isSelected = marker.id == widget.selectedMarker
+        let isHovered = marker.id == widget.hoveredMarker
 
         var displayColor = marker.color
         if isSelected:
@@ -288,41 +288,41 @@ defineWidget(MapWidget):
         # Handle marker click
         if mouseInBounds and IsMouseButtonPressed(MOUSE_LEFT_BUTTON):
           if CheckCollisionPointRec(mousePos, markerRect):
-            widget.selectedMarker.set(marker.id)
+            widget.selectedMarker = marker.id
 
             if widget.onMarkerClick.isSome:
               widget.onMarkerClick.get()(marker)
 
-      widget.hoveredMarker.set(newHoveredMarker)
+      widget.hoveredMarker = newHoveredMarker
 
       EndScissorMode()
 
       # Handle panning
       if widget.enablePan and mouseInBounds:
         if IsMouseButtonPressed(MOUSE_LEFT_BUTTON) and newHoveredMarker.len == 0:
-          widget.isPanning.set(true)
-          widget.panStart.set(mousePos)
+          widget.isPanning = true
+          widget.panStart = mousePos
 
-        if widget.isPanning.get() and IsMouseButtonDown(MOUSE_LEFT_BUTTON):
+        if widget.isPanning and IsMouseButtonDown(MOUSE_LEFT_BUTTON):
           let delta = Vector2(
-            x: mousePos.x - widget.panStart.get().x,
-            y: mousePos.y - widget.panStart.get().y
+            x: mousePos.x - widget.panStart.x,
+            y: mousePos.y - widget.panStart.y
           )
-          widget.panOffset.set(delta)
+          widget.panOffset = delta
 
-        if IsMouseButtonReleased(MOUSE_LEFT_BUTTON) and widget.isPanning.get():
-          widget.isPanning.set(false)
+        if IsMouseButtonReleased(MOUSE_LEFT_BUTTON) and widget.isPanning:
+          widget.isPanning = false
 
           # Apply pan to center
-          let offset = widget.panOffset.get()
+          let offset = widget.panOffset
           if offset.x != 0.0 or offset.y != 0.0:
             let screenCenter = Vector2(
               x: widget.bounds.x + widget.bounds.width / 2.0 - offset.x,
               y: widget.bounds.y + widget.bounds.height / 2.0 - offset.y
             )
             let newCenter = screenToWorld(screenCenter)
-            widget.center.set(newCenter)
-            widget.panOffset.set(Vector2(x: 0.0, y: 0.0))
+            widget.center = newCenter
+            widget.panOffset = Vector2(x: 0.0, y: 0.0)
 
             if widget.onCenterChanged.isSome:
               widget.onCenterChanged.get()(newCenter)
@@ -331,13 +331,13 @@ defineWidget(MapWidget):
       if widget.enableZoom and mouseInBounds:
         let wheel = GetMouseWheelMove()
         if wheel != 0.0:
-          let currentZoom = widget.zoom.get()
+          let currentZoom = widget.zoom
           let newZoom = clamp(
             currentZoom + wheel * 0.5,
             widget.minZoom,
             widget.maxZoom
           )
-          widget.zoom.set(newZoom)
+          widget.zoom = newZoom
 
           if widget.onZoomChanged.isSome:
             widget.onZoomChanged.get()(newZoom)
@@ -365,8 +365,8 @@ defineWidget(MapWidget):
         )
 
         if mouseInBounds and CheckCollisionPointRec(mousePos, zoomInRect) and IsMouseButtonPressed(MOUSE_LEFT_BUTTON):
-          let newZoom = clamp(widget.zoom.get() + 1.0, widget.minZoom, widget.maxZoom)
-          widget.zoom.set(newZoom)
+          let newZoom = clamp(widget.zoom + 1.0, widget.minZoom, widget.maxZoom)
+          widget.zoom = newZoom
 
         # Zoom out button
         let zoomOutRect = Rectangle(
@@ -386,13 +386,13 @@ defineWidget(MapWidget):
         )
 
         if mouseInBounds and CheckCollisionPointRec(mousePos, zoomOutRect) and IsMouseButtonPressed(MOUSE_LEFT_BUTTON):
-          let newZoom = clamp(widget.zoom.get() - 1.0, widget.minZoom, widget.maxZoom)
-          widget.zoom.set(newZoom)
+          let newZoom = clamp(widget.zoom - 1.0, widget.minZoom, widget.maxZoom)
+          widget.zoom = newZoom
 
       # Draw coordinates display
       if widget.showCoordinates:
-        let center = widget.center.get()
-        let coordText = &"Lat: {center.lat:.4f}, Lon: {center.lon:.4f}, Zoom: {widget.zoom.get():.1f}"
+        let center = widget.center
+        let coordText = &"Lat: {center.lat:.4f}, Lon: {center.lon:.4f}, Zoom: {widget.zoom:.1f}"
         DrawText(
           coordText.cstring,
           (widget.bounds.x + 10.0).cint,
@@ -411,13 +411,13 @@ defineWidget(MapWidget):
     else:
       # Non-graphics mode
       echo "MapWidget:"
-      let center = widget.center.get()
+      let center = widget.center
       echo "  Center: (", center.lat, ", ", center.lon, ")"
-      echo "  Zoom: ", widget.zoom.get()
-      echo "  Markers: ", widget.markers.get().len
-      echo "  Selected: ", widget.selectedMarker.get()
-      echo "  Panning: ", widget.isPanning.get()
+      echo "  Zoom: ", widget.zoom
+      echo "  Markers: ", widget.markers.len
+      echo "  Selected: ", widget.selectedMarker
+      echo "  Panning: ", widget.isPanning
 
-      for marker in widget.markers.get():
-        let sel = if marker.id == widget.selectedMarker.get(): "[X]" else: "[ ]"
+      for marker in widget.markers:
+        let sel = if marker.id == widget.selectedMarker: "[X]" else: "[ ]"
         echo "  ", sel, " ", marker.title, " at (", marker.coord.lat, ", ", marker.coord.lon, ")"

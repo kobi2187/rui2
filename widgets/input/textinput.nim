@@ -172,7 +172,7 @@ defineWidget(TextInput):
               widget.selectionStart = -1
               widget.selectionEnd = -1
               if widget.onChange != nil:
-                widget.onChange(widget.text)
+                widget.onChange.get()(widget.text)
             return true
 
         of evKeyDown:
@@ -186,7 +186,7 @@ defineWidget(TextInput):
               widget.cursorPos -= 1
               widget.isDirty = true
               if widget.onChange != nil:
-                widget.onChange(widget.text)
+                widget.onChange.get()(widget.text)
             return true
 
           elif event.key == Delete:
@@ -197,7 +197,7 @@ defineWidget(TextInput):
               widget.text = before & after
               widget.isDirty = true
               if widget.onChange != nil:
-                widget.onChange(widget.text)
+                widget.onChange.get()(widget.text)
             return true
 
           elif event.key == Left:
@@ -233,7 +233,7 @@ defineWidget(TextInput):
           elif event.key == Enter or event.key == KpEnter:
             # Trigger submit callback
             if widget.onSubmit != nil:
-              widget.onSubmit(widget.text)
+              widget.onSubmit.get()(widget.text)
             return true
 
         else:

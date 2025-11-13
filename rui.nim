@@ -44,16 +44,16 @@ export app
 import core/link
 export link
 
-# Widget DSL v2: definePrimitive, defineWidget macros
-import core/widget_dsl_v2
-export widget_dsl_v2
+# Widget DSL v3: definePrimitive, defineWidget macros (cleaner, modular)
+import core/widget_dsl_v3
+export widget_dsl_v3
 
 # ============================================================================
 # Event System
 # ============================================================================
 
-import managers/event_manager
-export event_manager
+import managers/event_manager_refactored
+export event_manager_refactored
 
 # ============================================================================
 # Drawing Primitives
@@ -61,6 +61,9 @@ export event_manager
 
 import drawing_primitives/drawing_primitives
 export drawing_primitives
+
+import drawing_primitives/widget_primitives
+export widget_primitives
 
 import drawing_primitives/primitives/text_cache
 export text_cache
@@ -76,34 +79,20 @@ import drawing_primitives/builtin_themes
 export builtin_themes
 
 # ============================================================================
-# Widgets - Import the new DSL v2 widgets
+# Widgets - Layered Import
 # ============================================================================
 
-# Note: Old widgets (button.nim, label.nim, etc.) use the old DSL.
-# New widgets use DSL v2 and are in specific subdirectories.
-# Users can create their own widgets using definePrimitive/defineWidget.
+# Primitives (drawing widgets)
+import widgets/primitives
+export primitives
 
 # Basic widgets
-import widgets/basic/checkbox
-export checkbox
-
-import widgets/basic/radiobutton
-export radiobutton
-
-import widgets/basic/slider
-export slider
-
-import widgets/basic/progressbar
-export progressbar
+import widgets/basic
+export basic
 
 # Containers
-import widgets/containers/vstack
-export vstack
-
-import widgets/containers/hstack
-export hstack
-
-# Add more v2 widgets as needed...
+import widgets/containers
+export containers
 
 # ============================================================================
 # Graphics Backend (Raylib)
@@ -132,10 +121,16 @@ proc ruiVersionString*(): string =
 # App Lifecycle Helper
 # ============================================================================
 
-proc start*(app: App) =
-  ## Start the application main loop
-  ## Alias for app.run() for cleaner API
-  app.run()
+when defined(useGraphics):
+  proc start*(application: App) =
+    ## Start the application main loop
+    ## Alias for app.run() for cleaner API
+    application.run()
+else:
+  proc start*(application: App, frames: int = -1) =
+    ## Start the application main loop (headless mode)
+    ## Alias for app.runHeadless() for cleaner API
+    application.runHeadless(frames)
 
 # ============================================================================
 # Usage Example (documentation)

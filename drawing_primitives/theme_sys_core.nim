@@ -2,6 +2,7 @@ import std/[options, tables]
 
 import ../core/types
 import drawing_primitives
+import primitives/text  # For TextStyle
 
 type
   # Core theme concepts
@@ -33,6 +34,12 @@ type
     textStyle*: Option[TextStyle]
     fontSize*: Option[float32]
     fontFamily*: Option[string]  # Font family for text rendering
+
+    # Focus effects
+    focusRingColor*: Option[Color]      # Color of focus ring/outline
+    focusRingWidth*: Option[float32]    # Width of focus ring
+    focusGlowRadius*: Option[float32]   # Glow/shadow radius when focused
+    focusGlowColor*: Option[Color]      # Glow/shadow color
     
 
     
@@ -63,7 +70,7 @@ proc newTheme*(name = ""): Theme =
     result.base[intent] = ThemeProps()
     result.states[intent] = initTable[ThemeState, ThemeProps]()
 
-import typetraits, os, system, system/iterators
+import typetraits, system, system/iterators
 
   
 proc merge*(a:var ThemeProps, b:ThemeProps) = 

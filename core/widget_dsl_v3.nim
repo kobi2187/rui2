@@ -79,10 +79,18 @@ proc buildWidgetType(name: NimNode, sections: WidgetSections): NimNode =
   for field in actionsRec:
     allFields.add(field)
 
-  # Generate type definition
-  quote do:
-    type `typeName`* = ref object of Widget
-      `allFields`
+  # Generate type definition manually (can't splice RecList in quote)
+  let exportedTypeName = nnkPostfix.newTree(ident("*"), typeName)
+  let objTy = nnkObjectTy.newTree(
+    newEmptyNode(),
+    nnkOfInherit.newTree(ident("Widget")),
+    allFields
+  )
+  let refTy = nnkRefTy.newTree(objTy)
+
+  result = nnkTypeSection.newTree(
+    nnkTypeDef.newTree(exportedTypeName, newEmptyNode(), refTy)
+  )
 
 # ============================================================================
 # Constructor Generation - Build newWidget() Proc
@@ -110,15 +118,26 @@ proc buildConstructorBody(name: NimNode, sections: WidgetSections): NimNode =
   result.add quote do:
     result = `typeName`()
 
-  # Initialize props (direct assignment)
+  # Initialize props (direct assignment from parameters)
   for prop in sections.props:
-    let propName = prop.name
-    result.add quote do:
-      result.`propName` = `propName`
+    # Create fresh idents from string values to avoid symbol binding issues
+    let propNameIdent = ident(prop.name.strVal)
+    let assignStmt = nnkAsgn.newTree(
+      nnkDotExpr.newTree(ident("result"), propNameIdent),
+      propNameIdent
+    )
+    result.add(assignStmt)
 
-  # Initialize state (wrap in Link)
+  # Initialize state (plain types, Link only for explicit store bindings)
   for state in sections.state:
-    result.add(genStateInit(state))
+    # Create fresh idents from string values
+    let stateNameIdent = ident(state.name.strVal)
+    let stateTypeIdent = if state.typ.kind == nnkIdent:
+      ident(state.typ.strVal)
+    else:
+      state.typ
+    result.add quote do:
+      result.`stateNameIdent` = default(`stateTypeIdent`)
 
   # Initialize actions (wrap in Option)
   for action in sections.actions:
@@ -174,23 +193,45 @@ proc buildEventHandler(sections: WidgetSections): NimNode =
 # Render Method Generation
 # ============================================================================
 
-proc buildRenderMethod(sections: WidgetSections): NimNode =
+proc buildRenderMethod(name: NimNode, sections: WidgetSections): NimNode =
   ## Generate render method
   if sections.renderBody.isEmpty:
     return newEmptyNode()
 
-  quote do:
-    method render*(widget: Widget) {.base.} =
-      `sections.renderBody`
+  # Build method manually to avoid premature symbol resolution in quote
+  let typeName = makeWidgetTypeName(name)
+  let widgetParam = newIdentDefs(ident("widget"), typeName)
+  let formalParams = nnkFormalParams.newTree(newEmptyNode(), widgetParam)
 
-proc buildUpdateLayoutMethod(sections: WidgetSections): NimNode =
+  nnkMethodDef.newTree(
+    nnkPostfix.newTree(ident("*"), ident("render")),
+    newEmptyNode(),  # term rewriting macros
+    newEmptyNode(),  # generic params
+    formalParams,
+    newEmptyNode(),  # No pragma needed
+    newEmptyNode(),  # reserved
+    sections.renderBody
+  )
+
+proc buildUpdateLayoutMethod(name: NimNode, sections: WidgetSections): NimNode =
   ## Generate updateLayout method for composite widgets
   if sections.layoutBody.isEmpty:
     return newEmptyNode()
 
-  quote do:
-    method updateLayout*(widget: Widget) {.base.} =
-      `sections.layoutBody`
+  # Build method manually to avoid premature symbol resolution
+  let typeName = makeWidgetTypeName(name)
+  let widgetParam = newIdentDefs(ident("widget"), typeName)
+  let formalParams = nnkFormalParams.newTree(newEmptyNode(), widgetParam)
+
+  nnkMethodDef.newTree(
+    nnkPostfix.newTree(ident("*"), ident("updateLayout")),
+    newEmptyNode(),
+    newEmptyNode(),
+    formalParams,
+    newEmptyNode(),  # No pragma needed
+    newEmptyNode(),
+    sections.layoutBody
+  )
 
 # ============================================================================
 # Main Macro - definePrimitive
@@ -210,7 +251,7 @@ macro definePrimitive*(name: untyped, body: untyped): untyped =
   result.add(buildConstructor(name, sections))
 
   # Generate methods
-  result.add(buildRenderMethod(sections))
+  result.add(buildRenderMethod(name, sections))
   result.add(buildEventHandler(sections))
 
 # ============================================================================
@@ -231,20 +272,20 @@ macro defineWidget*(name: untyped, body: untyped): untyped =
   result.add(buildConstructor(name, sections))
 
   # Generate methods
-  result.add(buildUpdateLayoutMethod(sections))  # Layout required for composites
-  result.add(buildRenderMethod(sections))        # Render optional
+  result.add(buildUpdateLayoutMethod(name, sections))  # Layout required for composites
+  result.add(buildRenderMethod(name, sections))        # Render optional
   result.add(buildEventHandler(sections))
 
 # ============================================================================
 # Utilities
 # ============================================================================
 
+var widgetIdCounter {.compileTime.} = 0
+
 proc newWidgetId*(): WidgetId =
   ## Generate unique widget ID
-  static:
-    var nextId = 0
-  result = WidgetId(nextId)
-  inc nextId
+  result = WidgetId(widgetIdCounter)
+  inc widgetIdCounter
 
 proc addChild*(parent: Widget, child: Widget) =
   ## Add child widget to parent

@@ -2,7 +2,7 @@
 ##
 ## Arranges children horizontally with spacing
 
-import ../../core/widget_dsl_v2
+import ../../core/widget_dsl_v3
 
 defineWidget(HStack):
   props:

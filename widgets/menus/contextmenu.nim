@@ -4,7 +4,7 @@
 ## Contains MenuItem children arranged vertically.
 ## Uses defineWidget to manage MenuItems.
 
-import ../../core/widget_dsl_v2
+import ../../core/widget_dsl_v3
 import std/options
 
 when defined(useGraphics):
@@ -29,8 +29,8 @@ defineWidget(ContextMenu):
 
   layout:
     # Position menu at saved coordinates
-    widget.bounds.x = widget.posX.get()
-    widget.bounds.y = widget.posY.get()
+    widget.bounds.x = widget.posX
+    widget.bounds.y = widget.posY
 
     # Calculate total height
     let totalHeight = float(widget.children.len) * widget.itemHeight + widget.padding * 2
@@ -51,10 +51,10 @@ defineWidget(ContextMenu):
   events:
     on_mouse_down:
       # Click outside closes the context menu
-      if widget.isVisible.get():
+      if widget.isVisible:
         # Check if click is outside menu bounds
         # For now, just close
-        widget.isVisible.set(false)
+        widget.isVisible = false
         if widget.onClose.isSome:
           widget.onClose.get()()
         return true
@@ -62,7 +62,7 @@ defineWidget(ContextMenu):
 
   render:
     when defined(useGraphics):
-      if widget.isVisible.get():
+      if widget.isVisible:
         # Draw shadow (simple offset rectangle)
         DrawRectangle(
           (widget.bounds.x + 2).cint,
@@ -83,7 +83,7 @@ defineWidget(ContextMenu):
           child.render()
     else:
       # Non-graphics mode
-      if widget.isVisible.get():
+      if widget.isVisible:
         echo "┌─ ContextMenu ─┐"
         for child in widget.children:
           echo child

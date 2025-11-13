@@ -4,7 +4,7 @@
 ## Supports tooltip on hover.
 ## Ported from Hummingbird to RUI2's definePrimitive DSL.
 
-import ../../core/widget_dsl_v2
+import ../../core/widget_dsl_v3
 import std/options
 
 when defined(useGraphics):
@@ -29,13 +29,13 @@ definePrimitive(IconButton):
   events:
     on_mouse_down:
       if not widget.disabled:
-        widget.isPressed.set(true)
+        widget.isPressed = true
         return true
       return false
 
     on_mouse_up:
-      if widget.isPressed.get() and not widget.disabled:
-        widget.isPressed.set(false)
+      if widget.isPressed and not widget.disabled:
+        widget.isPressed = false
         if widget.onClick.isSome:
           widget.onClick.get()()
         return true
@@ -43,8 +43,8 @@ definePrimitive(IconButton):
 
   render:
     when defined(useGraphics):
-      let isPressed = widget.isPressed.get()
-      let isHovered = widget.isHovered.get()
+      let isPressed = widget.isPressed
+      let isHovered = widget.isHovered
 
       # If using texture and not loaded yet, try to load it
       if widget.iconTexturePath.len > 0:
