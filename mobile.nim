@@ -6,6 +6,7 @@
 ## - Display management (orientation, safe areas, responsive layout)
 ## - Virtual keyboard handling
 ## - Mobile-optimized widgets (touch ripple, pull-to-refresh, momentum scroll)
+## - Responsive sizing utilities (DPI-aware, adaptive sizes, touch targets)
 ##
 ## Usage:
 ##   import mobile
@@ -13,16 +14,17 @@
 ##   # Complete setup with input provider
 ##   let mobile = initMobileSupport()
 ##
+##   # Use responsive sizing
+##   let fontSize = mobile.display.fontSize(fsBody)
+##   let spacing = mobile.display.sp(SpacingSizes.medium)
+##   let buttonHeight = mobile.display.ensureTouchTarget(40.0)
+##
 ##   # In your main loop:
 ##   mobile.input.update()  # Poll touch events and recognize gestures
 ##
-##   # Or manually:
-##   let gestureManager = newGestureManager()
-##   let inputProvider = createInputProvider(gestureManager)
-##   let displayManager = initDisplayManager()
-##   let keyboardManager = newKeyboardManager()
-##
-## For detailed examples, see: mobile/MOBILE_GUIDE.md
+## For detailed examples, see:
+##   - mobile/MOBILE_GUIDE.md - Complete mobile guide
+##   - mobile/RESPONSIVE_DESIGN.md - Responsive sizing guide
 
 # ============================================================================
 # Core Types
@@ -85,6 +87,29 @@ export momentum_scroll
 export TouchRipple, newTouchRipple
 export PullToRefresh, newPullToRefresh, RefreshState
 export MomentumScroll, newMomentumScroll, ScrollPhase
+
+# ============================================================================
+# Responsive Sizing
+# ============================================================================
+
+import mobile/responsive
+export responsive
+
+# Re-export responsive sizing types and constants
+export TextScale, ResponsiveSize, ResponsiveSizes
+export DefaultTextScale, MobileFirstTextScale
+export SpacingSizes, FontSizes, IconSizes, ButtonHeights
+export FontSizePreset, ContentWidth, LayoutDensity
+
+# Re-export responsive functions
+export getValue, scaledSize, unscaledSize
+export ensureTouchTarget, touchTargetPadding
+export getTextScaleFactor, getResponsiveFontSize
+export getAspectRatio, isWideScreen, isTallScreen
+export getMaxContentWidth, getConstrainedWidth
+export getSpacingMultiplier, getRecommendedDensity, adaptSpacing
+export sp, dp, fontSize
+export printResponsiveInfo
 
 # ============================================================================
 # Convenience Procedures
@@ -184,7 +209,40 @@ when isMainModule:
     echo "⌨ Keyboard shown, height: ", info.height
 
   # ========================================
-  # 4. Create mobile widgets (examples)
+  # 4. Responsive sizing examples
+  # ========================================
+
+  echo ""
+  echo "Responsive Sizing Examples"
+  echo "=========================="
+
+  # Font sizes (DPI-aware, adaptive)
+  let bodyFont = mobile.display.fontSize(fsBody)
+  let headingFont = mobile.display.fontSize(fsHeading)
+  let titleFont = mobile.display.fontSize(fsTitle)
+  echo "Body font: ", bodyFont, "px"
+  echo "Heading font: ", headingFont, "px"
+
+  # Spacing (responsive to screen size)
+  let smallSpacing = mobile.display.sp(SpacingSizes.small)
+  let mediumSpacing = mobile.display.sp(SpacingSizes.medium)
+  let largeSpacing = mobile.display.sp(SpacingSizes.large)
+  echo "Small spacing: ", smallSpacing, "px"
+  echo "Medium spacing: ", mediumSpacing, "px"
+
+  # Touch targets (automatically enforced minimum)
+  let buttonHeight = mobile.display.ensureTouchTarget(36.0)
+  let iconSize = mobile.display.sp(IconSizes.medium)
+  let iconPadding = mobile.display.touchTargetPadding(iconSize)
+  echo "Button height (enforced): ", buttonHeight, "px (min 44dp)"
+  echo "Icon with padding: ", iconSize, "px + ", iconPadding, "px padding"
+
+  # Content width (constrained for readability)
+  let contentWidth = mobile.display.getConstrainedWidth(cwNarrow)
+  echo "Max content width: ", contentWidth, "px (for readability)"
+
+  # ========================================
+  # 5. Create mobile widgets (examples)
   # ========================================
 
   # let content = buildYourContent()
@@ -197,8 +255,17 @@ when isMainModule:
   #   loadNewData()
   #   refreshView.completeRefresh()
 
+  # Example responsive widget:
+  # Button:
+  #   text: "Click Me"
+  #   height: mobile.display.ensureTouchTarget(
+  #     mobile.display.sp(ButtonHeights.medium)
+  #   )
+  #   fontSize: mobile.display.fontSize(fsBody)
+  #   padding: mobile.display.sp(SpacingSizes.medium)
+
   # ========================================
-  # 5. Main Loop (pseudo-code)
+  # 6. Main Loop (pseudo-code)
   # ========================================
 
   echo ""
