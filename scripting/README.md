@@ -11,27 +11,44 @@ To avoid security/hacking issues, **only local file-based communication is suppo
 
 ### The Protocol Flow
 
-1. **External program** creates a `commands.json` file in the RUI app's folder (where the executable resides)
+1. **External program** creates a command file in the RUI app's folder (where the executable resides)
 2. **Commands** can:
-   - **Query** widget state using CSS-like syntax (e.g., `mainWindow/form/button`)
-   - **Modify** widget values
-   - **Invoke** widget actions (e.g., click a button)
-3. **RUI app** polls every ~1 second for the commands file
+   - **read** - Query widget state
+   - **write** - Set widget values (operate, not modify!)
+   - **invoke** - Trigger widget actions (click button, submit form)
+   - **custom:X** - Widget-specific commands (inc, dec, etc.)
+3. **RUI app** polls every ~1 second for the command file
 4. When detected:
    - Creates `.lock` file to indicate processing
    - Processes all commands
-   - Writes results to `responses.json`
-   - Deletes `commands.json` and `.lock` file
-5. **External program** reads `responses.json`
-6. Process repeats - external program can create new commands file, etc.
+   - Writes results to response file
+   - Deletes command file and `.lock` file
+5. **External program** reads response file
+6. Process repeats - external program can create new command file, etc.
+
+### Two Formats
+
+**Text Format** (`commands.txt` / `responses.txt`):
+- Simple line-based format for shell scripts, AutoHotKey, etc.
+- Format: `id selector command [value]`
+- Responses: `id result` (OK/Fail/value/[list])
+- Uses numeric IDs for matching responses
+
+**JSON Format** (`commands.json` / `responses.json`):
+- Structured format for programmatic clients
+- No need for numeric IDs - uses message structure
+- Better for complex queries and nested data
+- Supports all JSON data types
+
+Both formats are equivalent in functionality. **Text format takes priority** if both exist.
+
+### Important: Operate vs. Modify
+
+Users can **operate** the app (click buttons, type text, query state) but **cannot modify** it (can't change button labels, widget properties, etc.). This is by design for security.
 
 ### Privacy Protection
 
-Widgets can block sensitive fields (like passwords) from being queried. Any field the RUI user marks as private/blocked cannot be read via scripting.
-
-### Format
-
-Originally planned as line-based, now using **JSON format** for commands and responses for better structure and extensibility.
+Widgets can block sensitive fields (like passwords) from being queried. Any field the RUI user marks as `blockReading=true` cannot be read via scripting.
 
 ## Why Build This In From Day One?
 
@@ -44,7 +61,28 @@ Rather than hack in automation/testing capabilities later, we design for program
 
 ## Example Usage
 
-### Command File (`commands.json`)
+### Text Format (`commands.txt`)
+```
+# Command format: id selector command [value]
+1 loginButton read
+2 usernameInput write john_doe
+3 passwordInput write secret123
+4 loginButton invoke
+5 loginForm/* read
+6 statusLabel read
+```
+
+### Text Response (`responses.txt`)
+```
+1 Login
+2 OK
+3 OK
+4 OK
+5 [usernameInput, passwordInput, loginButton]
+6 Login successful
+```
+
+### JSON Format (`commands.json`)
 ```json
 {
   "id": "msg_001",
@@ -57,7 +95,7 @@ Rather than hack in automation/testing capabilities later, we design for program
 }
 ```
 
-### Response File (`responses.json`)
+### JSON Response (`responses.json`)
 ```json
 {
   "id": "msg_001",

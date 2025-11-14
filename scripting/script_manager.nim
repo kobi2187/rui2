@@ -4,21 +4,27 @@
 ## Polls for command files, processes them, and writes responses.
 
 import std/[os, json, times, options, strutils]
-import messages, selectors
+import messages, selectors, text_format
 import ../core/types
 
-export messages, selectors
+export messages, selectors, text_format
 
 # ============================================================================
 # Types
 # ============================================================================
 
 type
+  CommandFormat* = enum
+    cfJson    # JSON format (commands.json / responses.json)
+    cfText    # Text format (commands.txt / responses.txt)
+
   ScriptManager* = ref object
     ## Manages file-based scripting communication
     workDir*: string               # Directory for command/response files
-    commandPath*: string           # Path to commands.json
-    responsePath*: string          # Path to responses.json
+    commandPathJson*: string       # Path to commands.json
+    responsePathJson*: string      # Path to responses.json
+    commandPathText*: string       # Path to commands.txt
+    responsePathText*: string      # Path to responses.txt
     lockPath*: string              # Path to .lock file
 
     widgetTree*: WidgetTree        # Reference to app's widget tree
@@ -38,8 +44,10 @@ proc newScriptManager*(workDir: string, widgetTree: WidgetTree): ScriptManager =
   ##          Typically the same directory as the app executable
   result = ScriptManager(
     workDir: workDir,
-    commandPath: workDir / "commands.json",
-    responsePath: workDir / "responses.json",
+    commandPathJson: workDir / "commands.json",
+    responsePathJson: workDir / "responses.json",
+    commandPathText: workDir / "commands.txt",
+    responsePathText: workDir / "responses.txt",
     lockPath: workDir / ".lock",
     widgetTree: widgetTree,
     pollInterval: 1.0,  # Poll every 1 second
@@ -54,8 +62,10 @@ proc newScriptManager*(workDir: string, widgetTree: WidgetTree): ScriptManager =
   # Clean up any leftover files from previous run
   if fileExists(result.lockPath):
     removeFile(result.lockPath)
-  if fileExists(result.responsePath):
-    removeFile(result.responsePath)
+  if fileExists(result.responsePathJson):
+    removeFile(result.responsePathJson)
+  if fileExists(result.responsePathText):
+    removeFile(result.responsePathText)
 
 # ============================================================================
 # File Operations
@@ -70,37 +80,79 @@ proc releaseLock(sm: ScriptManager) =
   if fileExists(sm.lockPath):
     removeFile(sm.lockPath)
 
-proc hasCommandFile(sm: ScriptManager): bool =
-  ## Check if command file exists
-  fileExists(sm.commandPath)
+proc detectCommandFormat(sm: ScriptManager): Option[CommandFormat] =
+  ## Check which command file exists
+  ## Text format takes priority over JSON
+  if fileExists(sm.commandPathText):
+    return some(cfText)
+  elif fileExists(sm.commandPathJson):
+    return some(cfJson)
+  else:
+    return none(CommandFormat)
 
-proc readCommandFile(sm: ScriptManager): Option[ScriptMessage] =
-  ## Read and parse command file
-  ## Returns None if file doesn't exist or can't be parsed
-  if not sm.hasCommandFile():
-    return none(ScriptMessage)
+proc getWidgetTypeName(widget: Widget): string =
+  ## Get widget type name for command translation
+  ## This is a simple implementation - could be improved with actual type info
+  if widget.stringId.contains("button") or widget.stringId.contains("btn"):
+    return "Button"
+  elif widget.stringId.contains("input") or widget.stringId.contains("text"):
+    return "TextInput"
+  elif widget.stringId.contains("check"):
+    return "CheckBox"
+  else:
+    return "Widget"  # Generic
 
-  try:
-    let content = readFile(sm.commandPath)
-    let jsonNode = parseJson(content)
-    let msg = parseMessage(jsonNode)
-    return some(msg)
-  except CatchableError as e:
-    # Failed to parse - write error response
-    let errorMsg = newErrorMessage("unknown", "system",
-      "Failed to parse command file: " & e.msg, 400)
-    sm.writeResponse(errorMsg)
-    return none(ScriptMessage)
+proc processTextCommand(sm: ScriptManager, cmd: TextCommand): TextResponse =
+  ## Process a single text command and return text response
 
-proc writeResponse(sm: ScriptManager, msg: ScriptMessage) =
-  ## Write response to file
-  let jsonNode = msg.toJson()
-  writeFile(sm.responsePath, $jsonNode)
+  # Handle wildcard reads (list children)
+  if cmd.cmdType == ctRead and cmd.selector.contains("*"):
+    let widgets = sm.findWidgets(cmd.selector)
+    var ids: seq[string] = @[]
+    for w in widgets:
+      if w.stringId.len > 0:
+        ids.add(w.stringId)
+    return newListResponse(cmd.id, ids)
 
-proc cleanupCommandFile(sm: ScriptManager) =
+  # Find widget
+  let widgetOpt = sm.findWidget(cmd.selector)
+  if widgetOpt.isNone:
+    return newFailResponse(cmd.id, "Widget not found")
+
+  let widget = widgetOpt.get()
+
+  # Get widget type for command translation
+  let widgetType = widget.getWidgetTypeName()
+
+  # Translate command to action
+  let (action, params) = cmd.translateToAction(widgetType)
+
+  # Execute action
+  let result = widget.handleScriptAction(action, params)
+
+  # Convert JSON result to text response
+  if result.hasKey("success") and result["success"].getBool():
+    # Success case
+    if result.hasKey("text"):
+      return newValueResponse(cmd.id, result["text"].getStr())
+    elif result.hasKey("value"):
+      return newValueResponse(cmd.id, $result["value"])
+    else:
+      return newSuccessResponse(cmd.id)
+  else:
+    # Error case
+    let error = if result.hasKey("error"): result["error"].getStr() else: "Fail"
+    return newFailResponse(cmd.id, error)
+
+proc cleanupCommandFile(sm: ScriptManager, format: CommandFormat) =
   ## Delete command file after processing
-  if fileExists(sm.commandPath):
-    removeFile(sm.commandPath)
+  case format
+  of cfJson:
+    if fileExists(sm.commandPathJson):
+      removeFile(sm.commandPathJson)
+  of cfText:
+    if fileExists(sm.commandPathText):
+      removeFile(sm.commandPathText)
 
 # ============================================================================
 # Widget Tree Operations
@@ -224,37 +276,68 @@ proc poll*(sm: ScriptManager) =
 
   sm.lastPoll = now
 
-  # Check for command file
-  if not sm.hasCommandFile():
-    return
+  # Detect command format
+  let formatOpt = sm.detectCommandFormat()
+  if formatOpt.isNone:
+    return  # No command file
+
+  let format = formatOpt.get()
 
   # Process command file
   try:
     # Create lock
     sm.createLock()
 
-    # Read command
-    let msgOpt = sm.readCommandFile()
-    if msgOpt.isNone:
-      return  # Error already written by readCommandFile
+    case format
+    of cfText:
+      # Process text format
+      let commands = parseCommandFile(sm.commandPathText)
+      var responses: seq[TextResponse] = @[]
 
-    let msg = msgOpt.get()
+      for cmd in commands:
+        let resp = sm.processTextCommand(cmd)
+        responses.add(resp)
 
-    # Process message
-    let response = sm.processMessage(msg)
+      # Write all responses
+      writeResponseFile(sm.responsePathText, responses)
 
-    # Write response
-    sm.writeResponse(response)
+    of cfJson:
+      # Process JSON format (single command)
+      try:
+        let content = readFile(sm.commandPathJson)
+        let jsonNode = parseJson(content)
+        let msg = parseMessage(jsonNode)
+
+        # Process message
+        let response = sm.processMessage(msg)
+
+        # Write response
+        let respJson = response.toJson()
+        writeFile(sm.responsePathJson, $respJson)
+
+      except CatchableError as e:
+        # Failed to parse - write error response
+        let errorMsg = newErrorMessage("unknown", "system",
+          "Failed to parse command file: " & e.msg, 400)
+        let respJson = errorMsg.toJson()
+        writeFile(sm.responsePathJson, $respJson)
 
     # Cleanup
-    sm.cleanupCommandFile()
+    sm.cleanupCommandFile(format)
     sm.releaseLock()
 
   except CatchableError as e:
     # Error during processing
-    let errorMsg = newErrorMessage("unknown", "system",
-      "Error processing command: " & e.msg, 500)
-    sm.writeResponse(errorMsg)
+    case format
+    of cfText:
+      let errorResp = newFailResponse("0", "Error: " & e.msg)
+      writeResponse(sm.responsePathText, errorResp)
+    of cfJson:
+      let errorMsg = newErrorMessage("unknown", "system",
+        "Error processing command: " & e.msg, 500)
+      let respJson = errorMsg.toJson()
+      writeFile(sm.responsePathJson, $respJson)
+
     sm.releaseLock()
 
 # ============================================================================
