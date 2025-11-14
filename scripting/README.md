@@ -75,12 +75,13 @@ Rather than hack in automation/testing capabilities later, we design for program
 ### Text Format (`commands.txt`)
 ```
 # Command format: id selector command [value]
+# Selector can be: widgetId or TypeName:widgetId
 1 loginButton read
 2 usernameInput write john_doe
 3 passwordInput write secret123
 4 loginButton invoke
 5 loginForm/* read
-6 statusLabel read
+6 Button:submitBtn invoke    # Optional type prefix
 ```
 
 ### Text Response (`responses.txt`)
@@ -89,9 +90,11 @@ Rather than hack in automation/testing capabilities later, we design for program
 2 OK
 3 OK
 4 OK
-5 [usernameInput, passwordInput, loginButton]
+5 [TextInput:usernameInput, TextInput:passwordInput, Button:loginButton]
 6 Login successful
 ```
+
+**Wildcard queries** return `TypeName:widgetId` format - no guessing widget types!
 
 ### JSON Format (`commands.json`)
 ```json
