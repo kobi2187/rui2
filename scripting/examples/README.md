@@ -151,12 +151,6 @@ when isMainModule:
 
 **Button:**
 - `click(path)` - Click button
-- `enable(path)` - Enable button
-- `disable(path)` - Disable button
-
-**Focus:**
-- `focus(path)` - Focus widget
-- `blur(path)` - Remove focus
 
 **Query:**
 - `query(path)` - Get widget state
@@ -169,10 +163,10 @@ when isMainModule:
 ## Tips
 
 1. **Widget IDs**: Widgets must have `stringId` set to be accessible
-2. **Scriptable**: Set `widget.scriptable = true` to allow control
+2. **App-Level Control**: Enable scripting with `app.enableScripting(dir)`
 3. **Privacy**: Set `widget.blockReading = true` for passwords
 4. **Paths**: Use CSS-like paths: `"form/button"`, `"form/*"`, etc.
-5. **Operate vs Modify**: Can operate app (click, type) but not modify it (change labels)
+5. **Operate vs Modify**: Scripts can operate app (click, type) but not modify it (change labels, enable/disable)
 
 ## Enabling Scripting in Your App
 
@@ -180,18 +174,15 @@ when isMainModule:
 import rui2/core/app
 
 let app = newApp()
-app.enableScripting(getCurrentDir())  # Use app's directory
+app.enableScripting(getCurrentDir())  # Enable scripting for entire app
 
-# Set widget IDs
+# Set widget IDs for access
 myButton.stringId = "submitButton"
-myButton.scriptable = true
 
 myInput.stringId = "usernameInput"
-myInput.scriptable = true
-myInput.blockReading = false  # Allow reading
+myInput.blockReading = false  # Allow reading (default)
 
 passwordInput.stringId = "passwordInput"
-passwordInput.scriptable = true
 passwordInput.blockReading = true  # Block reading for security
 ```
 

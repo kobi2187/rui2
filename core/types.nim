@@ -71,18 +71,7 @@ type
 # ============================================================================
 # Scripting System Types
 # ============================================================================
-
-type
-  ScriptAction* = enum
-    ## Actions that can be performed via scripting
-    saClick       # Click a button
-    saSetText     # Set text in input
-    saGetText     # Read text value
-    saGetState    # Query widget state
-    saEnable      # Enable/disable widget
-    saFocus       # Set focus
-    saSetValue    # Set generic value
-    saQuery       # Query widget properties
+# (Scripting is controlled at app-level, not per-widget)
 
 # ============================================================================
 # Widget Tree
@@ -114,10 +103,8 @@ type
     zIndex*: int
     hasOverlay*: bool          # If true, children are sorted by z-index during rendering
 
-    # Scripting support
-    scriptable*: bool                    # Can be controlled via scripting
+    # Scripting support (app-level control)
     blockReading*: bool                  # Prevent reading sensitive data (passwords, etc.)
-    allowedActions*: set[ScriptAction]   # Permitted actions
 
     # Focus callbacks
     onFocus*: Option[proc() {.closure.}]       # Called when widget gains focus
@@ -338,7 +325,6 @@ method getScriptableState*(widget: Widget): JsonNode {.base.} =
     "type": "Widget",
     "visible": widget.visible,
     "enabled": widget.enabled,
-    "scriptable": widget.scriptable,
     "bounds": {
       "x": widget.bounds.x,
       "y": widget.bounds.y,

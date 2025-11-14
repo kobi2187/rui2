@@ -268,9 +268,10 @@ defineWidget(TextInput):
 
 method handleScriptAction*(widget: TextInput, action: string, params: JsonNode): JsonNode =
   ## Handle scripting actions for TextInput widget
+  ## Scripts can operate the input (set text, read, clear, submit) but not modify properties
   case action
   of "setText":
-    if widget.scriptable and params.hasKey("text"):
+    if params.hasKey("text"):
       let newText = params["text"].getStr()
       # Respect maxLength
       if widget.maxLength >= 0 and newText.len > widget.maxLength:
@@ -285,7 +286,7 @@ method handleScriptAction*(widget: TextInput, action: string, params: JsonNode):
         widget.onChange(widget.text)
       return %*{"success": true}
     else:
-      return %*{"success": false, "error": "Missing 'text' parameter or not scriptable"}
+      return %*{"success": false, "error": "Missing 'text' parameter"}
 
   of "getText":
     if not widget.blockReading:
@@ -294,29 +295,14 @@ method handleScriptAction*(widget: TextInput, action: string, params: JsonNode):
       return %*{"success": false, "error": "Reading blocked"}
 
   of "clear":
-    if widget.scriptable:
-      widget.text = ""
-      widget.cursorPos = 0
-      widget.selectionStart = -1
-      widget.selectionEnd = -1
-      widget.isDirty = true
-      # Trigger onChange callback
-      if widget.onChange != nil:
-        widget.onChange(widget.text)
-      return %*{"success": true}
-    else:
-      return %*{"success": false, "error": "Not scriptable"}
-
-  of "focus":
-    widget.focused = true
-    widget.isDirty = true
-    return %*{"success": true}
-
-  of "blur":
-    widget.focused = false
+    widget.text = ""
+    widget.cursorPos = 0
     widget.selectionStart = -1
     widget.selectionEnd = -1
     widget.isDirty = true
+    # Trigger onChange callback
+    if widget.onChange != nil:
+      widget.onChange(widget.text)
     return %*{"success": true}
 
   of "submit":
@@ -337,7 +323,6 @@ method getScriptableState*(widget: TextInput): JsonNode =
     "type": "TextInput",
     "visible": widget.visible,
     "enabled": widget.enabled,
-    "scriptable": widget.scriptable,
     "focused": widget.focused,
     "placeholder": widget.placeholder,
     "maxLength": widget.maxLength,

@@ -98,39 +98,22 @@ defineWidget(Button):
 
 method handleScriptAction*(widget: Button, action: string, params: JsonNode): JsonNode =
   ## Handle scripting actions for Button widget
+  ## Scripts can operate the button (click, read) but not modify it
   case action
   of "click":
-    if not widget.disabled and widget.scriptable:
+    if not widget.disabled:
       # Trigger onClick callback
       if widget.onClick.isSome:
         widget.onClick.get()()
       return %*{"success": true, "clicked": true}
     else:
-      return %*{"success": false, "error": "Button is disabled or not scriptable"}
+      return %*{"success": false, "error": "Button is disabled"}
 
   of "getText":
     if not widget.blockReading:
       return %*{"success": true, "text": widget.text}
     else:
       return %*{"success": false, "error": "Reading blocked"}
-
-  of "setText":
-    if widget.scriptable and params.hasKey("text"):
-      widget.text = params["text"].getStr()
-      widget.isDirty = true
-      return %*{"success": true}
-    else:
-      return %*{"success": false, "error": "Missing 'text' parameter or not scriptable"}
-
-  of "enable":
-    widget.disabled = false
-    widget.isDirty = true
-    return %*{"success": true}
-
-  of "disable":
-    widget.disabled = true
-    widget.isDirty = true
-    return %*{"success": true}
 
   else:
     return %*{"success": false, "error": "Unknown action: " & action}
@@ -142,7 +125,6 @@ method getScriptableState*(widget: Button): JsonNode =
     "type": "Button",
     "visible": widget.visible,
     "enabled": not widget.disabled,
-    "scriptable": widget.scriptable,
     "pressed": widget.isPressed,
     "hovered": widget.isHovered,
     "bounds": {

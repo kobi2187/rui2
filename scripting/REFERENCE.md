@@ -200,8 +200,6 @@ id result
 |--------|-------------|------------|
 | `click` / `invoke` | Trigger onClick callback | None |
 | `getText` / `read` | Get button text | None |
-| `enable` | Enable button | None |
-| `disable` | Disable button | None |
 
 **Text format:**
 ```
@@ -221,8 +219,6 @@ id result
 | `setText` / `write` | Set text value | `text: string` |
 | `getText` / `read` | Get text value | None |
 | `clear` | Clear text | None |
-| `focus` | Focus input | None |
-| `blur` | Remove focus | None |
 | `submit` / `invoke` | Trigger onSubmit | None |
 
 **Text format:**
@@ -276,13 +272,26 @@ The system automatically translates generic commands to widget-specific actions:
 
 ## Privacy & Security
 
+### App-Level Control
+
+Scripting is controlled at the application level, not per-widget:
+
+```nim
+# Enable scripting for the entire app
+app.enableScripting(getCurrentDir())
+
+# Disable scripting
+app.disableScripting()
+```
+
+When scripting is disabled, no external control is possible.
+
 ### blockReading Flag
 
 Widgets can block sensitive fields from being queried:
 
 ```nim
 passwordInput.stringId = "passwordInput"
-passwordInput.scriptable = true
 passwordInput.blockReading = true  # ← Can't read text!
 ```
 
@@ -290,22 +299,6 @@ passwordInput.blockReading = true  # ← Can't read text!
 - `write` commands still work
 - `read` commands return `"Reading blocked"` error
 - State queries omit blocked fields
-
-### scriptable Flag
-
-Controls whether widget can be controlled at all:
-
-```nim
-criticalButton.scriptable = false  # ← Can't be scripted
-```
-
-### allowedActions Set
-
-Restrict specific actions (future feature):
-
-```nim
-widget.allowedActions = {saSetText, saFocus}  # Only these actions
-```
 
 ### Visual Indicator
 
@@ -318,17 +311,22 @@ While processing commands (`.lock` file exists):
 
 ## Operate vs. Modify
 
-**Users can OPERATE the app:**
-- ✓ Click buttons
-- ✓ Type text
-- ✓ Query state
-- ✓ Trigger callbacks
+Scripts have **limited powers** - they can operate the app but not modify it:
 
-**Users CANNOT MODIFY the app:**
+**Scripts CAN:**
+- ✓ Click buttons
+- ✓ Type text in inputs
+- ✓ Read widget state
+- ✓ Trigger callbacks (onClick, onSubmit, etc.)
+- ✓ Clear text inputs
+
+**Scripts CANNOT:**
 - ✗ Change button labels
-- ✗ Modify widget properties
+- ✗ Enable/disable buttons
+- ✗ Modify widget properties (colors, sizes, etc.)
 - ✗ Alter UI structure
 - ✗ Change widget types
+- ✗ Focus/blur widgets (access is direct by ID)
 
 This is by design for security.
 
@@ -433,9 +431,9 @@ let result = client.command("widget", "customAction", %*{"param": "value"})
 **Common errors:**
 - `Widget not found`
 - `Reading blocked`
-- `Not scriptable`
 - `Action not permitted`
 - `Text exceeds maxLength`
+- `Button is disabled`
 
 ### JSON Format Errors
 
