@@ -93,5 +93,5 @@ return
 ^+Q::  ; Ctrl+Shift+Q hotkey
     WaitForApp()
     response := SendCommand(1, "loginForm/*", "read")
-    MsgBox, Form widgets: %response%
+    MsgBox, Form widgets: %response% (format: TypeName:widgetId)
 return

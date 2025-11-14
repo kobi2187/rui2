@@ -94,18 +94,6 @@ proc detectCommandFormat(sm: ScriptManager): Option[CommandFormat] =
   else:
     return none(CommandFormat)
 
-proc getWidgetTypeName(widget: Widget): string =
-  ## Get widget type name for command translation
-  ## This is a simple implementation - could be improved with actual type info
-  if widget.stringId.contains("button") or widget.stringId.contains("btn"):
-    return "Button"
-  elif widget.stringId.contains("input") or widget.stringId.contains("text"):
-    return "TextInput"
-  elif widget.stringId.contains("check"):
-    return "CheckBox"
-  else:
-    return "Widget"  # Generic
-
 proc processTextCommand(sm: ScriptManager, cmd: TextCommand): TextResponse =
   ## Process a single text command and return text response
 
@@ -115,18 +103,30 @@ proc processTextCommand(sm: ScriptManager, cmd: TextCommand): TextResponse =
     var ids: seq[string] = @[]
     for w in widgets:
       if w.stringId.len > 0:
-        ids.add(w.stringId)
+        # Return format: TypeName:widgetId
+        let typeName = w.getTypeName()
+        ids.add(typeName & ":" & w.stringId)
     return newListResponse(cmd.id, ids)
 
+  # Parse selector - may be "widgetId" or "TypeName:widgetId"
+  var selector = cmd.selector
+  var explicitType = ""
+
+  if cmd.selector.contains(":"):
+    let parts = cmd.selector.split(":", maxsplit = 1)
+    if parts.len == 2:
+      explicitType = parts[0]
+      selector = parts[1]
+
   # Find widget
-  let widgetOpt = sm.findWidget(cmd.selector)
+  let widgetOpt = sm.findWidget(selector)
   if widgetOpt.isNone:
     return newFailResponse(cmd.id, "Widget not found")
 
   let widget = widgetOpt.get()
 
-  # Get widget type for command translation
-  let widgetType = widget.getWidgetTypeName()
+  # Get widget type - use explicit if provided, otherwise get actual
+  let widgetType = if explicitType.len > 0: explicitType else: widget.getTypeName()
 
   # Translate command to action
   let (action, params) = cmd.translateToAction(widgetType)

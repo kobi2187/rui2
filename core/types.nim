@@ -347,6 +347,14 @@ method getScriptableState*(widget: Widget): JsonNode {.base.} =
     }
   }
 
+proc getTypeName*(widget: Widget): string =
+  ## Get the widget's type name
+  ## Extracts from getScriptableState() to avoid duplication
+  let state = widget.getScriptableState()
+  if state.hasKey("type"):
+    return state["type"].getStr()
+  return "Widget"
+
 # ============================================================================
 # Widget Tree Helpers
 # ============================================================================

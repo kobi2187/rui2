@@ -107,8 +107,9 @@ Examples:
 1 loginButton read          # Get button text
 2 usernameInput write john  # Set text
 3 loginButton invoke        # Click button
-4 form/* read               # List children
+4 form/* read               # List children (returns TypeName:widgetId)
 5 counter custom:inc        # Custom command
+6 Button:submitBtn invoke   # Can optionally specify type
 ```
 
 ## Creating Your Own JSON Format Scripts

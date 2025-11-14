@@ -7,10 +7,12 @@
 #   Fail        - Error occurred
 #   <value>     - Actual value (for read commands)
 #   [a, b, c]   - List of values (for wildcard reads)
+#
+# Note: Wildcard reads return TypeName:widgetId format
 
 1 Login
 2 OK
 3 OK
 4 OK
-5 [usernameInput, passwordInput, loginButton, statusLabel]
+5 [TextInput:usernameInput, TextInput:passwordInput, Button:loginButton, Label:statusLabel]
 6 Login successful

@@ -98,6 +98,7 @@ wait_for_app
 echo "Listing form widgets..."
 response=$(send_command 5 "loginForm/*" "read")
 echo "Widgets: $response"
+echo "(Returns format: TypeName:widgetId)"
 echo ""
 
 echo "Done!"
