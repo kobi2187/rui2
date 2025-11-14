@@ -1,0 +1,30 @@
+# Example commands.txt file
+# Format: id selector command [value]
+#
+# Commands:
+#   read      - Read widget value/state
+#   write     - Write value to widget
+#   invoke    - Invoke widget action (click button, submit form, etc.)
+#   custom:X  - Widget-specific custom command
+
+# Query button text
+1 loginButton read
+
+# Set username
+2 usernameInput write admin
+
+# Set password
+3 passwordInput write secret123
+
+# Click login button
+4 loginButton invoke
+
+# List all widgets in form
+5 loginForm/* read
+
+# Query status label after login
+6 statusLabel read
+
+# Custom command example (for numeric spinners, etc.)
+# 7 counterWidget custom:inc
+# 8 counterWidget custom:dec

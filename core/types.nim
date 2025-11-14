@@ -71,18 +71,7 @@ type
 # ============================================================================
 # Scripting System Types
 # ============================================================================
-
-type
-  ScriptAction* = enum
-    ## Actions that can be performed via scripting
-    saClick       # Click a button
-    saSetText     # Set text in input
-    saGetText     # Read text value
-    saGetState    # Query widget state
-    saEnable      # Enable/disable widget
-    saFocus       # Set focus
-    saSetValue    # Set generic value
-    saQuery       # Query widget properties
+# (Scripting is controlled at app-level, not per-widget)
 
 # ============================================================================
 # Widget Tree
@@ -114,10 +103,8 @@ type
     zIndex*: int
     hasOverlay*: bool          # If true, children are sorted by z-index during rendering
 
-    # Scripting support
-    scriptable*: bool                    # Can be controlled via scripting
+    # Scripting support (app-level control)
     blockReading*: bool                  # Prevent reading sensitive data (passwords, etc.)
-    allowedActions*: set[ScriptAction]   # Permitted actions
 
     # Focus callbacks
     onFocus*: Option[proc() {.closure.}]       # Called when widget gains focus
@@ -338,7 +325,6 @@ method getScriptableState*(widget: Widget): JsonNode {.base.} =
     "type": "Widget",
     "visible": widget.visible,
     "enabled": widget.enabled,
-    "scriptable": widget.scriptable,
     "bounds": {
       "x": widget.bounds.x,
       "y": widget.bounds.y,
@@ -346,3 +332,43 @@ method getScriptableState*(widget: Widget): JsonNode {.base.} =
       "height": widget.bounds.height
     }
   }
+
+method getTypeName*(widget: Widget): string {.base.} =
+  ## Get the widget's type name
+  ## MUST be overridden by derived widgets
+  ## The defineWidget macro generates this automatically
+  {.error: "getTypeName must be overridden for widget type".}
+  ""
+
+# ============================================================================
+# Widget Tree Helpers
+# ============================================================================
+
+proc registerWidget*(tree: WidgetTree, widget: Widget) =
+  ## Register a widget in the widget tree
+  ## Adds to both numeric ID map and string ID map (if stringId is set)
+  tree.widgetMap[widget.id] = widget
+  if widget.stringId.len > 0:
+    tree.widgetsByStringId[widget.stringId] = widget
+
+proc unregisterWidget*(tree: WidgetTree, widget: Widget) =
+  ## Unregister a widget from the widget tree
+  tree.widgetMap.del(widget.id)
+  if widget.stringId.len > 0:
+    tree.widgetsByStringId.del(widget.stringId)
+
+proc setWidgetStringId*(tree: WidgetTree, widget: Widget, id: string) =
+  ## Set a widget's string ID and register it in the tree
+  ## Use this instead of directly setting widget.stringId
+  if widget.stringId.len > 0:
+    # Remove old registration
+    tree.widgetsByStringId.del(widget.stringId)
+  widget.stringId = id
+  if id.len > 0:
+    tree.widgetsByStringId[id] = widget
+
+proc registerWidgetRecursive*(tree: WidgetTree, widget: Widget) =
+  ## Register a widget and all its children recursively
+  tree.registerWidget(widget)
+  for child in widget.children:
+    tree.registerWidgetRecursive(child)

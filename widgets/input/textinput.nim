@@ -11,7 +11,7 @@
 ## Uses Raylib text rendering for now, will integrate Pango later
 
 import raylib
-import std/math
+import std/[math, json, options]
 import ../../core/[types, widget_dsl]
 import ../../drawing_primitives/[theme_sys_core, drawing_primitives]
 
@@ -261,3 +261,86 @@ defineWidget(TextInput):
     widget.cursorPos = closestPos
     widget.selectionStart = -1
     widget.selectionEnd = -1
+
+# ============================================================================
+# Scripting Support
+# ============================================================================
+
+method handleScriptAction*(widget: TextInput, action: string, params: JsonNode): JsonNode =
+  ## Handle scripting actions for TextInput widget
+  ## Scripts can operate the input (set text, read, clear, submit) but not modify properties
+  case action
+  of "setText":
+    if params.hasKey("text"):
+      let newText = params["text"].getStr()
+      # Respect maxLength
+      if widget.maxLength >= 0 and newText.len > widget.maxLength:
+        return %*{"success": false, "error": "Text exceeds maxLength"}
+      widget.text = newText
+      widget.cursorPos = widget.text.len
+      widget.selectionStart = -1
+      widget.selectionEnd = -1
+      widget.isDirty = true
+      # Trigger onChange callback
+      if widget.onChange != nil:
+        widget.onChange(widget.text)
+      return %*{"success": true}
+    else:
+      return %*{"success": false, "error": "Missing 'text' parameter"}
+
+  of "getText":
+    if not widget.blockReading:
+      return %*{"success": true, "text": widget.text}
+    else:
+      return %*{"success": false, "error": "Reading blocked"}
+
+  of "clear":
+    widget.text = ""
+    widget.cursorPos = 0
+    widget.selectionStart = -1
+    widget.selectionEnd = -1
+    widget.isDirty = true
+    # Trigger onChange callback
+    if widget.onChange != nil:
+      widget.onChange(widget.text)
+    return %*{"success": true}
+
+  of "submit":
+    # Trigger submit callback
+    if widget.onSubmit != nil:
+      widget.onSubmit(widget.text)
+      return %*{"success": true, "submitted": true}
+    else:
+      return %*{"success": true, "submitted": false, "message": "No submit handler"}
+
+  else:
+    return %*{"success": false, "error": "Unknown action: " & action}
+
+method getScriptableState*(widget: TextInput): JsonNode =
+  ## Get current state of TextInput as JSON
+  result = %*{
+    "id": widget.stringId,
+    "type": "TextInput",
+    "visible": widget.visible,
+    "enabled": widget.enabled,
+    "focused": widget.focused,
+    "placeholder": widget.placeholder,
+    "maxLength": widget.maxLength,
+    "cursorPos": widget.cursorPos,
+    "bounds": {
+      "x": widget.bounds.x,
+      "y": widget.bounds.y,
+      "width": widget.bounds.width,
+      "height": widget.bounds.height
+    }
+  }
+
+  # Add text if reading not blocked
+  if not widget.blockReading:
+    result["text"] = %widget.text
+  else:
+    result["blocked"] = %true
+
+method getTypeName*(widget: TextInput): string =
+  ## Return the widget type name
+  "TextInput"

@@ -7,11 +7,15 @@ import ../managers/event_manager_refactored
 import ../managers/focus_manager
 import ../drawing_primitives/primitives/text_cache
 import ../drawing_primitives/theme_sys_core
+import ../scripting/script_manager
+import ../hit-testing/hittest_system
 export types                      # Export types (re-export what we import)
 export event_manager_refactored   # Export for users to access eventManager
 export focus_manager              # Export focus manager
 export text_cache     # Export text cache types
 export theme_sys_core # Export theme types
+export script_manager # Export script manager
+export hittest_system # Export hit test system
 when defined(useGraphics):
   import raylib
 import std/[monotimes, times, os]
@@ -30,9 +34,11 @@ type
     # Managers (exported for testing)
     eventManager*: EventManager
     focusManager*: FocusManager
+    scriptManager*: ScriptManager
+    hitTestSystem*: HitTestSystem
 
-    currentFocusWidget: Widget
-    currentFocusLayout: Widget
+    # Internal state
+    currentFocusLayout: Widget       # Internal: layout container with focus
 
     # Theme and rendering
     currentTheme*: Theme
@@ -44,7 +50,7 @@ type
     fpsUpdateTime: MonoTime
     currentFPS: float
 
-    # Scripting support
+    # Scripting support (deprecated - use scriptManager)
     scriptingEnabled*: bool
     scriptDir*: string
     lastScriptPoll: MonoTime
@@ -85,6 +91,8 @@ proc newApp*(title = "RUI Application",
     ),
     eventManager: newEventManager(defaultBudget = initDuration(milliseconds = 8)),
     focusManager: newFocusManager(),
+    scriptManager: nil,  # Created when scripting is enabled
+    hitTestSystem: newHitTestSystem(),
     currentTheme: newTheme("Default"),
     textCache: TextCache(
       measurements: initTable[MeasurementKey, TextMetrics](),
@@ -120,6 +128,16 @@ proc enableScripting*(app: App, scriptDir: string) =
   if not dirExists(scriptDir):
     createDir(scriptDir)
 
+  # Create script manager
+  app.tree.widgetsByStringId = initTable[string, Widget]()  # Ensure initialized
+  app.scriptManager = newScriptManager(scriptDir, app.tree)
+
+proc disableScripting*(app: App) =
+  ## Disable scripting system
+  if app.scriptManager != nil:
+    app.scriptManager.disable()
+  app.scriptingEnabled = false
+
 # ============================================================================
 # Theme Management
 # ============================================================================
@@ -135,6 +153,26 @@ proc setTheme*(app: App, theme: Theme) =
 proc getTheme*(app: App): Theme =
   ## Get the current theme
   app.currentTheme
+
+# ============================================================================
+# Current State Accessors (Query Managers)
+# ============================================================================
+
+proc currentWidget*(app: App): Widget =
+  ## Get the widget currently under the mouse cursor
+  ## Returns nil if no widget is under the cursor
+  ## Queries hitTestSystem with current mouse position
+  when defined(useGraphics):
+    let mousePos = getMousePosition()
+    return app.hitTestSystem.getWidgetAt(mousePos.x, mousePos.y)
+  else:
+    return nil
+
+proc currentFocusedWidget*(app: App): Widget =
+  ## Get the widget that currently has keyboard focus
+  ## Returns nil if no widget has focus
+  ## Queries focusManager for current focus
+  app.focusManager.getCurrentFocus()
 
 # ============================================================================
 # Text Cache Management
@@ -320,6 +358,29 @@ when defined(useGraphics):
                   app.tree.root.bounds.y.int32,
                   White)
 
+    # Visual indicator when being scripted
+    if app.scriptManager != nil and app.scriptManager.isBeingScripted():
+      let borderWidth = 4'i32
+      let screenWidth = getScreenWidth()
+      let screenHeight = getScreenHeight()
+      let scriptColor = Color(r: 255, g: 165, b: 0, a: 200)  # Orange with transparency
+
+      # Draw border around entire window
+      drawRectangleLines(0, 0, screenWidth, screenHeight, scriptColor)
+      drawRectangleLines(1, 1, screenWidth - 2, screenHeight - 2, scriptColor)
+      drawRectangleLines(2, 2, screenWidth - 4, screenHeight - 4, scriptColor)
+      drawRectangleLines(3, 3, screenWidth - 6, screenHeight - 6, scriptColor)
+
+      # Optional: Draw indicator text in top-right corner
+      let indicatorText = "SCRIPTING"
+      let textWidth = measureText(indicatorText, 14'i32)
+      let textX = screenWidth - textWidth - 10
+      let textY = 5'i32
+      # Background for text
+      drawRectangle(textX - 5, textY - 2, textWidth + 10, 20, Color(r: 0, g: 0, b: 0, a: 150))
+      # Text
+      drawText(indicatorText, textX, textY, 14'i32, scriptColor)
+
     # Debug overlay (optional - can be removed later)
     when defined(debugUI):
       drawText("FPS: " & $app.currentFPS, 10'i32, 10'i32, 16'i32, DarkGray)
@@ -332,15 +393,10 @@ when defined(useGraphics):
 # ============================================================================
 
 proc pollScriptCommands(app: App) =
-  ## Poll for script commands (called once per second)
-  if not app.scriptingEnabled:
-    return
-
-  let now = getMonoTime()
-  if (now - app.lastScriptPoll) >= initDuration(seconds = 1):
-    # TODO: Read commands from script directory
-    # processScriptCommands(app)
-    app.lastScriptPoll = now
+  ## Poll for script commands
+  ## The script manager handles its own timing
+  if app.scriptManager != nil:
+    app.scriptManager.poll()
 
 # ============================================================================
 # Main Loop
