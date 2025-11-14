@@ -7,11 +7,13 @@ import ../managers/event_manager_refactored
 import ../managers/focus_manager
 import ../drawing_primitives/primitives/text_cache
 import ../drawing_primitives/theme_sys_core
+import ../scripting/script_manager
 export types                      # Export types (re-export what we import)
 export event_manager_refactored   # Export for users to access eventManager
 export focus_manager              # Export focus manager
 export text_cache     # Export text cache types
 export theme_sys_core # Export theme types
+export script_manager # Export script manager
 when defined(useGraphics):
   import raylib
 import std/[monotimes, times, os]
@@ -30,6 +32,7 @@ type
     # Managers (exported for testing)
     eventManager*: EventManager
     focusManager*: FocusManager
+    scriptManager*: ScriptManager
 
     currentFocusWidget: Widget
     currentFocusLayout: Widget
@@ -44,7 +47,7 @@ type
     fpsUpdateTime: MonoTime
     currentFPS: float
 
-    # Scripting support
+    # Scripting support (deprecated - use scriptManager)
     scriptingEnabled*: bool
     scriptDir*: string
     lastScriptPoll: MonoTime
@@ -85,6 +88,7 @@ proc newApp*(title = "RUI Application",
     ),
     eventManager: newEventManager(defaultBudget = initDuration(milliseconds = 8)),
     focusManager: newFocusManager(),
+    scriptManager: nil,  # Created when scripting is enabled
     currentTheme: newTheme("Default"),
     textCache: TextCache(
       measurements: initTable[MeasurementKey, TextMetrics](),
@@ -119,6 +123,16 @@ proc enableScripting*(app: App, scriptDir: string) =
   app.scriptDir = scriptDir
   if not dirExists(scriptDir):
     createDir(scriptDir)
+
+  # Create script manager
+  app.tree.widgetsByStringId = initTable[string, Widget]()  # Ensure initialized
+  app.scriptManager = newScriptManager(scriptDir, app.tree)
+
+proc disableScripting*(app: App) =
+  ## Disable scripting system
+  if app.scriptManager != nil:
+    app.scriptManager.disable()
+  app.scriptingEnabled = false
 
 # ============================================================================
 # Theme Management
@@ -332,15 +346,10 @@ when defined(useGraphics):
 # ============================================================================
 
 proc pollScriptCommands(app: App) =
-  ## Poll for script commands (called once per second)
-  if not app.scriptingEnabled:
-    return
-
-  let now = getMonoTime()
-  if (now - app.lastScriptPoll) >= initDuration(seconds = 1):
-    # TODO: Read commands from script directory
-    # processScriptCommands(app)
-    app.lastScriptPoll = now
+  ## Poll for script commands
+  ## The script manager handles its own timing
+  if app.scriptManager != nil:
+    app.scriptManager.poll()
 
 # ============================================================================
 # Main Loop

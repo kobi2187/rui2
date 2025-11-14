@@ -6,7 +6,7 @@
 import ../../core/widget_dsl_v3
 import ../primitives/[rectangle, label]
 import raylib
-import std/options
+import std/[options, json]
 
 defineWidget(Button):
   props:
@@ -91,3 +91,68 @@ defineWidget(Button):
       height: 14
     )
     widget.children.add(textLabel)
+
+# ============================================================================
+# Scripting Support
+# ============================================================================
+
+method handleScriptAction*(widget: Button, action: string, params: JsonNode): JsonNode =
+  ## Handle scripting actions for Button widget
+  case action
+  of "click":
+    if not widget.disabled and widget.scriptable:
+      # Trigger onClick callback
+      if widget.onClick.isSome:
+        widget.onClick.get()()
+      return %*{"success": true, "clicked": true}
+    else:
+      return %*{"success": false, "error": "Button is disabled or not scriptable"}
+
+  of "getText":
+    if not widget.blockReading:
+      return %*{"success": true, "text": widget.text}
+    else:
+      return %*{"success": false, "error": "Reading blocked"}
+
+  of "setText":
+    if widget.scriptable and params.hasKey("text"):
+      widget.text = params["text"].getStr()
+      widget.isDirty = true
+      return %*{"success": true}
+    else:
+      return %*{"success": false, "error": "Missing 'text' parameter or not scriptable"}
+
+  of "enable":
+    widget.disabled = false
+    widget.isDirty = true
+    return %*{"success": true}
+
+  of "disable":
+    widget.disabled = true
+    widget.isDirty = true
+    return %*{"success": true}
+
+  else:
+    return %*{"success": false, "error": "Unknown action: " & action}
+
+method getScriptableState*(widget: Button): JsonNode =
+  ## Get current state of Button as JSON
+  result = %*{
+    "id": widget.stringId,
+    "type": "Button",
+    "visible": widget.visible,
+    "enabled": not widget.disabled,
+    "scriptable": widget.scriptable,
+    "pressed": widget.isPressed,
+    "hovered": widget.isHovered,
+    "bounds": {
+      "x": widget.bounds.x,
+      "y": widget.bounds.y,
+      "width": widget.bounds.width,
+      "height": widget.bounds.height
+    }
+  }
+
+  # Add text if reading not blocked
+  if not widget.blockReading:
+    result["text"] = %widget.text

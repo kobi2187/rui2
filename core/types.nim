@@ -346,3 +346,36 @@ method getScriptableState*(widget: Widget): JsonNode {.base.} =
       "height": widget.bounds.height
     }
   }
+
+# ============================================================================
+# Widget Tree Helpers
+# ============================================================================
+
+proc registerWidget*(tree: WidgetTree, widget: Widget) =
+  ## Register a widget in the widget tree
+  ## Adds to both numeric ID map and string ID map (if stringId is set)
+  tree.widgetMap[widget.id] = widget
+  if widget.stringId.len > 0:
+    tree.widgetsByStringId[widget.stringId] = widget
+
+proc unregisterWidget*(tree: WidgetTree, widget: Widget) =
+  ## Unregister a widget from the widget tree
+  tree.widgetMap.del(widget.id)
+  if widget.stringId.len > 0:
+    tree.widgetsByStringId.del(widget.stringId)
+
+proc setWidgetStringId*(tree: WidgetTree, widget: Widget, id: string) =
+  ## Set a widget's string ID and register it in the tree
+  ## Use this instead of directly setting widget.stringId
+  if widget.stringId.len > 0:
+    # Remove old registration
+    tree.widgetsByStringId.del(widget.stringId)
+  widget.stringId = id
+  if id.len > 0:
+    tree.widgetsByStringId[id] = widget
+
+proc registerWidgetRecursive*(tree: WidgetTree, widget: Widget) =
+  ## Register a widget and all its children recursively
+  tree.registerWidget(widget)
+  for child in widget.children:
+    tree.registerWidgetRecursive(child)
