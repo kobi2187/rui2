@@ -334,6 +334,29 @@ when defined(useGraphics):
                   app.tree.root.bounds.y.int32,
                   White)
 
+    # Visual indicator when being scripted
+    if app.scriptManager != nil and app.scriptManager.isBeingScripted():
+      let borderWidth = 4'i32
+      let screenWidth = getScreenWidth()
+      let screenHeight = getScreenHeight()
+      let scriptColor = Color(r: 255, g: 165, b: 0, a: 200)  # Orange with transparency
+
+      # Draw border around entire window
+      drawRectangleLines(0, 0, screenWidth, screenHeight, scriptColor)
+      drawRectangleLines(1, 1, screenWidth - 2, screenHeight - 2, scriptColor)
+      drawRectangleLines(2, 2, screenWidth - 4, screenHeight - 4, scriptColor)
+      drawRectangleLines(3, 3, screenWidth - 6, screenHeight - 6, scriptColor)
+
+      # Optional: Draw indicator text in top-right corner
+      let indicatorText = "SCRIPTING"
+      let textWidth = measureText(indicatorText, 14'i32)
+      let textX = screenWidth - textWidth - 10
+      let textY = 5'i32
+      # Background for text
+      drawRectangle(textX - 5, textY - 2, textWidth + 10, 20, Color(r: 0, g: 0, b: 0, a: 150))
+      # Text
+      drawText(indicatorText, textX, textY, 14'i32, scriptColor)
+
     # Debug overlay (optional - can be removed later)
     when defined(debugUI):
       drawText("FPS: " & $app.currentFPS, 10'i32, 10'i32, 16'i32, DarkGray)

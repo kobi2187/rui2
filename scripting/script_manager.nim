@@ -33,6 +33,7 @@ type
     lastPoll*: float64             # Last poll timestamp
 
     enabled*: bool                 # Master enable/disable
+    isProcessing*: bool            # Currently processing commands (lock held)
 
 # ============================================================================
 # Initialization
@@ -52,7 +53,8 @@ proc newScriptManager*(workDir: string, widgetTree: WidgetTree): ScriptManager =
     widgetTree: widgetTree,
     pollInterval: 1.0,  # Poll every 1 second
     lastPoll: 0.0,
-    enabled: true
+    enabled: true,
+    isProcessing: false
   )
 
   # Ensure work directory exists
@@ -74,11 +76,13 @@ proc newScriptManager*(workDir: string, widgetTree: WidgetTree): ScriptManager =
 proc createLock(sm: ScriptManager) =
   ## Create lock file to indicate we're processing
   writeFile(sm.lockPath, $epochTime())
+  sm.isProcessing = true
 
 proc releaseLock(sm: ScriptManager) =
   ## Remove lock file
   if fileExists(sm.lockPath):
     removeFile(sm.lockPath)
+  sm.isProcessing = false
 
 proc detectCommandFormat(sm: ScriptManager): Option[CommandFormat] =
   ## Check which command file exists
@@ -356,3 +360,8 @@ proc disable*(sm: ScriptManager) =
 proc setPolling*(sm: ScriptManager, intervalSeconds: float64) =
   ## Set polling interval in seconds
   sm.pollInterval = intervalSeconds
+
+proc isBeingScripted*(sm: ScriptManager): bool =
+  ## Check if app is currently being scripted (processing commands)
+  ## Returns true while lock file is held
+  sm.isProcessing

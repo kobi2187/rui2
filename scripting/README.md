@@ -50,6 +50,17 @@ Users can **operate** the app (click buttons, type text, query state) but **cann
 
 Widgets can block sensitive fields (like passwords) from being queried. Any field the RUI user marks as `blockReading=true` cannot be read via scripting.
 
+### Visual Indicator
+
+When the app is processing script commands (while `.lock` file exists), a **visual indicator** is displayed:
+- **Orange border** around the window (4 pixels thick)
+- **"SCRIPTING" text** in the top-right corner
+- This provides clear feedback that external control is active
+- Indicator appears instantly when commands are being processed
+- Disappears when processing completes
+
+This security feature ensures users always know when their app is under external control.
+
 ## Why Build This In From Day One?
 
 Rather than hack in automation/testing capabilities later, we design for programmatic control from the beginning. This enables:
