@@ -347,13 +347,12 @@ method getScriptableState*(widget: Widget): JsonNode {.base.} =
     }
   }
 
-proc getTypeName*(widget: Widget): string =
+method getTypeName*(widget: Widget): string {.base.} =
   ## Get the widget's type name
-  ## Extracts from getScriptableState() to avoid duplication
-  let state = widget.getScriptableState()
-  if state.hasKey("type"):
-    return state["type"].getStr()
-  return "Widget"
+  ## MUST be overridden by derived widgets
+  ## The defineWidget macro generates this automatically
+  {.error: "getTypeName must be overridden for widget type".}
+  ""
 
 # ============================================================================
 # Widget Tree Helpers

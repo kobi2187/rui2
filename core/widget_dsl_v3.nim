@@ -189,6 +189,15 @@ proc buildEventHandler(sections: WidgetSections): NimNode =
     method handleInput*(widget: Widget, event: GuiEvent): bool {.base.} =
       `caseStmt`
 
+proc buildGetTypeNameMethod(name: NimNode): NimNode =
+  ## Generate getTypeName method that returns the widget type name
+  let typeName = makeWidgetTypeName(name)
+  let typeNameStr = $name  # Convert widget name to string
+
+  quote do:
+    method getTypeName*(widget: `typeName`): string =
+      `typeNameStr`
+
 # ============================================================================
 # Render Method Generation
 # ============================================================================
@@ -275,6 +284,7 @@ macro defineWidget*(name: untyped, body: untyped): untyped =
   result.add(buildUpdateLayoutMethod(name, sections))  # Layout required for composites
   result.add(buildRenderMethod(name, sections))        # Render optional
   result.add(buildEventHandler(sections))
+  result.add(buildGetTypeNameMethod(name))              # Auto-generate type name
 
 # ============================================================================
 # Utilities

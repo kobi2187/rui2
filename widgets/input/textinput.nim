@@ -355,3 +355,7 @@ method getScriptableState*(widget: TextInput): JsonNode =
     result["text"] = %widget.text
   else:
     result["blocked"] = %true
+
+method getTypeName*(widget: TextInput): string =
+  ## Return the widget type name
+  "TextInput"

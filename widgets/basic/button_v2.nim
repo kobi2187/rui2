@@ -156,3 +156,7 @@ method getScriptableState*(widget: Button): JsonNode =
   # Add text if reading not blocked
   if not widget.blockReading:
     result["text"] = %widget.text
+
+method getTypeName*(widget: Button): string =
+  ## Return the widget type name
+  "Button"
