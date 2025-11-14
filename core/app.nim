@@ -8,12 +8,14 @@ import ../managers/focus_manager
 import ../drawing_primitives/primitives/text_cache
 import ../drawing_primitives/theme_sys_core
 import ../scripting/script_manager
+import ../hit-testing/hittest_system
 export types                      # Export types (re-export what we import)
 export event_manager_refactored   # Export for users to access eventManager
 export focus_manager              # Export focus manager
 export text_cache     # Export text cache types
 export theme_sys_core # Export theme types
 export script_manager # Export script manager
+export hittest_system # Export hit test system
 when defined(useGraphics):
   import raylib
 import std/[monotimes, times, os]
@@ -33,9 +35,10 @@ type
     eventManager*: EventManager
     focusManager*: FocusManager
     scriptManager*: ScriptManager
+    hitTestSystem*: HitTestSystem
 
-    currentFocusWidget: Widget
-    currentFocusLayout: Widget
+    # Internal state
+    currentFocusLayout: Widget       # Internal: layout container with focus
 
     # Theme and rendering
     currentTheme*: Theme
@@ -89,6 +92,7 @@ proc newApp*(title = "RUI Application",
     eventManager: newEventManager(defaultBudget = initDuration(milliseconds = 8)),
     focusManager: newFocusManager(),
     scriptManager: nil,  # Created when scripting is enabled
+    hitTestSystem: newHitTestSystem(),
     currentTheme: newTheme("Default"),
     textCache: TextCache(
       measurements: initTable[MeasurementKey, TextMetrics](),
@@ -149,6 +153,26 @@ proc setTheme*(app: App, theme: Theme) =
 proc getTheme*(app: App): Theme =
   ## Get the current theme
   app.currentTheme
+
+# ============================================================================
+# Current State Accessors (Query Managers)
+# ============================================================================
+
+proc currentWidget*(app: App): Widget =
+  ## Get the widget currently under the mouse cursor
+  ## Returns nil if no widget is under the cursor
+  ## Queries hitTestSystem with current mouse position
+  when defined(useGraphics):
+    let mousePos = getMousePosition()
+    return app.hitTestSystem.getWidgetAt(mousePos.x, mousePos.y)
+  else:
+    return nil
+
+proc currentFocusedWidget*(app: App): Widget =
+  ## Get the widget that currently has keyboard focus
+  ## Returns nil if no widget has focus
+  ## Queries focusManager for current focus
+  app.focusManager.getCurrentFocus()
 
 # ============================================================================
 # Text Cache Management

@@ -203,6 +203,13 @@ proc findTopWidgetAt*(system: HitTestSystem, x, y: float32): Widget =
   else:
     return nil
 
+proc getWidgetAt*(system: HitTestSystem, x, y: float32): Widget =
+  ## Simple API: Get the widget directly under the cursor at (x, y)
+  ## Returns nil if no widget is at that point
+  ##
+  ## This is the primary API for finding the widget under the mouse cursor
+  system.findTopWidgetAt(x, y)
+
 # ============================================================================
 # Debug/Statistics
 # ============================================================================
