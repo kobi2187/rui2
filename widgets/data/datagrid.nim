@@ -30,7 +30,8 @@ type
 defineWidget(DataGrid):
   props:
     columns: seq[Column]
-    data: seq[Row]           # All data (can be millions of rows)
+    data: seq[Row]           # Loaded data (can be subset of total)
+    totalRowCount: int = -1  # -1 means use data.len, otherwise for lazy loading
     rowHeight: float = 24.0
     headerHeight: float = 28.0
     showHeader: bool = true
@@ -52,6 +53,8 @@ defineWidget(DataGrid):
     onSort(column: int, order: SortOrder)
     onSelect(selected: HashSet[int])
     onDoubleClick(rowIndex: int)
+    onLoadMore(startIndex: int, count: int)  # Lazy loading callback
+    onScrollNearEnd()                        # Triggered when scrolling near bottom
 
   layout:
     # No children to layout - draws directly
@@ -64,7 +67,7 @@ defineWidget(DataGrid):
       let scroll = widget.scrollY
 
       # Calculate total content height
-      let totalRows = widget.data.len
+      let totalRows = if widget.totalRowCount >= 0: widget.totalRowCount else: widget.data.len
       let totalHeight = totalRows.float * rowH
       let viewHeight = widget.bounds.height - headerH
       let maxScroll = max(0.0, totalHeight - viewHeight)
@@ -76,6 +79,19 @@ defineWidget(DataGrid):
 
       widget.visibleStart = visStart
       widget.visibleEnd = visEnd
+
+      # Check if we need to load more data (lazy loading)
+      if widget.onLoadMore.isSome and visEnd >= widget.data.len - 20:
+        # We're near the end of loaded data, request more
+        let needCount = min(100, totalRows - widget.data.len)
+        if needCount > 0:
+          widget.onLoadMore.get()(widget.data.len, needCount)
+
+      # Check if near end (trigger lazy loading)
+      let scrollRatio = if maxScroll > 0: scroll / maxScroll else: 0.0
+      if scrollRatio > 0.8:  # Within 20% of bottom
+        if widget.onScrollNearEnd.isSome:
+          widget.onScrollNearEnd.get()()
 
       # Draw background
       DrawRectangleRec(
@@ -167,7 +183,9 @@ defineWidget(DataGrid):
         if rowIdx >= totalRows:
           break
 
-        let row = widget.data[rowIdx]
+        # Check if row is loaded
+        let rowLoaded = rowIdx < widget.data.len
+        let row = if rowLoaded: widget.data[rowIdx] else: Row(id: "", values: @[])
         let rowY = dataAreaY + (rowIdx.float * rowH) - scroll
 
         # Skip if completely outside bounds
@@ -201,10 +219,6 @@ defineWidget(DataGrid):
         var x = widget.bounds.x
 
         for colIdx, col in widget.columns:
-          if colIdx >= row.values.len:
-            x += col.width
-            continue
-
           let cellRect = Rectangle(
             x: x,
             y: rowY,
@@ -213,27 +227,37 @@ defineWidget(DataGrid):
           )
 
           # Format cell value
-          let value = row.values[colIdx]
-          let text = if col.formatFunc.isSome:
-                      col.formatFunc.get()(value)
-                     elif value.kind == JString:
-                      value.getStr()
-                     elif value.kind == JInt:
-                      $value.getInt()
-                     elif value.kind == JFloat:
-                      value.getFloat().formatFloat(ffDecimal, 2)
-                     elif value.kind == JBool:
-                      $value.getBool()
+          let text = if not rowLoaded:
+                      if colIdx == 0: "Loading..." else: ""
+                     elif colIdx >= row.values.len:
+                      ""
                      else:
-                      $value
+                      let value = row.values[colIdx]
+                      if col.formatFunc.isSome:
+                        col.formatFunc.get()(value)
+                      elif value.kind == JString:
+                        value.getStr()
+                      elif value.kind == JInt:
+                        $value.getInt()
+                      elif value.kind == JFloat:
+                        value.getFloat().formatFloat(ffDecimal, 2)
+                      elif value.kind == JBool:
+                        $value.getBool()
+                      else:
+                        $value
 
           # Draw cell text (clipped to cell bounds)
+          let textColor = if not rowLoaded:
+                            Color(r: 150, g: 150, b: 150, a: 255)
+                          else:
+                            Color(r: 40, g: 40, b: 40, a: 255)
+
           DrawText(
             text.cstring,
             (x + 4.0).cint,
             (rowY + 4.0).cint,
             12,
-            Color(r: 40, g: 40, b: 40, a: 255)
+            textColor
           )
 
           # Draw cell border
@@ -327,9 +351,11 @@ defineWidget(DataGrid):
 
     else:
       # Non-graphics mode - simple text output
-      echo "DataGrid:"
+      echo "DataGrid (Virtual + Lazy Loading):"
+      let totalRows = if widget.totalRowCount >= 0: widget.totalRowCount else: widget.data.len
       echo "  Columns: ", widget.columns.len
-      echo "  Total rows: ", widget.data.len
+      echo "  Total rows: ", totalRows
+      echo "  Loaded rows: ", widget.data.len
       echo "  Visible rows: ", widget.visibleStart, " to ", widget.visibleEnd
       echo "  Selected rows: ", widget.selected.card
       echo "  Sort: column ", widget.sortColumn, ", order: ", widget.sortOrder
@@ -342,20 +368,25 @@ defineWidget(DataGrid):
 
       # Print visible rows only
       let visStart = widget.visibleStart
-      let visEnd = min(widget.visibleEnd, widget.data.len - 1)
+      let visEnd = min(widget.visibleEnd, totalRows - 1)
 
       for rowIdx in visStart..visEnd:
-        let row = widget.data[rowIdx]
         let marker = if rowIdx in widget.selected: "[X]" else: "[ ]"
         var rowLine = "  " & marker & " "
 
-        for colIdx, col in widget.columns:
-          if colIdx < row.values.len:
-            let value = row.values[colIdx]
-            let text = if value.kind == JString: value.getStr()
-                      elif value.kind == JInt: $value.getInt()
-                      elif value.kind == JFloat: value.getFloat().formatFloat(ffDecimal, 2)
-                      else: $value
-            rowLine.add(text.alignLeft(15) & " ")
+        if rowIdx < widget.data.len:
+          # Row is loaded
+          let row = widget.data[rowIdx]
+          for colIdx, col in widget.columns:
+            if colIdx < row.values.len:
+              let value = row.values[colIdx]
+              let text = if value.kind == JString: value.getStr()
+                        elif value.kind == JInt: $value.getInt()
+                        elif value.kind == JFloat: value.getFloat().formatFloat(ffDecimal, 2)
+                        else: $value
+              rowLine.add(text.alignLeft(15) & " ")
+        else:
+          # Row not loaded yet
+          rowLine.add("Loading...".alignLeft(15))
 
         echo rowLine

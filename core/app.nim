@@ -249,7 +249,8 @@ when defined(useGraphics):
       app.eventManager.addEvent(GuiEvent(
         kind: evMouseWheel,
         priority: epNormal,
-        timestamp: getMonoTime()
+        timestamp: getMonoTime(),
+        wheelDelta: wheelMove
       ))
 
     # Keyboard events (ordered - CRITICAL for text input)

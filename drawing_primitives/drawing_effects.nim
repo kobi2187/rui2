@@ -648,3 +648,23 @@ when defined(useGraphics):
           props.borderWidth.get(),
           props.borderColor.get()
         )
+
+
+## ============================================================================
+## Clipping / Scissor Mode (for ScrollView and other clipped content)
+## ============================================================================
+
+when defined(useGraphics):
+  proc beginScissorMode*(clipRect: Rect) =
+    ## Begin scissor mode - all drawing will be clipped to this rectangle.
+    ## Used for ScrollView to clip content to viewport.
+    BeginScissorMode(
+      int32(clipRect.x),
+      int32(clipRect.y),
+      int32(clipRect.width),
+      int32(clipRect.height)
+    )
+
+  proc endScissorMode*() =
+    ## End scissor mode - restore normal drawing.
+    EndScissorMode()

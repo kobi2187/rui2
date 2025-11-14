@@ -1,133 +1,235 @@
-## ScrollView Widget - RUI2
+## ScrollView Container Widget
 ##
-## A scrollable container for content larger than the visible area.
-## Supports horizontal and/or vertical scrolling with scrollbars.
-## Ported from Hummingbird to RUI2's defineWidget DSL.
+## Provides scrollable viewport for content that overflows
+## - Automatic scrollbars (show only when needed)
+## - Mouse wheel support
+## - Vertical and horizontal scrolling
+## - Clipping to viewport
 
 import ../../core/widget_dsl_v3
-import std/options
+import ../../drawing_primitives/drawing_effects
 
 when defined(useGraphics):
   import raylib
 
 defineWidget(ScrollView):
   props:
-    contentWidth: float = 0.0    # Content size (0 = auto-calculate)
-    contentHeight: float = 0.0
-    scrollX: bool = false        # Enable horizontal scrolling
-    scrollY: bool = true         # Enable vertical scrolling
-    scrollBarWidth: float = 12.0
-    showScrollBars: bool = true
+    padding: float = 8.0
+    scrollbarWidth: float = 16.0
+    scrollbarColor: tuple[r, g, b, a: uint8] = (150'u8, 150'u8, 150'u8, 255'u8)
+    scrollSpeed: float = 20.0  # Pixels per wheel tick
 
   state:
-    scrollOffsetX: float
-    scrollOffsetY: float
+    scrollOffsetX: float = 0.0
+    scrollOffsetY: float = 0.0
+    contentWidth: float = 0.0
+    contentHeight: float = 0.0
 
-  actions:
-    onScroll(offsetX: float, offsetY: float)
+  layout:
+    # Calculate total content size from children
+    var maxX = 0.0f
+    var maxY = 0.0f
+
+    for child in widget.children:
+      # Position child with scroll offset
+      child.bounds.x = widget.bounds.x + widget.padding - widget.scrollOffsetX
+      child.bounds.y = widget.bounds.y + widget.padding - widget.scrollOffsetY
+
+      # Layout the child recursively
+      child.layout()
+
+      # Track content bounds
+      let childRight = child.bounds.x + child.bounds.width - widget.bounds.x + widget.padding
+      let childBottom = child.bounds.y + child.bounds.height - widget.bounds.y + widget.padding
+
+      if childRight > maxX:
+        maxX = childRight
+      if childBottom > maxY:
+        maxY = childBottom
+
+    widget.contentWidth = maxX
+    widget.contentHeight = maxY
+
+    # Clamp scroll offsets to valid ranges
+    let viewportWidth = widget.bounds.width - (widget.padding * 2)
+    let viewportHeight = widget.bounds.height - (widget.padding * 2)
+
+    # Reserve space for scrollbars if needed
+    var effectiveViewportWidth = viewportWidth
+    var effectiveViewportHeight = viewportHeight
+
+    let needsVerticalScrollbar = widget.contentHeight > viewportHeight
+    let needsHorizontalScrollbar = widget.contentWidth > viewportWidth
+
+    if needsVerticalScrollbar:
+      effectiveViewportWidth -= widget.scrollbarWidth
+    if needsHorizontalScrollbar:
+      effectiveViewportHeight -= widget.scrollbarWidth
+
+    # Clamp scroll offsets
+    let maxScrollX = max(0.0f, widget.contentWidth - effectiveViewportWidth)
+    let maxScrollY = max(0.0f, widget.contentHeight - effectiveViewportHeight)
+
+    widget.scrollOffsetX = clamp(widget.scrollOffsetX, 0.0f, maxScrollX)
+    widget.scrollOffsetY = clamp(widget.scrollOffsetY, 0.0f, maxScrollY)
 
   events:
     on_mouse_wheel:
-      # Handle mouse wheel scrolling
-      when defined(useGraphics):
-        if widget.scrollY:
-          let wheelDelta = 0.0  # Would come from event
-          let currentOffset = widget.scrollOffsetY
-          let maxOffset = max(0.0, widget.contentHeight - widget.bounds.height)
-          let newOffset = clamp(currentOffset - wheelDelta * 20.0, 0.0, maxOffset)
+      # Scroll vertically with mouse wheel
+      widget.scrollOffsetY -= event.wheelDelta * widget.scrollSpeed
 
-          widget.scrollOffsetY = newOffset
+      # Trigger layout to re-clamp and reposition children
+      widget.layoutDirty = true
 
-          if widget.onScroll.isSome:
-            widget.onScroll.get()(widget.scrollOffsetX, newOffset)
-
-          return true
-      return false
-
-  layout:
-    # Children are positioned relative to scroll offset
-    for child in widget.children:
-      child.bounds.x = widget.bounds.x - widget.scrollOffsetX
-      child.bounds.y = widget.bounds.y - widget.scrollOffsetY
-
-      # If contentWidth/Height not specified, use child's size
-      if widget.contentWidth == 0.0:
-        child.bounds.width = child.bounds.width  # Keep existing
-      else:
-        child.bounds.width = widget.contentWidth
-
-      if widget.contentHeight == 0.0:
-        child.bounds.height = child.bounds.height  # Keep existing
-      else:
-        child.bounds.height = widget.contentHeight
-
-      child.layout()
+      return true  # Event handled
 
   render:
     when defined(useGraphics):
-      # Calculate visible area (excluding scrollbars)
-      let viewWidth = if widget.scrollY and widget.showScrollBars:
-                        widget.bounds.width - widget.scrollBarWidth
-                      else:
-                        widget.bounds.width
-
-      let viewHeight = if widget.scrollX and widget.showScrollBars:
-                         widget.bounds.height - widget.scrollBarWidth
-                       else:
-                         widget.bounds.height
-
-      # Draw vertical scrollbar if enabled
-      if widget.scrollY and widget.showScrollBars:
-        var scrollY = widget.scrollOffsetY.cint
-        let maxScroll = max(0.0, widget.contentHeight - viewHeight).cint
-
-        if GuiScrollBar(
-          Rectangle(
-            x: widget.bounds.x + viewWidth,
-            y: widget.bounds.y,
-            width: widget.scrollBarWidth,
-            height: viewHeight
-          ),
-          scrollY,
-          0,
-          maxScroll
-        ):
-          widget.scrollOffsetY = scrollY.float
-
-      # Draw horizontal scrollbar if enabled
-      if widget.scrollX and widget.showScrollBars:
-        var scrollX = widget.scrollOffsetX.cint
-        let maxScroll = max(0.0, widget.contentWidth - viewWidth).cint
-
-        if GuiScrollBar(
-          Rectangle(
-            x: widget.bounds.x,
-            y: widget.bounds.y + viewHeight,
-            width: viewWidth,
-            height: widget.scrollBarWidth
-          ),
-          scrollX,
-          0,
-          maxScroll
-        ):
-          widget.scrollOffsetX = scrollX.float
-
-      # Use scissor mode to clip content to visible area
-      BeginScissorMode(
-        widget.bounds.x.cint,
-        widget.bounds.y.cint,
-        viewWidth.cint,
-        viewHeight.cint
+      # Draw background
+      DrawRectangleRec(
+        Rectangle(
+          x: widget.bounds.x,
+          y: widget.bounds.y,
+          width: widget.bounds.width,
+          height: widget.bounds.height
+        ),
+        Color(r: 245, g: 245, b: 245, a: 255)  # Light gray background
       )
 
-      # Render children (they're already offset by layout)
-      for child in widget.children:
-        child.render()
+      # Determine which scrollbars to show
+      let viewportWidth = widget.bounds.width - (widget.padding * 2)
+      let viewportHeight = widget.bounds.height - (widget.padding * 2)
 
-      EndScissorMode()
-    else:
-      # Non-graphics mode
-      echo "ScrollView (", widget.contentWidth, "x", widget.contentHeight, "):"
-      echo "  Offset: (", widget.scrollOffsetX, ", ", widget.scrollOffsetY, ")"
+      let needsVerticalScrollbar = widget.contentHeight > viewportHeight
+      let needsHorizontalScrollbar = widget.contentWidth > viewportWidth
+
+      # Calculate viewport rectangle (for clipping)
+      var viewportRect = Rect(
+        x: widget.bounds.x + widget.padding,
+        y: widget.bounds.y + widget.padding,
+        width: viewportWidth,
+        height: viewportHeight
+      )
+
+      # Adjust viewport if scrollbars are present
+      if needsVerticalScrollbar:
+        viewportRect.width -= widget.scrollbarWidth
+      if needsHorizontalScrollbar:
+        viewportRect.height -= widget.scrollbarWidth
+
+      # Begin scissor mode to clip children to viewport
+      beginScissorMode(viewportRect)
+
+      # Render children (they're already positioned with scroll offset in layout)
       for child in widget.children:
-        echo "  ", child
+        if child.visible:
+          child.render()
+
+      # End scissor mode
+      endScissorMode()
+
+      # Draw vertical scrollbar if needed
+      if needsVerticalScrollbar:
+        let scrollbarX = widget.bounds.x + widget.bounds.width - widget.scrollbarWidth
+        let scrollbarY = widget.bounds.y + widget.padding
+        let scrollbarHeight = if needsHorizontalScrollbar:
+                                viewportHeight - widget.scrollbarWidth
+                              else:
+                                viewportHeight
+
+        # Draw scrollbar track
+        DrawRectangleRec(
+          Rectangle(
+            x: scrollbarX,
+            y: scrollbarY,
+            width: widget.scrollbarWidth,
+            height: scrollbarHeight
+          ),
+          Color(r: 220, g: 220, b: 220, a: 255)  # Track color
+        )
+
+        # Calculate thumb size and position
+        let thumbRatio = viewportRect.height / widget.contentHeight
+        let thumbHeight = max(20.0f, scrollbarHeight * thumbRatio)
+
+        let scrollRatio = if widget.contentHeight > viewportRect.height:
+                            widget.scrollOffsetY / (widget.contentHeight - viewportRect.height)
+                          else:
+                            0.0f
+
+        let thumbY = scrollbarY + scrollRatio * (scrollbarHeight - thumbHeight)
+
+        # Draw thumb
+        DrawRectangleRec(
+          Rectangle(
+            x: scrollbarX + 2,
+            y: thumbY,
+            width: widget.scrollbarWidth - 4,
+            height: thumbHeight
+          ),
+          Color(
+            r: widget.scrollbarColor.r,
+            g: widget.scrollbarColor.g,
+            b: widget.scrollbarColor.b,
+            a: widget.scrollbarColor.a
+          )
+        )
+
+      # Draw horizontal scrollbar if needed
+      if needsHorizontalScrollbar:
+        let scrollbarX = widget.bounds.x + widget.padding
+        let scrollbarY = widget.bounds.y + widget.bounds.height - widget.scrollbarWidth
+        let scrollbarWidth = if needsVerticalScrollbar:
+                               viewportWidth - widget.scrollbarWidth
+                             else:
+                               viewportWidth
+
+        # Draw scrollbar track
+        DrawRectangleRec(
+          Rectangle(
+            x: scrollbarX,
+            y: scrollbarY,
+            width: scrollbarWidth,
+            height: widget.scrollbarWidth
+          ),
+          Color(r: 220, g: 220, b: 220, a: 255)  # Track color
+        )
+
+        # Calculate thumb size and position
+        let thumbRatio = viewportRect.width / widget.contentWidth
+        let thumbWidth = max(20.0f, scrollbarWidth * thumbRatio)
+
+        let scrollRatio = if widget.contentWidth > viewportRect.width:
+                            widget.scrollOffsetX / (widget.contentWidth - viewportRect.width)
+                          else:
+                            0.0f
+
+        let thumbX = scrollbarX + scrollRatio * (scrollbarWidth - thumbWidth)
+
+        # Draw thumb
+        DrawRectangleRec(
+          Rectangle(
+            x: thumbX,
+            y: scrollbarY + 2,
+            width: thumbWidth,
+            height: widget.scrollbarWidth - 4
+          ),
+          Color(
+            r: widget.scrollbarColor.r,
+            g: widget.scrollbarColor.g,
+            b: widget.scrollbarColor.b,
+            a: widget.scrollbarColor.a
+          )
+        )
+
+      # Draw border around viewport
+      DrawRectangleLinesEx(
+        Rectangle(
+          x: widget.bounds.x,
+          y: widget.bounds.y,
+          width: widget.bounds.width,
+          height: widget.bounds.height
+        ),
+        1.0,
+        Color(r: 180, g: 180, b: 180, a: 255)
+      )

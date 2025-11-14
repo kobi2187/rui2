@@ -185,6 +185,7 @@ type
     key*: KeyboardKey
     char*: char
     windowSize*: Size
+    wheelDelta*: float32  # Mouse wheel movement (positive = up, negative = down)
 
   EventPattern* = enum
     epNormal      # Process immediately

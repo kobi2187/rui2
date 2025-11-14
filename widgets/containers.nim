@@ -10,3 +10,6 @@ export hstack_v2
 
 import containers/zstack_v2
 export zstack_v2
+
+import containers/scrollview
+export scrollview
