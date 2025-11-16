@@ -6,7 +6,7 @@
 ## Commands format: id selector command [value]
 ## Response format: id result
 
-import std/[strutils, parseutils, options, json]
+import std/[strutils, parseutils, options, json, os]
 
 # ============================================================================
 # Types

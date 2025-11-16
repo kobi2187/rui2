@@ -3,12 +3,13 @@
 ## Main application loop with integrated event processing, layout, and rendering
 
 import types
+import main_loop
 import ../managers/event_manager_refactored
 import ../managers/focus_manager
 import ../drawing_primitives/primitives/text_cache
 import ../drawing_primitives/theme_sys_core
 import ../scripting/script_manager
-import ../hit-testing/hittest_system
+import "../hit-testing/hittest_system"
 export types                      # Export types (re-export what we import)
 export event_manager_refactored   # Export for users to access eventManager
 export focus_manager              # Export focus manager
@@ -172,7 +173,7 @@ proc currentFocusedWidget*(app: App): Widget =
   ## Get the widget that currently has keyboard focus
   ## Returns nil if no widget has focus
   ## Queries focusManager for current focus
-  app.focusManager.getCurrentFocus()
+  app.focusManager.getFocusedWidget()
 
 # ============================================================================
 # Text Cache Management

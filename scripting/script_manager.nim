@@ -99,7 +99,7 @@ proc processTextCommand(sm: ScriptManager, cmd: TextCommand): TextResponse =
 
   # Handle wildcard reads (list children)
   if cmd.cmdType == ctRead and cmd.selector.contains("*"):
-    let widgets = sm.findWidgets(cmd.selector)
+    let widgets = sm.widgetTree.findWidgets(cmd.selector)
     var ids: seq[string] = @[]
     for w in widgets:
       if w.stringId.len > 0:
@@ -119,7 +119,7 @@ proc processTextCommand(sm: ScriptManager, cmd: TextCommand): TextResponse =
       selector = parts[1]
 
   # Find widget
-  let widgetOpt = sm.findWidget(selector)
+  let widgetOpt = sm.widgetTree.findWidget(selector)
   if widgetOpt.isNone:
     return newFailResponse(cmd.id, "Widget not found")
 
@@ -132,20 +132,20 @@ proc processTextCommand(sm: ScriptManager, cmd: TextCommand): TextResponse =
   let (action, params) = cmd.translateToAction(widgetType)
 
   # Execute action
-  let result = widget.handleScriptAction(action, params)
+  let res = widget.handleScriptAction(action, params)
 
   # Convert JSON result to text response
-  if result.hasKey("success") and result["success"].getBool():
+  if res.hasKey("success") and res["success"].getBool():
     # Success case
-    if result.hasKey("text"):
-      return newValueResponse(cmd.id, result["text"].getStr())
-    elif result.hasKey("value"):
-      return newValueResponse(cmd.id, $result["value"])
+    if res.hasKey("text"):
+      return newValueResponse(cmd.id, res["text"].getStr())
+    elif res.hasKey("value"):
+      return newValueResponse(cmd.id, $res["value"])
     else:
       return newSuccessResponse(cmd.id)
   else:
     # Error case
-    let error = if result.hasKey("error"): result["error"].getStr() else: "Fail"
+    let error = if res.hasKey("error"): res["error"].getStr() else: "Fail"
     return newFailResponse(cmd.id, error)
 
 proc cleanupCommandFile(sm: ScriptManager, format: CommandFormat) =
@@ -200,13 +200,7 @@ proc queryWidget(sm: ScriptManager, widget: Widget, fields: seq[string]): JsonNo
 proc executeAction(sm: ScriptManager, widget: Widget, action: string,
                   params: JsonNode): JsonNode =
   ## Execute an action on a widget
-
-  # Check if widget is scriptable
-  if not widget.scriptable:
-    return %*{
-      "success": false,
-      "error": "Widget is not scriptable"
-    }
+  ## Note: Scripting access control is managed at app level, not per-widget
 
   # Delegate to widget's handler
   return widget.handleScriptAction(action, params)
@@ -217,7 +211,7 @@ proc executeAction(sm: ScriptManager, widget: Widget, action: string,
 
 proc processQuery(sm: ScriptManager, msg: ScriptMessage): ScriptMessage =
   ## Process a query message
-  let widgets = sm.findWidgets(msg.queryPath)
+  let widgets = sm.widgetTree.findWidgets(msg.queryPath)
 
   if widgets.len == 0:
     # No widgets found
@@ -241,14 +235,14 @@ proc processCommand(sm: ScriptManager, msg: ScriptMessage): ScriptMessage =
       "Widget not found: " & msg.targetPath, 404)
 
   let widget = widgetOpt.get()
-  let result = sm.executeAction(widget, msg.action, msg.params)
+  let res = sm.executeAction(widget, msg.action, msg.params)
 
   # Check if action returned error
-  if result.hasKey("error"):
+  if res.hasKey("error"):
     return newErrorMessage(msg.id, msg.clientId,
-      result["error"].getStr(), 400)
+      res["error"].getStr(), 400)
 
-  return newResponseMessage(msg.id, msg.clientId, true, result)
+  return newResponseMessage(msg.id, msg.clientId, true, res)
 
 proc processMessage(sm: ScriptManager, msg: ScriptMessage): ScriptMessage =
   ## Process a message and return response

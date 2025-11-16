@@ -293,22 +293,22 @@ method render*(widget: Widget) {.base.} =
   ## Base implementation does nothing.
   discard
 
-method measure*(widget: Widget, constraints: Constraints): Size =
+method measure*(widget: Widget, constraints: Constraints): Size {.base.}=
   ## Calculate the preferred size of this widget given constraints.
   ## Base implementation returns current bounds size.
   result = Size(width: widget.bounds.width, height: widget.bounds.height)
 
-method layout*(widget: Widget) =
+method layout*(widget: Widget) {.base.}=
   ## Position and size children of this widget.
   ## Base implementation does nothing (leaf widgets don't need layout).
   discard
 
-method handleInput*(widget: Widget, event: GuiEvent): bool =
+method handleInput*(widget: Widget, event: GuiEvent): bool {.base.}=
   ## Handle input event. Return true if handled (stops propagation).
   ## Base implementation returns false (not handled).
   result = false
 
-method handleScriptAction*(widget: Widget, action: string, params: JsonNode): JsonNode =
+method handleScriptAction*(widget: Widget, action: string, params: JsonNode): JsonNode {.base.}=
   ## Handle a scripting action. Override in derived widgets.
   ## Returns JSON response (success, error, or data).
   ## Base implementation returns error for unknown action.
@@ -338,8 +338,7 @@ method getTypeName*(widget: Widget): string {.base.} =
   ## Get the widget's type name
   ## MUST be overridden by derived widgets
   ## The defineWidget macro generates this automatically
-  {.error: "getTypeName must be overridden for widget type".}
-  ""
+  "Widget"
 
 # ============================================================================
 # Widget Tree Helpers

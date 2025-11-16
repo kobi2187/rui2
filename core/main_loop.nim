@@ -126,7 +126,7 @@ proc renderPass*(widget: Widget) =
     if widget.cachedTexture.isSome:
       # TODO: Implement texture freeing when we have GPU backend
       # freeTexture(widget.cachedTexture.get())
-      widget.cachedTexture = none(Texture2D)
+      widget.cachedTexture = none(RenderTexture2D)
 
     # TODO: Render to texture when we have GPU backend
     # For now, just call render() directly (immediate mode)

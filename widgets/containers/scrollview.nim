@@ -20,10 +20,10 @@ defineWidget(ScrollView):
     scrollSpeed: float = 20.0  # Pixels per wheel tick
 
   state:
-    scrollOffsetX: float = 0.0
-    scrollOffsetY: float = 0.0
-    contentWidth: float = 0.0
-    contentHeight: float = 0.0
+    scrollOffsetX: float
+    scrollOffsetY: float
+    contentWidth: float
+    contentHeight: float
 
   layout:
     # Calculate total content size from children

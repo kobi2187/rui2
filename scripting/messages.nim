@@ -3,7 +3,7 @@
 ## File-based communication protocol for GUI automation and testing.
 ## Based on the quickui implementation, adapted for rui2.
 
-import std/[json, times, options]
+import std/[json, times, options, strutils]
 import ../core/types
 
 export json, options

@@ -11,7 +11,7 @@
 ##     fitMode = ImageFit.Contain
 ##   )
 
-import ../../core/widget_dsl_v2
+import ../../core/widget_dsl_v3
 import std/[options, tables]
 
 when defined(useGraphics):
@@ -35,7 +35,7 @@ definePrimitive(ImageWidget):
     width: float = 100.0          # Widget width
     height: float = 100.0         # Widget height
     fitMode: ImageFit = ImageFit.Contain
-    tintColor: Color = Color(r: 255, g: 255, b: 255, a: 255)  # White = no tint
+    tintColor: Color = Color()   # Default color (white/no tint when graphics enabled)
     disabled: bool = false
 
   state:
@@ -49,13 +49,13 @@ definePrimitive(ImageWidget):
   events:
     on_mouse_down:
       if not widget.disabled and widget.onClick.isSome:
-        widget.isPressed.set(true)
+        widget.isPressed = true
         return true
       return false
 
     on_mouse_up:
-      if widget.isPressed.get() and not widget.disabled:
-        widget.isPressed.set(false)
+      if widget.isPressed and not widget.disabled:
+        widget.isPressed = false
         if widget.onClick.isSome:
           widget.onClick.get()()
         return true

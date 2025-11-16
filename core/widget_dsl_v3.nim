@@ -139,11 +139,11 @@ proc buildConstructorBody(name: NimNode, sections: WidgetSections): NimNode =
     result.add quote do:
       result.`stateNameIdent` = default(`stateTypeIdent`)
 
-  # Initialize actions (wrap in Option)
+  # Initialize actions (already Option type from parameters)
   for action in sections.actions:
     let actionName = ident(action.name)
     result.add quote do:
-      result.`actionName` = if `actionName`.isSome: `actionName` else: none(type(`actionName`))
+      result.`actionName` = `actionName`
 
 proc buildConstructor(name: NimNode, sections: WidgetSections): NimNode =
   ## Generate constructor procedure
@@ -172,11 +172,12 @@ proc buildConstructor(name: NimNode, sections: WidgetSections): NimNode =
 # Event Handler Generation
 # ============================================================================
 
-proc buildEventHandler(sections: WidgetSections): NimNode =
+proc buildEventHandler(name: NimNode, sections: WidgetSections): NimNode =
   ## Generate handleInput method with event routing
   if sections.events.len == 0:
     return newEmptyNode()
 
+  let typeName = makeWidgetTypeName(name)
   var caseStmt = nnkCaseStmt.newTree(nnkDotExpr.newTree(ident("event"), ident("kind")))
 
   for event in sections.events:
@@ -185,9 +186,20 @@ proc buildEventHandler(sections: WidgetSections): NimNode =
   # Add else branch
   caseStmt.add nnkElse.newTree(quote do: return false)
 
-  quote do:
-    method handleInput*(widget: Widget, event: GuiEvent): bool {.base.} =
-      `caseStmt`
+  # Build method manually to have proper widget type
+  let widgetParam = newIdentDefs(ident("widget"), typeName)
+  let eventParam = newIdentDefs(ident("event"), ident("GuiEvent"))
+  let formalParams = nnkFormalParams.newTree(ident("bool"), widgetParam, eventParam)
+
+  nnkMethodDef.newTree(
+    nnkPostfix.newTree(ident("*"), ident("handleInput")),
+    newEmptyNode(),
+    newEmptyNode(),
+    formalParams,
+    newEmptyNode(),
+    newEmptyNode(),
+    caseStmt
+  )
 
 proc buildGetTypeNameMethod(name: NimNode): NimNode =
   ## Generate getTypeName method that returns the widget type name
@@ -261,7 +273,8 @@ macro definePrimitive*(name: untyped, body: untyped): untyped =
 
   # Generate methods
   result.add(buildRenderMethod(name, sections))
-  result.add(buildEventHandler(sections))
+  result.add(buildEventHandler(name, sections))
+  result.add(buildGetTypeNameMethod(name))  # Auto-generate type name
 
 # ============================================================================
 # Main Macro - defineWidget
@@ -283,7 +296,7 @@ macro defineWidget*(name: untyped, body: untyped): untyped =
   # Generate methods
   result.add(buildUpdateLayoutMethod(name, sections))  # Layout required for composites
   result.add(buildRenderMethod(name, sections))        # Render optional
-  result.add(buildEventHandler(sections))
+  result.add(buildEventHandler(name, sections))
   result.add(buildGetTypeNameMethod(name))              # Auto-generate type name
 
 # ============================================================================

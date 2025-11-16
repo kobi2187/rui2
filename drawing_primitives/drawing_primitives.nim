@@ -25,11 +25,13 @@ export controls
 export panels
 export indicators
 import drawing_effects
-import brand_helpers
 
 # Re-export everything
 export drawing_effects
-export brand_helpers
+
+# Note: brand_helpers is not imported here to avoid circular dependency
+# (brand_helpers imports theme_sys_core, which imports drawing_primitives)
+# Import brand_helpers directly where needed after theme_sys_core
 
 ## Migration Notes:
 ##
