@@ -1,4 +1,4 @@
-# RUI - Raylib UI Framework
+# RUI - Raylib UI Framework (Alpha Version, work in progress development, no guarentees)
 
 **Fast, lightweight, immediate-mode GUI framework for Nim**
 
