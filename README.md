@@ -50,8 +50,8 @@ app.start()
 
 ```bash
 # Clone the repository
-git clone https://github.com/yourusername/rui
-cd rui
+git clone https://github.com/kobi2187/rui2
+cd rui2
 
 # RUI requires:
 # - Nim (latest stable)
