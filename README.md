@@ -1,4 +1,4 @@
-# RUI - Raylib UI Framework
+# RUI - Raylib UI Framework (Alpha Version, work in progress development, no guarentees)
 
 **Fast, lightweight, immediate-mode GUI framework for Nim**
 
@@ -50,8 +50,8 @@ app.start()
 
 ```bash
 # Clone the repository
-git clone https://github.com/yourusername/rui
-cd rui
+git clone https://github.com/kobi2187/rui2
+cd rui2
 
 # RUI requires:
 # - Nim (latest stable)
