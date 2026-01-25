@@ -14,7 +14,7 @@ import std/[options, results]
 
 # Import from sibling directory pangolib_binding
 # From pango_integration/ we go ../.. to reach sibling
-import ../../pangolib_binding/src/[pangotypes, pangocore]
+import ../pangolib_binding/src/[pangotypes, pangocore]
 
 # Re-export everything
 export pangotypes, pangocore

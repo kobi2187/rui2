@@ -4,7 +4,7 @@
 ## Provides file browsing, filtering, and selection.
 ## Uses defineWidget with internal ListView and path navigation.
 
-import ../../core/widget_dsl_v3
+import ../../core/widget_dsl
 import std/[options, os, strutils]
 
 when defined(useGraphics):

@@ -4,7 +4,7 @@
 ## Supports multiple filter types per column and efficient rendering
 ## of large datasets (millions of rows).
 
-import ../../core/widget_dsl_v3
+import ../../core/widget_dsl
 import std/[options, sets, json, algorithm, strutils, tables]
 
 when defined(useGraphics):

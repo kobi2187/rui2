@@ -4,7 +4,7 @@
 ## Foundation for GroupBox, dialogs, and other framed containers.
 ## Uses defineWidget for composability.
 
-import ../../core/widget_dsl_v3
+import ../../core/widget_dsl
 import std/options
 
 when defined(useGraphics):

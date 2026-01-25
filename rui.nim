@@ -45,8 +45,8 @@ import core/link
 export link
 
 # Widget DSL v3: definePrimitive, defineWidget macros (cleaner, modular)
-import core/widget_dsl_v3
-export widget_dsl_v3
+import core/widget_dsl
+export widget_dsl
 
 # ============================================================================
 # Event System

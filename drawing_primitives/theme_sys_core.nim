@@ -3,33 +3,11 @@ import std/[options, tables]
 import ../core/types
 import drawing_primitives
 import primitives/text  # For TextStyle
+import theme_types  # Shared type definitions (breaks circular dependency)
+
+export theme_types
 
 type
-  # Core theme concepts
-  ThemeState* = enum
-    Normal     # Default state
-    Disabled
-    Hovered
-    Pressed    # Being clicked/touched
-    Focused    # Keyboard focus
-    Selected   # For lists, tabs etc
-    DragOver   # When dragging something over this widget
-
-  ThemeIntent* = enum
-    Default    # Normal appearance
-    Info       # Informational elements
-    Success    # Positive actions/states
-    Warning    # Caution required
-    Danger     # Destructive or error states
-
-  # Visual effect styles
-  BevelStyle* = enum
-    Flat       # No bevel (default flat design)
-    Raised     # Classic 3D raised button (BeOS, Windows 98)
-    Sunken     # Classic 3D pressed/inset
-    Ridge      # Windows 98 panel ridge effect
-    Groove     # Windows 98 panel groove effect
-
   GradientDirection* = enum
     Vertical
     Horizontal
@@ -121,6 +99,12 @@ type
     cornerRadius*: Option[float32]
     padding*: Option[EdgeInsets]
     spacing*: Option[float32]
+
+    # State-specific colors (for interactive widgets)
+    pressedColor*: Option[Color]
+    hoverColor*: Option[Color]
+    activeColor*: Option[Color]
+    focusColor*: Option[Color]
 
     # Text properties
     textStyle*: Option[TextStyle]

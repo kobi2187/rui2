@@ -4,7 +4,7 @@
 ## Allows stepping through numeric values within a range.
 ## Ported from Hummingbird to RUI2's definePrimitive DSL.
 
-import ../../core/widget_dsl_v3
+import ../../core/widget_dsl
 import std/[options, strformat]
 
 when defined(useGraphics):

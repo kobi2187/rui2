@@ -18,6 +18,28 @@ when defined(useGraphics):
 export types, theme_sys_core
 
 # ============================================================================
+# Simple Text Drawing Helper
+# ============================================================================
+
+proc drawText*(text: string, x, y: float32, fontSize: float32,
+                color: raylib.Color, centered = false) =
+  ## Simple text drawing with x, y coordinates
+  let xPos = if centered: x - measureText(text, int32(fontSize)) / 2 else: x
+  raylib.drawText(text, int32(xPos), int32(y), int32(fontSize), color)
+
+proc getPaddingLeft*(props: ThemeProps, default: float32): float32 =
+  props.padding.get(EdgeInsets(left: default, top: default, right: default, bottom: default)).left
+
+proc drawArrow*(x, y, size: float32, angle: float32, color: raylib.Color) =
+  let direction: controls.ArrowDirection = if angle == 90.0f32: controls.Down
+                  elif angle == -90.0f32: controls.Up
+                  elif angle == 0.0f32: controls.Right
+                  elif angle == 180.0f32 or angle == -180.0f32: controls.Left
+                  else: controls.Right
+  let rect = Rect(x: x - size, y: y - size, width: size * 2, height: size * 2)
+  controls.drawArrow(rect, direction, color)
+
+# ============================================================================
 # Atomic Parts (smallest building blocks)
 # ============================================================================
 
@@ -32,7 +54,7 @@ proc drawThemedBackground*(rect: Rect, props: ThemeProps,
                   else:
                     props.backgroundColor.get(Color(r: 240, g: 240, b: 240, a: 255))
 
-    let radius = props.borderRadius.get(4.0)
+    let radius = props.cornerRadius.get(4.0)
     drawRoundedRect(rect, radius, bgColor)
 
 proc drawThemedBorder*(rect: Rect, props: ThemeProps, focused = false, active = false) =
@@ -46,7 +68,7 @@ proc drawThemedBorder*(rect: Rect, props: ThemeProps, focused = false, active = 
                         else:
                           props.borderColor.get(Color(r: 180, g: 180, b: 180, a: 255))
 
-      let radius = props.borderRadius.get(4.0)
+      let radius = props.cornerRadius.get(4.0)
       drawRoundedRectLines(rect, radius, props.borderWidth.get(1.0), borderColor)
 
 proc drawThemedFocusRing*(rect: Rect, props: ThemeProps) =
@@ -77,19 +99,19 @@ proc drawThemedPaddedText*(text: string, rect: Rect, props: ThemeProps,
                           selected = false) =
   ## Draw left-aligned text with padding
   when defined(useGraphics):
-    let padding = props.padding.get(8.0)
+    let padding = props.getPaddingLeft(8.0)
     let textY = rect.y + (rect.height - props.fontSize.get(14.0)) / 2
     drawThemedText(text, rect.x + padding, textY, props, selected)
 
 proc drawDownArrow*(x, y, size: float32, color: Color) =
   ## Draw a downward-pointing arrow
   when defined(useGraphics):
-    drawArrow(x, y, size, 90.0, color)
+    drawArrow(x, y, size, 90.0f32, color)
 
 proc drawUpArrow*(x, y, size: float32, color: Color) =
   ## Draw an upward-pointing arrow
   when defined(useGraphics):
-    drawArrow(x, y, size, -90.0, color)
+    drawArrow(x, y, size, -90.0f32, color)
 
 proc drawRightArrow*(x, y, size: float32, color: Color) =
   ## Draw a rightward-pointing arrow
@@ -138,7 +160,7 @@ proc drawCheckbox*(rect: Rect, checked: bool, props: ThemeProps,
                     props.hoverColor.get(Color(r: 250, g: 250, b: 250, a: 255))
                   else:
                     props.backgroundColor.get(Color(r: 255, g: 255, b: 255, a: 255))
-    let radius = props.borderRadius.get(2.0)
+    let radius = props.cornerRadius.get(2.0)
     drawRoundedRect(rect, radius, bgColor)
 
     # Border
@@ -171,16 +193,9 @@ proc drawSlider*(rect: Rect, value, minVal, maxVal: float32, props: ThemeProps,
                  dragging = false, hovered = false) =
   ## Slider = reuse existing primitive with theme colors
   when defined(useGraphics):
-    drawSlider(
-      rect,
-      value,
-      minVal,
-      maxVal,
-      props.activeColor.get(Color(r: 100, g: 150, b: 255, a: 255)),
-      props.backgroundColor.get(Color(r: 220, g: 220, b: 220, a: 255)),
-      dragging,
-      hovered
-    )
+    let normalizedValue = (value - minVal) / (maxVal - minVal)
+    let activeColor = props.activeColor.get(Color(r: 100, g: 150, b: 255, a: 255))
+    controls.drawSlider(rect, normalizedValue, activeColor)
 
 proc drawProgressBar*(rect: Rect, progress: float32, props: ThemeProps) =
   ## Progress bar = reuse existing primitive with theme colors
@@ -214,7 +229,7 @@ proc drawMenuItem*(rect: Rect, text: string, props: ThemeProps,
 
     # Submenu arrow
     if hasSubmenu:
-      let padding = props.padding.get(8.0)
+      let padding = props.getPaddingLeft(8.0)
       let arrowX = rect.x + rect.width - padding - 8
       let arrowY = rect.y + rect.height / 2
       let textColor = if selected:
@@ -238,7 +253,7 @@ proc drawComboBox*(rect: Rect, text: string, props: ThemeProps,
     drawThemedPaddedText(text, rect, props)
 
     # Dropdown arrow
-    let padding = props.padding.get(8.0)
+    let padding = props.getPaddingLeft(8.0)
     let arrowX = rect.x + rect.width - padding - 8
     let arrowY = rect.y + rect.height / 2
     let textColor = props.foregroundColor.get(Color(r: 60, g: 60, b: 60, a: 255))
@@ -260,7 +275,7 @@ proc drawTab*(rect: Rect, text: string, props: ThemeProps,
                   else:
                     Color(r: 220, g: 220, b: 220, a: 255)
 
-    let radius = props.borderRadius.get(4.0)
+    let radius = props.cornerRadius.get(4.0)
     drawRoundedRect(rect, radius, bgColor)
 
     # Active indicator bar at bottom
@@ -323,13 +338,29 @@ proc drawSpinner*(rect: Rect, value: string, props: ThemeProps,
 proc drawGroupBox*(rect: Rect, title: string, props: ThemeProps) =
   ## Group box = reuse existing primitive with theme colors
   when defined(useGraphics):
-    drawGroupBox(
-      rect,
-      title,
-      props.borderColor.get(Color(r: 180, g: 180, b: 180, a: 255)),
-      props.foregroundColor.get(Color(r: 60, g: 60, b: 60, a: 255)),
-      props.fontSize.get(14.0)
+    let borderColor = props.borderColor.get(Color(r: 180, g: 180, b: 180, a: 255))
+    let textColor = props.foregroundColor.get(Color(r: 60, g: 60, b: 60, a: 255))
+    let fontSize = props.fontSize.get(14.0)
+
+
+    # TODO: figure out enhancing ThemeProps to also include GroupBoxStyle, and other specific widgets
+    let style = panels.GroupBoxStyle(
+      borderStyle: panels.BorderStyle(
+        style: panels.Solid,
+        color: borderColor,
+        width: 1.0f32,
+        radius: 4.0f32
+      ),
+      titleStyle: TextStyle(
+        fontSize: fontSize,
+        color: textColor
+      ),
+      backgroundColor: props.backgroundColor.get(Color(r: 255, g: 255, b: 255, a: 255)),
+      titlePosition: TextAlign.Left,
+      titlePadding: 8.0f32,
+      titleBackgroundColor: none(Color)
     )
+    panels.drawGroupBox(rect, title, style)
 
 proc drawStatusBar*(rect: Rect, text: string, props: ThemeProps) =
   ## Status bar = background + top border + padded text
@@ -343,7 +374,7 @@ proc drawStatusBar*(rect: Rect, text: string, props: ThemeProps) =
     drawLine(rect.x, rect.y, rect.x + rect.width, rect.y, borderColor, 1.0)
 
     # Text
-    let padding = props.padding.get(8.0)
+    let padding = props.getPaddingLeft(8.0)
     let textY = rect.y + (rect.height - props.fontSize.get(12.0)) / 2
     let textColor = props.foregroundColor.get(Color(r: 80, g: 80, b: 80, a: 255))
     drawText(text, rect.x + padding, textY, props.fontSize.get(12.0), textColor)

@@ -4,7 +4,7 @@
 ## Supports horizontal time axis, event blocks, and interactive selection.
 ## Useful for scheduling, project management, history visualization.
 
-import ../../core/widget_dsl_v3
+import ../../core/widget_dsl
 import std/[options, times, json, algorithm, math, strformat]
 
 when defined(useGraphics):

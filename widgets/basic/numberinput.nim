@@ -4,7 +4,7 @@
 ## Similar to Spinner but with more direct text input capabilities.
 ## Ported from Hummingbird to RUI2's definePrimitive DSL.
 
-import ../../core/widget_dsl_v3
+import ../../core/widget_dsl
 import std/[options, strformat, strutils]
 
 when defined(useGraphics):

@@ -4,7 +4,7 @@
 ## Expands to fill available space in VStack/HStack containers.
 ## Uses definePrimitive as it's a leaf widget.
 
-import ../../core/widget_dsl_v3
+import ../../core/widget_dsl
 import std/options
 
 when defined(useGraphics):

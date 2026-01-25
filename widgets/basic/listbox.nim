@@ -8,7 +8,7 @@
 ## - Mouse wheel scrolling
 ## - Keyboard navigation
 
-import ../../core/widget_dsl_v3
+import ../../core/widget_dsl
 import ../../drawing_primitives/drawing_effects
 import std/[options, strutils, sets]
 

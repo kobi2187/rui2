@@ -4,7 +4,7 @@
 ## Contains Menu widgets as children (File, Edit, View, etc.).
 ## Uses defineWidget to manage multiple Menu children.
 
-import ../../core/widget_dsl_v3
+import ../../core/widget_dsl
 import std/options
 
 when defined(useGraphics):

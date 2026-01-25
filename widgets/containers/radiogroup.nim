@@ -4,7 +4,7 @@
 ## Only one radio button can be selected at a time.
 ## Ported from Hummingbird to RUI2's defineWidget DSL.
 
-import ../../core/widget_dsl_v3
+import ../../core/widget_dsl
 import std/options
 
 when defined(useGraphics):

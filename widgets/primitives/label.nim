@@ -3,7 +3,7 @@
 ## Pure drawing primitive that renders text
 ## TODO: Integrate Pango for proper Unicode/RTL support
 
-import ../../core/widget_dsl_v3
+import ../../core/widget_dsl
 import ../../drawing_primitives/drawing_primitives
 import ../../drawing_primitives/primitives/text
 import raylib

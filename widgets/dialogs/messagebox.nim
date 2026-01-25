@@ -4,7 +4,7 @@
 ## Supports different types: Info, Warning, Error, Question.
 ## Uses defineWidget with built-in buttons.
 
-import ../../core/widget_dsl_v3
+import ../../core/widget_dsl
 import std/options
 
 when defined(useGraphics):

@@ -4,7 +4,7 @@
 ## Displays tab buttons at the top and the active tab's content below.
 ## Ported from Hummingbird to RUI2's defineWidget DSL.
 
-import ../../core/widget_dsl_v3
+import ../../core/widget_dsl
 import std/[options, strutils]
 
 when defined(useGraphics):

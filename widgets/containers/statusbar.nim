@@ -4,7 +4,7 @@
 ## Displays text on the left and optional text on the right.
 ## Ported from Hummingbird to RUI2's definePrimitive DSL.
 
-import ../../core/widget_dsl_v3
+import ../../core/widget_dsl
 import std/options
 
 when defined(useGraphics):

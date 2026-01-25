@@ -12,7 +12,7 @@ import types
 proc newLink*[T](initialValue: T): Link[T] =
   ## Create a new Link with an initial value
   result = Link[T](
-    valueInternal: initialValue,
+    value: initialValue,
     dependentWidgets: initHashSet[Widget](),
     onChange: nil
   )
@@ -23,7 +23,7 @@ proc newLink*[T](initialValue: T): Link[T] =
 
 proc value*[T](link: Link[T]): T =
   ## Get the current value of the link
-  link.valueInternal
+  link.value
 
 proc `value=`*[T](link: Link[T], newVal: T) =
   ## Set a new value and mark dependent widgets dirty
@@ -40,9 +40,9 @@ proc `value=`*[T](link: Link[T], newVal: T) =
   ## Performance: O(n) where n = number of widgets bound to THIS link
   ##              NOT O(total widgets in tree)!
 
-  if link.valueInternal != newVal:
-    let oldVal = link.valueInternal
-    link.valueInternal = newVal
+  if link.value != newVal:
+    let oldVal = link.value
+    link.value = newVal
 
     # Mark all dependent widgets dirty
     # They will read the new value on next render pass

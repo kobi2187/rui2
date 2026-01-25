@@ -17,7 +17,7 @@
 
 import std/options
 import ../core/types
-import theme_sys_core
+import theme_types  # For BevelStyle - breaks circular dependency
 
 when defined(useGraphics):
   import raylib
@@ -43,14 +43,14 @@ when defined(useGraphics):
 
     # 1. Draw background
     if cornerRadius > 0:
-      DrawRectangleRounded(
+      drawRectangleRounded(
         Rectangle(x: bounds.x, y: bounds.y, width: bounds.width, height: bounds.height),
         cornerRadius / min(bounds.width, bounds.height),
         16,  # segments
         backgroundColor
       )
     else:
-      DrawRectangleRec(
+      drawRectangle(
         Rectangle(x: bounds.x, y: bounds.y, width: bounds.width, height: bounds.height),
         backgroundColor
       )
@@ -64,28 +64,28 @@ when defined(useGraphics):
       # Light on top-left, dark on bottom-right
       # Outer layer (1px from edge)
       # Top edge
-      DrawLineEx(
+      drawLine(
         Vector2(x: bounds.x, y: bounds.y),
         Vector2(x: bounds.x + bounds.width - 1, y: bounds.y),
         1.0,
         highlightColor
       )
       # Left edge
-      DrawLineEx(
+      drawLine(
         Vector2(x: bounds.x, y: bounds.y),
         Vector2(x: bounds.x, y: bounds.y + bounds.height - 1),
         1.0,
         highlightColor
       )
       # Bottom edge (dark)
-      DrawLineEx(
+      drawLine(
         Vector2(x: bounds.x, y: bounds.y + bounds.height - 1),
         Vector2(x: bounds.x + bounds.width, y: bounds.y + bounds.height - 1),
         1.0,
         darkShadowColor
       )
       # Right edge (dark)
-      DrawLineEx(
+      drawLine(
         Vector2(x: bounds.x + bounds.width - 1, y: bounds.y),
         Vector2(x: bounds.x + bounds.width - 1, y: bounds.y + bounds.height),
         1.0,
@@ -95,28 +95,28 @@ when defined(useGraphics):
       # Inner layer (2px from edge)
       if bevelWidth >= 2.0:
         # Top inner
-        DrawLineEx(
+        drawLine(
           Vector2(x: bounds.x + 1, y: bounds.y + 1),
           Vector2(x: bounds.x + bounds.width - 2, y: bounds.y + 1),
           1.0,
           highlightColor
         )
         # Left inner
-        DrawLineEx(
+        drawLine(
           Vector2(x: bounds.x + 1, y: bounds.y + 1),
           Vector2(x: bounds.x + 1, y: bounds.y + bounds.height - 2),
           1.0,
           highlightColor
         )
         # Bottom inner (gray shadow)
-        DrawLineEx(
+        drawLine(
           Vector2(x: bounds.x + 1, y: bounds.y + bounds.height - 2),
           Vector2(x: bounds.x + bounds.width - 1, y: bounds.y + bounds.height - 2),
           1.0,
           shadowColor
         )
         # Right inner (gray shadow)
-        DrawLineEx(
+        drawLine(
           Vector2(x: bounds.x + bounds.width - 2, y: bounds.y + 1),
           Vector2(x: bounds.x + bounds.width - 2, y: bounds.y + bounds.height - 1),
           1.0,
@@ -127,28 +127,28 @@ when defined(useGraphics):
       # INVERTED: Dark on top-left, light on bottom-right
       # Outer layer
       # Top edge (dark)
-      DrawLineEx(
+      drawLine(
         Vector2(x: bounds.x, y: bounds.y),
         Vector2(x: bounds.x + bounds.width - 1, y: bounds.y),
         1.0,
         darkShadowColor
       )
       # Left edge (dark)
-      DrawLineEx(
+      drawLine(
         Vector2(x: bounds.x, y: bounds.y),
         Vector2(x: bounds.x, y: bounds.y + bounds.height - 1),
         1.0,
         darkShadowColor
       )
       # Bottom edge (light)
-      DrawLineEx(
+      drawLine(
         Vector2(x: bounds.x, y: bounds.y + bounds.height - 1),
         Vector2(x: bounds.x + bounds.width, y: bounds.y + bounds.height - 1),
         1.0,
         highlightColor
       )
       # Right edge (light)
-      DrawLineEx(
+      drawLine(
         Vector2(x: bounds.x + bounds.width - 1, y: bounds.y),
         Vector2(x: bounds.x + bounds.width - 1, y: bounds.y + bounds.height),
         1.0,
@@ -158,28 +158,28 @@ when defined(useGraphics):
       # Inner layer
       if bevelWidth >= 2.0:
         # Top inner (gray shadow)
-        DrawLineEx(
+        drawLine(
           Vector2(x: bounds.x + 1, y: bounds.y + 1),
           Vector2(x: bounds.x + bounds.width - 2, y: bounds.y + 1),
           1.0,
           shadowColor
         )
         # Left inner (gray shadow)
-        DrawLineEx(
+        drawLine(
           Vector2(x: bounds.x + 1, y: bounds.y + 1),
           Vector2(x: bounds.x + 1, y: bounds.y + bounds.height - 2),
           1.0,
           shadowColor
         )
         # Bottom inner (light)
-        DrawLineEx(
+        drawLine(
           Vector2(x: bounds.x + 1, y: bounds.y + bounds.height - 2),
           Vector2(x: bounds.x + bounds.width - 1, y: bounds.y + bounds.height - 2),
           1.0,
           highlightColor
         )
         # Right inner (light)
-        DrawLineEx(
+        drawLine(
           Vector2(x: bounds.x + bounds.width - 2, y: bounds.y + 1),
           Vector2(x: bounds.x + bounds.width - 2, y: bounds.y + bounds.height - 1),
           1.0,
@@ -191,11 +191,16 @@ when defined(useGraphics):
       # Groove: sunken-raised-sunken
       # For now, just draw a simple double border
       # TODO: Implement proper ridge/groove effect
-      DrawRectangleLinesEx(
+      drawRectangleLines(
         Rectangle(x: bounds.x, y: bounds.y, width: bounds.width, height: bounds.height),
         1.0,
         if bevelStyle == Ridge: highlightColor else: darkShadowColor
       )
+
+    of Soft, Convex, Drop, Interior, Flatsoft, Flatconvex:
+      # TODO: These bevel styles are not yet fully implemented
+      # For now, fall back to a simple raised bevel
+      discard
 
 
 ## ============================================================================
@@ -226,7 +231,7 @@ when defined(useGraphics):
         b: uint8((int(gradientStart.b) + int(gradientEnd.b)) div 2),
         a: uint8((int(gradientStart.a) + int(gradientEnd.a)) div 2)
       )
-      DrawRectangleRounded(
+      drawRectangleRounded(
         Rectangle(x: bounds.x, y: bounds.y, width: bounds.width, height: bounds.height),
         cornerRadius / min(bounds.width, bounds.height),
         16,
@@ -235,13 +240,13 @@ when defined(useGraphics):
     else:
       case direction
       of Vertical:
-        DrawRectangleGradientV(
+        drawRectangleGradientV(
           int32(bounds.x), int32(bounds.y),
           int32(bounds.width), int32(bounds.height),
           gradientStart, gradientEnd
         )
       of Horizontal:
-        DrawRectangleGradientH(
+        drawRectangleGradientH(
           int32(bounds.x), int32(bounds.y),
           int32(bounds.width), int32(bounds.height),
           gradientStart, gradientEnd
@@ -250,7 +255,7 @@ when defined(useGraphics):
         # Raylib doesn't have radial gradient for rectangles
         # Draw concentric circles to fake it (very rough approximation)
         # TODO: Implement proper radial gradient with shader
-        DrawRectangleGradientV(
+        drawRectangleGradientV(
           int32(bounds.x), int32(bounds.y),
           int32(bounds.width), int32(bounds.height),
           gradientStart, gradientEnd
@@ -298,7 +303,7 @@ when defined(useGraphics):
       )
 
       if cornerRadius > 0:
-        DrawRectangleRounded(
+        drawRectangleRounded(
           Rectangle(x: shadowBounds.x, y: shadowBounds.y,
                    width: shadowBounds.width, height: shadowBounds.height),
           cornerRadius / min(shadowBounds.width, shadowBounds.height),
@@ -306,7 +311,7 @@ when defined(useGraphics):
           layerColor
         )
       else:
-        DrawRectangleRec(
+        drawRectangle(
           Rectangle(x: shadowBounds.x, y: shadowBounds.y,
                    width: shadowBounds.width, height: shadowBounds.height),
           layerColor
@@ -314,14 +319,14 @@ when defined(useGraphics):
 
     # Draw main rectangle on top
     if cornerRadius > 0:
-      DrawRectangleRounded(
+      drawRectangleRounded(
         Rectangle(x: bounds.x, y: bounds.y, width: bounds.width, height: bounds.height),
         cornerRadius / min(bounds.width, bounds.height),
         16,
         backgroundColor
       )
     else:
-      DrawRectangleRec(
+      drawRectangle(
         Rectangle(x: bounds.x, y: bounds.y, width: bounds.width, height: bounds.height),
         backgroundColor
       )
@@ -363,7 +368,7 @@ when defined(useGraphics):
       )
 
       if cornerRadius > 0:
-        DrawRectangleRounded(
+        drawRectangleRounded(
           Rectangle(x: glowBounds.x, y: glowBounds.y,
                    width: glowBounds.width, height: glowBounds.height),
           (cornerRadius + expansion) / min(glowBounds.width, glowBounds.height),
@@ -371,7 +376,7 @@ when defined(useGraphics):
           layerColor
         )
       else:
-        DrawRectangleRec(
+        drawRectangle(
           Rectangle(x: glowBounds.x, y: glowBounds.y,
                    width: glowBounds.width, height: glowBounds.height),
           layerColor
@@ -379,14 +384,14 @@ when defined(useGraphics):
 
     # Draw main rectangle on top
     if cornerRadius > 0:
-      DrawRectangleRounded(
+      drawRectangleRounded(
         Rectangle(x: bounds.x, y: bounds.y, width: bounds.width, height: bounds.height),
         cornerRadius / min(bounds.width, bounds.height),
         16,
         backgroundColor
       )
     else:
-      DrawRectangleRec(
+      drawRectangle(
         Rectangle(x: bounds.x, y: bounds.y, width: bounds.width, height: bounds.height),
         backgroundColor
       )
@@ -409,14 +414,14 @@ when defined(useGraphics):
 
     # Draw background
     if cornerRadius > 0:
-      DrawRectangleRounded(
+      drawRectangleRounded(
         Rectangle(x: bounds.x, y: bounds.y, width: bounds.width, height: bounds.height),
         cornerRadius / min(bounds.width, bounds.height),
         16,
         backgroundColor
       )
     else:
-      DrawRectangleRec(
+      drawRectangle(
         Rectangle(x: bounds.x, y: bounds.y, width: bounds.width, height: bounds.height),
         backgroundColor
       )
@@ -431,7 +436,7 @@ when defined(useGraphics):
     for i in 0..<int(insetDepth):
       let alpha = insetOpacity * (1.0 - float32(i) / insetDepth)
       let layerColor = Color(r: 0, g: 0, b: 0, a: uint8(alpha * 255.0))
-      DrawLineEx(
+      drawLine(
         Vector2(x: bounds.x, y: bounds.y + float32(i)),
         Vector2(x: bounds.x + bounds.width, y: bounds.y + float32(i)),
         1.0,
@@ -442,7 +447,7 @@ when defined(useGraphics):
     for i in 0..<int(insetDepth):
       let alpha = insetOpacity * (1.0 - float32(i) / insetDepth)
       let layerColor = Color(r: 0, g: 0, b: 0, a: uint8(alpha * 255.0))
-      DrawLineEx(
+      drawLine(
         Vector2(x: bounds.x + float32(i), y: bounds.y),
         Vector2(x: bounds.x + float32(i), y: bounds.y + bounds.height),
         1.0,
@@ -489,7 +494,7 @@ when defined(useGraphics):
         width: bounds.width,
         height: bounds.height
       )
-      DrawRectangleRounded(
+      drawRectangleRounded(
         Rectangle(x: shadowBounds.x, y: shadowBounds.y,
                  width: shadowBounds.width, height: shadowBounds.height),
         cornerRadius / min(shadowBounds.width, shadowBounds.height),
@@ -504,7 +509,7 @@ when defined(useGraphics):
         width: bounds.width,
         height: bounds.height
       )
-      DrawRectangleRounded(
+      drawRectangleRounded(
         Rectangle(x: highlightBounds.x, y: highlightBounds.y,
                  width: highlightBounds.width, height: highlightBounds.height),
         cornerRadius / min(highlightBounds.width, highlightBounds.height),
@@ -520,7 +525,7 @@ when defined(useGraphics):
         width: bounds.width,
         height: bounds.height
       )
-      DrawRectangleRounded(
+      drawRectangleRounded(
         Rectangle(x: shadowBounds.x, y: shadowBounds.y,
                  width: shadowBounds.width, height: shadowBounds.height),
         cornerRadius / min(shadowBounds.width, shadowBounds.height),
@@ -534,7 +539,7 @@ when defined(useGraphics):
         width: bounds.width,
         height: bounds.height
       )
-      DrawRectangleRounded(
+      drawRectangleRounded(
         Rectangle(x: highlightBounds.x, y: highlightBounds.y,
                  width: highlightBounds.width, height: highlightBounds.height),
         cornerRadius / min(highlightBounds.width, highlightBounds.height),
@@ -543,7 +548,7 @@ when defined(useGraphics):
       )
 
     # Draw main element on top
-    DrawRectangleRounded(
+    drawRectangleRounded(
       Rectangle(x: bounds.x, y: bounds.y, width: bounds.width, height: bounds.height),
       cornerRadius / min(bounds.width, bounds.height),
       16,
@@ -658,13 +663,9 @@ when defined(useGraphics):
   proc beginScissorMode*(clipRect: Rect) =
     ## Begin scissor mode - all drawing will be clipped to this rectangle.
     ## Used for ScrollView to clip content to viewport.
-    BeginScissorMode(
+    beginScissorMode(
       int32(clipRect.x),
       int32(clipRect.y),
       int32(clipRect.width),
       int32(clipRect.height)
     )
-
-  proc endScissorMode*() =
-    ## End scissor mode - restore normal drawing.
-    EndScissorMode()

@@ -4,7 +4,7 @@
 ## Supports expand/collapse, selection, and custom node data.
 ## Uses virtual scrolling to efficiently handle thousands of nodes.
 
-import ../../core/widget_dsl_v3
+import ../../core/widget_dsl
 import std/[options, sets, json]
 
 when defined(useGraphics):

@@ -9,7 +9,7 @@
 import raylib
 
 # Import pangolib_binding from sibling directory
-import ../../pangolib_binding/src/[pangotypes, pangocore]
+import ../pangolib_binding/src/[pangotypes, pangocore]
 
 proc main() =
   initWindow(800, 600, "Pango Basic Test")

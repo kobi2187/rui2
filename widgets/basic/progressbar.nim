@@ -4,7 +4,8 @@
 ## Supports optional text display with formatting.
 ## Ported from Hummingbird to RUI2's definePrimitive DSL.
 
-import ../../core/widget_dsl_v3
+import ../../core/widget_dsl
+import ../../drawing_primitives/widget_primitives
 import std/[options, strutils]
 
 when defined(useGraphics):
@@ -15,54 +16,35 @@ definePrimitive(ProgressBar):
     initialValue: float = 0.0
     maxValue: float = 100.0
     showText: bool = true
-    format: string = "%.0f%%"    # Format string for displaying percentage
-    textLeft: string = ""        # Text on left side
+    format: string = "%.0f%%"
+    textLeft: string = ""
     disabled: bool = false
+    # TODO: these should be fetched from the current theme
+    themeProps: ThemeProps = ThemeProps(
+      backgroundColor: some(Color(r: 220, g: 220, b: 220, a: 255)),
+      activeColor: some(Color(r: 100, g: 150, b: 255, a: 255))
+    )
 
   state:
     value: float
 
   actions:
-    # ProgressBar typically doesn't have actions, but we can add one for completeness
     onComplete()
 
   render:
     when defined(useGraphics):
-      let currentValue = widget.value
+      let progress = (widget.value / widget.maxValue).float32
+      drawProgressBar(widget.bounds, progress, widget.themeProps)
 
-      # Calculate percentage for display
-      let percent = (currentValue / widget.maxValue) * 100.0
+      if widget.showText:
+        let percent = int((widget.value / widget.maxValue) * 100)
+        let displayText = $percent & "%"
+        drawText(displayText, widget.bounds.x + widget.bounds.width / 2, widget.bounds.y + (widget.bounds.height - 14) / 2, 14.0, Color(r: 60, g: 60, b: 60, a: 255), centered = true)
 
-      # Format the text
-      let displayText = if widget.showText:
-                          try:
-                            fmt(widget.format) % percent
-                          except:
-                            fmt"{percent:.0f}%"
-                        else:
-                          ""
-
-      # GuiProgressBar signature: (bounds, textLeft, textRight, value, minValue, maxValue)
-      GuiProgressBar(
-        Rectangle(
-          x: widget.bounds.x,
-          y: widget.bounds.y,
-          width: widget.bounds.width,
-          height: widget.bounds.height
-        ),
-        widget.textLeft.cstring,
-        displayText.cstring,
-        addr currentValue,
-        0.0'f32,
-        widget.maxValue.float32
-      )
-
-      # Check if just completed
-      if currentValue >= widget.maxValue:
+      if widget.value >= widget.maxValue:
         if widget.onComplete.isSome:
           widget.onComplete.get()()
     else:
-      # Non-graphics mode: just echo
       let currentValue = widget.value
       let pct = int((currentValue / widget.maxValue) * 100)
       let filled = pct div 10

@@ -4,7 +4,7 @@
 ## Supports column sorting, row selection, and custom formatting.
 ## Uses virtual scrolling to efficiently handle millions of rows.
 
-import ../../core/widget_dsl_v3
+import ../../core/widget_dsl
 import std/[options, sets, json, algorithm, strutils]
 
 when defined(useGraphics):

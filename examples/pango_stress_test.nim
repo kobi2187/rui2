@@ -14,7 +14,7 @@ import raylib
 import std/[times, monotimes, random, strformat]
 
 # Import pangolib_binding from sibling directory
-import ../../pangolib_binding/src/[pangotypes, pangocore]
+import ../pangolib_binding/src/[pangotypes, pangocore]
 
 type
   TextLabel = object

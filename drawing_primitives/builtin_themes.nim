@@ -181,10 +181,10 @@ proc createBeosTheme*(): Theme =
       highlightColor: some(makeColor(255, 255, 255)),     # White highlight
       shadowColor: some(makeColor(153, 153, 153)),        # Gray shadow
       darkShadowColor: some(makeColor(102, 102, 102)),    # Dark shadow
-      cornerRadius: some(0.0),                            # Sharp corners!
-      fontSize: some(12.0),
+      cornerRadius: some(0.0f32),                            # Sharp corners!
+      fontSize: some(12.0f32),
       padding: some(EdgeInsets(top: 4.0, right: 6.0, bottom: 4.0, left: 6.0)),
-      spacing: some(6.0)
+      spacing: some(6.0f32)
     )
 
     result.base[Info] = ThemeProps(

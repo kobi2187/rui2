@@ -5,7 +5,7 @@
 ## Not a modal dialog - can be embedded in any container.
 ## Uses defineWidget.
 
-import ../../core/widget_dsl_v3
+import ../../core/widget_dsl
 import std/[options, os, strutils, sets]
 
 when defined(useGraphics):

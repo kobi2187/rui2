@@ -4,7 +4,7 @@
 ## Supports pan, zoom, markers, and custom overlays.
 ## Simplified implementation - can be extended with tile servers.
 
-import ../../core/widget_dsl_v3
+import ../../core/widget_dsl
 import std/[options, tables, math, json]
 
 when defined(useGraphics):

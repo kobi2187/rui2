@@ -11,7 +11,7 @@
 ##     fitMode = ImageFit.Contain
 ##   )
 
-import ../../core/widget_dsl_v3
+import ../../core/widget_dsl
 import std/[options, tables]
 
 when defined(useGraphics):
@@ -69,7 +69,7 @@ definePrimitive(ImageWidget):
 
       if widget.imagePath.len == 0:
         # No image path - draw placeholder
-        DrawRectangleLines(
+        drawRectangleLines(
           widget.bounds.x.int32,
           widget.bounds.y.int32,
           widget.bounds.width.int32,
@@ -78,28 +78,26 @@ definePrimitive(ImageWidget):
         )
         let centerX = widget.bounds.x + widget.bounds.width / 2 - 20
         let centerY = widget.bounds.y + widget.bounds.height / 2 - 10
-        DrawText("No Image".cstring, centerX.int32, centerY.int32, 20, GRAY)
+        drawText("No Image", centerX.int32, centerY.int32, 20'i32, GRAY)
         return
 
       # Try to load texture if not already loaded
-      if not widget.textureLoaded.get() and not widget.loadFailed.get():
+      if not widget.textureLoaded and not widget.loadFailed:
         if widget.imagePath in textureCache:
-          # Use cached texture
-          widget.textureLoaded.set(true)
+          widget.textureLoaded = true
         else:
-          # Try to load texture
           try:
-            let texture = LoadTexture(widget.imagePath.cstring)
+            let texture = loadTexture(widget.imagePath.cstring)
             if texture.id > 0:
               textureCache[widget.imagePath] = texture
-              widget.textureLoaded.set(true)
+              widget.textureLoaded = true
             else:
-              widget.loadFailed.set(true)
+              widget.loadFailed = true
           except:
-            widget.loadFailed.set(true)
+            widget.loadFailed = true
 
       # Draw the texture if loaded
-      if widget.textureLoaded.get() and widget.imagePath in textureCache:
+      if widget.textureLoaded and widget.imagePath in textureCache:
         let texture = textureCache[widget.imagePath]
         let texWidth = float(texture.width)
         let texHeight = float(texture.height)
@@ -207,7 +205,7 @@ definePrimitive(ImageWidget):
               )
 
         # Draw the texture
-        DrawTexturePro(
+        drawTexturePro(
           texture,
           sourceRect,
           destRect,
@@ -217,8 +215,8 @@ definePrimitive(ImageWidget):
         )
 
         # Optional: Draw border when hovered (if clickable)
-        if widget.onClick.isSome and widget.isHovered.get():
-          DrawRectangleLines(
+        if widget.onClick.isSome: # and widget.isHovered.get():
+          drawRectangleLines(
             widget.bounds.x.int32,
             widget.bounds.y.int32,
             widget.bounds.width.int32,
@@ -226,7 +224,7 @@ definePrimitive(ImageWidget):
             Color(r: 100, g: 100, b: 255, a: 200)
           )
 
-      elif widget.loadFailed.get():
+      elif widget.loadFailed:
         # Failed to load - draw error placeholder
         DrawRectangle(
           widget.bounds.x.int32,
@@ -235,7 +233,7 @@ definePrimitive(ImageWidget):
           widget.bounds.height.int32,
           Color(r: 240, g: 240, b: 240, a: 255)
         )
-        DrawRectangleLines(
+        drawRectangleLines(
           widget.bounds.x.int32,
           widget.bounds.y.int32,
           widget.bounds.width.int32,
@@ -244,7 +242,7 @@ definePrimitive(ImageWidget):
         )
         let centerX = widget.bounds.x + widget.bounds.width / 2 - 30
         let centerY = widget.bounds.y + widget.bounds.height / 2 - 10
-        DrawText("Load Failed".cstring, centerX.int32, centerY.int32, 16, RED)
+        drawText("Load Failed".cstring, centerX.int32, centerY.int32, 16, RED)
     else:
       # Non-graphics mode fallback
       if widget.imagePath.len > 0:

@@ -1,0 +1,30 @@
+name: Sample Light
+base:
+  default:
+    backgroundColor: "#ffffff"
+    foregroundColor: "#222222"
+    borderColor: "#cccccc"
+    borderWidth: 1
+    cornerRadius: 6
+    spacing: 10
+    padding:
+      all: 12
+  info:
+    backgroundColor: "#e0f2ff"
+    foregroundColor: "#0f4c81"
+  success:
+    backgroundColor: "#e6f8ed"
+    foregroundColor: "#1b6f3a"
+  warning:
+    backgroundColor: "#fff4e3"
+    foregroundColor: "#9c4a00"
+  danger:
+    backgroundColor: "#ffe7eb"
+    foregroundColor: "#b30d2f"
+states:
+  default:
+    hovered:
+      backgroundColor: "#f5f5f5"
+    pressed:
+      backgroundColor: "#ededed"
+

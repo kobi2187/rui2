@@ -5,16 +5,28 @@
 import std/[tables, sets, hashes, options, times, monotimes, json]
 export sets, tables, options, json  # Export for use in other modules
 
+# Raylib types - conditionally import or use stubs
 when defined(useGraphics):
   import raylib
-  export raylib.Color, raylib.KeyboardKey, raylib.RenderTexture2D
+  export raylib.Color, raylib.KeyboardKey, raylib.RenderTexture2D, raylib
 else:
   # Stub types when graphics not available
   type
     Texture2D* = object
     RenderTexture2D* = object
+      texture*: Texture2D
     Color* = object
+      r*, g*, b*, a*: uint8
     KeyboardKey* = object
+
+  # Stub functions for headless mode
+  proc loadRenderTexture*(width, height: int32): RenderTexture2D = discard
+  proc unloadRenderTexture*(tex: RenderTexture2D) = discard
+  proc drawTexture*(tex: Texture2D, x, y: int32, tint: Color) = discard
+  proc beginTextureMode*(target: RenderTexture2D) = discard
+  proc endTextureMode*() = discard
+  proc clearBackground*(color: Color) = discard
+  const White*: Color = Color(r: 255, g: 255, b: 255, a: 255)
 
 # Size type - define locally for now
 type Size* = object

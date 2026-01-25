@@ -4,7 +4,8 @@
 ## Supports optional value display and formatting.
 ## Ported from Hummingbird (slider2.nim) to RUI2's definePrimitive DSL.
 
-import ../../core/widget_dsl_v3
+import ../../core/widget_dsl
+import ../../drawing_primitives/widget_primitives
 import std/[options, strformat, strutils]
 
 when defined(useGraphics):
@@ -16,9 +17,14 @@ definePrimitive(Slider):
     minValue: float32 = 0.0
     maxValue: float32 = 100.0
     showValue: bool = true
-    textLeft: string = ""        # Text on left side
-    textRight: string = ""       # Text on right (value display)
+    textLeft: string = ""
+    textRight: string = ""
     disabled: bool = false
+    # TODO: these should be fetched from the current theme
+    themeProps: ThemeProps = ThemeProps(
+      backgroundColor: some(Color(r: 220, g: 220, b: 220, a: 255)),
+      activeColor: some(Color(r: 100, g: 150, b: 255, a: 255))
+    )
 
   state:
     value: float32
@@ -42,33 +48,19 @@ definePrimitive(Slider):
 
   render:
     when defined(useGraphics):
-      var value = widget.value
-
-      # Format the right text (value display)
-      let rightText = if widget.showValue:
-                        fmt"{value:.1f}"
-                      else:
-                        widget.textRight
-
-      if GuiSlider(
-        Rectangle(
-          x: widget.bounds.x,
-          y: widget.bounds.y,
-          width: widget.bounds.width,
-          height: widget.bounds.height
-        ),
-        widget.textLeft.cstring,
-        rightText.cstring,
-        addr value,
+      drawSlider(
+        widget.bounds,
+        widget.value,
         widget.minValue,
-        widget.maxValue
-      ):
-        # GuiSlider returns true when value changes
-        widget.value = value
-        if widget.onChange.isSome:
-          widget.onChange.get()(value)
+        widget.maxValue,
+        widget.themeProps,
+        widget.dragging
+      )
+
+      if widget.showValue:
+        let rightText = fmt"{widget.value:.1f}"
+        drawText(rightText, widget.bounds.x + widget.bounds.width + 10, widget.bounds.y + (widget.bounds.height - 14) / 2, 14.0, Color(r: 60, g: 60, b: 60, a: 255))
     else:
-      # Non-graphics mode: just echo
       let value = widget.value
       let pct = int((value - widget.minValue) / (widget.maxValue - widget.minValue) * 100)
       echo "Slider: [", "=".repeat(pct div 10), " ".repeat(10 - pct div 10), "] ", fmt"{value:.1f}"
