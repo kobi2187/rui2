@@ -11,37 +11,37 @@
 
 import types
 import std/algorithm
+import raylib
 
-when defined(useGraphics):
-  import raylib
+# when defined(useGraphics):
 
 # ============================================================================
 # Texture Management Helpers
 # ============================================================================
 
-when defined(useGraphics):
-  proc createWidgetTexture*(widget: Widget): RenderTexture2D =
-    ## Create a render texture for the widget
-    ## Size is based on widget's bounds
-    let width = max(1, widget.bounds.width.int32)
-    let height = max(1, widget.bounds.height.int32)
-    result = loadRenderTexture(width, height)
 
-  proc freeWidgetTexture*(widget: Widget) =
-    ## Free the cached render texture if present
-    if widget.cachedTexture.isSome:
-      unloadRenderTexture(widget.cachedTexture.get())
-      widget.cachedTexture = none(RenderTexture2D)
+proc createWidgetTexture*(widget: Widget): RenderTexture2D =
+  ## Create a render texture for the widget
+  ## Size is based on widget's bounds
+  let width = max(1, widget.bounds.width.int32)
+  let height = max(1, widget.bounds.height.int32)
+  result = loadRenderTexture(width, height)
 
-  proc compositeChildTexture*(child: Widget, offsetX, offsetY: float32) =
-    ## Draw a child's cached texture at its position relative to parent
-    ## Called during parent rendering
-    if child.cachedTexture.isSome and child.visible:
-      let renderTex = child.cachedTexture.get()
-      # Extract the Texture2D from RenderTexture2D for drawing
-      let relX = child.bounds.x - offsetX
-      let relY = child.bounds.y - offsetY
-      drawTexture(renderTex.texture, relX.int32, relY.int32, White)
+proc freeWidgetTexture*(widget: Widget) =
+  ## Free the cached render texture if present
+  if widget.cachedTexture.isSome:
+    raylib.unloadRenderTexture(widget.cachedTexture.get())
+    widget.cachedTexture = none(RenderTexture2D)
+
+proc compositeChildTexture*(child: Widget, offsetX, offsetY: float32) =
+  ## Draw a child's cached texture at its position relative to parent
+  ## Called during parent rendering
+  if child.cachedTexture.isSome and child.visible:
+    let renderTex = child.cachedTexture.get()
+    # Extract the Texture2D from RenderTexture2D for drawing
+    let relX = child.bounds.x - offsetX
+    let relY = child.bounds.y - offsetY
+    drawTexture(renderTex.texture, relX.int32, relY.int32, White)
 
 # ============================================================================
 # Dirty Tracking Helpers
