@@ -20,11 +20,7 @@ definePrimitive(Slider):
     textLeft: string = ""
     textRight: string = ""
     disabled: bool = false
-    # TODO: these should be fetched from the current theme
-    themeProps: ThemeProps = ThemeProps(
-      backgroundColor: some(Color(r: 220, g: 220, b: 220, a: 255)),
-      activeColor: some(Color(r: 100, g: 150, b: 255, a: 255))
-    )
+    intent: ThemeIntent = Default
 
   state:
     value: float32
@@ -48,18 +44,25 @@ definePrimitive(Slider):
 
   render:
     when defined(useGraphics):
+      let state = if widget.disabled: Disabled
+                  elif widget.dragging: Pressed
+                  elif widget.hovered: Hovered
+                  else: Normal
+      let props = currentTheme.getThemeProps(widget.intent, state)
+
       drawSlider(
         widget.bounds,
         widget.value,
         widget.minValue,
         widget.maxValue,
-        widget.themeProps,
+        props,
         widget.dragging
       )
 
       if widget.showValue:
+        let textColor = props.foregroundColor.get(Color(r: 60, g: 60, b: 60, a: 255))
         let rightText = fmt"{widget.value:.1f}"
-        drawText(rightText, widget.bounds.x + widget.bounds.width + 10, widget.bounds.y + (widget.bounds.height - 14) / 2, 14.0, Color(r: 60, g: 60, b: 60, a: 255))
+        drawText(rightText, widget.bounds.x + widget.bounds.width + 10, widget.bounds.y + (widget.bounds.height - 14) / 2, 14.0, textColor)
     else:
       let value = widget.value
       let pct = int((value - widget.minValue) / (widget.maxValue - widget.minValue) * 100)

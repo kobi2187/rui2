@@ -121,28 +121,7 @@ proc renderPass*(widget: Widget) =
   if not widget.visible:
     return
 
-  if widget.isDirty:
-    # Free old cache if present
-    if widget.cachedTexture.isSome:
-      # TODO: Implement texture freeing when we have GPU backend
-      # freeTexture(widget.cachedTexture.get())
-      widget.cachedTexture = none(RenderTexture2D)
-
-    # TODO: Render to texture when we have GPU backend
-    # For now, just call render() directly (immediate mode)
-    widget.render()
-
-    # TODO: Cache the rendered texture
-    # let texture = createTexture(widget.bounds.width, widget.bounds.height)
-    # beginTextureMode(texture)
-    # widget.render()
-    # endTextureMode()
-    # widget.cachedTexture = some(texture)
-
-    widget.isDirty = false
-
-  # Recurse to children
-  # If this widget has overlays, sort children by z-index before rendering
+  # Step 1: Recurse to children first (bottom-up, so their textures are available)
   if widget.hasOverlay and widget.children.len > 1:
     var sortedChildren = widget.children
     sortedChildren.sort(proc(a, b: Widget): int =
@@ -169,9 +148,8 @@ proc renderPass*(widget: Widget) =
       clearBackground(Color(r: 0, g: 0, b: 0, a: 0))  # Transparent background
 
       # Render widget's own content
-      # Note: widget.render() draws at widget.bounds coordinates
+      # widget.render() draws at widget.bounds coordinates
       # We need to draw at (0, 0) in texture space
-      # Save original position, temporarily offset to (0, 0)
       let originalX = widget.bounds.x
       let originalY = widget.bounds.y
       widget.bounds.x = 0
@@ -197,12 +175,11 @@ proc renderPass*(widget: Widget) =
 
       # Store the complete RenderTexture2D in cache
       widget.cachedTexture = some(renderTex)
-
-      widget.isDirty = false
     else:
       # Non-graphics mode: just call render directly
       widget.render()
-      widget.isDirty = false
+
+    widget.isDirty = false
 
 # ============================================================================
 # Main Frame Function

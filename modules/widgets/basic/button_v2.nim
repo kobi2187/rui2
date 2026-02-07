@@ -4,6 +4,7 @@
 ## Responds to mouse clicks
 
 import ../../../core/widget_dsl
+import ../../../drawing_primitives/widget_primitives
 import ../primitives/[rectangle, label]
 import raylib
 import std/[options, json]
@@ -11,9 +12,8 @@ import std/[options, json]
 defineWidget(Button):
   props:
     text: string
-    bgColor: raylib.Color = GRAY
-    textColor: raylib.Color = WHITE
     disabled: bool = false
+    intent: ThemeIntent = Default
 
   state:
     isPressed: bool
@@ -52,36 +52,31 @@ defineWidget(Button):
     # Clear children before recreating (layout is called on every dirty)
     widget.children.setLen(0)
 
-    # Calculate button color based on state
-    var buttonColor = widget.bgColor
-    if widget.disabled:
-      buttonColor = LIGHTGRAY
-    elif widget.isPressed:
-      buttonColor = DARKGRAY
-    elif widget.isHovered:
-      # Lighten color slightly
-      buttonColor = raylib.Color(
-        r: uint8(min(255, int(widget.bgColor.r) + 20)),
-        g: uint8(min(255, int(widget.bgColor.g) + 20)),
-        b: uint8(min(255, int(widget.bgColor.b) + 20)),
-        a: widget.bgColor.a
-      )
+    # Look up theme colors based on widget state
+    let state = if widget.disabled: Disabled
+                elif widget.isPressed: Pressed
+                elif widget.isHovered: Hovered
+                else: Normal
+    let props = currentTheme.getThemeProps(widget.intent, state)
+
+    let buttonColor = props.backgroundColor.get(GRAY)
+    let textColor = props.foregroundColor.get(WHITE)
+    let radius = props.cornerRadius.get(4.0f32)
 
     # Create background rectangle
     let bg = newRectangle(
       color = buttonColor,
-      cornerRadius = 4.0,
+      cornerRadius = radius,
       filled = true
     )
     bg.bounds = widget.bounds
     widget.children.add(bg)
 
     # Create label (centered)
-    # TODO: Properly measure text and center it
     let textLabel = newLabel(
       text = widget.text,
-      fontSize = 14.0,
-      color = if widget.disabled: GRAY else: widget.textColor
+      fontSize = props.fontSize.get(14.0f32),
+      color = textColor
     )
     # Position label in center of button (rough approximation for now)
     textLabel.bounds = Rect(

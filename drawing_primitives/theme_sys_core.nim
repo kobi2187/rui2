@@ -266,6 +266,18 @@ proc getOrCreateProps*(cache: var ThemeCache, theme: Theme,
     cache.cache[key] = theme.getThemeProps(intent, state)
   result = cache.cache[key]
 
+# ============================================================================
+# Global Current Theme
+# ============================================================================
+
+var currentTheme*: Theme = newTheme("Default")
+  ## The active theme used by widgets during rendering.
+  ## Set via app.setTheme() or directly for headless testing.
+
+proc setCurrentTheme*(theme: Theme) =
+  ## Set the global current theme
+  currentTheme = theme
+
 proc makeColor*(r, g, b: int, a: int = 255): Color =
   when defined(useGraphics):
     Color(

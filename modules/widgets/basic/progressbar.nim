@@ -19,11 +19,7 @@ definePrimitive(ProgressBar):
     format: string = "%.0f%%"
     textLeft: string = ""
     disabled: bool = false
-    # TODO: these should be fetched from the current theme
-    themeProps: ThemeProps = ThemeProps(
-      backgroundColor: some(Color(r: 220, g: 220, b: 220, a: 255)),
-      activeColor: some(Color(r: 100, g: 150, b: 255, a: 255))
-    )
+    intent: ThemeIntent = Default
 
   state:
     value: float
@@ -33,13 +29,17 @@ definePrimitive(ProgressBar):
 
   render:
     when defined(useGraphics):
+      let state = if widget.disabled: Disabled else: Normal
+      let props = currentTheme.getThemeProps(widget.intent, state)
+
       let progress = (widget.value / widget.maxValue).float32
-      drawProgressBar(widget.bounds, progress, widget.themeProps)
+      drawProgressBar(widget.bounds, progress, props)
 
       if widget.showText:
+        let textColor = props.foregroundColor.get(Color(r: 60, g: 60, b: 60, a: 255))
         let percent = int((widget.value / widget.maxValue) * 100)
         let displayText = $percent & "%"
-        drawText(displayText, widget.bounds.x + widget.bounds.width / 2, widget.bounds.y + (widget.bounds.height - 14) / 2, 14.0, Color(r: 60, g: 60, b: 60, a: 255), centered = true)
+        drawText(displayText, widget.bounds.x + widget.bounds.width / 2, widget.bounds.y + (widget.bounds.height - 14) / 2, 14.0, textColor, centered = true)
 
       if widget.value >= widget.maxValue:
         if widget.onComplete.isSome:

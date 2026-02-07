@@ -17,15 +17,7 @@ definePrimitive(RadioButton):
     value: string = ""
     selectedValue: string = ""
     disabled: bool = false
-    # TODO: these should be fetched from the current theme
-    themeProps: ThemeProps = ThemeProps(
-      backgroundColor: some(Color(r: 255, g: 255, b: 255, a: 255)),
-      borderColor: some(Color(r: 180, g: 180, b: 180, a: 255)),
-      cornerRadius: some(2.0f32),
-      foregroundColor: some(Color(r: 60, g: 60, b: 60, a: 255)),
-      activeColor: some(Color(r: 100, g: 150, b: 255, a: 255)),
-      focusColor: some(Color(r: 100, g: 150, b: 255, a: 255))
-    )
+    intent: ThemeIntent = Default
 
   actions:
     onChange(value: string)
@@ -41,6 +33,11 @@ definePrimitive(RadioButton):
 
   render:
     when defined(useGraphics):
+      let state = if widget.disabled: Disabled
+                  elif widget.focused: Focused
+                  else: Normal
+      let props = currentTheme.getThemeProps(widget.intent, state)
+
       let isSelected = widget.selectedValue == widget.value
       let radioRect = Rect(
         x: widget.bounds.x,
@@ -48,11 +45,12 @@ definePrimitive(RadioButton):
         width: 20,
         height: 20
       )
-      drawRadioButton(radioRect, isSelected, widget.themeProps)
+      drawRadioButton(radioRect, isSelected, props)
 
+      let textColor = props.foregroundColor.get(Color(r: 60, g: 60, b: 60, a: 255))
       let textX = widget.bounds.x + 25
       let textY = widget.bounds.y + (20 - 14) / 2
-      drawText(widget.text, textX, textY, 14.0, Color(r: 60, g: 60, b: 60, a: 255))
+      drawText(widget.text, textX, textY, 14.0, textColor)
     else:
       let marker = if widget.selectedValue == widget.value: "●" else: "○"
       echo "RadioButton: ", marker, " ", widget.text
