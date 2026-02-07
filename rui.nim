@@ -27,6 +27,22 @@
 ##   let app = newApp("My App", 800, 600)
 ##   app.setRootWidget(buildUI())
 ##   app.run()
+##
+## ## Modular Imports
+##
+## Each subsystem is also available as a standalone module under modules/:
+##
+##   import modules/hit_testing/api       # Interval tree + spatial queries
+##   import modules/event_manager/api     # Time-budgeted event processing
+##   import modules/theme/api             # Theme system (state/intent)
+##   import modules/pango_text/api        # Pango text rendering + caching
+##   import modules/layout/api            # Layout system (HStack, VStack, Grid)
+##   import modules/widget_dsl/api        # defineWidget / definePrimitive macros
+##   import modules/link/api              # Link[T] reactive binding
+##   import modules/widgets/api           # All widgets
+##   import modules/drawing_primitives/api # Drawing subsystem
+##
+## See modules/README.md for full documentation.
 
 # ============================================================================
 # Core Framework - The Essentials

@@ -4,8 +4,8 @@
 ## Supports optional text display with formatting.
 ## Ported from Hummingbird to RUI2's definePrimitive DSL.
 
-import ../../core/widget_dsl
-import ../../drawing_primitives/widget_primitives
+import ../../../core/widget_dsl
+import ../../../drawing_primitives/widget_primitives
 import std/[options, strutils]
 
 when defined(useGraphics):

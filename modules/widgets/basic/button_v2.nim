@@ -3,8 +3,8 @@
 ## Composite widget: Rectangle (background) + Label (text)
 ## Responds to mouse clicks
 
-import ../../core/widget_dsl
-import ../../drawing_primitives/widget_primitives
+import ../../../core/widget_dsl
+import ../../../drawing_primitives/widget_primitives
 import ../primitives/[rectangle, label]
 import raylib
 import std/[options, json]

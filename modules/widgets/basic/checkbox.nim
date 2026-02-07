@@ -3,8 +3,8 @@
 ## A checkbox input widget with a label that can be toggled on/off.
 ## Ported from Hummingbird to RUI2's definePrimitive DSL.
 
-import ../../core/widget_dsl
-import ../../drawing_primitives/widget_primitives
+import ../../../core/widget_dsl
+import ../../../drawing_primitives/widget_primitives
 import std/options
 
 when defined(useGraphics):

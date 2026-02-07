@@ -4,8 +4,8 @@
 ## Supports optional value display and formatting.
 ## Ported from Hummingbird (slider2.nim) to RUI2's definePrimitive DSL.
 
-import ../../core/widget_dsl
-import ../../drawing_primitives/widget_primitives
+import ../../../core/widget_dsl
+import ../../../drawing_primitives/widget_primitives
 import std/[options, strformat, strutils]
 
 when defined(useGraphics):

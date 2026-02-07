@@ -94,7 +94,7 @@ proc newApp*(title = "RUI Application",
     focusManager: newFocusManager(),
     scriptManager: nil,  # Created when scripting is enabled
     hitTestSystem: newHitTestSystem(),
-    currentTheme: newTheme("Default"),
+    currentTheme: newTheme("Default"),  # Also sets global via post-init below
     textCache: TextCache(
       measurements: initTable[MeasurementKey, TextMetrics](),
       textures: initTable[RenderKey, TextureCacheEntry](),
@@ -112,15 +112,20 @@ proc newApp*(title = "RUI Application",
     lastScriptPoll: getMonoTime(),
     shouldClose: false
   )
+  # Set the global currentTheme so widgets can access it during rendering
+  setCurrentTheme(result.currentTheme)
 
 proc setStore*(app: App, store: Store) =
   ## Set the application store
   app.store = store
 
 proc setRootWidget*(app: App, root: Widget) =
-  ## Set the root widget
+  ## Set the root widget and trigger initial layout + render
   app.tree.root = root
+  root.layoutDirty = true
+  root.isDirty = true
   app.tree.anyDirty = true
+  app.tree.isDirty = true
 
 proc enableScripting*(app: App, scriptDir: string) =
   ## Enable scripting system with specified directory
@@ -147,6 +152,7 @@ proc setTheme*(app: App, theme: Theme) =
   ## Change the application theme
   ## This invalidates the text cache since colors/fonts may have changed
   app.currentTheme = theme
+  setCurrentTheme(theme)  # Update global for widget access
   # clearCache(app.textCache)  # Clear cache since theme affects rendering
   app.tree.anyDirty = true   # Trigger re-render
   app.tree.isDirty = true
@@ -305,18 +311,34 @@ proc handleEvent(app: App, event: GuiEvent) =
 
   of evMouseDown:
     # Hit-test to find widget under mouse and request focus
-    # TODO: Build hit-test system in layout pass
-    # let widgets = app.hitTestSystem.findWidgetsAt(event.mousePos.x, event.mousePos.y)
-    # if widgets.len > 0:
-    #   let topWidget = widgets[0]  # Already sorted by z-index
-    #   app.focusManager.requestFocus(topWidget)
-    #   topWidget.handleInput(event)
-    echo "[Event] Mouse down at ", event.mousePos
+    let widget = app.hitTestSystem.getWidgetAt(event.mousePos.x, event.mousePos.y)
+    if widget != nil:
+      app.focusManager.requestFocus(widget)
+      discard widget.handleInput(event)
+      app.tree.anyDirty = true
 
   of evMouseUp:
     # Route to widget under mouse
-    # TODO: Implement with hit-testing
-    echo "[Event] Mouse up at ", event.mousePos
+    let widget = app.hitTestSystem.getWidgetAt(event.mousePos.x, event.mousePos.y)
+    if widget != nil:
+      discard widget.handleInput(event)
+      app.tree.anyDirty = true
+
+  of evMouseMove:
+    # Update hover state: clear old, set new
+    let widget = app.hitTestSystem.getWidgetAt(event.mousePos.x, event.mousePos.y)
+    if widget != nil:
+      if not widget.hovered:
+        widget.hovered = true
+        widget.isDirty = true
+        app.tree.anyDirty = true
+      discard widget.handleInput(event)
+
+  of evMouseWheel:
+    # Route wheel to widget under mouse
+    let widget = app.hitTestSystem.getWidgetAt(event.mousePos.x, event.mousePos.y)
+    if widget != nil:
+      discard widget.handleInput(event)
 
   of evKeyDown, evChar:
     # Route keyboard events through focus manager
@@ -334,11 +356,27 @@ proc handleEvent(app: App, event: GuiEvent) =
 # Layout Pass
 # ============================================================================
 
+proc rebuildHitTestTree(app: App) =
+  ## Rebuild the hit-test system from the current widget tree
+  ## Called after layout pass when widget bounds have been updated
+  app.hitTestSystem.clear()
+  if app.tree.root != nil:
+    proc insertAll(widget: Widget) =
+      if widget.visible:
+        app.hitTestSystem.insertWidget(widget)
+        for child in widget.children:
+          insertAll(child)
+    insertAll(app.tree.root)
+
 proc updateLayoutAndRender(app: App) =
   ## Run layout and render passes if needed
   if app.tree.root != nil:
     # Run the two-pass system from main_loop
     app.tree.root.frame()  # Calls layoutPass() and renderPass()
+
+    # Rebuild hit-test tree after layout (bounds are now up to date)
+    app.rebuildHitTestTree()
+
     app.tree.anyDirty = false
 
 # ============================================================================
