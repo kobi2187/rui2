@@ -1,2 +1,3 @@
 requires "naylib"
+requires "yaml"
 
