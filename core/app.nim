@@ -8,6 +8,7 @@ import ../managers/event_manager_refactored
 import ../managers/focus_manager
 import ../drawing_primitives/primitives/text_cache
 import ../drawing_primitives/theme_sys_core
+import ../drawing_primitives/theme_manager
 import ../scripting/script_manager
 import "../hit-testing/hittest_system"
 export types                      # Export types (re-export what we import)
@@ -15,6 +16,7 @@ export event_manager_refactored   # Export for users to access eventManager
 export focus_manager              # Export focus manager
 export text_cache     # Export text cache types
 export theme_sys_core # Export theme types
+export theme_manager  # Export theme manager
 export script_manager # Export script manager
 export hittest_system # Export hit test system
 when defined(useGraphics):
@@ -42,7 +44,8 @@ type
     currentFocusLayout: Widget       # Internal: layout container with focus
 
     # Theme and rendering
-    currentTheme*: Theme
+    themeManager*: ThemeManager
+    currentTheme*: Theme  # Shortcut, kept in sync by themeManager
     textCache*: TextCache
 
     # Frame timing
@@ -94,7 +97,8 @@ proc newApp*(title = "RUI Application",
     focusManager: newFocusManager(),
     scriptManager: nil,  # Created when scripting is enabled
     hitTestSystem: newHitTestSystem(),
-    currentTheme: newTheme("Default"),  # Also sets global via post-init below
+    themeManager: newThemeManager(),  # Registers built-in themes, sets light as default
+    currentTheme: newTheme("Default"),  # Will be overwritten below
     textCache: TextCache(
       measurements: initTable[MeasurementKey, TextMetrics](),
       textures: initTable[RenderKey, TextureCacheEntry](),
@@ -112,8 +116,8 @@ proc newApp*(title = "RUI Application",
     lastScriptPoll: getMonoTime(),
     shouldClose: false
   )
-  # Set the global currentTheme so widgets can access it during rendering
-  setCurrentTheme(result.currentTheme)
+  # ThemeManager already set "light" as default and updated the global
+  result.currentTheme = result.themeManager.current
 
 proc setStore*(app: App, store: Store) =
   ## Set the application store
@@ -149,17 +153,22 @@ proc disableScripting*(app: App) =
 # ============================================================================
 
 proc setTheme*(app: App, theme: Theme) =
-  ## Change the application theme
-  ## This invalidates the text cache since colors/fonts may have changed
-  app.currentTheme = theme
-  setCurrentTheme(theme)  # Update global for widget access
-  # clearCache(app.textCache)  # Clear cache since theme affects rendering
-  app.tree.anyDirty = true   # Trigger re-render
+  ## Change the application theme by Theme object
+  app.themeManager.setTheme(theme)
+  app.currentTheme = app.themeManager.current
+  app.tree.anyDirty = true
+  app.tree.isDirty = true
+
+proc setTheme*(app: App, name: string) =
+  ## Change the application theme by name (must be registered in themeManager)
+  app.themeManager.setTheme(name)
+  app.currentTheme = app.themeManager.current
+  app.tree.anyDirty = true
   app.tree.isDirty = true
 
 proc getTheme*(app: App): Theme =
   ## Get the current theme
-  app.currentTheme
+  app.themeManager.current
 
 # ============================================================================
 # Current State Accessors (Query Managers)
