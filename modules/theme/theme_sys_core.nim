@@ -144,6 +144,7 @@ type
   # Complete theme definition
   Theme* = object
     name*: string
+    version*: string  # Semantic version (e.g., "1.0.0")
     # Base colors and properties for each intent
     base*: Table[ThemeIntent, ThemeProps]
     # State overrides for each intent
