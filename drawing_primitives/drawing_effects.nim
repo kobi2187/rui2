@@ -624,14 +624,14 @@ proc drawThemedRect*(
   else:
     # Plain rectangle
     if cornerRadius > 0:
-      DrawRectangleRounded(
+      drawRectangleRounded(
         Rectangle(x: bounds.x, y: bounds.y, width: bounds.width, height: bounds.height),
         cornerRadius / min(bounds.width, bounds.height),
         16,
         bgColor
       )
     else:
-      DrawRectangleRec(
+      drawRectangle(
         Rectangle(x: bounds.x, y: bounds.y, width: bounds.width, height: bounds.height),
         bgColor
       )
@@ -639,7 +639,7 @@ proc drawThemedRect*(
   # Draw border if specified
   if props.borderColor.isSome and props.borderWidth.isSome and props.borderWidth.get() > 0:
     if cornerRadius > 0:
-      DrawRectangleRoundedLines(
+      drawRectangleRoundedLines(
         Rectangle(x: bounds.x, y: bounds.y, width: bounds.width, height: bounds.height),
         cornerRadius / min(bounds.width, bounds.height),
         16,
@@ -647,7 +647,7 @@ proc drawThemedRect*(
         props.borderColor.get()
       )
     else:
-      DrawRectangleLinesEx(
+      drawRectangleLines(
         Rectangle(x: bounds.x, y: bounds.y, width: bounds.width, height: bounds.height),
         props.borderWidth.get(),
         props.borderColor.get()

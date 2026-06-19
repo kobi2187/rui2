@@ -400,9 +400,8 @@ when defined(useGraphics):
 
     # Composite root widget's cached texture to screen
     if app.tree.root != nil and app.tree.root.cachedTexture.isSome:
-      let rootTex = app.tree.root.cachedTexture.get()
-      # Draw at root's position (typically 0, 0)
-      drawTexture(rootTex.texture,
+      # Draw at root's position (typically 0, 0); borrow, no copy
+      drawTexture(app.tree.root.cachedTexture.get().texture,
                   app.tree.root.bounds.x.int32,
                   app.tree.root.bounds.y.int32,
                   White)

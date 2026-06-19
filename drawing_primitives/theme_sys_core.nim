@@ -1,18 +1,12 @@
 import std/[options, tables]
 
 import ../core/types
-import drawing_primitives
 import primitives/text  # For TextStyle
 import theme_types  # Shared type definitions (breaks circular dependency)
 
 export theme_types
 
 type
-  GradientDirection* = enum
-    Vertical
-    Horizontal
-    Radial
-
   ShadowLayer* = object
     offsetX*: float32
     offsetY*: float32

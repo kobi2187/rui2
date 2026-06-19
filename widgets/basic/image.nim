@@ -87,7 +87,7 @@ definePrimitive(ImageWidget):
           widget.textureLoaded = true
         else:
           try:
-            let texture = loadTexture(widget.imagePath.cstring)
+            let texture = loadTexture(widget.imagePath)
             if texture.id > 0:
               textureCache[widget.imagePath] = texture
               widget.textureLoaded = true
@@ -98,9 +98,9 @@ definePrimitive(ImageWidget):
 
       # Draw the texture if loaded
       if widget.textureLoaded and widget.imagePath in textureCache:
-        let texture = textureCache[widget.imagePath]
-        let texWidth = float(texture.width)
-        let texHeight = float(texture.height)
+        # Borrow the cached texture (naylib Texture is move-only)
+        let texWidth = float(textureCache[widget.imagePath].width)
+        let texHeight = float(textureCache[widget.imagePath].height)
 
         var destRect: Rectangle
         var sourceRect = Rectangle(x: 0, y: 0, width: texWidth, height: texHeight)
@@ -205,8 +205,8 @@ definePrimitive(ImageWidget):
               )
 
         # Draw the texture
-        drawTexturePro(
-          texture,
+        drawTexture(
+          textureCache[widget.imagePath],
           sourceRect,
           destRect,
           Vector2(x: 0, y: 0),
@@ -226,7 +226,7 @@ definePrimitive(ImageWidget):
 
       elif widget.loadFailed:
         # Failed to load - draw error placeholder
-        DrawRectangle(
+        drawRectangle(
           widget.bounds.x.int32,
           widget.bounds.y.int32,
           widget.bounds.width.int32,
@@ -242,7 +242,7 @@ definePrimitive(ImageWidget):
         )
         let centerX = widget.bounds.x + widget.bounds.width / 2 - 30
         let centerY = widget.bounds.y + widget.bounds.height / 2 - 10
-        drawText("Load Failed".cstring, centerX.int32, centerY.int32, 16, RED)
+        drawText("Load Failed", centerX.int32, centerY.int32, 16, RED)
     else:
       # Non-graphics mode fallback
       if widget.imagePath.len > 0:

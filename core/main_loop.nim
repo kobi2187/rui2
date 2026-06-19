@@ -28,20 +28,19 @@ proc createWidgetTexture*(widget: Widget): RenderTexture2D =
   result = loadRenderTexture(width, height)
 
 proc freeWidgetTexture*(widget: Widget) =
-  ## Free the cached render texture if present
+  ## Free the cached render texture if present.
+  ## Resetting the Option destroys the held RenderTexture (naylib RAII).
   if widget.cachedTexture.isSome:
-    raylib.unloadRenderTexture(widget.cachedTexture.get())
     widget.cachedTexture = none(RenderTexture2D)
 
 proc compositeChildTexture*(child: Widget, offsetX, offsetY: float32) =
   ## Draw a child's cached texture at its position relative to parent
   ## Called during parent rendering
   if child.cachedTexture.isSome and child.visible:
-    let renderTex = child.cachedTexture.get()
-    # Extract the Texture2D from RenderTexture2D for drawing
+    # Extract the Texture2D from RenderTexture2D for drawing (borrow, no copy)
     let relX = child.bounds.x - offsetX
     let relY = child.bounds.y - offsetY
-    drawTexture(renderTex.texture, relX.int32, relY.int32, White)
+    drawTexture(child.cachedTexture.get().texture, relX.int32, relY.int32, White)
 
 # ============================================================================
 # Dirty Tracking Helpers
@@ -136,48 +135,43 @@ proc renderPass*(widget: Widget) =
 
   # Step 2: Render this widget if dirty
   if widget.isDirty:
-    when defined(useGraphics):
-      # Free old cached texture
-      freeWidgetTexture(widget)
+    # Free old cached texture
+    freeWidgetTexture(widget)
 
-      # Create render target for this widget
-      let renderTex = createWidgetTexture(widget)
+    # Create render target for this widget
+    let renderTex = createWidgetTexture(widget)
 
-      # Begin rendering to texture
-      beginTextureMode(renderTex)
-      clearBackground(Color(r: 0, g: 0, b: 0, a: 0))  # Transparent background
+    # Begin rendering to texture
+    beginTextureMode(renderTex)
+    clearBackground(Color(r: 0, g: 0, b: 0, a: 0))  # Transparent background
 
-      # Render widget's own content
-      # widget.render() draws at widget.bounds coordinates
-      # We need to draw at (0, 0) in texture space
-      let originalX = widget.bounds.x
-      let originalY = widget.bounds.y
-      widget.bounds.x = 0
-      widget.bounds.y = 0
+    # Render widget's own content
+    # widget.render() draws at widget.bounds coordinates
+    # We need to draw at (0, 0) in texture space
+    let originalX = widget.bounds.x
+    let originalY = widget.bounds.y
+    widget.bounds.x = 0
+    widget.bounds.y = 0
 
-      widget.render()
+    widget.render()
 
-      # Restore original position
-      widget.bounds.x = originalX
-      widget.bounds.y = originalY
+    # Restore original position
+    widget.bounds.x = originalX
+    widget.bounds.y = originalY
 
-      # Composite children's cached textures into this widget's texture
-      for child in widget.children:
-        if child.visible and child.cachedTexture.isSome:
-          let childRenderTex = child.cachedTexture.get()
-          # Draw at child's relative position (relative to parent)
-          let relX = child.bounds.x - originalX
-          let relY = child.bounds.y - originalY
-          drawTexture(childRenderTex.texture, relX.int32, relY.int32, White)
+    # Composite children's cached textures into this widget's texture (borrow, no copy)
+    for child in widget.children:
+      if child.visible and child.cachedTexture.isSome:
+        # Draw at child's relative position (relative to parent)
+        let relX = child.bounds.x - originalX
+        let relY = child.bounds.y - originalY
+        drawTexture(child.cachedTexture.get().texture, relX.int32, relY.int32, White)
 
-      # End texture mode
-      endTextureMode()
+    # End texture mode
+    endTextureMode()
 
-      # Store the complete RenderTexture2D in cache
-      widget.cachedTexture = some(renderTex)
-    else:
-      # Non-graphics mode: just call render directly
-      widget.render()
+    # Store the complete RenderTexture2D in cache
+    widget.cachedTexture = some(renderTex)
 
     widget.isDirty = false
 

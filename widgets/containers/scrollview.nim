@@ -86,7 +86,7 @@ defineWidget(ScrollView):
   render:
     when defined(useGraphics):
       # Draw background
-      DrawRectangleRec(
+      drawRectangle(
         Rectangle(
           x: widget.bounds.x,
           y: widget.bounds.y,
@@ -118,7 +118,8 @@ defineWidget(ScrollView):
         viewportRect.height -= widget.scrollbarWidth
 
       # Begin scissor mode to clip children to viewport
-      beginScissorMode(viewportRect)
+      beginScissorMode(viewportRect.x.int32, viewportRect.y.int32,
+                       viewportRect.width.int32, viewportRect.height.int32)
 
       # Render children (they're already positioned with scroll offset in layout)
       for child in widget.children:
@@ -138,7 +139,7 @@ defineWidget(ScrollView):
                                 viewportHeight
 
         # Draw scrollbar track
-        DrawRectangleRec(
+        drawRectangle(
           Rectangle(
             x: scrollbarX,
             y: scrollbarY,
@@ -160,7 +161,7 @@ defineWidget(ScrollView):
         let thumbY = scrollbarY + scrollRatio * (scrollbarHeight - thumbHeight)
 
         # Draw thumb
-        DrawRectangleRec(
+        drawRectangle(
           Rectangle(
             x: scrollbarX + 2,
             y: thumbY,
@@ -185,7 +186,7 @@ defineWidget(ScrollView):
                                viewportWidth
 
         # Draw scrollbar track
-        DrawRectangleRec(
+        drawRectangle(
           Rectangle(
             x: scrollbarX,
             y: scrollbarY,
@@ -207,7 +208,7 @@ defineWidget(ScrollView):
         let thumbX = scrollbarX + scrollRatio * (scrollbarWidth - thumbWidth)
 
         # Draw thumb
-        DrawRectangleRec(
+        drawRectangle(
           Rectangle(
             x: thumbX,
             y: scrollbarY + 2,
@@ -223,7 +224,7 @@ defineWidget(ScrollView):
         )
 
       # Draw border around viewport
-      DrawRectangleLinesEx(
+      drawRectangleLines(
         Rectangle(
           x: widget.bounds.x,
           y: widget.bounds.y,
