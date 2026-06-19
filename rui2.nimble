@@ -1,3 +1,0 @@
-requires "naylib"
-requires "yaml"
-
