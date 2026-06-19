@@ -303,13 +303,6 @@ macro defineWidget*(name: untyped, body: untyped): untyped =
 # Utilities
 # ============================================================================
 
-var widgetIdCounter {.compileTime.} = 0
-
-proc newWidgetId*(): WidgetId =
-  ## Generate unique widget ID
-  result = WidgetId(widgetIdCounter)
-  inc widgetIdCounter
-
 proc addChild*(parent: Widget, child: Widget) =
   ## Add child widget to parent
   parent.children.add(child)
