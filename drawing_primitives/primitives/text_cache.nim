@@ -155,13 +155,11 @@ proc findOldestEntry*(cache: TextCache): tuple[key: RenderKey, found: bool] =
 
 proc freeTexture*(texture: raylib.Texture2D) =
   ## Free a texture using the real raylib function
-  when defined(useGraphics):
-    {.emit: "UnloadTexture(`texture`);".}
+  {.emit: "UnloadTexture(`texture`);".}
 
 proc unloadTexture*(cache: var TextCache, entry: TextureCacheEntry) =
   ## Unload texture from memory
-  when defined(useGraphics):
-    freeTexture(entry.texture)
+  freeTexture(entry.texture)
   cache.currentMemoryBytes -= entry.memoryBytes
 
 proc removeEntry*(cache: var TextCache, key: RenderKey) =
@@ -205,9 +203,8 @@ proc evictIfNeeded*(cache: var TextCache, newEntryBytes: int) =
 
 proc unloadAllTextures*(cache: var TextCache) =
   ## Unload all cached textures
-  when defined(useGraphics):
-    for entry in cache.textures.values:
-      freeTexture(entry.texture)
+  for entry in cache.textures.values:
+    freeTexture(entry.texture)
 
 proc resetCounters*(cache: var TextCache) =
   ## Reset all cache counters
@@ -317,19 +314,18 @@ proc getCachedTexture*(key: RenderKey, cache: var TextCache): Option[raylib.Text
 
 proc cacheTexture*(key: RenderKey, texture: raylib.Texture2D, cache: var TextCache) =
   ## Cache a rendered texture
-  when defined(useGraphics):
-    let memoryBytes = texture.width * texture.height * 4  # RGBA
+  let memoryBytes = texture.width * texture.height * 4  # RGBA
 
-    # Evict if needed
-    cache.evictIfNeeded(memoryBytes)
+  # Evict if needed
+  cache.evictIfNeeded(memoryBytes)
 
-    # Add to cache
-    cache.textures[key] = TextureCacheEntry(
-      texture: texture,
-      lastUsed: stdtimes.getTime(),
-      memoryBytes: memoryBytes
-    )
-    cache.currentMemoryBytes += memoryBytes
+  # Add to cache
+  cache.textures[key] = TextureCacheEntry(
+    texture: texture,
+    lastUsed: stdtimes.getTime(),
+    memoryBytes: memoryBytes
+  )
+  cache.currentMemoryBytes += memoryBytes
 
 # ============================================================================
 # Cache Statistics

@@ -8,8 +8,7 @@ import ../../core/widget_dsl
 import ../../drawing_primitives/widget_primitives
 import std/options
 
-when defined(useGraphics):
-  import raylib
+import raylib
 
 definePrimitive(RadioButton):
   props:
@@ -32,25 +31,21 @@ definePrimitive(RadioButton):
       return false
 
   render:
-    when defined(useGraphics):
-      let state = if widget.disabled: Disabled
-                  elif widget.focused: Focused
-                  else: Normal
-      let props = currentTheme.getThemeProps(widget.intent, state)
+    let state = if widget.disabled: Disabled
+                elif widget.focused: Focused
+                else: Normal
+    let props = currentTheme.getThemeProps(widget.intent, state)
 
-      let isSelected = widget.selectedValue == widget.value
-      let radioRect = Rect(
-        x: widget.bounds.x,
-        y: widget.bounds.y,
-        width: 20,
-        height: 20
-      )
-      drawRadioButton(radioRect, isSelected, props)
+    let isSelected = widget.selectedValue == widget.value
+    let radioRect = Rect(
+      x: widget.bounds.x,
+      y: widget.bounds.y,
+      width: 20,
+      height: 20
+    )
+    drawRadioButton(radioRect, isSelected, props)
 
-      let textColor = props.foregroundColor.get(Color(r: 60, g: 60, b: 60, a: 255))
-      let textX = widget.bounds.x + 25
-      let textY = widget.bounds.y + (20 - 14) / 2
-      drawText(widget.text, textX, textY, 14.0, textColor)
-    else:
-      let marker = if widget.selectedValue == widget.value: "●" else: "○"
-      echo "RadioButton: ", marker, " ", widget.text
+    let textColor = props.foregroundColor.get(Color(r: 60, g: 60, b: 60, a: 255))
+    let textX = widget.bounds.x + 25
+    let textY = widget.bounds.y + (20 - 14) / 2
+    drawText(widget.text, textX, textY, 14.0, textColor)

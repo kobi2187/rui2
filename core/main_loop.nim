@@ -13,7 +13,6 @@ import types
 import std/algorithm
 import raylib
 
-# when defined(useGraphics):
 
 # ============================================================================
 # Texture Management Helpers

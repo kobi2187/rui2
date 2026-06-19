@@ -274,12 +274,9 @@ proc setCurrentTheme*(theme: Theme) =
   currentTheme = theme
 
 proc makeColor*(r, g, b: int, a: int = 255): Color =
-  when defined(useGraphics):
-    Color(
-      r: uint8(r),
-      g: uint8(g),
-      b: uint8(b),
-      a: uint8(a)
-    )
-  else:
-    Color()
+  Color(
+    r: uint8(r),
+    g: uint8(g),
+    b: uint8(b),
+    a: uint8(a)
+  )

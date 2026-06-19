@@ -14,8 +14,7 @@
 import ../core/types
 import std/[options, tables]
 
-when defined(useGraphics):
-  import raylib
+import raylib
 
 type
   FocusManager* = ref object
@@ -35,41 +34,31 @@ type
 
 proc newFocusManager*(): FocusManager =
   ## Create a new focus manager with default Tab/Shift+Tab navigation
-  when defined(useGraphics):
-    result = FocusManager(
-      focusedWidget: nil,
-      focusChain: @[],
-      focusChainDirty: true,
-      focusableWidgets: initTable[WidgetId, Widget](),
-      nextFocusKeys: @[Tab],
-      prevFocusKeys: @[],
-      prevFocusModifiers: @[LeftShift, RightShift]
-    )
-  else:
-    result = FocusManager(
-      focusedWidget: nil,
-      focusChain: @[],
-      focusChainDirty: true,
-      focusableWidgets: initTable[WidgetId, Widget]()
-    )
-
+  result = FocusManager(
+    focusedWidget: nil,
+    focusChain: @[],
+    focusChainDirty: true,
+    focusableWidgets: initTable[WidgetId, Widget](),
+    nextFocusKeys: @[Tab],
+    prevFocusKeys: @[],
+    prevFocusModifiers: @[LeftShift, RightShift]
+  )
 # ============================================================================
 # Configuration
 # ============================================================================
 
-when defined(useGraphics):
-  proc setNavigationKeys*(fm: FocusManager,
-                         nextKeys: seq[KeyboardKey],
-                         prevKeys: seq[KeyboardKey] = @[],
-                         prevModifiers: seq[KeyboardKey] = @[]) =
-    ## Configure which keys trigger focus navigation
-    ## Examples:
-    ##   fm.setNavigationKeys(@[Tab], @[], @[LeftShift, RightShift])  # Tab/Shift+Tab
-    ##   fm.setNavigationKeys(@[Down], @[Up])                         # Up/Down arrows
-    ##   fm.setNavigationKeys(@[J], @[K])                             # Vim-style j/k
-    fm.nextFocusKeys = nextKeys
-    fm.prevFocusKeys = prevKeys
-    fm.prevFocusModifiers = prevModifiers
+proc setNavigationKeys*(fm: FocusManager,
+                       nextKeys: seq[KeyboardKey],
+                       prevKeys: seq[KeyboardKey] = @[],
+                       prevModifiers: seq[KeyboardKey] = @[]) =
+  ## Configure which keys trigger focus navigation
+  ## Examples:
+  ##   fm.setNavigationKeys(@[Tab], @[], @[LeftShift, RightShift])  # Tab/Shift+Tab
+  ##   fm.setNavigationKeys(@[Down], @[Up])                         # Up/Down arrows
+  ##   fm.setNavigationKeys(@[J], @[K])                             # Vim-style j/k
+  fm.nextFocusKeys = nextKeys
+  fm.prevFocusKeys = prevKeys
+  fm.prevFocusModifiers = prevModifiers
 
 # ============================================================================
 # Focus Chain Building
@@ -233,27 +222,26 @@ proc handleKeyboardEvent*(fm: FocusManager, event: GuiEvent, rootWidget: Widget)
   ## Returns true if event was handled
 
   # Handle focus navigation keys
-  when defined(useGraphics):
-    if event.kind == evKeyDown:
-      # Check if this is a next-focus key
-      if event.key in fm.nextFocusKeys:
-        # Check if modifiers pressed (for prev focus)
-        var modifierPressed = false
-        for modifier in fm.prevFocusModifiers:
-          if isKeyDown(modifier):
-            modifierPressed = true
-            break
+  if event.kind == evKeyDown:
+    # Check if this is a next-focus key
+    if event.key in fm.nextFocusKeys:
+      # Check if modifiers pressed (for prev focus)
+      var modifierPressed = false
+      for modifier in fm.prevFocusModifiers:
+        if isKeyDown(modifier):
+          modifierPressed = true
+          break
 
-        if modifierPressed:
-          fm.prevFocus(rootWidget)
-        else:
-          fm.nextFocus(rootWidget)
-        return true
-
-      # Check if this is a prev-focus key (without modifiers)
-      if event.key in fm.prevFocusKeys:
+      if modifierPressed:
         fm.prevFocus(rootWidget)
-        return true
+      else:
+        fm.nextFocus(rootWidget)
+      return true
+
+    # Check if this is a prev-focus key (without modifiers)
+    if event.key in fm.prevFocusKeys:
+      fm.prevFocus(rootWidget)
+      return true
 
   # Route other keyboard events to focused widget
   if fm.focusedWidget != nil:

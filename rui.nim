@@ -117,9 +117,8 @@ export containers
 # Graphics Backend (Raylib)
 # ============================================================================
 
-when defined(useGraphics):
-  import raylib
-  export raylib
+import raylib
+export raylib
 
 # ============================================================================
 # Version Info
@@ -140,17 +139,10 @@ proc ruiVersionString*(): string =
 # App Lifecycle Helper
 # ============================================================================
 
-when defined(useGraphics):
-  proc start*(application: App) =
-    ## Start the application main loop
-    ## Alias for app.run() for cleaner API
-    application.run()
-else:
-  proc start*(application: App, frames: int = -1) =
-    ## Start the application main loop (headless mode)
-    ## Alias for app.runHeadless() for cleaner API
-    application.runHeadless(frames)
-
+proc start*(application: App) =
+  ## Start the application main loop
+  ## Alias for app.run() for cleaner API
+  application.run()
 # ============================================================================
 # Usage Example (documentation)
 # ============================================================================

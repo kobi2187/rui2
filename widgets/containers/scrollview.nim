@@ -9,8 +9,7 @@
 import ../../core/widget_dsl
 import ../../drawing_primitives/drawing_effects
 
-when defined(useGraphics):
-  import raylib
+import raylib
 
 defineWidget(ScrollView):
   props:
@@ -84,153 +83,152 @@ defineWidget(ScrollView):
       return true  # Event handled
 
   render:
-    when defined(useGraphics):
-      # Draw background
+    # Draw background
+    drawRectangle(
+      Rectangle(
+        x: widget.bounds.x,
+        y: widget.bounds.y,
+        width: widget.bounds.width,
+        height: widget.bounds.height
+      ),
+      Color(r: 245, g: 245, b: 245, a: 255)  # Light gray background
+    )
+
+    # Determine which scrollbars to show
+    let viewportWidth = widget.bounds.width - (widget.padding * 2)
+    let viewportHeight = widget.bounds.height - (widget.padding * 2)
+
+    let needsVerticalScrollbar = widget.contentHeight > viewportHeight
+    let needsHorizontalScrollbar = widget.contentWidth > viewportWidth
+
+    # Calculate viewport rectangle (for clipping)
+    var viewportRect = Rect(
+      x: widget.bounds.x + widget.padding,
+      y: widget.bounds.y + widget.padding,
+      width: viewportWidth,
+      height: viewportHeight
+    )
+
+    # Adjust viewport if scrollbars are present
+    if needsVerticalScrollbar:
+      viewportRect.width -= widget.scrollbarWidth
+    if needsHorizontalScrollbar:
+      viewportRect.height -= widget.scrollbarWidth
+
+    # Begin scissor mode to clip children to viewport
+    beginScissorMode(viewportRect.x.int32, viewportRect.y.int32,
+                     viewportRect.width.int32, viewportRect.height.int32)
+
+    # Render children (they're already positioned with scroll offset in layout)
+    for child in widget.children:
+      if child.visible:
+        child.render()
+
+    # End scissor mode
+    endScissorMode()
+
+    # Draw vertical scrollbar if needed
+    if needsVerticalScrollbar:
+      let scrollbarX = widget.bounds.x + widget.bounds.width - widget.scrollbarWidth
+      let scrollbarY = widget.bounds.y + widget.padding
+      let scrollbarHeight = if needsHorizontalScrollbar:
+                              viewportHeight - widget.scrollbarWidth
+                            else:
+                              viewportHeight
+
+      # Draw scrollbar track
       drawRectangle(
         Rectangle(
-          x: widget.bounds.x,
-          y: widget.bounds.y,
-          width: widget.bounds.width,
-          height: widget.bounds.height
+          x: scrollbarX,
+          y: scrollbarY,
+          width: widget.scrollbarWidth,
+          height: scrollbarHeight
         ),
-        Color(r: 245, g: 245, b: 245, a: 255)  # Light gray background
+        Color(r: 220, g: 220, b: 220, a: 255)  # Track color
       )
 
-      # Determine which scrollbars to show
-      let viewportWidth = widget.bounds.width - (widget.padding * 2)
-      let viewportHeight = widget.bounds.height - (widget.padding * 2)
+      # Calculate thumb size and position
+      let thumbRatio = viewportRect.height / widget.contentHeight
+      let thumbHeight = max(20.0f, scrollbarHeight * thumbRatio)
 
-      let needsVerticalScrollbar = widget.contentHeight > viewportHeight
-      let needsHorizontalScrollbar = widget.contentWidth > viewportWidth
+      let scrollRatio = if widget.contentHeight > viewportRect.height:
+                          widget.scrollOffsetY / (widget.contentHeight - viewportRect.height)
+                        else:
+                          0.0f
 
-      # Calculate viewport rectangle (for clipping)
-      var viewportRect = Rect(
-        x: widget.bounds.x + widget.padding,
-        y: widget.bounds.y + widget.padding,
-        width: viewportWidth,
-        height: viewportHeight
-      )
+      let thumbY = scrollbarY + scrollRatio * (scrollbarHeight - thumbHeight)
 
-      # Adjust viewport if scrollbars are present
-      if needsVerticalScrollbar:
-        viewportRect.width -= widget.scrollbarWidth
-      if needsHorizontalScrollbar:
-        viewportRect.height -= widget.scrollbarWidth
-
-      # Begin scissor mode to clip children to viewport
-      beginScissorMode(viewportRect.x.int32, viewportRect.y.int32,
-                       viewportRect.width.int32, viewportRect.height.int32)
-
-      # Render children (they're already positioned with scroll offset in layout)
-      for child in widget.children:
-        if child.visible:
-          child.render()
-
-      # End scissor mode
-      endScissorMode()
-
-      # Draw vertical scrollbar if needed
-      if needsVerticalScrollbar:
-        let scrollbarX = widget.bounds.x + widget.bounds.width - widget.scrollbarWidth
-        let scrollbarY = widget.bounds.y + widget.padding
-        let scrollbarHeight = if needsHorizontalScrollbar:
-                                viewportHeight - widget.scrollbarWidth
-                              else:
-                                viewportHeight
-
-        # Draw scrollbar track
-        drawRectangle(
-          Rectangle(
-            x: scrollbarX,
-            y: scrollbarY,
-            width: widget.scrollbarWidth,
-            height: scrollbarHeight
-          ),
-          Color(r: 220, g: 220, b: 220, a: 255)  # Track color
-        )
-
-        # Calculate thumb size and position
-        let thumbRatio = viewportRect.height / widget.contentHeight
-        let thumbHeight = max(20.0f, scrollbarHeight * thumbRatio)
-
-        let scrollRatio = if widget.contentHeight > viewportRect.height:
-                            widget.scrollOffsetY / (widget.contentHeight - viewportRect.height)
-                          else:
-                            0.0f
-
-        let thumbY = scrollbarY + scrollRatio * (scrollbarHeight - thumbHeight)
-
-        # Draw thumb
-        drawRectangle(
-          Rectangle(
-            x: scrollbarX + 2,
-            y: thumbY,
-            width: widget.scrollbarWidth - 4,
-            height: thumbHeight
-          ),
-          Color(
-            r: widget.scrollbarColor.r,
-            g: widget.scrollbarColor.g,
-            b: widget.scrollbarColor.b,
-            a: widget.scrollbarColor.a
-          )
-        )
-
-      # Draw horizontal scrollbar if needed
-      if needsHorizontalScrollbar:
-        let scrollbarX = widget.bounds.x + widget.padding
-        let scrollbarY = widget.bounds.y + widget.bounds.height - widget.scrollbarWidth
-        let scrollbarWidth = if needsVerticalScrollbar:
-                               viewportWidth - widget.scrollbarWidth
-                             else:
-                               viewportWidth
-
-        # Draw scrollbar track
-        drawRectangle(
-          Rectangle(
-            x: scrollbarX,
-            y: scrollbarY,
-            width: scrollbarWidth,
-            height: widget.scrollbarWidth
-          ),
-          Color(r: 220, g: 220, b: 220, a: 255)  # Track color
-        )
-
-        # Calculate thumb size and position
-        let thumbRatio = viewportRect.width / widget.contentWidth
-        let thumbWidth = max(20.0f, scrollbarWidth * thumbRatio)
-
-        let scrollRatio = if widget.contentWidth > viewportRect.width:
-                            widget.scrollOffsetX / (widget.contentWidth - viewportRect.width)
-                          else:
-                            0.0f
-
-        let thumbX = scrollbarX + scrollRatio * (scrollbarWidth - thumbWidth)
-
-        # Draw thumb
-        drawRectangle(
-          Rectangle(
-            x: thumbX,
-            y: scrollbarY + 2,
-            width: thumbWidth,
-            height: widget.scrollbarWidth - 4
-          ),
-          Color(
-            r: widget.scrollbarColor.r,
-            g: widget.scrollbarColor.g,
-            b: widget.scrollbarColor.b,
-            a: widget.scrollbarColor.a
-          )
-        )
-
-      # Draw border around viewport
-      drawRectangleLines(
+      # Draw thumb
+      drawRectangle(
         Rectangle(
-          x: widget.bounds.x,
-          y: widget.bounds.y,
-          width: widget.bounds.width,
-          height: widget.bounds.height
+          x: scrollbarX + 2,
+          y: thumbY,
+          width: widget.scrollbarWidth - 4,
+          height: thumbHeight
         ),
-        1.0,
-        Color(r: 180, g: 180, b: 180, a: 255)
+        Color(
+          r: widget.scrollbarColor.r,
+          g: widget.scrollbarColor.g,
+          b: widget.scrollbarColor.b,
+          a: widget.scrollbarColor.a
+        )
       )
+
+    # Draw horizontal scrollbar if needed
+    if needsHorizontalScrollbar:
+      let scrollbarX = widget.bounds.x + widget.padding
+      let scrollbarY = widget.bounds.y + widget.bounds.height - widget.scrollbarWidth
+      let scrollbarWidth = if needsVerticalScrollbar:
+                             viewportWidth - widget.scrollbarWidth
+                           else:
+                             viewportWidth
+
+      # Draw scrollbar track
+      drawRectangle(
+        Rectangle(
+          x: scrollbarX,
+          y: scrollbarY,
+          width: scrollbarWidth,
+          height: widget.scrollbarWidth
+        ),
+        Color(r: 220, g: 220, b: 220, a: 255)  # Track color
+      )
+
+      # Calculate thumb size and position
+      let thumbRatio = viewportRect.width / widget.contentWidth
+      let thumbWidth = max(20.0f, scrollbarWidth * thumbRatio)
+
+      let scrollRatio = if widget.contentWidth > viewportRect.width:
+                          widget.scrollOffsetX / (widget.contentWidth - viewportRect.width)
+                        else:
+                          0.0f
+
+      let thumbX = scrollbarX + scrollRatio * (scrollbarWidth - thumbWidth)
+
+      # Draw thumb
+      drawRectangle(
+        Rectangle(
+          x: thumbX,
+          y: scrollbarY + 2,
+          width: thumbWidth,
+          height: widget.scrollbarWidth - 4
+        ),
+        Color(
+          r: widget.scrollbarColor.r,
+          g: widget.scrollbarColor.g,
+          b: widget.scrollbarColor.b,
+          a: widget.scrollbarColor.a
+        )
+      )
+
+    # Draw border around viewport
+    drawRectangleLines(
+      Rectangle(
+        x: widget.bounds.x,
+        y: widget.bounds.y,
+        width: widget.bounds.width,
+        height: widget.bounds.height
+      ),
+      1.0,
+      Color(r: 180, g: 180, b: 180, a: 255)
+    )

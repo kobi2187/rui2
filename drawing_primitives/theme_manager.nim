@@ -126,28 +126,21 @@ proc parseColor(val: string): Color =
   if s.startsWith("rgb"):
     let inner = s.replace("rgb(", "").replace("rgba(", "").replace(")", "").strip()
     let parts = inner.split(",")
-    when defined(useGraphics):
-      if parts.len >= 3:
-        return Color(
-          r: uint8(parseInt(parts[0].strip())),
-          g: uint8(parseInt(parts[1].strip())),
-          b: uint8(parseInt(parts[2].strip())),
-          a: uint8(if parts.len == 4: parseInt(parts[3].strip()) else: 255))
-    else:
-      return Color()
+    if parts.len >= 3:
+      return Color(
+        r: uint8(parseInt(parts[0].strip())),
+        g: uint8(parseInt(parts[1].strip())),
+        b: uint8(parseInt(parts[2].strip())),
+        a: uint8(if parts.len == 4: parseInt(parts[3].strip()) else: 255))
   else:
     if s.startsWith("#"): s = s[1..^1]
-    when defined(useGraphics):
-      var r, g, b, a: int
-      if s.len >= 6:
-        discard parseHex(s[0..1], r)
-        discard parseHex(s[2..3], g)
-        discard parseHex(s[4..5], b)
-        a = if s.len == 8: (discard parseHex(s[6..7], a); a) else: 255
-        return Color(r: uint8(r), g: uint8(g), b: uint8(b), a: uint8(a))
-    else:
-      return Color()
-
+    var r, g, b, a: int
+    if s.len >= 6:
+      discard parseHex(s[0..1], r)
+      discard parseHex(s[2..3], g)
+      discard parseHex(s[4..5], b)
+      a = if s.len == 8: (discard parseHex(s[6..7], a); a) else: 255
+      return Color(r: uint8(r), g: uint8(g), b: uint8(b), a: uint8(a))
 proc optColor(s: Option[string]): Option[Color] =
   if s.isSome: some(parseColor(s.get())) else: none(Color)
 

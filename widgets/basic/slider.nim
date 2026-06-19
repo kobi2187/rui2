@@ -8,8 +8,7 @@ import ../../core/widget_dsl
 import ../../drawing_primitives/widget_primitives
 import std/[options, strformat, strutils]
 
-when defined(useGraphics):
-  import raylib
+import raylib
 
 definePrimitive(Slider):
   props:
@@ -43,27 +42,22 @@ definePrimitive(Slider):
       return false
 
   render:
-    when defined(useGraphics):
-      let state = if widget.disabled: Disabled
-                  elif widget.dragging: Pressed
-                  elif widget.hovered: Hovered
-                  else: Normal
-      let props = currentTheme.getThemeProps(widget.intent, state)
+    let state = if widget.disabled: Disabled
+                elif widget.dragging: Pressed
+                elif widget.hovered: Hovered
+                else: Normal
+    let props = currentTheme.getThemeProps(widget.intent, state)
 
-      drawSlider(
-        widget.bounds,
-        widget.value,
-        widget.minValue,
-        widget.maxValue,
-        props,
-        widget.dragging
-      )
+    drawSlider(
+      widget.bounds,
+      widget.value,
+      widget.minValue,
+      widget.maxValue,
+      props,
+      widget.dragging
+    )
 
-      if widget.showValue:
-        let textColor = props.foregroundColor.get(Color(r: 60, g: 60, b: 60, a: 255))
-        let rightText = fmt"{widget.value:.1f}"
-        drawText(rightText, widget.bounds.x + widget.bounds.width + 10, widget.bounds.y + (widget.bounds.height - 14) / 2, 14.0, textColor)
-    else:
-      let value = widget.value
-      let pct = int((value - widget.minValue) / (widget.maxValue - widget.minValue) * 100)
-      echo "Slider: [", "=".repeat(pct div 10), " ".repeat(10 - pct div 10), "] ", fmt"{value:.1f}"
+    if widget.showValue:
+      let textColor = props.foregroundColor.get(Color(r: 60, g: 60, b: 60, a: 255))
+      let rightText = fmt"{widget.value:.1f}"
+      drawText(rightText, widget.bounds.x + widget.bounds.width + 10, widget.bounds.y + (widget.bounds.height - 14) / 2, 14.0, textColor)
