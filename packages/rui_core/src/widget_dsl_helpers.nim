@@ -201,7 +201,7 @@ proc genActionField*(action: ActionDef): NimNode =
     # Simple: proc()
     procType = nnkProcTy.newTree(
       nnkFormalParams.newTree(newEmptyNode()),
-      newEmptyNode()
+      nnkPragma.newTree(ident("closure"))
     )
   else:
     # With params/return: proc(x: T, y: U): R
@@ -210,7 +210,7 @@ proc genActionField*(action: ActionDef): NimNode =
       formalParams.add(
         nnkIdentDefs.newTree(ident(param.name), param.typ, newEmptyNode())
       )
-    procType = nnkProcTy.newTree(formalParams, newEmptyNode())
+    procType = nnkProcTy.newTree(formalParams, nnkPragma.newTree(ident("closure")))
 
   let optionType = nnkBracketExpr.newTree(ident("Option"), procType)
   nnkIdentDefs.newTree(ident(action.name), optionType, newEmptyNode())
@@ -247,7 +247,7 @@ proc genActionParam*(action: ActionDef): NimNode =
   if action.params.len == 0 and action.returnType.strVal == "void":
     procType = nnkProcTy.newTree(
       nnkFormalParams.newTree(newEmptyNode()),
-      newEmptyNode()
+      nnkPragma.newTree(ident("closure"))
     )
   else:
     var formalParams = nnkFormalParams.newTree(action.returnType)
@@ -255,7 +255,7 @@ proc genActionParam*(action: ActionDef): NimNode =
       formalParams.add(
         nnkIdentDefs.newTree(ident(param.name), param.typ, newEmptyNode())
       )
-    procType = nnkProcTy.newTree(formalParams, newEmptyNode())
+    procType = nnkProcTy.newTree(formalParams, nnkPragma.newTree(ident("closure")))
 
   let optionType = nnkBracketExpr.newTree(ident("Option"), procType)
   # Default to none[ProcType]()
