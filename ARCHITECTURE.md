@@ -1,1167 +1,543 @@
-# RUI Architecture
+# RUI2 Architecture
 
-This document describes the technical architecture of the RUI framework, including module organization, data flow, algorithms, and implementation patterns.
+Technical reference for the RUI2 framework: design philosophy, the layout/render
+pipeline, the widget DSL, reactivity, theming, the manager subsystems, and the
+target package graph.
 
-## Table of Contents
+This document describes the design as it is actually implemented, plus clearly
+labelled roadmap items. For a feature-by-feature status, see
+[STATUS.md](STATUS.md). For usage, see [README.md](README.md).
 
-1. [Module Structure](#module-structure)
-2. [Core Types](#core-types)
-3. [Manager System](#manager-system)
-4. [Layout Algorithm](#layout-algorithm)
-5. [Rendering Pipeline](#rendering-pipeline)
-6. [Event System](#event-system)
-7. [Reactive Data Binding](#reactive-data-binding)
-8. [Theme System](#theme-system)
-9. [Text Rendering](#text-rendering)
-10. [Performance Optimizations](#performance-optimizations)
-11. [Design Decisions](#design-decisions)
+## Table of contents
 
----
-
-## Module Structure
-
-```
-rui/
-├── core/                          # Core types and infrastructure
-│   ├── types.nim                  # Basic types (WidgetId, Rect, etc.)
-│   ├── widget.nim                 # Widget base class
-│   ├── app.nim                    # App and Store base types
-│   └── link.nim                   # Link[T] reactive system
-│
-├── managers/                      # System coordination
-│   ├── managers.nim               # Central export point
-│   ├── render_manager.nim         # Rendering and caching
-│   ├── layout_manager.nim         # Layout calculations
-│   ├── event_manager.nim          # Event handling and routing
-│   ├── focus_manager.nim          # Focus and keyboard navigation
-│   └── text_input_manager.nim     # Text editing state
-│
-├── drawing_primitives/            # Low-level rendering
-│   ├── drawing_primitives.nim     # Shapes, controls, decorative
-│   ├── layout_containers.nim      # Container implementations
-│   ├── layout_calcs.nim           # Layout helper functions
-│   └── theme_sys_core.nim         # Theme lookup and caching
-│
-├── text/                          # Text rendering subsystem
-│   ├── pango_wrapper.nim          # Pango/Cairo integration
-│   ├── text_layout.nim            # Text measurement and layout
-│   └── text_cache.nim             # Text texture caching
-│
-├── widgets/                       # UI components
-│   ├── button.nim                 # Button widget
-│   ├── label.nim                  # Label widget
-│   ├── input.nim                  # TextInput widget
-│   ├── checkbox.nim               # Checkbox widget
-│   ├── classical_widgets.nim      # Legacy widget implementations
-│   └── [more widgets...]
-│
-├── layout/                        # Layout containers
-│   ├── hstack.nim                 # Horizontal stack
-│   ├── vstack.nim                 # Vertical stack
-│   ├── grid.nim                   # Grid layout
-│   ├── flex.nim                   # Flexible layout
-│   └── [more layouts...]
-│
-├── dsl/                           # Declarative UI macros
-│   ├── dsl.nim                    # buildUI macro
-│   ├── enhanced_widget.nim        # defineWidget macro
-│   └── yaml_ui_gen.nim            # YAML-UI code generator
-│
-├── hit-testing/                   # Spatial queries
-│   ├── hittest_system.nim         # Main hit-testing API
-│   └── interval_tree.nim          # Interval tree implementation
-│
-├── types/                         # Shared type definitions
-│   ├── core.nim                   # Core types (working)
-│   ├── happy_types.nim            # Happy path types
-│   └── happy_common_types.nim     # Common helper types
-│
-├── examples/                      # Example applications
-│   ├── counter.nim
-│   ├── todo_list.nim
-│   ├── form_example.nim
-│   └── [more examples...]
-│
-├── rui.nim                        # Main export module
-└── happy_rui.nim                  # Working baseline implementation
-```
-
-### Dependency Graph
-
-```
-           rui.nim (main export)
-                 │
-    ┌────────────┼────────────┐
-    │            │            │
-managers/    widgets/     layout/      dsl/
-    │            │            │          │
-    │            │            │          │
-    └────────────┴────────────┴──────────┘
-                 │
-        drawing_primitives/
-                 │
-            ┌────┴────┐
-            │         │
-         text/     core/
-            │         │
-      pangolib   raylib
-```
+1. [Design philosophy](#design-philosophy)
+2. [Core types](#core-types)
+3. [Two-pass layout and render](#two-pass-layout-and-render)
+4. [The widget DSL: definePrimitive vs defineWidget](#the-widget-dsl-defineprimitive-vs-definewidget)
+5. [Reactivity: Link[T]](#reactivity-linkt)
+6. [Theme system](#theme-system)
+7. [Manager architecture](#manager-architecture)
+8. [Scripting subsystem](#scripting-subsystem)
+9. [Text rendering](#text-rendering)
+10. [The 7-package architecture](#the-7-package-architecture)
 
 ---
 
-## Core Types
+## Design philosophy
 
-### Widget Base
+### Immediate mode with caching
+
+RUI2 follows immediate-mode principles — the UI is a function of state, redrawn
+as needed — but layers caching on top so it stays cheap:
+
+- Each widget renders to its own `RenderTexture2D` and the result is cached.
+- A clean widget reuses its cached texture; only **dirty** widgets re-render.
+- Two dirty flags per widget separate the two concerns: `layoutDirty` (geometry
+  may have changed) and `isDirty` (pixels need redrawing).
+- A tree-level `anyDirty` flag gives a fast path: when nothing changed, the whole
+  layout/render pass is skipped.
+
+The result is the simplicity of immediate mode (state in, pixels out, no retained
+scene-graph bookkeeping) with the efficiency of retained mode (unchanged subtrees
+cost a texture blit).
+
+### No magic
+
+The public API is plain Nim — explicit constructors, explicit `app` object,
+explicit `Link[T]` state. There is a convenience global `app` var, but the app is
+an ordinary object you can also pass around. Widget trees are ordinary
+`proc(): Widget` builders you can inspect and recompose.
+
+### Composition over inheritance
+
+Complex widgets are built by composing simpler ones (a `Button` is a `Rectangle`
++ a `Label`), not by deep subclassing. The DSL's two macros make this distinction
+first-class: primitives draw, composites arrange.
+
+### Why this layout model (not a constraint solver)
+
+RUI2 uses a simple parent-arranges-children layout rather than a constraint
+solver (e.g. Cassowary/Kiwi). Rationale: a constraint solver adds a dependency,
+is harder to debug, and is overkill for the small-to-medium desktop UIs RUI2
+targets. A direct layout pass is simpler, predictable, and fast.
+
+---
+
+## Core types
+
+Defined in `core/types.nim`.
 
 ```nim
 type
-  WidgetId* = distinct int
+  WidgetId* = distinct int      # internal numeric id (fast lookups)
+
+  Rect*  = object
+    x*, y*, width*, height*: float32
+  Point* = object
+    x*, y*: float32
+  Size*  = object
+    width*, height*: float32
+  EdgeInsets* = object
+    top*, right*, bottom*, left*: float32
 
   Widget* = ref object of RootObj
-    id*: WidgetId
-    bounds*: Rect              # x, y, width, height
-    visible*: bool
-    enabled*: bool
-    isDirty*: bool             # Needs redraw
-    zIndex*: int               # Stacking order
-    cachedTexture*: Texture2D  # Rendered texture
+    id*: WidgetId               # internal numeric id
+    stringId*: string           # user-facing id, used by scripting
+    bounds*: Rect
+    previousBounds*: Rect       # for incremental hit-test updates
+    visible*, enabled*: bool
+    hovered*, pressed*, focused*: bool
+    isDirty*: bool              # needs re-render
+    layoutDirty*: bool          # needs layout recalculation
+    cachedTexture*: Option[RenderTexture2D]
+    zIndex*: int
+    hasOverlay*: bool           # if true, children are z-sorted when rendering
+    blockReading*: bool         # scripting: hide sensitive values (passwords)
+    onFocus*, onBlur*: Option[proc() {.closure.}]
     parent*: Widget
     children*: seq[Widget]
+
+  WidgetTree* = ref object
+    root*: Widget
+    anyDirty*: bool             # tree-level fast-path flag
+    isDirty*: bool
+    widgetMap*: Table[WidgetId, Widget]
+    widgetsByStringId*: Table[string, Widget]  # scripting lookups
 ```
 
-### Container
+The base `Widget` declares overridable methods that the DSL macros fill in:
+`render`, `measure`, `layout`, `handleInput`, plus the scripting hooks
+`handleScriptAction`, `getScriptableState`, and `getTypeName`.
 
-```nim
-type
-  Container* = ref object of Widget
-    # Layout properties
-    spacing*: float32
-    padding*: EdgeInsets
-    alignment*: Alignment
-    justify*: Justify
-```
+`App` itself is defined in `core/app.nim` (not `types.nim`) to avoid circular
+dependencies, since it depends on the managers. It owns the `WidgetTree`, the
+optional `Store`, the `WindowConfig`, the managers, the theme manager + current
+theme, and a text cache.
 
-### App State
-
-```nim
-type
-  App* = ref object
-    window*: WindowConfig
-    tree*: WidgetTree
-    store*: Store
-    currentTheme*: Theme
-
-    # Global flags
-    invalidateAll*: bool
-    anyWidgetDirty*: bool
-    layoutDirty*: bool
-
-    # Managers
-    renderManager*: RenderManager
-    layoutManager*: LayoutManager
-    eventManager*: EventManager
-    focusManager*: FocusManager
-    textInputManager*: TextInputManager
-
-    # Caches
-    dirtyWidgets*: HashSet[WidgetId]
-    renderQueue*: seq[Widget]
-```
-
-### Store and Links
-
-```nim
-type
-  Link*[T] = ref object
-    value*: T
-    dependentWidgets*: HashSet[Widget]  # Direct widget references for O(1) updates!
-    onChange*: proc(oldVal, newVal: T)
-
-  Store* = ref object of RootObj
-    # User-defined fields with Link types
-    # Example:
-    # counter*: Link[int]
-    # username*: Link[string]
-
-# When value changes, Link can immediately:
-# 1. Mark all dependent widgets dirty
-# 2. Re-render them (generate new textures)
-# 3. No tree traversal needed!
-# 4. Layout pass positions them on next frame
-```
+`WindowConfig` carries window sizing and resize policy: `width`, `height`,
+`title`, `fps`, `resizable`, `minWidth`, `minHeight` (defaults 320×240 minimum).
 
 ---
 
-## Manager System
+## Two-pass layout and render
 
-Managers are specialized subsystems with clear responsibilities and minimal coupling.
+Implemented in `core/main_loop.nim`; driven from `core/app.nim`'s loop.
 
-### RenderManager
+Each frame runs at most two passes over the tree, each gated by dirty flags.
 
-**Responsibility**: Coordinate rendering operations, manage texture caches, track dirty widgets.
+### Pass 1 — Layout
 
-```nim
-type
-  RenderOp* = object
-    case kind*: RenderOpKind
-    of ropRect: rectData*: RectRenderData
-    of ropTexture: texData*: TextureRenderData
-    of ropText: textData*: TextRenderData
+`layoutPass(widget)` walks the tree. For any widget whose `layoutDirty` is set it
+records the old bounds, calls `widget.layout()` (dynamic dispatch), and if the
+bounds changed marks the widget `isDirty` so it will re-render. Then it clears
+`layoutDirty` and recurses into children.
 
-  RenderManager* = ref object
-    renderQueue*: seq[RenderOp]
-    textureCache*: Table[WidgetId, Texture2D]
-    dirtyWidgets*: HashSet[WidgetId]
-    scissorStack*: seq[Rect]
-```
+- **Composites** (`defineWidget`) override `layout()` to position/create children.
+- **Primitives** (`definePrimitive`) use the base no-op `layout()` — they don't
+  arrange anything.
 
-**Key Operations**:
-- `markDirty(widgetId)` - Mark widget for redraw
-- `buildRenderQueue()` - Sort widgets by z-index
-- `renderFrame()` - Execute render operations
-- `cacheTexture(widgetId, texture)` - Store rendered texture
-- `invalidateCache(widgetId)` - Force re-render
+### Pass 2 — Render
 
-### LayoutManager
+`renderPass(widget)` renders bottom-up so child textures exist before the parent
+composites them:
 
-**Responsibility**: Calculate widget sizes and positions using Flutter-style two-pass algorithm.
+1. Recurse into children first. If `hasOverlay` is set and there is more than one
+   child, children are sorted by `zIndex` (ascending) so higher z-index draws on
+   top (painter's algorithm). Otherwise children render in tree order.
+2. If the widget is `isDirty`: free the old cached texture, create a fresh
+   `RenderTexture2D` sized to its bounds, render the widget's own content at the
+   texture origin, composite each visible child's cached texture at its relative
+   position, then store the new texture in `cachedTexture` and clear `isDirty`.
+3. If the widget is clean: its existing `cachedTexture` is reused as-is.
 
-```nim
-type
-  Constraints* = object
-    minWidth*, maxWidth*: float32
-    minHeight*, maxHeight*: float32
+### Frame driver
 
-  LayoutManager* = ref object
-    needsLayout*: bool
-    layoutQueue*: seq[Widget]
-```
+`frame(rootWidget)` runs Pass 1 only if `rootWidget.layoutDirty` or any
+descendant is layout-dirty, and Pass 2 only if `rootWidget.isDirty` or any
+descendant is dirty. The app loop then composites the root's cached texture to
+the screen.
 
-**Key Operations**:
-- `measureWidget(widget, constraints)` → Size
-- `layoutWidget(widget, position)` - Assign final position
-- `propagateDirtyLayout(widget)` - Mark subtree for relayout
-- `performLayout()` - Execute two-pass algorithm
+### Why this is fast
 
-**Two-Pass Algorithm**:
-1. **Pass 1 (Constraints Down)**:
-   - Parent calculates available space
-   - Passes constraints to children
-   - Children measure themselves
+For a 1000-widget tree where a click changes a single label, only that label's
+ancestors are visited for layout and only the changed widgets re-render —
+everything else is a cached texture blit.
 
-2. **Pass 2 (Sizes Up)**:
-   - Children report actual size needed
-   - Parent positions children based on sizes
-   - Positions propagate down
+### Cache invalidation rules
 
-### EventManager
-
-**Responsibility**: Handle events, route to widgets, apply event patterns (debounce, throttle, etc.).
-
-```nim
-type
-  EventPattern* = enum
-    epNormal       # Process immediately
-    epReplaceable  # Only last matters (mouse move)
-    epDebounced    # Wait for quiet period (resize)
-    epThrottled    # Rate limited (scroll)
-    epBatched      # Collect related (touch gestures)
-    epOrdered      # Sequence matters (key combos)
-
-  EventManager* = ref object
-    eventQueue*: seq[Event]
-    eventConfig*: Table[EventKind, EventPattern]
-    lastEventTime*: Table[EventKind, float]
-```
-
-**Key Operations**:
-- `collectEvents()` - Gather events from Raylib
-- `coalesceEvents()` - Apply event patterns
-- `routeEvent(event, widget)` - Route to target
-- `handleEvent(event)` - Execute handlers
-
-### FocusManager
-
-**Responsibility**: Manage keyboard focus, tab order, focus chains.
-
-```nim
-type
-  FocusManager* = ref object
-    focusedWidget*: WidgetId
-    focusChain*: seq[WidgetId]
-    modalWidget*: Option[WidgetId]
-```
-
-**Key Operations**:
-- `setFocus(widgetId)` - Focus widget
-- `nextFocus()` - Tab to next
-- `prevFocus()` - Shift+Tab to previous
-- `buildFocusChain()` - Calculate tab order
-
-### TextInputManager
-
-**Responsibility**: Handle IME, text editing state, composition.
-
-```nim
-type
-  TextInputManager* = ref object
-    activeInput*: Option[WidgetId]
-    compositionText*: string
-    compositionRange*: Range
-```
+- Mark `layoutDirty` when: a container is resized, children are added/removed, a
+  layout-affecting prop (spacing, padding) changes, or the window is resized.
+- Mark `isDirty` when: layout changed the bounds, a visual prop changed, or a
+  bound `Link[T]` value changed.
+- A `Link[T].set` marks its dependent widgets both `isDirty` and `layoutDirty`
+  (a content change may change size) and bubbles `layoutDirty` to the parent.
 
 ---
 
-## Layout Algorithm
+## The widget DSL: definePrimitive vs defineWidget
 
-RUI uses Flutter's proven two-pass layout algorithm.
+Both macros live in `core/widget_dsl.nim`. They generate the widget's `ref
+object` type, a constructor (`newXxx`), the reactive-state plumbing, event
+routing, and the lifecycle methods. They cut widget boilerplate dramatically
+versus writing the type/constructor/methods by hand.
 
-### Constraints
+The two macros encode a single, clean distinction:
 
-Every widget receives constraints from its parent:
+- **`definePrimitive`** = *"I draw myself."* A leaf that renders directly with
+  drawing primitives (`drawText`, `drawRect`, `drawCircle`, …). It generates a
+  `render` method and **no** `layout` — primitives are positioned by their parent.
+  Examples: `Label`, `Rectangle`, `Circle`.
+- **`defineWidget`** = *"I arrange others."* A composite that creates and/or
+  positions children. It generates a `layout` method (and a default `render` that
+  composites children). Examples: `Button` (Rectangle + Label), `VStack`,
+  `HStack`, `ZStack`, `ScrollView`.
 
-```nim
-type Constraints = object
-  minWidth, maxWidth: float32
-  minHeight, maxHeight: float32
-```
+This mirrors raylib's immediate-mode style: low-level draw calls for atoms,
+explicit composition for compound controls.
 
-Examples:
-- **Tight**: `minWidth == maxWidth` (widget must be exact size)
-- **Loose**: `minWidth < maxWidth` (widget can choose)
-- **Unbounded**: `maxWidth == Inf` (widget determines size)
+### Section format
 
-### Measurement (Pass 1)
+A widget definition is organised into named sections. The common sections are:
 
-Parent passes constraints down, children measure themselves:
+| Section   | Purpose |
+|-----------|---------|
+| `props`   | Public, constructor-settable fields (with optional defaults). Become `newXxx` parameters. |
+| `state`   | Internal reactive state; each field is auto-wrapped in `Link[T]` and initialised. Not in the constructor. Used for `isPressed`, `isHovered`, etc. |
+| `actions` | Callback signatures (e.g. `onClick()`, `onChange(v: float)`). Generated as `Option[proc(...)]` fields and `newXxx` params (default `nil`). |
+| `events`  | Event handlers (`on_mouse_down`, `on_mouse_up`, `on_mouse_move`, `on_key_down`, …). Each has access to `widget` and `event`; return `true` to consume, `false` to propagate. |
+| `render`  | (Primitives) drawing code using drawing primitives. |
+| `layout`  | (Composites) code that positions and/or builds `widget.children`. |
 
-```nim
-proc measure(widget: Widget, constraints: Constraints): Size =
-  # Widget calculates its size given constraints
-  case widget.kind:
-  of wkLabel:
-    # Measure text, respect constraints
-    let textSize = measureText(widget.text)
-    return Size(
-      width: clamp(textSize.width, constraints.minWidth, constraints.maxWidth),
-      height: clamp(textSize.height, constraints.minHeight, constraints.maxHeight)
-    )
-
-  of wkContainer:
-    # Measure children first
-    var totalHeight = 0.0
-    for child in widget.children:
-      let childSize = child.measure(childConstraints)
-      totalHeight += childSize.height
-
-    return Size(width: constraints.maxWidth, height: totalHeight)
-```
-
-### Layout (Pass 2)
-
-Parent positions children based on their measured sizes:
+A real composite, from `widgets/basic/button_v2.nim` (condensed):
 
 ```nim
-proc layout(widget: Widget, position: Point) =
-  widget.bounds.x = position.x
-  widget.bounds.y = position.y
-
-  case widget.kind:
-  of wkVStack:
-    var currentY = position.y + widget.padding.top
-    for child in widget.children:
-      child.layout(Point(x: position.x, y: currentY))
-      currentY += child.bounds.height + widget.spacing
-
-  of wkHStack:
-    var currentX = position.x + widget.padding.left
-    for child in widget.children:
-      child.layout(Point(x: currentX, y: position.y))
-      currentX += child.bounds.width + widget.spacing
+defineWidget(Button):
+  props:
+    text: string
+    disabled: bool = false
+    intent: ThemeIntent = Default
+  state:
+    isPressed: bool
+    isHovered: bool
+  actions:
+    onClick()
+  events:
+    on_mouse_down:
+      if not widget.disabled:
+        widget.isPressed = true
+        return true
+      return false
+    on_mouse_up:
+      if widget.isPressed and not widget.disabled:
+        widget.isPressed = false
+        if widget.onClick.isSome: widget.onClick.get()()
+        return true
+      return false
+    on_mouse_move:
+      widget.isHovered = pointInRect(event.mousePos, widget.bounds)
+      return false
+  layout:
+    widget.children.setLen(0)               # rebuilt each layout pass
+    let state = if widget.disabled: Disabled
+                elif widget.isPressed: Pressed
+                elif widget.isHovered: Hovered
+                else: Normal
+    let props = currentTheme.getThemeProps(widget.intent, state)
+    let bg = newRectangle(color = props.backgroundColor.get(GRAY),
+                          cornerRadius = props.cornerRadius.get(4.0), filled = true)
+    bg.bounds = widget.bounds
+    widget.children.add(bg)
+    let lbl = newLabel(text = widget.text,
+                       fontSize = props.fontSize.get(14.0),
+                       color = props.foregroundColor.get(WHITE))
+    lbl.bounds = centeredRect(widget.bounds)
+    widget.children.add(lbl)
 ```
 
-### Container Implementations
+Notes that hold in the current code:
 
-**VStack** (Vertical):
-- Measures each child with full width, unbounded height
-- Sums heights + spacing
-- Positions children vertically with spacing
+- Events propagate child → parent until one handler returns `true`.
+- A composite may rebuild its children on every layout pass (`children.setLen(0)`
+  then re-add), reading theme + state at build time. This is deliberate for
+  immediate-mode rendering; see the reactivity caveat below.
 
-**HStack** (Horizontal):
-- Measures each child with unbounded width, full height
-- Sums widths + spacing
-- Positions children horizontally with spacing
+### Primitive purity
 
-**Grid**:
-- Divides available space into rows/columns
-- Each cell gets constraints from grid dimensions
-- Positions cells in grid positions
-
-**Flex**:
-- Like HStack/VStack but respects `grow` and `shrink` factors
-- Distributes extra space proportionally
-- Shrinks widgets if necessary
+There was a real design question of whether primitives may also use internal
+layout/children, or stay pure (draw-only). The resolution favours **pure
+primitives** for performance and a clear conceptual boundary: pure primitives
+avoid per-child widget allocation, extra layout calculations, and dispatch
+indirection. Compound controls use `defineWidget` and compose primitives. (A
+hybrid primitive remains possible but is not the default pattern.)
 
 ---
 
-## Rendering Pipeline
+## Reactivity: Link[T]
 
-### Frame Cycle
-
-```
-1. collectEvents()        # Gather input from Raylib
-2. handleEvents()         # Route events, execute handlers
-3. updateLayout()         # Recalculate if layoutDirty
-4. renderFrame()          # Draw to screen
-```
-
-### Rendering Flow
-
-```
-renderFrame():
-  1. Check global invalidateAll flag
-  2. Build render queue (sort by z-index)
-  3. For each widget in queue:
-     - If isDirty or invalidateAll:
-       a. Render to texture
-       b. Cache texture
-       c. Clear isDirty flag
-     - Draw cached texture to screen
-  4. Reset invalidateAll flag
-```
-
-### Texture Caching
-
-Each widget can cache its rendered content:
-
-```nim
-proc renderWidget(widget: Widget) =
-  if widget.isDirty or app.invalidateAll:
-    # Render to texture
-    let renderTarget = createRenderTexture(widget.bounds.width, widget.bounds.height)
-    beginRenderTexture(renderTarget)
-    # Draw widget content
-    widget.draw()
-    endRenderTexture()
-
-    # Cache texture
-    widget.cachedTexture = renderTarget.texture
-    widget.isDirty = false
-
-  # Draw cached texture
-  drawTexture(widget.cachedTexture, widget.bounds.x, widget.bounds.y)
-```
-
-### Drawing Primitives
-
-Widgets use drawing_primitives for consistent rendering:
-
-```nim
-proc draw(button: Button) =
-  let theme = getTheme(button.state, button.intent)
-
-  # Use primitives
-  drawRoundedRect(button.bounds, theme.backgroundColor, theme.borderRadius)
-  drawText(button.text, button.bounds.center(), theme.textColor)
-
-  if button.focused:
-    drawFocusRing(button.bounds)
-```
-
----
-
-## Event System
-
-### Event Flow
-
-```
-1. Raylib generates events (mouse, keyboard, etc.)
-2. collectEvents() gathers into event queue
-3. coalesceEvents() applies patterns (debounce, throttle)
-4. Hit testing finds target widget(s)
-5. routeEvent() delivers to widget
-6. Widget handler executes
-7. Handler may invalidate widgets
-```
-
-### Hit Testing
-
-Uses dual interval trees for O(log n) queries:
-
-```nim
-proc findWidgetAt(x, y: float): seq[Widget] =
-  # Query X interval tree
-  let candidatesX = xTree.query(x)
-
-  # Query Y interval tree
-  let candidatesY = yTree.query(y)
-
-  # Intersection = widgets containing point
-  let widgets = candidatesX intersection candidatesY
-
-  # Sort by z-index (highest first)
-  return widgets.sortedByDescending(w => w.zIndex)
-```
-
-### Event Patterns
-
-**Replaceable** (mouse move):
-```nim
-if eventQueue.hasEvent(MouseMove):
-  # Discard all but last MouseMove
-  eventQueue.keepLast(MouseMove)
-```
-
-**Debounced** (window resize):
-```nim
-if event.kind == WindowResize:
-  # Wait 100ms of quiet before processing
-  if now() - lastResizeTime > 100ms:
-    processResize()
-```
-
-**Throttled** (scroll):
-```nim
-if event.kind == Scroll:
-  # Maximum 60 events per second
-  if now() - lastScrollTime > 16ms:
-    processScroll()
-    lastScrollTime = now()
-```
-
-**Batched** (touch gestures):
-```nim
-if event.kind in [TouchDown, TouchMove, TouchUp]:
-  # Collect all touch events
-  touchBatch.add(event)
-
-if touchBatch.isComplete():
-  # Process as gesture
-  recognizeGesture(touchBatch)
-  touchBatch.clear()
-```
-
----
-
-## Reactive Data Binding
-
-### Link System
-
-The Link[T] system provides efficient reactive updates by storing direct references to dependent widgets:
+Implemented in `core/link.nim`; the type is in `core/types.nim`.
 
 ```nim
 type Link*[T] = ref object
-  valueInternal: T
-  dependentWidgets: HashSet[Widget]  # Direct widget references, not IDs!
+  value*: T
+  dependentWidgets*: HashSet[Widget]   # direct refs, not ids
   onChange*: proc(oldVal, newVal: T)
+```
 
-proc value*[T](link: Link[T]): T =
-  link.valueInternal
+API: `newLink(initial)`, `link.value` / `link.get()` to read,
+`link.value = v` / `link.set(v)` to write, `addDependent`/`removeDependent`/
+`hasDependent`/`dependentCount` to manage subscribers, and `setOnChange` for a
+side-effect callback.
 
+**Key optimisation — direct widget references.** A `Link` stores the actual
+dependent `Widget` objects, not their ids. On a value change it can mark each
+dependent dirty in O(1) with no hashtable lookup and no tree traversal:
+
+```nim
 proc `value=`*[T](link: Link[T], newVal: T) =
-  if link.valueInternal != newVal:
-    let oldVal = link.valueInternal
-    link.valueInternal = newVal
-
-    # Direct widget updates - NO tree traversal needed!
-    for widget in link.dependentWidgets:
-      widget.isDirty = true
-      # Can even re-render immediately:
-      widget.render()  # Generates new texture
-      # Layout pass will set bounds later
-
-    # Call onChange callback
-    if link.onChange != nil:
-      link.onChange(oldVal, newVal)
+  if link.value != newVal:
+    let oldVal = link.value
+    link.value = newVal
+    for w in link.dependentWidgets:
+      w.isDirty = true
+      w.layoutDirty = true            # content change may affect size
+      if w.parent != nil: w.parent.layoutDirty = true
+    if link.onChange != nil: link.onChange(oldVal, newVal)
 ```
 
-**Key Optimization**: By storing direct widget references instead of IDs, we can:
-1. Immediately mark widgets dirty (no lookup needed)
-2. Re-render widgets directly (no tree traversal)
-3. Let layout pass position them later
-4. Achieve O(1) per dependent widget instead of O(tree size)
+Cost is O(n) in the number of widgets bound to *that* link, not O(total widgets).
+Because RUI2 is immediate-mode, the widget then simply reads the new value during
+its next `layout`/`render` — there is no separate value-push step.
 
-### Binding in DSL
-
-```nim
-buildUI:
-  Label:
-    text: bind <- store.username
-
-# Expands to:
-let label = Label.new()
-label.textLink = store.username
-store.username.dependentWidgets.incl(label)  # Store direct reference!
-```
-
-**At Binding Time**: The Link registers the widget in its `dependentWidgets` HashSet.
-
-**When Value Changes**:
-```nim
-store.username.value = "John"  # User code
-
-# Link internally does:
-for widget in dependentWidgets:
-  widget.isDirty = true
-  widget.render()  # Can render immediately!
-```
-
-**On Next Frame**:
-- Layout pass calculates bounds for all widgets (including dirty ones)
-- Render pass draws already-rendered textures at new positions
-
-### Manual Binding
-
-```nim
-# Explicit binding in code
-proc bindToLink[T](widget: Widget, link: Link[T]) =
-  link.dependentWidgets.incl(widget)  # Direct reference
-  widget.linkedData.add(link)  # Optional: track for cleanup
-
-# Usage
-let label = Label.new()
-label.bindToLink(store.counter)
-
-# Now when counter changes:
-store.counter.value += 1
-# label is automatically marked dirty and re-rendered!
-```
-
-### Render-Before-Layout Pattern
-
-This design enables an efficient pattern:
-1. **Data changes** → Link notified
-2. **Widgets re-render** → Generate new textures (content updated)
-3. **Layout pass** → Calculate positions/bounds (geometry updated)
-4. **Draw pass** → Blit textures at correct positions
-
-This means widget *content* updates immediately without waiting for layout, but *positioning* happens in the layout pass. Perfect for responsive UIs!
+**Caveat (roadmap):** the `bind` DSL operator that would auto-register a widget
+in a link's `dependentWidgets` is **not yet wired**. Today widgets read store
+values at build/layout time, and a re-layout happens when the surrounding tree is
+marked dirty. `addDependent` exists and can be called manually. Wiring `bind` so
+a widget rebinds and auto-marks dirty on every relevant change is a roadmap item
+(see STATUS.md).
 
 ---
 
-## Theme System
+## Theme system
 
-### Theme Structure
+Core in `drawing_primitives/theme_sys_core.nim`; built-ins in
+`drawing_primitives/builtin_themes.nim`; runtime switching via a `ThemeManager`
+(`drawing_primitives/theme_manager.nim`). Themes are loaded/serialised with the
+`yaml` dependency.
 
-```nim
-type
-  ThemeState* = enum
-    tsNormal, tsDisabled, tsHovered, tsPressed, tsFocused, tsSelected
+### State × Intent → Props
 
-  ThemeIntent* = enum
-    tiDefault, tiInfo, tiSuccess, tiWarning, tiDanger
+The model is a 2-D lookup:
 
-  ThemeProps* = object
-    backgroundColor*: Color
-    textColor*: Color
-    borderColor*: Color
-    borderWidth*: float32
-    borderRadius*: float32
-    fontSize*: float32
-    # ... more properties
+- **`ThemeState`** — interaction state: `Normal`, `Disabled`, `Hovered`,
+  `Pressed`, `Focused`, `Selected`, `DragOver`.
+- **`ThemeIntent`** — semantic role: `Default`, `Info`, `Success`, `Warning`,
+  `Danger`.
 
-  Theme* = ref object
-    lookup*: Table[(ThemeState, ThemeIntent), ThemeProps]
-    cache*: Table[(ThemeState, ThemeIntent), ThemeProps]
-```
-
-### Theme Lookup
+A `Theme` holds a `base` table (props per intent) and a `states` table (per
+intent, per state overrides). Resolution cascades: widget default → base intent →
+state override (later wins).
 
 ```nim
-proc getTheme*(widget: Widget, state: ThemeState, intent: ThemeIntent): ThemeProps =
-  let key = (state, intent)
-
-  # Check cache first
-  if key in app.currentTheme.cache:
-    return app.currentTheme.cache[key]
-
-  # Lookup and cache
-  let props = app.currentTheme.lookup.getOrDefault(key, defaultProps)
-  app.currentTheme.cache[key] = props
-  return props
+type ThemeProps* = object
+  backgroundColor*, foregroundColor*, borderColor*: Option[Color]
+  borderWidth*, cornerRadius*, spacing*: Option[float32]
+  padding*: Option[EdgeInsets]
+  fontSize*: Option[float32]
+  fontFamily*: Option[string]     # default "sans-serif" in built-ins
+  textStyle*: Option[TextStyle]
+  # focus styling: focusRingColor / focusRingWidth / focusGlowRadius / focusGlowColor
+  # plus effect fields (bevel, gradient, drop/inner shadow, glow) for richer themes
 ```
 
-### Theme Switching
+All fields are `Option`, so a theme overrides only what it needs and everything
+else inherits.
+
+Widgets query the active theme during `layout`/`render`:
 
 ```nim
-# Instant theme switch - just pointer assignment
-app.currentTheme = darkTheme
-
-# Invalidate all widgets to use new theme
-app.invalidateAll = true
+let state = if widget.disabled: Disabled
+            elif widget.isPressed: Pressed
+            elif widget.isHovered: Hovered
+            elif widget.focused:   Focused
+            else: Normal
+let props = currentTheme.getThemeProps(widget.intent, state)
 ```
+
+### Zero-cost switching
+
+Because RUI2 is immediate-mode, switching themes is just swapping the active
+`Theme` pointer and marking the tree dirty — no per-widget update, no Link needed
+for the theme itself:
+
+```nim
+app.setTheme("dark")    # by name (registered in ThemeManager)
+app.setTheme(myTheme)   # by Theme object
+```
+
+Both update `app.currentTheme`, the manager's current theme, and set
+`tree.anyDirty` so widgets pick up new values on the next frame. Built-in themes:
+`light`, `dark`, `beos`, `joy`, `wide` (light is the default).
+
+### Focus styling
+
+Focus is themeable via `focusRingColor`, `focusRingWidth`, and optional
+`focusGlowRadius`/`focusGlowColor`. The `FocusManager` sets `widget.focused`, and
+a widget draws its ring when `focused` and the theme provides a ring colour.
 
 ---
 
-## Text Rendering
+## Manager architecture
 
-### Pango Integration
+The framework is organised as a functional pipeline of single-responsibility
+managers owned by `App`:
 
-```nim
-# In text/pango_wrapper.nim
-
-proc renderText*(text: string, style: TextStyle): Texture2D =
-  # Create Pango layout
-  let layout = pango_layout_new(pangoContext)
-  pango_layout_set_text(layout, text)
-  pango_layout_set_font_description(layout, style.fontDesc)
-
-  # Measure
-  var width, height: cint
-  pango_layout_get_pixel_size(layout, addr width, addr height)
-
-  # Render to Cairo surface
-  let surface = cairo_image_surface_create(CAIRO_FORMAT_ARGB32, width, height)
-  let cr = cairo_create(surface)
-
-  pango_cairo_show_layout(cr, layout)
-
-  # Convert to Raylib texture
-  let texture = convertCairoSurfaceToTexture(surface)
-
-  # Cleanup
-  cairo_destroy(cr)
-  cairo_surface_destroy(surface)
-  g_object_unref(layout)
-
-  return texture
+```
+Widget Tree → Layout → Hit-Test → Render → Display
 ```
 
-### Text Caching
+The frame loop in `core/app.nim` is, in order:
 
-```nim
-type TextCache* = ref object
-  cache*: Table[string, (Texture2D, Size)]
-  maxSize*: int
+1. `collectRaylibEvents` — translate raylib input into `GuiEvent`s.
+2. `eventManager.update()` — apply coalescing patterns.
+3. `eventManager.processEvents(budget, handler)` — drain the queue within a time
+   budget, routing each event via `handleEvent`.
+4. `pollScriptCommands` — service the scripting file protocol.
+5. `updateLayoutAndRender` — run the two-pass `frame`, then rebuild the hit-test
+   tree from the freshly laid-out bounds.
+6. `renderFrame` — composite the root texture to the window.
 
-proc getCachedText*(cache: TextCache, text: string, style: TextStyle): Texture2D =
-  let key = text & $style
+### Event manager (time-budgeted + coalesced)
 
-  if key in cache.cache:
-    return cache.cache[key][0]
+`managers/event_manager_refactored.nim`. UI must hold ~60 FPS (16.7 ms/frame),
+but events vary wildly in cost and volume, so the manager combines a **time
+budget** (default 8 ms/frame) with **pattern-based coalescing**:
 
-  # Render and cache
-  let texture = renderText(text, style)
-  let size = Size(width: texture.width, height: texture.height)
-  cache.cache[key] = (texture, size)
+| Pattern         | Behaviour | Example |
+|-----------------|-----------|---------|
+| `epNormal`      | process immediately | generic |
+| `epReplaceable` | keep only the latest | mouse move (1000 → 1) |
+| `epDebounced`   | wait for a quiet period | window resize |
+| `epThrottled`   | rate-limited | mouse wheel / scroll |
+| `epBatched`     | collect related events | touch gestures |
+| `epOrdered`     | preserve exact sequence | keyboard, clicks |
 
-  # LRU eviction if needed
-  if cache.cache.len > cache.maxSize:
-    cache.evictOldest()
+Ordering guarantees matter: keyboard and click sequences are `epOrdered` so text
+input and click-then-type interactions stay correct, while high-volume mouse
+moves are compressed to the last position. Events that would blow the frame
+budget are deferred to the next frame instead of dropping a frame.
 
-  return texture
-```
+`GuiEvent` carries `kind` (`EventKind`), `priority` (`EventPriority`:
+`epHigh`/`epNormal`/`epLow`), a timestamp, and the relevant payload (mouse
+position, key, char, wheel delta, window size). Events are ordered in the queue
+by priority then timestamp (FIFO within a priority).
+
+### Focus manager
+
+`managers/focus_manager.nim`. Tracks the focused widget, handles keyboard routing
+(Tab / Shift-Tab order), and fires `onFocus`/`onBlur`. Keyboard events
+(`evKeyDown`, `evChar`) are routed through the focus manager rather than by
+hit-testing.
+
+### Hit-test system
+
+`hit-testing/`. Mouse events are routed by spatial lookup. The system builds
+interval trees over widget bounds for O(log n) point queries instead of an O(n)
+scan. After each layout pass the tree is rebuilt from the updated bounds
+(`rebuildHitTestTree`); `previousBounds` exists to enable incremental updates as a
+future optimisation. The interval-tree core is generic and usable on its own.
+
+### Render
+
+Rendering is the two-pass texture pipeline in `core/main_loop.nim` described
+above; there is no separate retained render queue object — caching is per-widget
+via `cachedTexture`.
 
 ---
 
-## Performance Optimizations
+## Scripting subsystem
 
-### 1. Dirty Flag Propagation
+`scripting/`, integrated through `core/app.nim` (`enableScripting(dir)` /
+`disableScripting`). Purpose: drive and inspect a running GUI from outside for
+**automated testing** — query and set widget values without visual confirmation.
 
-Only recalculate what changed:
+- **File-based, not IPC.** The app polls a command file (the script manager owns
+  its own timing) and writes responses; this is simple, language-agnostic,
+  cross-platform, and inspectable with a text editor. No sockets, no FFI.
+- **Widget addressing.** Widgets carry a user-facing `stringId`; the tree keeps a
+  `widgetsByStringId` map. A CSS-like path syntax addresses widgets
+  (`mainWindow/form/nameInput`, wildcards, etc.).
+- **Per-widget hooks.** Each scriptable widget overrides `handleScriptAction(action,
+  params): JsonNode` and `getScriptableState(): JsonNode` (the DSL provides
+  `getTypeName`). For example, `Button` supports `click` and `getText`.
+- **Privacy.** `blockReading` lets a widget refuse to expose sensitive values
+  (e.g. password fields) while still accepting actions.
+- **Visual cue.** While a script is in control, the app draws an orange border and
+  a "SCRIPTING" indicator so it's obvious the UI is being driven.
 
-```nim
-proc markDirty(widget: Widget) =
-  if not widget.isDirty:
-    widget.isDirty = true
-    app.dirtyWidgets.incl(widget.id)
-
-    # Propagate to parent (layout may change)
-    if widget.parent != nil:
-      widget.parent.markLayoutDirty()
-```
-
-### 2. Spatial Indexing
-
-Interval trees for O(log n) hit testing instead of O(n):
-
-```nim
-# Insert widget bounds into trees
-xTree.insert(widget.bounds.x, widget.bounds.x + widget.bounds.width, widget)
-yTree.insert(widget.bounds.y, widget.bounds.y + widget.bounds.height, widget)
-
-# Query in O(log n)
-let hits = findWidgetsAt(mouseX, mouseY)  # Much faster than checking all widgets
-```
-
-### 3. Event Coalescing
-
-Reduce unnecessary work:
-
-```nim
-# Instead of 100 mouse move events per second
-# Process only 1 per frame (16ms at 60 FPS)
-if event.kind == MouseMove:
-  eventQueue.keepLast(MouseMove)
-```
-
-### 4. Texture Caching
-
-Render once, reuse many times:
-
-```nim
-# Widget renders to texture when dirty
-if widget.isDirty:
-  widget.cachedTexture = renderToTexture(widget)
-  widget.isDirty = false
-
-# Every frame: just draw texture (very fast)
-drawTexture(widget.cachedTexture, widget.bounds)
-```
-
-### 5. Theme Caching
-
-Avoid repeated lookups:
-
-```nim
-# Cache theme props for common (state, intent) combinations
-let key = (Normal, Default)
-if key notin theme.cache:
-  theme.cache[key] = theme.lookup[key]
-
-return theme.cache[key]  # Instant access
-```
-
-### 6. Layout Optimization (Future)
-
-Current: Calculate every frame (simple, works well for small UIs)
-
-Future optimization:
-- Only recalculate subtrees with layoutDirty flag
-- Cache layout results
-- Incremental layout updates
+This is a testing/automation facility, not a production feature.
 
 ---
 
-## Data Flow Summary
+## Text rendering
 
-### Input-Driven Updates
+**Current:** text is drawn with raylib/naylib's basic `drawText` via the drawing
+primitives and a text cache (`drawing_primitives/primitives/text_cache.nim`,
+keyed on text + style with bounded entries / LRU eviction). The `Label` primitive
+builds a `TextStyle` (family, size, colour, bold/italic/underline) and calls
+`drawText` with an alignment.
 
-```
-User Input → Events → Event Manager → Widget Handlers
-                                           ↓
-                                    Store Updates
-                                           ↓
-                                    Link Notifications
-                                           ↓
-                        Direct Widget Updates (O(1) per widget!)
-                                           ↓
-                              ┌────────────┴────────────┐
-                              ↓                         ↓
-                    Mark isDirty = true        Call widget.render()
-                                           (generate new texture)
-                              ↓                         ↓
-                              └────────────┬────────────┘
-                                           ↓
-                              Next Frame: Layout Pass
-                            (calculate bounds/positions)
-                                           ↓
-                              Draw Pass (blit textures)
-                                           ↓
-                                       Display
-```
-
-### Key Optimization: No Tree Traversal
-
-When `store.counter.value = 42`:
-1. Link has direct references to dependent widgets
-2. Immediately marks each widget dirty: `widget.isDirty = true`
-3. Can even render immediately: `widget.render()` (generates new texture)
-4. Layout pass on next frame positions all widgets
-5. Draw pass blits cached textures
-
-**Performance**: O(n) where n = number of widgets bound to that specific Link, NOT O(total widgets in tree)!
-
-## Thread Safety
-
-Current: Single-threaded (Raylib is single-threaded)
-
-Future considerations:
-- Async data loading (separate thread)
-- Background layout calculation (worker thread)
-- Render queue submission (separate thread)
-
-For now: Keep it simple, single-threaded, no locks needed.
+**Roadmap — Pango/Cairo.** Professional text (full Unicode, BiDi for
+Hebrew/Arabic, complex-script shaping, wrapping) via Pango+Cairo rendered to
+raylib textures is a long-standing aspiration and is **not wired**. The `Label`
+source still carries a `TODO: Integrate Pango`. The drawing API is intended to be
+a drop-in target for a future Pango backend, and text caching is already designed
+for the 2–5 ms-first/~0.1 ms-cached profile such a backend needs. See STATUS.md.
 
 ---
 
-## Design Decisions
+## The 7-package architecture
 
-This section documents critical design decisions made for RUI, with rationale and implications.
+RUI2 is being restructured so each subsystem is a self-contained package under
+`packages/<name>/`, later split into separate git repos via
+`git subtree split`. Several subsystems (interval-tree hit-testing, the event
+manager, the theme system) are deliberately decoupled and usable standalone.
 
-### Event Processing: Time-Budgeted with Pattern-Based Coalescing
+| Package          | Responsibility |
+|------------------|----------------|
+| `rui_core`       | Shared base: Widget/Rect/Color/event types, `Link[T]` reactive primitive, two-pass main loop, the `definePrimitive`/`defineWidget` DSL macros. |
+| `rui_hittest`    | Generic interval tree + Widget-aware spatial hit-testing. |
+| `rui_events`     | Time-budgeted event manager + focus manager. |
+| `rui_drawing`    | Drawing primitives, effects, theme system (state × intent), text cache, theme-aware widget primitives. |
+| `rui_scripting`  | File-based GUI automation (query/set widget values) used for testing. |
+| `rui_widgets`    | Concrete widgets: primitives (label/rectangle/circle), basic (button/checkbox/radiobutton/slider/progressbar/hyperlink/image), containers (vstack/hstack/zstack/scrollview). |
+| `rui` (umbrella) | `App` object + main-loop integrator + re-exports everything. |
 
-**Decision**: Use time-budgeted event processing with pattern-based coalescing.
+### Dependency graph
 
-**Rationale**:
-- UI responsiveness requires maintaining 60 FPS (16.67ms per frame)
-- Some events may take significant time to process
-- Different event types have different processing requirements
-- Mouse moves generate many events (1000+/sec) but only the last position matters
-- Keyboard input must preserve exact sequence for text input correctness
-
-**Implementation**:
-
-```nim
-type EventPattern = enum
-  epNormal      # Process immediately
-  epReplaceable # Only last matters (mouse move) - compress 1000 → 1
-  epDebounced   # Wait for quiet period (window resize - 350ms)
-  epThrottled   # Rate limited (mouse wheel - max 1 per 50ms)
-  epBatched     # Collect related events (touch gestures)
-  epOrdered     # Sequence MUST be preserved (keyboard, clicks)
+```
+                         rui  (umbrella: App + main-loop integrator)
+                          │
+        ┌─────────────────┼──────────────────────────┐
+        │                 │                           │
+   rui_widgets        rui_events                rui_scripting
+        │                 │                           │
+        ├─────────────────┴───────────────┐          │
+        │                                  │          │
+   rui_drawing                        rui_hittest     │
+        │                                  │          │
+        └──────────────┬───────────────────┴──────────┘
+                       │
+                    rui_core   (types, Link[T], two-pass loop, DSL macros)
+                       │
+                 naylib (raylib)
 ```
 
-**Frame Cycle**:
-1. Collect raw Raylib events
-2. Add to EventManager (applies pattern-based coalescing)
-3. EventManager.update() processes patterns
-4. Process events from priority queue with time budget (default 8ms)
-5. Layout if `tree.anyDirty`
-6. Render
+- `rui_core` depends only on naylib.
+- `rui_drawing`, `rui_hittest`, `rui_events`, `rui_scripting` build on `rui_core`.
+- `rui_widgets` builds on `rui_core` + `rui_drawing` (and the event types).
+- `rui` (umbrella) integrates the managers and re-exports the whole API.
 
-**Key Requirements**:
-- **Order Preservation**: `epOrdered` events (keyboard, clicks) MUST maintain sequence
-  - Example: TextArea with click → typing sequence must be exact
-  - Priority queue uses timestamp for FIFO within same priority
-- **Smart Compression**: `epReplaceable` events (mouse moves) compressed to single event
-  - Example: 1000 mouse moves → 1 move (last position)
-- **Budget Management**: Reserve 8ms for events, 8ms for layout+render
-  - Adaptive: Learn from historical timing, adjust budget dynamically
-  - Deferred processing: Events exceeding budget deferred to next frame
-
-**Example Scenario** (TextArea click + typing):
-```
-User actions:
-  MouseMove(100,50), MouseMove(105,50), MouseMove(110,50), MouseMove(115,50)
-  MouseDown(115,50), MouseUp(115,50)
-  KeyDown('H'), KeyDown('e'), KeyDown('l'), KeyDown('l'), KeyDown('o')
-
-After coalescing:
-  MouseMove(115,50)          # Last position only (4 → 1)
-  MouseDown(115,50)          # In order!
-  MouseUp(115,50)            # In order!
-  KeyDown('H')               # In order!
-  KeyDown('e')               # In order!
-  KeyDown('l')               # In order!
-  KeyDown('l')               # In order!
-  KeyDown('o')               # In order!
-
-Result: ✅ Click at correct position, text typed correctly
-```
-
-**Performance Impact**:
-- Typical events: < 1ms each, budget handles easily
-- Complex events: Deferred to next frame, prevents frame drops
-- Mouse move compression: Reduces event count by 90%+
-
----
-
-### Layout System: Every-Frame with Tree-Level Dirty Flag
-
-**Decision**: Run layout every frame when `tree.anyDirty = true`, using Flutter-style two-pass algorithm.
-
-**Rationale**:
-- Flutter-style layout is proven, well-understood, sufficient for 99% of UIs
-- Constraint solvers add complexity, dependencies (Kiwi), and debugging difficulty
-- Modern CPUs can layout 1000+ widgets in < 5ms
-- Tree-level dirty flag provides fast path when nothing changed
-
-**Implementation**:
-
-```nim
-type WidgetTree = ref object
-  root: Widget
-  anyDirty: bool  # ← Tree-level optimization
-
-proc mainLoop():
-  # ... event processing ...
-
-  if app.tree.anyDirty:
-    layoutTree(app.tree)      # Two-pass Flutter-style
-    app.tree.anyDirty = false
-  # else: skip layout entirely (fast path)
-
-  renderFrame(app)
-```
-
-**Two-Pass Algorithm**:
-1. **Measure (Constraints Down, Sizes Up)**:
-   - Parent passes constraints to children
-   - Children measure themselves and return size
-2. **Position**:
-   - Parent positions children based on measured sizes
-
-**Dirty Propagation**:
-- Link value changes → mark dependent widgets dirty → set `tree.anyDirty = true`
-- Widget property changes → mark widget dirty → set `tree.anyDirty = true`
-- Layout only runs when something actually changed
-
-**Why Not Constraint Solver?**
-- ❌ Additional dependency (Kiwi library)
-- ❌ More complex debugging
-- ❌ Overkill for typical UI layouts
-- ❌ Harder to reason about behavior
-- ✅ Flutter-style is simpler, proven, fast enough
-
-**Performance Target**: < 5ms for 1000 widgets
-
----
-
-### Link[T]: Direct Widget References (Not IDs)
-
-**Decision**: Link[T] stores `HashSet[Widget]` (direct references), not `HashSet[WidgetId]`.
-
-**Rationale**:
-- O(1) dirty marking without hashtable lookup
-- Simpler code: `widget.isDirty = true` vs `widgetMap[id].isDirty = true`
-- Memory overhead negligible (pointer vs int + hashtable)
-- Enables immediate rendering after value change
-
-**Implementation**:
-
-```nim
-type Link*[T] = ref object
-  valueInternal: T
-  dependentWidgets: HashSet[Widget]  # Direct refs, not IDs!
-  onChange*: proc(oldVal, newVal: T)
-
-proc `value=`*[T](link: Link[T], newVal: T) =
-  if link.valueInternal != newVal:
-    let oldVal = link.valueInternal
-    link.valueInternal = newVal
-
-    # Direct widget updates - NO lookup needed!
-    for widget in link.dependentWidgets:
-      widget.isDirty = true        # O(1)
-      app.tree.anyDirty = true     # O(1)
-
-    if link.onChange != nil:
-      link.onChange(oldVal, newVal)
-```
-
-**Performance**:
-- O(n) where n = number of widgets bound to this specific Link
-- NOT O(total widgets in tree)
-- Each widget update is O(1)
-
-**Memory Management**:
-- Widgets hold references to Links (for reading)
-- Links hold references to Widgets (for updates)
-- Circular references managed by Nim's GC
-
----
-
-### Render-Before-Layout Pattern
-
-**Decision**: Widgets can re-render immediately on Link change, layout positions them next frame.
-
-**Rationale**:
-- Content updates can happen immediately (new texture generated)
-- Positioning happens in layout pass
-- Separates content rendering from layout concerns
-- Enables efficient caching
-
-**Flow**:
-```
-Link value changes → Link notifies widgets
-                                ↓
-                    ┌───────────┴───────────┐
-                    ↓                       ↓
-            Mark isDirty=true      Optionally: widget.render()
-                                   (generate new texture now)
-                    ↓                       ↓
-                    └───────────┬───────────┘
-                                ↓
-                    Next frame: Layout pass
-                    (calculate positions/bounds)
-                                ↓
-                    Draw pass: blit textures
-```
-
-**Key Insight**: Widget *content* updates immediately, *positioning* happens in layout pass.
-
----
-
-### Scripting System: Simple File-Based Polling
-
-**Decision**: Poll command file once per second for test automation, no IPC.
-
-**Rationale**:
-- IPC (channels, sockets) is overkill for automated testing
-- File-based is simpler, cross-platform, debuggable
-- 1-second polling is sufficient for automated tests
-- Can inspect commands/responses with text editor
-
-**Implementation**:
-
-```nim
-# Test writes commands
-/tmp/rui_test_12345/commands.json:
-{
-  "id": "cmd_001",
-  "target": "mainWindow/form/nameInput",  # CSS-like path
-  "action": "setText",
-  "params": {"text": "John"}
-}
-
-# App reads every second, writes response
-/tmp/rui_test_12345/responses.json:
-{
-  "id": "cmd_001",
-  "success": true,
-  "state": {"text": "John", "bounds": {"x": 10, "y": 20, "w": 100, "h": 30}}
-}
-```
-
-**Widget Path Syntax** (CSS-like):
-- `"mainWindow"` - Top level
-- `"mainWindow/panel/button"` - Nested
-- `"mainWindow//button"` - Any descendant
-- `"#saveButton"` - By ID
-- `"mainWindow/panel/*"` - All children
-
-**Polling**:
-```nim
-var lastScriptPoll = getMonoTime()
-
-proc mainLoop():
-  let now = getMonoTime()
-  if now - lastScriptPoll >= 1.seconds:
-    processScriptCommands()
-    lastScriptPoll = now
-```
-
-**Use Case**: Automated testing only, not production feature.
-
-**Why No IPC?**
-- ❌ IPC adds complexity (channels, locking, error handling)
-- ❌ Platform-specific code
-- ❌ Harder to debug
-- ✅ Files are simple, portable, inspectable
-- ✅ 1-second latency is fine for tests
-
----
-
-### Module Structure Decisions
-
-**Decision**: Keep drawing primitives separate from widgets.
-
-**Rationale**:
-- Widgets use drawing primitives for rendering
-- Separation enables reuse
-- Widgets: high-level components with state
-- Primitives: stateless drawing functions
-
-**Decision**: Managers handle cross-cutting concerns.
-
-**Rationale**:
-- RenderManager: Texture caching, dirty tracking
-- LayoutManager: Size/position calculations
-- EventManager: Coalescing, routing, priority
-- FocusManager: Tab order, keyboard nav
-- Each manager has single responsibility
-
----
-
-*These design decisions provide a solid foundation for a fast, maintainable, professional GUI framework.*
+> **Status:** this layout is the **target**. The current tree still uses the flat
+> `core/`, `widgets/`, `drawing_primitives/`, `managers/`, `hit-testing/`,
+> `scripting/` directories, with `rui.nim` as the umbrella and `modules/*/api`
+> shims exposing each subsystem. See [STATUS.md](STATUS.md).
