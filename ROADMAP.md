@@ -13,15 +13,22 @@ optimization. See [STATUS.md](STATUS.md) for what works today.
 - **Pin dependencies** — record the `naylib`/`yaml` versions known to build.
 
 ## Phase 1 — Rendering correctness *(medium, load-bearing — blocks Phase 2)*
-The two-pass texture cache has a soundness gap that undermines anything visual.
-- **Propagate dirty up the whole ancestor chain AND invalidate caches along it.**
-  Today a content change marks the child `isDirty` and the parent only
-  `layoutDirty`, so the parent re-composites with a **stale child texture**. The
-  fix is *not just* flagging the chain `isDirty`: repaint will still reuse cached
-  textures that were never invalidated. Each ancestor on the path must have its
-  cached `RenderTexture` invalidated (freed/regenerated) so the new child texture
-  actually flows up to the root. (`rui_core/src/{link,main_loop}.nim`)
-- **Verify visually** once fixed: change state, confirm the repaint reaches screen.
+The two-pass texture cache only repaints correctly if dirty-marking matches the
+compositing model.
+- **Mark dirty up the direct ancestor line only.** On a content change, set
+  `isDirty` on exactly the path from the changed widget to the root — *not* its
+  siblings. Today link/event changes mark the child `isDirty` but the parent only
+  `layoutDirty`, so no ancestor re-composites and the screen shows a stale
+  combined texture. (`rui_core/src/{link,main_loop}.nim`)
+- **Re-composite parents from their children's caches.** When a dirty widget
+  rebuilds its texture it asks each child for its cache and combines them: a clean
+  child (and any unaffected subtree) returns its existing cached texture
+  unchanged; only dirty children rebuild theirs (recursively). So just the changed
+  leaf→root line is recomputed while every untouched subtree is reused — correct
+  *and* fast. `renderPass` already composites all children's caches; the only
+  missing piece is the upward `isDirty` marking above.
+- **Verify visually:** change state, confirm the repaint reaches the screen and
+  that sibling subtrees are not redrawn.
 
 ## Phase 2 — Make reactivity real *(medium — the headline promise)*
 `Link[T]` already has `addDependent` + O(1) dirty-marking; only the wiring is
