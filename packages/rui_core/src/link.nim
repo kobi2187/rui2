@@ -44,15 +44,17 @@ proc `value=`*[T](link: Link[T], newVal: T) =
     let oldVal = link.value
     link.value = newVal
 
-    # Mark all dependent widgets dirty
-    # They will read the new value on next render pass
+    # Mark all dependent widgets dirty. They read the new value on next render.
     for widget in link.dependentWidgets:
-      widget.isDirty = true
       widget.layoutDirty = true  # Content change may affect size
 
-      # Propagate layoutDirty to parent container
+      # Propagate layoutDirty to parent container (relayout may be needed)
       if widget.parent != nil:
         widget.parent.layoutDirty = true
+
+      # Mark the leaf->root render line dirty so the rebuilt texture composites
+      # all the way to the screen; unaffected sibling subtrees keep their caches.
+      widget.markDirtyToRoot()
 
       # Note: tree.anyDirty will be set in the main loop
       # when checking for layout updates

@@ -364,3 +364,17 @@ proc registerWidgetRecursive*(tree: WidgetTree, widget: Widget) =
   tree.registerWidget(widget)
   for child in widget.children:
     tree.registerWidgetRecursive(child)
+
+proc markDirtyToRoot*(widget: Widget) =
+  ## Mark this widget and every ancestor up to the root as needing a re-render.
+  ##
+  ## Only the direct leaf->root line is marked. Siblings and any unaffected
+  ## subtree stay clean, so the render pass reuses their cached textures and a
+  ## dirty parent simply re-composites its children's caches (rebuilding only the
+  ## dirty ones). This keeps the changed texture flowing to the screen while
+  ## untouched subtrees are not redrawn.
+  var w = widget
+  while w != nil:
+    w.isDirty = true
+    w = w.parent
+

@@ -317,6 +317,7 @@ proc handleEvent(app: App, event: GuiEvent) =
     if widget != nil:
       app.focusManager.requestFocus(widget)
       discard widget.handleInput(event)
+      widget.markDirtyToRoot()   # press state changed -> repaint up to root
       app.tree.anyDirty = true
 
   of evMouseUp:
@@ -324,6 +325,7 @@ proc handleEvent(app: App, event: GuiEvent) =
     let widget = app.hitTestSystem.getWidgetAt(event.mousePos.x, event.mousePos.y)
     if widget != nil:
       discard widget.handleInput(event)
+      widget.markDirtyToRoot()
       app.tree.anyDirty = true
 
   of evMouseMove:
@@ -332,7 +334,7 @@ proc handleEvent(app: App, event: GuiEvent) =
     if widget != nil:
       if not widget.hovered:
         widget.hovered = true
-        widget.isDirty = true
+        widget.markDirtyToRoot()   # hover visual changed
         app.tree.anyDirty = true
       discard widget.handleInput(event)
 
@@ -341,6 +343,8 @@ proc handleEvent(app: App, event: GuiEvent) =
     let widget = app.hitTestSystem.getWidgetAt(event.mousePos.x, event.mousePos.y)
     if widget != nil:
       discard widget.handleInput(event)
+      widget.markDirtyToRoot()   # e.g. scroll offset changed
+      app.tree.anyDirty = true
 
   of evKeyDown, evChar:
     # Route keyboard events through focus manager
