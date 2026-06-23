@@ -1,358 +1,169 @@
-# RUI - Raylib UI Framework (Alpha Version, work in progress development, no guarentees)
+# RUI2 — Reactive UI Framework for Nim
 
-**Fast, lightweight, immediate-mode GUI framework for Nim**
+**Fast, lightweight, immediate-mode-with-caching GUI toolkit for Nim, built on raylib.**
 
-RUI (Raylib UI) is a professional GUI framework built on Raylib, designed for building responsive desktop applications with minimal overhead and maximum performance.
-Using Claude AI to complete my half-finished ambitious projects
-## Features
+> ⚠️ **Alpha / work in progress.** The architecture is solid and the core widgets
+> compile and run, but not every feature is wired yet. APIs may change. See
+> [STATUS.md](STATUS.md) for an honest, feature-by-feature breakdown before you
+> rely on anything.
 
-- ⚡ **Sub-millisecond UI latency** - Game-like responsiveness
-- 🎨 **Professional text rendering** - Full Unicode, BiDi, complex scripts via Pango
-- 🎯 **Flutter-style layout** - Intuitive, powerful layout system
-- 🎭 **Instant theme switching** - Zero-cost theme changes
-- 📝 **Declarative DSL** - Clean, readable UI definitions (YAML-UI compatible)
-- 🔄 **Reactive data binding** - Automatic UI updates with Link[T]
-- 🚀 **Smart caching** - Texture caching with dirty tracking
-- 🎮 **Built on Raylib** - Leverage game engine performance
-
-## Quick Start
+RUI2 builds UIs from plain Nim — you describe a widget tree with ordinary
+constructor calls, hold mutable state in `Link[T]`, and run a two-pass
+layout/render loop that caches each widget to a texture and only redraws what
+changed.
 
 ```nim
 import rui
 
-# Define your application state
-type MyStore = ref object of Store
-  counter: Link[int]
+# 1. Reactive state lives in Link[T]
+type CounterStore = object
+  count: Link[int]
 
-# Create UI using declarative DSL
-let app = newApp()
-app.store = MyStore(counter: newLink(0))
+var store = CounterStore(count: newLink(0))
 
-app.tree = buildUI:
-  VStack:
-    spacing: 16
-    padding: 24
-    children:
-      - Label:
-          text: bind <- store.counter
-          fontSize: 24
+# 2. The widget tree is just a proc that returns a Widget
+proc buildUI(): Widget =
+  let root = newVStack(spacing = 12, padding = 16)
+  root.addChild(newLabel(text = "Count: " & $store.count.get(), fontSize = 24))
 
-      - Button:
-          text: "Increment"
-          onClick: proc() =
-            store.counter.value += 1
+  let row = newHStack(spacing = 8)
+  row.addChild(newButton(text = "-", onClick = some(proc() {.closure.} =
+    store.count.set(store.count.get() - 1))))
+  row.addChild(newButton(text = "+", onClick = some(proc() {.closure.} =
+    store.count.set(store.count.get() + 1))))
+  root.addChild(row)
+  result = root
 
-# Run the application
-app.start()
+# 3. Create the app, set the root widget, run
+let app = newApp("Counter", 400, 300)
+app.setRootWidget(buildUI())
+app.run()   # `app.start()` is an alias
 ```
+
+## The actual API
+
+RUI2 has **no magic and no hidden globals**. Everything is regular Nim:
+
+- **State** — `newLink(value)`, then `link.get()` / `link.set(v)` (or `link.value`).
+  A `Link[T]` keeps direct references to the widgets that depend on it for O(1)
+  dirty-marking.
+- **Widget tree** — construct widgets with `newX(...)` and assemble with `addChild`:
+  ```nim
+  let box = newVStack(spacing = 10)
+  box.addChild(newLabel(text = "Hello"))
+  box.addChild(newButton(text = "OK", onClick = some(handleOk)))
+  ```
+  A tree builder is an ordinary `proc(): Widget`, so you can compose, inspect, and
+  reuse it freely. (An ergonomic block-children DSL is a roadmap item.)
+- **Callbacks** — widget actions are `Option[proc]`, so wrap handlers in `some(...)`.
+  Capturing handlers become closures automatically; a non-capturing handler needs
+  `proc() {.closure.} = ...` to match the closure type.
+- **App lifecycle** — `newApp(title, width, height, fps = 60, resizable = true,
+  minWidth = 320, minHeight = 240)`, then `app.setRootWidget(root)`,
+  optionally `app.setStore(store)` / `app.setTheme("dark")`, then `app.run()`.
+
+> **Note:** RUI2 does **not** use a YAML-style `buildUI:` block or a `bind <-`
+> reactive operator. Earlier design notes described that syntax; it is not
+> implemented. Widgets read their values when their `layout`/`render` runs.
+> Automatic `bind` rebinding is a roadmap item (see [STATUS.md](STATUS.md)).
+
+## Defining your own widgets
+
+Two macros generate the widget boilerplate (type, constructor, methods). They
+share the same section format — `props`, `state`, `actions`, `events`, plus
+`render` (primitives) or `layout` (composites):
+
+```nim
+# A leaf that draws itself with drawing primitives
+definePrimitive(Label):
+  props:
+    text: string
+    fontSize: float = 14.0
+    color: Color = BLACK
+  render:
+    drawText(widget.text, widget.bounds, ...)
+
+# A composite that arranges/creates children
+defineWidget(VStack):
+  props:
+    spacing: float = 8.0
+    padding: float = 0.0
+  layout:
+    var y = widget.bounds.y + widget.padding
+    for child in widget.children:
+      child.bounds.x = widget.bounds.x + widget.padding
+      child.bounds.y = y
+      child.bounds.width = widget.bounds.width - widget.padding * 2
+      child.layout()
+      y += child.bounds.height + widget.spacing
+```
+
+See [ARCHITECTURE.md](ARCHITECTURE.md) for the full `definePrimitive` vs
+`defineWidget` distinction and every section.
+
+## What works today
+
+Widgets that compile and run: **Label, Rectangle, Circle, Button, Checkbox,
+RadioButton, Slider, ProgressBar, Hyperlink, Image, VStack, HStack, ZStack,
+ScrollView**. See STATUS.md for the authoritative list.
 
 ## Installation
 
+RUI2 targets the [naylib](https://github.com/planetis-m/naylib) raylib binding.
+
 ```bash
-# Clone the repository
 git clone https://github.com/kobi2187/rui2
 cd rui2
-
-# RUI requires:
-# - Nim (latest stable)
-# - Raylib
-# - Pango/Cairo (for text rendering)
-
-# Install dependencies (Ubuntu/Debian)
-sudo apt-get install libpango1.0-dev libcairo2-dev
-
-# Build examples
-nim c -r examples/counter.nim
+nimble install naylib yaml
 ```
 
-## Core Concepts
+Dependencies:
 
-### Immediate Mode with Intelligence
+- **Nim** ≥ 2.0
+- **naylib** — raylib binding (provides the bundled raylib)
+- **yaml** — used for theme loading
 
-RUI redraws the UI every frame (like a game) but with smart optimizations:
-- Texture caching for unchanged widgets
-- Dirty flags at multiple levels
-- O(log n) hit testing via interval trees
-- Event coalescing (debounce, throttle, batch)
+The repo is a monorepo of packages (below); the root `config.nims` wires them up
+for local development, so examples just `import rui`:
 
-### Flutter-Style Layout
-
-Familiar, powerful layout containers:
-
-```nim
-VStack:          # Vertical stack
-  spacing: 16
-  align: center
-  children:
-    - Label: "Username"
-    - TextInput: bind <-> store.username
-    - Button: "Login"
+```bash
+nim c -r examples/simple_counter_app.nim
 ```
 
-Available containers: **VStack, HStack, Grid, Flex, Dock, Overlay, Wrap, Scroll**
+RUI2 compiles and runs **graphics-only** against naylib (verified with
+`nim check`). A headless mode was removed as a deferred future feature.
 
-### Reactive Data Binding
+## Package layout
 
-Widgets automatically update when data changes:
+RUI2 is organised as **7 self-contained packages** under `packages/`, so each
+subsystem can be used independently and later split into its own repository:
 
-```nim
-# Define reactive data
-type MyStore = ref object of Store
-  username: Link[string]
+| Package          | Responsibility |
+|------------------|----------------|
+| `rui_core`       | Widget/Rect/Color/event types, `Link[T]`, two-pass main loop, `definePrimitive`/`defineWidget` macros |
+| `rui_hittest`    | Generic interval tree + Widget-aware spatial hit-testing |
+| `rui_events`     | Time-budgeted event manager + focus manager |
+| `rui_drawing`    | Drawing primitives, effects, theme system (state × intent), text cache, theme-aware widget primitives |
+| `rui_scripting`  | File-based GUI automation (query/set widget values) for testing |
+| `rui_widgets`    | Concrete widgets: primitives, basic controls, containers |
+| `rui` (umbrella) | `App` object + main-loop integrator + re-exports everything |
 
-# Bind in UI
-Label:
-  text: bind <- store.username  # Auto-updates on change
-```
-
-### Theme System
-
-Switch themes instantly:
-
-```nim
-# Define themes
-let darkTheme = loadTheme("dark.yaml")
-let lightTheme = loadTheme("light.yaml")
-
-# Instant switching
-app.currentTheme = darkTheme  # Just a pointer change!
-```
-
-### Professional Text Rendering
-
-Full Pango/Cairo integration for production-quality text:
-- ✅ All Unicode scripts (Latin, CJK, Devanagari, etc.)
-- ✅ BiDirectional text (Hebrew, Arabic)
-- ✅ Complex text shaping (ligatures, combining marks)
-- ✅ Multi-line with proper wrapping
-- ✅ Text selection and cursor positioning
-
-## Widget Library
-
-### Basic Widgets
-- **Button** - Clickable buttons with states (normal, hovered, pressed)
-- **Label** - Text display with alignment and wrapping
-- **TextInput** - Single-line text entry
-- **Checkbox** - Boolean toggle
-- **RadioButton** - Exclusive selection
-- **Slider** - Value selection along range
-- **ProgressBar** - Progress indication
-
-### Layout Containers
-- **VStack** - Vertical arrangement
-- **HStack** - Horizontal arrangement
-- **Grid** - Grid layout with rows/columns
-- **Flex** - Flexible layout with grow/shrink
-- **Dock** - Dock panels to edges
-- **Overlay** - Layer widgets
-- **Wrap** - Wrapping flow layout
-- **Scroll** - Scrollable content
-
-### Advanced Widgets
-- **ScrollView** - Scrollable area
-- **List** - Vertical list of items
-- **GroupBox** - Titled container
-- **SpinButton** - Numeric input with +/-
-- **ContextMenu** - Right-click menus
-- **QueryBox** - Dialog boxes
-
-## Architecture
-
-RUI uses a manager-based architecture for clean separation of concerns:
-
-- **RenderManager** - Rendering, texture caching, dirty tracking
-- **LayoutManager** - Size calculations, positioning (Flutter-style two-pass)
-- **EventManager** - Event routing, coalescing patterns
-- **FocusManager** - Keyboard navigation, tab order
-- **TextInputManager** - IME support, text editing state
-
-See [ARCHITECTURE.md](ARCHITECTURE.md) for detailed technical documentation.
-
-## Examples
-
-### Counter App
-
-```nim
-import rui
-
-type MyStore = ref object of Store
-  count: Link[int]
-
-let app = newApp()
-app.store = MyStore(count: newLink(0))
-
-app.tree = buildUI:
-  VStack:
-    spacing: 16
-    padding: 24
-    children:
-      - Label:
-          text: bind <- store.count
-          fontSize: 32
-
-      - HStack:
-          spacing: 8
-          children:
-            - Button:
-                text: "Decrement"
-                onClick: proc() = store.count.value -= 1
-
-            - Button:
-                text: "Increment"
-                theme: "button.primary"
-                onClick: proc() = store.count.value += 1
-
-app.start()
-```
-
-### Form Example
-
-```nim
-buildUI:
-  VStack:
-    spacing: 16
-    padding: 24
-    children:
-      - Label: "User Registration"
-        fontSize: 24
-
-      - Grid 2x3:
-          spacing: [16, 8]
-          children:
-            - Label: "Username:"
-            - TextInput: bind <-> store.username
-
-            - Label: "Email:"
-            - TextInput: bind <-> store.email
-
-            - Label: "Password:"
-            - TextInput:
-                bind <-> store.password
-                password: true
-
-      - HStack:
-          spacing: 8
-          justify: end
-          children:
-            - Button: "Cancel"
-            - Button:
-                text: "Register"
-                theme: "button.primary"
-                enabled: bind <- store.isFormValid
-                onClick: submitForm
-```
-
-More examples in the [examples/](examples/) directory.
-
-## Performance
-
-RUI is designed for speed:
-
-- **UI Latency**: < 1ms for simple interactions
-- **Frame Rate**: 60 FPS with moderate UI complexity
-- **Memory**: < 50MB for typical applications
-- **Startup**: < 100ms to first render
-- **Layout**: < 5ms for 1000 widgets
+Each package has its own `.nimble` and `src/` barrel. The root `config.nims`
+resolves them by bare name for local dev (`import rui`, `import rui_core`, ...).
+To peel a subsystem into its own repo, see **[SPLITTING.md](SPLITTING.md)**.
+Subsystems such as the interval-tree hit-tester, the event manager, and the theme
+system are designed to stand alone.
 
 ## Documentation
 
-- [VISION.md](VISION.md) - Philosophy, design principles, roadmap
-- [ARCHITECTURE.md](ARCHITECTURE.md) - Technical architecture, algorithms
-- [PROJECT_STATUS.md](PROJECT_STATUS.md) - Current implementation status
-- [PROGRESS_LOG.md](PROGRESS_LOG.md) - Development log
-
-## Roadmap
-
-### v0.1 (Current Target)
-- ✅ Core widgets (Button, Label, TextInput, Checkbox)
-- 🚧 Layout system (HStack, VStack, Grid)
-- 🚧 Pango text rendering
-- 🚧 Theme system
-- 🚧 Reactive Link[T] binding
-- 🚧 Event coalescing
-
-### v0.2
-- More widgets (RadioButton, Slider, ProgressBar, ScrollView)
-- More layouts (Flex, Dock, Overlay, Wrap)
-- Focus management and keyboard navigation
-- Animation system
-
-### v1.0
-- Complete widget library
-- Extensive documentation
-- Large example applications
-- Stable API
-- Production-ready
-
-## Project Status
-
-**Current Status**: ~50% complete, strong foundation established
-
-See [PROJECT_STATUS.md](PROJECT_STATUS.md) for detailed component-by-component status.
-
-### What's Working Now
-- ✅ Drawing primitives (1292 lines)
-- ✅ Widget library (3242 lines)
-- ✅ Hit testing system
-- ✅ Theme system core
-- ✅ Main application loop
-- ✅ Comprehensive documentation
-
-### In Progress
-- 🚧 Pango integration
-- 🚧 Layout manager
-- 🚧 Reactive Link[T] system
-- 🚧 Event routing
-- 🚧 Focus management
-
-## Design Philosophy
-
-**Keep It Simple**: Clear code over clever code. Optimize when measured.
-
-**Make It Fast**: Profile first, then optimize. Cache aggressively, invalidate correctly.
-
-**Make It Right**: Professional text rendering, proper event handling, clean architecture.
-
-**Make It Useful**: Focus on real use cases, complete examples, extensive documentation.
-
-## Target Use Cases
-
-RUI is perfect for:
-- Desktop utilities and tools
-- Developer tools (editors, debuggers, profilers)
-- Small business applications
-- Educational software
-- Indie game UIs
-- Rapid prototyping
-
-RUI is NOT for:
-- Web applications (use HTML/CSS/JS)
-- Mobile apps (use native toolkits)
-- Extremely complex UIs (use Qt, GTK)
-
-## Contributing
-
-RUI is currently in active development. Contributions welcome!
-
-1. Check [PROJECT_STATUS.md](PROJECT_STATUS.md) for what needs work
-2. Read [ARCHITECTURE.md](ARCHITECTURE.md) to understand the design
-3. Look at [PROGRESS_LOG.md](PROGRESS_LOG.md) for recent changes
+- **[ARCHITECTURE.md](ARCHITECTURE.md)** — design philosophy, two-pass
+  layout/render, the DSL macros, `Link[T]`, theme system, managers, package graph.
+- **[STATUS.md](STATUS.md)** — honest implementation status: what works, what's a
+  roadmap item, known issues, next steps.
+- **[ROADMAP.md](ROADMAP.md)** — phased plan for what's next (correctness →
+  reactivity → ergonomics → text → widgets → release).
+- **[SPLITTING.md](SPLITTING.md)** — how to split each package into its own repo.
 
 ## License
 
-[To be determined - specify your license here]
-
-## Author
-
-[Your name / organization]
-
-## Acknowledgments
-
-- Built on [Raylib](https://www.raylib.com/) - Amazing game development library
-- Text rendering via [Pango](https://pango.gnome.org/) - Professional text layout
-- Layout inspired by [Flutter](https://flutter.dev/) - Proven layout system
-- YAML-UI spec for cross-platform UI definitions
-
----
-
-*RUI: Fast, lightweight, professional GUI for Nim*
+To be determined.

@@ -3,7 +3,7 @@
 ## Demonstrates a complete app using the rui module
 ## with widgets, themes, and layout
 
-import ../rui  # Single import!
+import rui  # Single import!
 
 proc main() =
   echo ruiVersionString()

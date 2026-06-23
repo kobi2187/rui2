@@ -3,7 +3,7 @@
 ## Demonstrates using the single rui module import
 ## instead of importing individual modules
 
-import ../rui  # Single import gives access to everything!
+import rui  # Single import gives access to everything!
 
 proc main() =
   # Create app using rui module
