@@ -31,13 +31,25 @@ compositing model.
   that sibling subtrees are not redrawn.
 
 ## Phase 2 — Make reactivity real *(medium — the headline promise)*
-`Link[T]` already has `addDependent` + O(1) dirty-marking; only the wiring is
-missing. Provide **both** entry points:
-- **Manual binding** — keep/document `link.addDependent(widget)` for explicit use.
-- **A DSL "gui word"** — a binding keyword in the widget DSL (e.g. `bind`) that
-  registers the widget as a dependent and re-reads the value on change.
-- Depends on Phase 1 to actually repaint. Convert the counter example to true
-  binding (drop the manual `.get()` snapshot) as the proof.
+**Push-based, no per-frame polling.** A `Link[T]` holds direct refs to its
+dependent widgets; on `set` it marks exactly those widgets dirty to the root
+(Phase 1). A bound widget re-reads the value only when it actually re-renders
+(once per change, because it's dirty) — it does **not** fetch the value every
+frame, and clean widgets keep their cached texture.
+
+`Link[T]` already has the machinery (`addDependent` + O(1) dirty-marking); only
+the binding sugar is missing. Provide both entry points:
+- **Manual** — `link.addDependent(widget)` (explicit; stays supported).
+- **DSL "gui word" `bind`:**
+  - `bind <-> store.x` — two-way, for editable widgets (TextInput/Checkbox/Slider):
+    register as dependent **and** write back via `store.x.set(...)` on edit.
+  - `bind store.x` (no arrow) — one-way display (Label, …): register as dependent;
+    direction is implied by the widget being read-only. (Explicit `->`/`<-` are
+    optional; pin one arrow convention — the old `yaml-ui` and `ARCHITECTURE` docs
+    disagreed on what `<-` meant.)
+- Implementation: the widget holds the `Link` and reads `.value` inside its
+  render (which only runs when dirty), instead of snapshotting at build time.
+- Proof: convert the counter to true `bind` (drop the manual `.get()` snapshot).
 
 ## Phase 3 — DSL & callback ergonomics *(medium — restores the "elegant" API)*
 - **Container types as template blocks.** Containers become templates that take a
