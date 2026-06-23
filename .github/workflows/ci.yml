@@ -1,0 +1,39 @@
+name: CI
+
+on:
+  push:
+  pull_request:
+
+jobs:
+  check:
+    name: nim check (packages + examples)
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Set up Nim
+        uses: jiro4989/setup-nim-action@v2
+        with:
+          nim-version: 'stable'
+
+      - name: Install dependencies
+        run: nimble install -y naylib yaml
+
+      - name: Type-check every package barrel and example
+        run: |
+          set -euo pipefail
+          NAYLIB="$(nimble path naylib | tail -1)"
+          YAML="$(nimble path yaml | tail -1)"
+          PATHS="--path:$NAYLIB --path:$YAML"          # config.nims adds the in-repo package paths
+          rc=0
+          for p in rui_core rui_hittest rui_events rui_drawing rui_scripting rui_widgets rui; do
+            echo "::group::nim check $p"
+            nim check --hints:off --warnings:off $PATHS "packages/$p/src/$p.nim" || rc=1
+            echo "::endgroup::"
+          done
+          for f in examples/*.nim; do
+            echo "::group::nim check $f"
+            nim check --hints:off --warnings:off $PATHS "$f" || rc=1
+            echo "::endgroup::"
+          done
+          exit $rc
