@@ -9,5 +9,7 @@ import theme_sys_core;     export theme_sys_core
 import theme_manager;      export theme_manager
 import builtin_themes;     export builtin_themes
 import widget_primitives;  export widget_primitives
+import pango_binding;       export pango_binding   # Pango/Cairo FFI
+import pango_text;          export pango_text      # glyph cache, cursor + hit-test API
 import primitives/text;       export text
 import primitives/text_cache; export text_cache

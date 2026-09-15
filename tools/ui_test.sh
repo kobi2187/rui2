@@ -79,6 +79,7 @@ expect "unknown action reports"     'Unknown or unsupported'  "16 counter custom
 expect "label sized to its text"    '"width":'                "17 title read"
 expect "RTL label renders"          '"type":"Label"'          "18 hebrew read"
 expect "wrapped paragraph exists"   '"wrap":true'             "19 paragraph read"
+expect "markup label is markup"     '"markup":true'           "20 markup read"
 
 import -window root shot_uitest.png 2>/dev/null && echo "  screenshot: shot_uitest.png"
 

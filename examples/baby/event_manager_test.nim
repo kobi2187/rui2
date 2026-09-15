@@ -2,8 +2,8 @@
 ##
 ## Tests pattern-based event coalescing and time-budgeted processing
 
-import ../../core/types
-import ../../managers/event_manager
+import rui_core
+import rui_events
 import std/[strutils, monotimes, times, sequtils]
 
 proc main() =

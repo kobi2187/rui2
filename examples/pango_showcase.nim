@@ -18,7 +18,7 @@ type ShowcaseStore = ref object of Store
 
 var store = ShowcaseStore(clicks: 0)
 
-let app = newApp("RUI2 - Pango text showcase", 720, 700)
+let app = newApp("RUI2 - Pango text showcase", 760, 740)
 
 proc named[T](w: T, id: string): T =
   w.stringId = id
@@ -53,6 +53,15 @@ let arabic = newLabel(text = "العربية · مرحبا بالعالم", font
 let cjk    = newLabel(text = "日本語 · 中文 · 한국어", fontSize = 18.0).named("cjk")
 let mixed  = newLabel(text = "Mixed שלום world 你好 ligature: fi ffl",
                       fontSize = 16.0).named("mixed")
+
+# --- markup: per-run colour and weight inside a single label --------------
+let markup = newLabel(
+  text = "Markup: <b>bold</b>, <i>italic</i>, " &
+         "<span foreground='#c0392b'>red</span>, " &
+         "<span foreground='#2980b9' size='larger'>large blue</span>, " &
+         "H<sub>2</sub>O and x<sup>2</sup>",
+  fontSize = 16.0, markup = true
+).named("markup")
 
 # --- wrapping -------------------------------------------------------------
 let para = newLabel(
@@ -90,6 +99,7 @@ let root = newVStack(spacing = 9.0, padding = 22.0).named("root")
 for w in [Widget(title), Widget(subtitle),
           Widget(regular), Widget(bold), Widget(italic), Widget(serif), Widget(mono),
           Widget(hebrew), Widget(arabic), Widget(cjk), Widget(mixed),
+          Widget(markup),
           Widget(para),
           Widget(counter), Widget(buttonRow),
           Widget(agree), Widget(progress)]:

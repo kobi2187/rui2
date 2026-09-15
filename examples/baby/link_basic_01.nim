@@ -11,7 +11,7 @@
 ## Status: ✅ READY TO TEST
 
 import raylib
-import ../../core/[types, link]
+import rui_core
 
 proc main() =
   # Setup window
@@ -37,17 +37,17 @@ proc main() =
   # Main loop
   while not windowShouldClose():
     # Input handling
-    if isKeyPressed(KEY_SPACE):
+    if isKeyPressed(KeyboardKey.Space):
       counter.value += 1
       echo "  Counter is now: ", counter.value
 
-    if isKeyPressed(KEY_R):
+    if isKeyPressed(KeyboardKey.R):
       counter.value = 0
       echo "  Counter reset to 0"
 
     # Render
     beginDrawing()
-    clearBackground(RAYGREEN)
+    clearBackground(Green)
 
     # Title
     drawText("Link[T] Basic Test", 10, 10, 20, WHITE)

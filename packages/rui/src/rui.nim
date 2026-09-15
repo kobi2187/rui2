@@ -29,6 +29,7 @@ proc ruiVersionString*(): string =
   ## Get the RUI2 version string
   "RUI2 v" & RuiVersion
 
-proc start*(application: App) =
+proc start*(application: App, maxFrames: int = -1) =
   ## Start the application main loop (alias for app.run()).
-  application.run()
+  ## `maxFrames` > 0 renders that many frames and exits -- useful for tests.
+  application.run(maxFrames)

@@ -16,10 +16,19 @@ jobs:
         with:
           nim-version: 'stable'
 
+      - name: Install system libraries
+        run: |
+          sudo apt-get update -qq
+          sudo apt-get install -y -qq \
+            libpango1.0-dev libcairo2-dev \
+            libasound2-dev libx11-dev libxrandr-dev libxi-dev \
+            libgl1-mesa-dev libglu1-mesa-dev libxcursor-dev libxinerama-dev \
+            libxkbcommon-dev libwayland-bin
+
       - name: Install dependencies
         run: nimble install -y naylib yaml
 
-      - name: Type-check every package barrel and example
+      - name: Type-check every package barrel
         run: |
           set -euo pipefail
           NAYLIB="$(nimble path naylib | tail -1)"
@@ -31,9 +40,33 @@ jobs:
             nim check --hints:off --warnings:off $PATHS "packages/$p/src/$p.nim" || rc=1
             echo "::endgroup::"
           done
-          for f in examples/*.nim; do
-            echo "::group::nim check $f"
-            nim check --hints:off --warnings:off $PATHS "$f" || rc=1
+          exit $rc
+
+      - name: Compile every example
+        run: |
+          set -euo pipefail
+          NAYLIB="$(nimble path naylib | tail -1)"
+          YAML="$(nimble path yaml | tail -1)"
+          PATHS="--path:$NAYLIB --path:$YAML"
+          rc=0
+          # A real compile, not just `nim check`: naylib's move-only GPU types
+          # (`=copy` is {.error.}) only fail during the full build, so a
+          # check-only CI passes code that cannot actually link.
+          for f in examples/*.nim examples/baby/*.nim; do
+            echo "::group::nim c $f"
+            nim c --hints:off --warnings:off -d:useGraphics $PATHS \
+              --nimcache:"/tmp/nc/$(basename "$f" .nim)" \
+              -o:"/tmp/bin/$(basename "$f" .nim)" "$f" || rc=1
             echo "::endgroup::"
           done
           exit $rc
+
+      - name: Run the UI test suite
+        run: |
+          set -euo pipefail
+          sudo apt-get install -y -qq xvfb imagemagick
+          NAYLIB="$(nimble path naylib | tail -1)"
+          YAML="$(nimble path yaml | tail -1)"
+          nim c --hints:off --warnings:off -d:useGraphics \
+            --path:"$NAYLIB" --path:"$YAML" examples/pango_showcase.nim
+          ./tools/ui_test.sh ./examples/pango_showcase

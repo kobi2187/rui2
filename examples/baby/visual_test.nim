@@ -6,9 +6,8 @@
 ## - Frame rendering
 ## - FPS display
 
-import ../../core/[types, link, app]
-when defined(useGraphics):
-  import raylib  # Need raylib types for KeyboardKey
+import rui   # umbrella: rui_core + App + widgets
+import raylib  # KeyboardKey and friends
 
 when defined(useGraphics):
   proc main() =
@@ -57,7 +56,8 @@ when defined(useGraphics):
 
     # Inject custom rendering (monkey-patch for demo)
     # In real app, this would be in render manager
-    import naylib
+    # (an `import` used to sit here, which Nim only allows at top level --
+    #  raylib is imported at the top of the file instead)
 
     proc customRender(appInst: App) =
       beginDrawing()
@@ -72,15 +72,15 @@ when defined(useGraphics):
 
       # Display counter (from reactive Link)
       let counterText = "Counter: " & $store.counter.value
-      drawText(cstring(counterText), 20, 140, 32, Yellow)
+      drawText(counterText, 20, 140, 32, Yellow)
 
       # Display mouse clicks
       let clicksText = "Mouse Clicks: " & $store.mouseClicks.value
-      drawText(cstring(clicksText), 20, 190, 32, Green)
+      drawText(clicksText, 20, 190, 32, Green)
 
       # FPS and stats
-      drawText(cstring("FPS: " & $appInst.currentFPS), 20, 260, 20, Lime)
-      drawText(cstring("Events in queue: " & $appInst.eventManager.queueLength), 20, 290, 16, SkyBlue)
+      drawText("FPS: " & $appInst.currentFPS, 20, 260, 20, Lime)
+      drawText("Events in queue: " & $appInst.eventManager.queueLength, 20, 290, 16, SkyBlue)
 
       # Event stats
       let stats = appInst.eventManager.getStats()
@@ -100,7 +100,7 @@ when defined(useGraphics):
     # Standard run would be: app.run()
     # But we need custom rendering, so inline it:
 
-    import naylib
+    # (an `import` used to sit here too; Nim only allows imports at top level)
     initWindow(app.window.width.int32, app.window.height.int32, app.window.title)
     setTargetFPS(app.window.fps.int32)
 

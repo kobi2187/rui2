@@ -48,10 +48,13 @@ type
     textCache*: TextCache
 
     # Frame timing
-    lastFrameTime: MonoTime
-    frameCount: int
-    fpsUpdateTime: MonoTime
-    currentFPS: float
+    # Exported: examples, overlays and perf tooling read these from outside
+    # this module, and an unexported field is invisible there even though
+    # app.nim's own FPS overlay can see it.
+    lastFrameTime*: MonoTime
+    frameCount*: int
+    fpsUpdateTime*: MonoTime
+    currentFPS*: float
 
     # Scripting support (deprecated - use scriptManager)
     scriptingEnabled*: bool
@@ -489,8 +492,13 @@ proc pollScriptCommands(app: App) =
 # Main Loop
 # ============================================================================
 
-proc run*(app: App) =
-  ## Run the main application loop
+proc run*(app: App, maxFrames: int = -1) =
+  ## Run the main application loop.
+  ##
+  ## `maxFrames` > 0 stops after that many frames and closes the window. That
+  ## is what automated tests and screenshot capture want; Stage B removed the
+  ## old headless mode on purpose, and this is the graphics-only equivalent --
+  ## a real window, really rendered, for a bounded number of frames.
 
   # Initialize window
   initWindow(app.window.width.int32, app.window.height.int32, app.window.title)
@@ -515,7 +523,11 @@ proc run*(app: App) =
   echo ""
 
   # Main loop
+  var framesRun = 0
   while not windowShouldClose() and not app.shouldClose:
+    if maxFrames > 0 and framesRun >= maxFrames:
+      break
+    inc framesRun
     let frameStart = getMonoTime()
 
     # 1. Collect events from Raylib

@@ -5,7 +5,8 @@
 ## - Frame timing
 ## - Headless mode for automated testing
 
-import ../../core/[types, link, app]
+import rui_core
+import app  # App lives in the rui umbrella package
 import std/[strutils, monotimes]
 
 proc testHeadlessMode() =
@@ -60,7 +61,7 @@ proc testHeadlessMode() =
 
   # Run a few frames
   echo "[Test] Running 5 frames..."
-  app.runHeadless(frames = 5)
+  app.run(maxFrames = 5)  # was runHeadless(); headless mode was removed in Stage B
 
   echo ""
   echo "[Test] Stats after 5 frames:"

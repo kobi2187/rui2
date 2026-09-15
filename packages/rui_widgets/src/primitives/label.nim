@@ -23,6 +23,9 @@ definePrimitive(Label):
     underline: bool = false
     align: TextAlign = TextAlign.Left
     wrap: bool = false          ## wrap to the width the parent assigned
+    markup: bool = false        ## treat `text` as Pango markup:
+                                ## "<b>bold</b> <span foreground='#c00'>red</span>"
+                                ## Colours come from the markup, so `color` is ignored.
 
   layout:
     let style = TextStyle(
@@ -35,8 +38,15 @@ definePrimitive(Label):
     )
 
     # Measure against the assigned width when wrapping, otherwise on one line.
+    let wrapWidth = if widget.wrap and widget.bounds.width > 0:
+                      widget.bounds.width.int32
+                    else: -1'i32
     let metrics =
-      if widget.wrap and widget.bounds.width > 0:
+      if widget.markup:
+        let m = measureMarkupPango(widget.text, style.pangoFont, wrapWidth)
+        TextMetrics(width: m.width, height: m.height,
+                    lineHeight: m.height, baseline: m.baseline)
+      elif widget.wrap and widget.bounds.width > 0:
         measureTextWrapped(widget.text, style, widget.bounds.width)
       else:
         measureText(widget.text, style)
@@ -57,7 +67,13 @@ definePrimitive(Label):
       underline: widget.underline
     )
 
-    if widget.wrap:
+    if widget.markup:
+      let wrapWidth = if widget.wrap and widget.bounds.width > 0:
+                        widget.bounds.width.int32
+                      else: -1'i32
+      drawMarkupPango(widget.text, widget.bounds.x, widget.bounds.y,
+                      style.pangoFont, wrapWidth)
+    elif widget.wrap:
       drawTextLayout(TextLayout(
         text: widget.text,
         rect: widget.bounds,

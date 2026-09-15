@@ -2,7 +2,7 @@
 ##
 ## Tests the Link[T] reactive system logic without graphics dependency
 
-import ../../core/[types, link]
+import rui_core
 import std/strutils
 
 # Create a mock widget for testing

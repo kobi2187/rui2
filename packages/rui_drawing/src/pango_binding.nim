@@ -50,6 +50,40 @@ type
     PangoEllipsizeMiddle = 2
     PangoEllipsizeEnd = 3
 
+  CairoFontOptions* = distinct pointer
+  PangoContext* = distinct pointer
+
+  PangoRectangle* {.importc: "PangoRectangle", header: pangoHdr,
+                    bycopy, completeStruct.} = object
+    ## Pango units (1/1024 px), not pixels.
+    x*, y*, width*, height*: cint
+
+  CairoAntialias* {.size: sizeof(cint).} = enum
+    ## cairo_antialias_t
+    CairoAntialiasDefault = 0
+    CairoAntialiasNone = 1
+    CairoAntialiasGray = 2
+    CairoAntialiasSubpixel = 3
+    CairoAntialiasFast = 4
+    CairoAntialiasGood = 5
+    CairoAntialiasBest = 6
+
+  CairoSubpixelOrder* {.size: sizeof(cint).} = enum
+    ## cairo_subpixel_order_t
+    CairoSubpixelDefault = 0
+    CairoSubpixelRgb = 1
+    CairoSubpixelBgr = 2
+    CairoSubpixelVrgb = 3
+    CairoSubpixelVbgr = 4
+
+  CairoHintStyle* {.size: sizeof(cint).} = enum
+    ## cairo_hint_style_t
+    CairoHintDefault = 0
+    CairoHintNone = 1
+    CairoHintSlight = 2
+    CairoHintMedium = 3
+    CairoHintFull = 4
+
 const
   PANGO_SCALE* = 1024
     ## Pango works in 1/1024ths of a pixel.
@@ -152,6 +186,63 @@ proc pangoFontDescriptionFree*(d: PangoFontDescription)
 
 proc gObjectUnref*(o: pointer)
   {.importc: "g_object_unref", header: "<glib-object.h>".}
+
+
+# ---------------------------------------------------------------------------
+# Cairo font options (antialiasing / hinting / subpixel order)
+# ---------------------------------------------------------------------------
+proc cairoFontOptionsCreate*(): CairoFontOptions
+  {.importc: "cairo_font_options_create", header: cairoHdr.}
+
+proc cairoFontOptionsDestroy*(o: CairoFontOptions)
+  {.importc: "cairo_font_options_destroy", header: cairoHdr.}
+
+proc cairoFontOptionsSetAntialias*(o: CairoFontOptions, a: CairoAntialias)
+  {.importc: "cairo_font_options_set_antialias", header: cairoHdr.}
+
+proc cairoFontOptionsSetHintStyle*(o: CairoFontOptions, h: CairoHintStyle)
+  {.importc: "cairo_font_options_set_hint_style", header: cairoHdr.}
+
+proc cairoFontOptionsSetSubpixelOrder*(o: CairoFontOptions,
+                                       s: CairoSubpixelOrder)
+  {.importc: "cairo_font_options_set_subpixel_order", header: cairoHdr.}
+
+proc pangoCairoContextSetFontOptions*(c: PangoContext, o: CairoFontOptions)
+  {.importc: "pango_cairo_context_set_font_options", header: pangoHdr.}
+
+proc pangoLayoutGetContext*(l: PangoLayout): PangoContext
+  {.importc: "pango_layout_get_context", header: pangoHdr.}
+
+proc pangoLayoutContextChanged*(l: PangoLayout)
+  {.importc: "pango_layout_context_changed", header: pangoHdr.}
+
+# ---------------------------------------------------------------------------
+# Layout queries used by text editing
+# ---------------------------------------------------------------------------
+proc pangoLayoutSetAutoDir*(l: PangoLayout, autoDir: cint)
+  {.importc: "pango_layout_set_auto_dir", header: pangoHdr.}
+
+proc pangoLayoutGetLineCount*(l: PangoLayout): cint
+  {.importc: "pango_layout_get_line_count", header: pangoHdr.}
+
+proc pangoLayoutGetCursorPos*(l: PangoLayout, index: cint,
+                              strong, weak: ptr PangoRectangle)
+  {.importc: "pango_layout_get_cursor_pos", header: pangoHdr.}
+
+proc cairoImageSurfaceGetWidth*(s: CairoSurface): cint
+  {.importc: "cairo_image_surface_get_width", header: cairoHdr.}
+
+proc cairoImageSurfaceGetHeight*(s: CairoSurface): cint
+  {.importc: "cairo_image_surface_get_height", header: cairoHdr.}
+
+# ---------------------------------------------------------------------------
+# Pango unit conversion
+# ---------------------------------------------------------------------------
+proc toPixels*(pangoUnits: cint): float32 {.inline.} =
+  pangoUnits.float32 / PANGO_SCALE.float32
+
+proc toPangoUnits*(pixels: float32): cint {.inline.} =
+  cint(pixels * PANGO_SCALE.float32)
 
 # ---------------------------------------------------------------------------
 # Font description strings

@@ -8,6 +8,7 @@ import std/[tables, hashes, strformat]
 import std/times as stdtimes  # Avoid conflict with raylib.getTime
 import rui_core
 import text  # For TextStyle, TextMetrics, TextAlign
+import ../pango_text  # the real glyph-texture cache lives here
 
 export text
 
@@ -153,9 +154,15 @@ proc findOldestEntry*(cache: TextCache): tuple[key: RenderKey, found: bool] =
 
   (oldestKey, found)
 
-proc freeTexture*(texture: raylib.Texture2D) =
-  ## Free a texture using the real raylib function
-  {.emit: "UnloadTexture(`texture`);".}
+proc freeTexture*(texture: raylib.Texture2D) {.deprecated:
+    "textures are freed by naylib's destructor; dropping the entry is enough".} =
+  ## Deliberately a no-op.
+  ##
+  ## This used to be `{.emit: "UnloadTexture(`texture`);".}` -- reaching past
+  ## naylib to a C function it keeps private on purpose. naylib's Texture frees
+  ## itself through `=destroy`, so unloading it here as well double-frees the
+  ## GPU handle. Removing the cache entry is the whole job.
+  discard
 
 proc unloadTexture*(cache: var TextCache, entry: TextureCacheEntry) =
   ## Unload texture from memory
@@ -216,10 +223,10 @@ proc clearAllEntries*(cache: var TextCache) =
   cache.textures.clear()
 
 proc clearCache*(cache: var TextCache) =
-  ## Clear entire cache and free resources
-  cache.unloadAllTextures()
+  ## Clear entire cache and free resources, including the Pango glyph textures.
   cache.clearAllEntries()
   cache.resetCounters()
+  pango_text.clearTextCache()
 
 # ============================================================================
 # Cached Measurement - Forth Style
@@ -348,13 +355,19 @@ proc getCacheStats*(cache: TextCache): tuple[
   else:
     0.0
 
-  result.textureSize = cache.textures.len
-  result.textureHitRate = if totalTextures > 0:
+  # Glyph textures are owned by pango_text's LRU cache, so report its numbers
+  # rather than this object's (which stays empty now that nothing fills it).
+  let glyphs = textCacheStats()
+  let glyphTotal = glyphs.hits + glyphs.misses
+  result.textureSize = glyphs.entries
+  result.textureHitRate = if glyphTotal > 0:
+    glyphs.hits.float / glyphTotal.float
+  elif totalTextures > 0:
     cache.textureHits.float / totalTextures.float
   else:
     0.0
 
-  result.memoryMB = cache.currentMemoryBytes.float / (1024 * 1024)
+  result.memoryMB = glyphs.memoryBytes.float / (1024 * 1024)
 
 proc printCacheStats*(cache: TextCache) =
   ## Print cache statistics for debugging
