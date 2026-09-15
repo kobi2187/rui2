@@ -46,10 +46,10 @@ when defined(useGraphics):
       of evKeyDown:
         # Check if Space key (value 32 in KeyboardKey enum)
         if event.key == KeyboardKey(32):  # Space key
-          store.counter.value += 1
+          store.counter.set(store.counter.get() + 1)
 
       of evMouseDown:
-        store.mouseClicks.value += 1
+        store.mouseClicks.set(store.mouseClicks.get() + 1)
 
       else:
         discard

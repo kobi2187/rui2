@@ -42,31 +42,7 @@ jobs:
           done
           exit $rc
 
-      - name: Compile every example
+      - name: Regression suite (unit tests, example compiles, scripted UI tests)
         run: |
-          set -euo pipefail
-          NAYLIB="$(nimble path naylib | tail -1)"
-          YAML="$(nimble path yaml | tail -1)"
-          PATHS="--path:$NAYLIB --path:$YAML"
-          rc=0
-          # A real compile, not just `nim check`: naylib's move-only GPU types
-          # (`=copy` is {.error.}) only fail during the full build, so a
-          # check-only CI passes code that cannot actually link.
-          for f in examples/*.nim examples/baby/*.nim; do
-            echo "::group::nim c $f"
-            nim c --hints:off --warnings:off -d:useGraphics $PATHS \
-              --nimcache:"/tmp/nc/$(basename "$f" .nim)" \
-              -o:"/tmp/bin/$(basename "$f" .nim)" "$f" || rc=1
-            echo "::endgroup::"
-          done
-          exit $rc
-
-      - name: Run the UI test suite
-        run: |
-          set -euo pipefail
           sudo apt-get install -y -qq xvfb imagemagick
-          NAYLIB="$(nimble path naylib | tail -1)"
-          YAML="$(nimble path yaml | tail -1)"
-          nim c --hints:off --warnings:off -d:useGraphics \
-            --path:"$NAYLIB" --path:"$YAML" examples/pango_showcase.nim
-          ./tools/ui_test.sh ./examples/pango_showcase
+          ./tools/run_tests.sh

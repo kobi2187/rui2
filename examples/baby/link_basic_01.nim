@@ -38,7 +38,7 @@ proc main() =
   while not windowShouldClose():
     # Input handling
     if isKeyPressed(KeyboardKey.Space):
-      counter.value += 1
+      counter.set(counter.get() + 1)
       echo "  Counter is now: ", counter.value
 
     if isKeyPressed(KeyboardKey.R):

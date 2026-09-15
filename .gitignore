@@ -8,3 +8,14 @@ examples/rui_simple_example
 examples/script/
 shot_*.png
 nimcache/
+
+# test + example build output
+tests/test_*
+!tests/test_*.nim
+examples/widgets/*
+!examples/widgets/*.nim
+examples/baby/*
+!examples/baby/*.nim
+!examples/baby/*.md
+**/script/
+*.bmp

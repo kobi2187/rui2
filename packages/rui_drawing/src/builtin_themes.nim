@@ -62,6 +62,10 @@ proc makeThemeProps*(
 proc createLightTheme*(): Theme =
   result = newTheme("Modern Light")
 
+  # The window canvas sits a shade off the Default surface, so a Default-intent
+  # control is still distinguishable from the background behind it.
+  result.brandPalette.surfaceColor = some(makeColor(245, 245, 247))
+
   result.base[Default] = makeThemeProps(
     backgroundColor = makeColor(255, 255, 255),
     foregroundColor = makeColor(33, 33, 33),
@@ -117,6 +121,8 @@ proc createLightTheme*(): Theme =
 # Dark Theme
 proc createDarkTheme*(): Theme =
   result = newTheme("Modern Dark")
+
+  result.brandPalette.surfaceColor = some(makeColor(24, 24, 26))
 
   result.base[Default] = makeThemeProps(
     backgroundColor = makeColor(32, 32, 32),

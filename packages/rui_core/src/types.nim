@@ -102,6 +102,15 @@ type
     onFocus*: Option[proc() {.closure.}]       # Called when widget gains focus
     onBlur*: Option[proc() {.closure.}]        # Called when widget loses focus
 
+    # Data binding
+    onRefresh*: Option[proc() {.closure.}]
+      ## Invoked by the layout pass when the widget is dirty, before layout()
+      ## runs. This is what makes Link[T] binding actually change what is on
+      ## screen: `Link.set` marks its dependents dirty, and each dependent's
+      ## refresh hook copies the new value into whatever prop it is bound to.
+      ## Without it a Link only ever marked widgets dirty and they re-rendered
+      ## the value they were constructed with.
+
     # Hierarchy
     parent*: Widget
     children*: seq[Widget]
@@ -121,7 +130,15 @@ type
 
 type
   Link*[T] = ref object
-    value*: T  # Internal field accessed by link.nim
+    ## Reactive cell. Read and write it through `value` / `value=` (or the
+    ## `get` / `set` aliases) -- never the backing field.
+    ##
+    ## The field is deliberately NOT called `value`. It used to be, and because
+    ## Nim resolves `link.value = x` to the field rather than to the `value=`
+    ## proc of the same name, every assignment silently skipped the
+    ## notification: no dependent was ever marked dirty and no onChange ever
+    ## fired. The whole reactive system was inert.
+    val*: T
     dependentWidgets*: HashSet[Widget]  # Direct references for O(1) updates!
     onChange*: proc(oldVal, newVal: T)
 
@@ -366,6 +383,22 @@ proc setWidgetStringId*(tree: WidgetTree, widget: Widget, id: string) =
   widget.stringId = id
   if id.len > 0:
     tree.widgetsByStringId[id] = widget
+
+proc markSubtreeDirty*(widget: Widget, alsoLayout = true) =
+  ## Mark a widget and everything under it as needing a repaint.
+  ##
+  ## Needed for changes that affect every widget at once -- a theme switch, a
+  ## font-rendering change -- where the per-widget dirty flags carry no signal
+  ## because nothing about any individual widget changed.
+  if widget == nil:
+    return
+  widget.isDirty = true
+  if alsoLayout:
+    # Composites read theme props inside layout() (a Button rebuilds its
+    # background and label there), so a repaint alone is not enough.
+    widget.layoutDirty = true
+  for child in widget.children:
+    child.markSubtreeDirty(alsoLayout)
 
 proc registerWidgetRecursive*(tree: WidgetTree, widget: Widget) =
   ## Register a widget and all its children recursively

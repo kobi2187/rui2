@@ -27,6 +27,10 @@ definePrimitive(Label):
                                 ## "<b>bold</b> <span foreground='#c00'>red</span>"
                                 ## Colours come from the markup, so `color` is ignored.
 
+  state:
+    selfWidth: float    ## the width this label last measured for itself
+    selfHeight: float
+
   layout:
     let style = TextStyle(
       fontFamily: widget.fontFamily,
@@ -51,11 +55,17 @@ definePrimitive(Label):
       else:
         measureText(widget.text, style)
 
-    # A parent that has already assigned a width keeps it; an unparented or
-    # free-sized label takes its natural width.
-    if widget.bounds.width <= 0:
+    # Keep a width the *parent* assigned, but re-measure one this label set
+    # for itself -- otherwise a free-standing label can never grow again once
+    # it has a non-zero width, and bound text silently stops resizing.
+    let parentAssigned = widget.bounds.width > 0 and
+                         widget.bounds.width != widget.selfWidth
+    if not parentAssigned:
       widget.bounds.width = metrics.width
+      widget.selfWidth = metrics.width
+
     widget.bounds.height = metrics.height
+    widget.selfHeight = metrics.height
 
   render:
     let style = TextStyle(

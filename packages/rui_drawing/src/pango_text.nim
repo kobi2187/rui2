@@ -28,7 +28,7 @@
 ##    premultiplied; the old `extractARGB` copied the bytes straight out, which
 ##    darkens every partially transparent pixel.
 
-import std/[tables, hashes]
+import std/[tables, hashes, math]
 import std/times as stdtimes  # raylib also exports stdtimes.getTime()
 import raylib
 import pango_binding
@@ -372,10 +372,16 @@ proc getGlyphs(text, font: string, wrapWidth: int32,
 proc drawTextPango*(text: string, x, y: float32, font: string,
                     color: Color, wrapWidth: int32 = -1) =
   ## Draw `text` with its top-left corner at (x, y).
+  ##
+  ## The position is snapped to whole pixels. The glyph texture is sampled with
+  ## a Point filter at 1:1 scale, so drawing it at a fractional offset makes the
+  ## sampler drop or duplicate whole columns -- visible as hairline gaps through
+  ## letters and a stray sliver at the edges, most obvious on centred text where
+  ## the x lands on a half pixel.
   if text.len == 0:
     return
   let g = getGlyphs(text, font, wrapWidth, markup = false)
-  drawTexture(g.texture, Vector2(x: x, y: y), color)
+  drawTexture(g.texture, Vector2(x: round(x), y: round(y)), color)
 
 proc drawMarkupPango*(markup: string, x, y: float32, font: string,
                       wrapWidth: int32 = -1) =
@@ -385,7 +391,7 @@ proc drawMarkupPango*(markup: string, x, y: float32, font: string,
   if markup.len == 0:
     return
   let g = getGlyphs(markup, font, wrapWidth, markup = true)
-  drawTexture(g.texture, Vector2(x: x, y: y), White)
+  drawTexture(g.texture, Vector2(x: round(x), y: round(y)), White)
 
 proc measureTextPango*(text: string, font: string,
                        wrapWidth: int32 = -1): TextMeasure =

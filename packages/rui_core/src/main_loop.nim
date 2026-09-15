@@ -98,6 +98,10 @@ proc layoutPass*(widget: Widget) =
   ## to trigger re-rendering in the render pass.
 
   if widget.layoutDirty:
+    # Pull bound values in before measuring, so layout sees the new content.
+    if widget.onRefresh.isSome:
+      widget.onRefresh.get()()
+
     # Save previous bounds to detect changes
     let oldBounds = widget.bounds
 

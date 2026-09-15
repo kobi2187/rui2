@@ -269,6 +269,20 @@ var currentTheme*: Theme = newTheme("Default")
   ## The active theme used by widgets during rendering.
   ## Set via app.setTheme() or directly for headless testing.
 
+proc canvasColor*(theme: Theme): Color =
+  ## Colour for the window behind the widget tree.
+  ##
+  ## Prefers the brand palette's surface colour, which built-in themes set a
+  ## shade away from the Default intent so a Default-intent control does not
+  ## vanish into the background. Falls back to the Default background, then to
+  ## a neutral light grey.
+  if theme.brandPalette.surfaceColor.isSome:
+    return theme.brandPalette.surfaceColor.get()
+  let props = theme.getThemeProps(ThemeIntent.Default, ThemeState.Normal)
+  if props.backgroundColor.isSome:
+    return props.backgroundColor.get()
+  Color(r: 245, g: 245, b: 245, a: 255)
+
 proc setCurrentTheme*(theme: Theme) =
   ## Set the global current theme
   currentTheme = theme

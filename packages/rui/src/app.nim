@@ -173,11 +173,17 @@ proc disableScripting*(app: App) =
 # ============================================================================
 
 proc setTheme*(app: App, theme: Theme) =
-  ## Change the application theme by Theme object
+  ## Change the application theme by Theme object.
+  ##
+  ## Setting the tree-level flags is not enough on its own: frame() gates the
+  ## render pass on the *root widget's* flags, and composites read theme props
+  ## inside layout(), so every widget has to be marked or the switch does not
+  ## reach the screen.
   app.themeManager.setTheme(theme)
   app.currentTheme = app.themeManager.current
   app.tree.anyDirty = true
   app.tree.isDirty = true
+  app.tree.root.markSubtreeDirty()
 
 proc setTheme*(app: App, name: string) =
   ## Change the application theme by name (must be registered in themeManager)
@@ -185,6 +191,7 @@ proc setTheme*(app: App, name: string) =
   app.currentTheme = app.themeManager.current
   app.tree.anyDirty = true
   app.tree.isDirty = true
+  app.tree.root.markSubtreeDirty()
 
 proc getTheme*(app: App): Theme =
   ## Get the current theme
@@ -439,7 +446,9 @@ proc updateLayoutAndRender(app: App) =
 proc renderFrame(app: App) =
   ## Render the current frame
   beginDrawing()
-  clearBackground(RayWhite)
+  # The window surround follows the active theme rather than a hardcoded
+  # RayWhite, so a dark theme does not leave a light border around the UI.
+  clearBackground(currentTheme.canvasColor())
 
   # Composite root widget's cached texture to screen
   if app.tree.root != nil and app.tree.root.cachedTexture.isSome:

@@ -12,7 +12,7 @@ import types
 proc newLink*[T](initialValue: T): Link[T] =
   ## Create a new Link with an initial value
   result = Link[T](
-    value: initialValue,
+    val: initialValue,
     dependentWidgets: initHashSet[Widget](),
     onChange: nil
   )
@@ -23,7 +23,7 @@ proc newLink*[T](initialValue: T): Link[T] =
 
 proc value*[T](link: Link[T]): T =
   ## Get the current value of the link
-  link.value
+  link.val
 
 proc `value=`*[T](link: Link[T], newVal: T) =
   ## Set a new value and mark dependent widgets dirty
@@ -40,9 +40,9 @@ proc `value=`*[T](link: Link[T], newVal: T) =
   ## Performance: O(n) where n = number of widgets bound to THIS link
   ##              NOT O(total widgets in tree)!
 
-  if link.value != newVal:
-    let oldVal = link.value
-    link.value = newVal
+  if link.val != newVal:
+    let oldVal = link.val
+    link.val = newVal
 
     # Mark all dependent widgets dirty. They read the new value on next render.
     for widget in link.dependentWidgets:
@@ -115,7 +115,7 @@ proc clearOnChange*[T](link: Link[T]) =
 
 proc `$`*[T](link: Link[T]): string =
   ## String representation for debugging
-  "Link[" & $T & "](" & $link.value & ", " & $link.dependentCount & " deps)"
+  "Link[" & $T & "](" & $link.val & ", " & $link.dependentCount & " deps)"
 
 # ============================================================================
 # Convenience Methods (Aliases for .value)
@@ -124,9 +124,47 @@ proc `$`*[T](link: Link[T]): string =
 proc get*[T](link: Link[T]): T =
   ## Convenience method - same as .value
   ## Read the current value of the link
-  link.value
+  link.val
 
-proc set*[T](link: Link[T], val: T) =
-  ## Convenience method - same as .value = val
+proc set*[T](link: Link[T], newVal: T) =
+  ## Convenience method - same as .value = newVal
   ## Set a new value and mark dependent widgets dirty
-  link.value = val
+  link.value = newVal
+
+# ============================================================================
+# Binding
+#
+# `Link.set` marks its dependent widgets dirty, but a widget holds plain props
+# (a Label holds a `string`, not a `Link[string]`), so being dirty alone never
+# changed what it displayed. `bindTo` closes that: it registers the dependency
+# *and* installs a refresh hook that copies the current value into the widget
+# before each layout. One registration, and the value flows.
+# ============================================================================
+
+proc bindTo*[T](link: Link[T], widget: Widget,
+                apply: proc(value: T) {.closure.}) =
+  ## One-way binding: whenever `link` changes, `apply` runs with the new value
+  ## and the widget is re-laid-out and repainted.
+  ##
+  ##   store.count.bindTo(label, proc(v: int) = label.text = "Count: " & $v)
+  ##
+  ## `apply` also runs once immediately, so the widget starts in sync.
+  link.addDependent(widget)
+
+  let existing = widget.onRefresh
+  widget.onRefresh = some(proc() {.closure.} =
+    # Chain, so several links can drive one widget.
+    if existing.isSome:
+      existing.get()()
+    apply(link.value)
+  )
+
+  # Seed the initial value.
+  apply(link.value)
+  widget.layoutDirty = true
+  widget.markDirtyToRoot()
+
+proc unbind*[T](link: Link[T], widget: Widget) =
+  ## Stop tracking this widget. The refresh hook is left in place: it is a
+  ## closure chain and may serve other links.
+  link.removeDependent(widget)
