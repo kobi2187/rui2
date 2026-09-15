@@ -190,8 +190,15 @@ proc genPropField*(prop: PropDef): NimNode =
   nnkIdentDefs.newTree(exportedName, typeNode, prop.default)
 
 proc genStateField*(state: StateDef): NimNode =
-  ## Generate plain type field for state (Link only used for explicit store bindings)
-  nnkIdentDefs.newTree(state.name, state.typ, newEmptyNode())
+  ## Generate plain type field for state.
+  ## Exported, like props: state is read by app code and by the scripting
+  ## bridge, both of which live outside the widget's defining module.
+  let fieldName = newIdentNode(state.name.strVal)
+  nnkIdentDefs.newTree(
+    nnkPostfix.newTree(ident("*"), fieldName),
+    state.typ,
+    newEmptyNode()
+  )
 
 proc genActionField*(action: ActionDef): NimNode =
   ## Generate Option[proc(...)] field for action
@@ -213,7 +220,13 @@ proc genActionField*(action: ActionDef): NimNode =
     procType = nnkProcTy.newTree(formalParams, nnkPragma.newTree(ident("closure")))
 
   let optionType = nnkBracketExpr.newTree(ident("Option"), procType)
-  nnkIdentDefs.newTree(ident(action.name), optionType, newEmptyNode())
+  # Exported: callers assign handlers (widget.onClick = some(...)) from outside
+  # the widget's defining module.
+  nnkIdentDefs.newTree(
+    nnkPostfix.newTree(ident("*"), ident(action.name)),
+    optionType,
+    newEmptyNode()
+  )
 
 # ============================================================================
 # Code Generation - Constructor Parameters

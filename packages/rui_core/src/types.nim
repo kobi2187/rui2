@@ -336,6 +336,14 @@ method getTypeName*(widget: Widget): string {.base.} =
 # Widget Tree Helpers
 # ============================================================================
 
+proc treeDepth*(widget: Widget): int =
+  ## Distance from the root of the widget tree. Used by hit-testing to prefer
+  ## the most deeply nested widget when several overlap at the same z-index.
+  var w = widget.parent
+  while w != nil:
+    inc result
+    w = w.parent
+
 proc registerWidget*(tree: WidgetTree, widget: Widget) =
   ## Register a widget in the widget tree
   ## Adds to both numeric ID map and string ID map (if stringId is set)

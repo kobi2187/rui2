@@ -31,6 +31,18 @@ definePrimitive(Checkbox):
         return true
       return false
 
+  layout:
+    # Size to content so stacks can arrange checkboxes without hand-set bounds.
+    const BoxSize = 20.0f32
+    const Gap = 8.0f32
+    let style = TextStyle(fontFamily: "", fontSize: 14.0, color: BLACK,
+                          bold: false, italic: false, underline: false)
+    let m = measureText(widget.text, style)
+    if widget.bounds.height <= 0:
+      widget.bounds.height = max(BoxSize, m.height)
+    if widget.bounds.width <= 0:
+      widget.bounds.width = BoxSize + Gap + m.width
+
   render:
     let state = if widget.disabled: Disabled
                 elif widget.focused: Focused

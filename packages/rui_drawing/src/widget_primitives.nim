@@ -11,6 +11,7 @@
 import rui_core
 import theme_sys_core
 import primitives/[shapes, text, controls, indicators, panels]
+import pango_text  # drawTextPango
 
 import raylib
 
@@ -22,9 +23,17 @@ export types, theme_sys_core
 
 proc drawText*(text: string, x, y: float32, fontSize: float32,
                 color: raylib.Color, centered = false) =
-  ## Simple text drawing with x, y coordinates
-  let xPos = if centered: x - measureText(text, int32(fontSize)) / 2 else: x
-  raylib.drawText(text, int32(xPos), int32(y), int32(fontSize), color)
+  ## Simple text drawing with x, y coordinates.
+  ##
+  ## Routed through the Pango-backed text primitive, like every other text path.
+  ## It used to call raylib.drawText directly, which is why checkbox labels and
+  ## progress-bar captions still rendered in the built-in bitmap font while the
+  ## rest of the UI had switched to real glyphs.
+  let style = TextStyle(fontFamily: "", fontSize: fontSize, color: color,
+                        bold: false, italic: false, underline: false)
+  let m = text.measureText(style)
+  let xPos = if centered: x - m.width / 2 else: x
+  drawTextPango(text, xPos, y, style.pangoFont, color)
 
 proc getPaddingLeft*(props: ThemeProps, default: float32): float32 =
   props.padding.get(EdgeInsets(left: default, top: default, right: default, bottom: default)).left

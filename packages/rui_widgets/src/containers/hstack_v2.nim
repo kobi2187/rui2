@@ -10,18 +10,33 @@ defineWidget(HStack):
     padding: float = 0.0
 
   layout:
-    # Start from left with padding
+    # Arrange children left to right, then size to content.
+    #
+    # A container with no height of its own used to force height 0 onto every
+    # child, so a row of buttons collapsed to a sliver. Now a child is only
+    # given a height when this stack actually has one; otherwise it sizes itself
+    # and the stack takes the tallest.
     var x = widget.bounds.x + widget.padding
+    let hasHeight = widget.bounds.height > 0
+    var maxChildHeight = 0.0'f32
 
     for child in widget.children:
-      # Position child
       child.bounds.x = x
       child.bounds.y = widget.bounds.y + widget.padding
-      child.bounds.height = widget.bounds.height - (widget.padding * 2)
-      # Keep child's own width
+      if hasHeight:
+        child.bounds.height = max(0.0, widget.bounds.height - (widget.padding * 2))
+      # else: leave it at 0 so the child's own layout measures itself
 
-      # Layout the child recursively
       child.layout()
 
-      # Move right for next child
+      maxChildHeight = max(maxChildHeight, child.bounds.height)
       x += child.bounds.width + widget.spacing
+
+    # Trailing spacing is not part of the content extent
+    let contentRight = if widget.children.len > 0: x - widget.spacing
+                       else: widget.bounds.x + widget.padding
+
+    if widget.bounds.width <= 0:
+      widget.bounds.width = (contentRight - widget.bounds.x) + widget.padding
+    if not hasHeight:
+      widget.bounds.height = maxChildHeight + widget.padding * 2

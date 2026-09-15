@@ -10,18 +10,27 @@ defineWidget(VStack):
     padding: float = 0.0
 
   layout:
-    # Start from top with padding
+    # Arrange children top to bottom, then size to content.
     var y = widget.bounds.y + widget.padding
+    let hasWidth = widget.bounds.width > 0
+    var maxChildWidth = 0.0'f32
 
     for child in widget.children:
-      # Position child
       child.bounds.x = widget.bounds.x + widget.padding
       child.bounds.y = y
-      child.bounds.width = widget.bounds.width - (widget.padding * 2)
-      # Keep child's own height
+      if hasWidth:
+        child.bounds.width = max(0.0, widget.bounds.width - (widget.padding * 2))
+      # else: leave it at 0 so the child's own layout measures itself
 
-      # Layout the child recursively
       child.layout()
 
-      # Move down for next child
+      maxChildWidth = max(maxChildWidth, child.bounds.width)
       y += child.bounds.height + widget.spacing
+
+    let contentBottom = if widget.children.len > 0: y - widget.spacing
+                        else: widget.bounds.y + widget.padding
+
+    if not hasWidth:
+      widget.bounds.width = maxChildWidth + widget.padding * 2
+    if widget.bounds.height <= 0:
+      widget.bounds.height = (contentBottom - widget.bounds.y) + widget.padding

@@ -1,1 +1,10 @@
 .claude/worktrees/
+
+# build output
+examples/pango_showcase
+examples/simple_counter_app
+examples/rui_full_example
+examples/rui_simple_example
+examples/script/
+shot_*.png
+nimcache/

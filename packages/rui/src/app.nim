@@ -123,8 +123,19 @@ proc setStore*(app: App, store: Store) =
   app.store = store
 
 proc setRootWidget*(app: App, root: Widget) =
-  ## Set the root widget and trigger initial layout + render
+  ## Set the root widget and trigger initial layout + render.
+  ##
+  ## The root is sized to the window here. Callers should not have to do it by
+  ## hand: a root left at its default zero size makes every padded container
+  ## compute a negative child width, which the hit-test interval tree rejects
+  ## with "start must be <= fin".
   app.tree.root = root
+  if app.tree.widgetsByStringId.len == 0:
+    app.tree.widgetsByStringId = initTable[string, Widget]()
+  app.tree.registerWidgetRecursive(root)
+  root.bounds = Rect(x: 0, y: 0,
+                     width: app.window.width.float32,
+                     height: app.window.height.float32)
   root.layoutDirty = true
   root.isDirty = true
   app.tree.anyDirty = true
@@ -140,6 +151,13 @@ proc enableScripting*(app: App, scriptDir: string) =
   # Create script manager
   app.tree.widgetsByStringId = initTable[string, Widget]()  # Ensure initialized
   app.scriptManager = newScriptManager(scriptDir, app.tree)
+
+proc setScriptPollInterval*(app: App, seconds: float64) =
+  ## How often the app checks for a script command file. The 1s default is fine
+  ## interactively but makes automated test runs crawl; a harness can drop this
+  ## to e.g. 0.05.
+  if app.scriptManager != nil:
+    app.scriptManager.setPolling(seconds)
 
 proc disableScripting*(app: App) =
   ## Disable scripting system
@@ -299,15 +317,35 @@ proc collectRaylibEvents(app: App) =
 # Event Handling
 # ============================================================================
 
+proc dispatchBubbling(widget: Widget, event: GuiEvent): bool =
+  ## Offer the event to the hit widget, then to each ancestor in turn until one
+  ## handles it.
+  ##
+  ## Composite widgets build themselves out of primitives -- a Button is a
+  ## Rectangle plus a Label -- and hit-testing lands on the innermost of those.
+  ## Those primitives declare no event handlers, so without bubbling the click
+  ## stopped at the Rectangle and the Button's onClick never fired.
+  var w = widget
+  while w != nil:
+    if w.handleInput(event):
+      return true
+    w = w.parent
+  false
+
 proc handleEvent(app: App, event: GuiEvent) =
   ## Handle a single event
   ## Routes events to appropriate widgets via hit-testing and focus manager
 
   case event.kind
   of evWindowResize:
-    # Update window config and mark for relayout
+    # Update window config, resize the root to match, and mark for relayout
     app.window.width = int(event.windowSize.width)
     app.window.height = int(event.windowSize.height)
+    if app.tree.root != nil:
+      app.tree.root.bounds.width = event.windowSize.width
+      app.tree.root.bounds.height = event.windowSize.height
+      app.tree.root.layoutDirty = true
+      app.tree.root.isDirty = true
     app.tree.anyDirty = true
     echo "[Event] Window resized to ", event.windowSize.width, "x", event.windowSize.height
 
@@ -316,7 +354,7 @@ proc handleEvent(app: App, event: GuiEvent) =
     let widget = app.hitTestSystem.getWidgetAt(event.mousePos.x, event.mousePos.y)
     if widget != nil:
       app.focusManager.requestFocus(widget)
-      discard widget.handleInput(event)
+      discard widget.dispatchBubbling(event)
       widget.markDirtyToRoot()   # press state changed -> repaint up to root
       app.tree.anyDirty = true
 
@@ -324,7 +362,7 @@ proc handleEvent(app: App, event: GuiEvent) =
     # Route to widget under mouse
     let widget = app.hitTestSystem.getWidgetAt(event.mousePos.x, event.mousePos.y)
     if widget != nil:
-      discard widget.handleInput(event)
+      discard widget.dispatchBubbling(event)
       widget.markDirtyToRoot()
       app.tree.anyDirty = true
 
@@ -336,13 +374,13 @@ proc handleEvent(app: App, event: GuiEvent) =
         widget.hovered = true
         widget.markDirtyToRoot()   # hover visual changed
         app.tree.anyDirty = true
-      discard widget.handleInput(event)
+      discard widget.dispatchBubbling(event)
 
   of evMouseWheel:
     # Route wheel to widget under mouse
     let widget = app.hitTestSystem.getWidgetAt(event.mousePos.x, event.mousePos.y)
     if widget != nil:
-      discard widget.handleInput(event)
+      discard widget.dispatchBubbling(event)
       widget.markDirtyToRoot()   # e.g. scroll offset changed
       app.tree.anyDirty = true
 
@@ -383,6 +421,12 @@ proc updateLayoutAndRender(app: App) =
     # Rebuild hit-test tree after layout (bounds are now up to date)
     app.rebuildHitTestTree()
 
+    # Re-register the tree so scripting selectors can find widgets by stringId.
+    # This must happen after layout, because composite widgets rebuild their
+    # children inside layout() -- registering only in setRootWidget() left
+    # widgetsByStringId empty and every script selector returned "not found".
+    app.tree.registerWidgetRecursive(app.tree.root)
+
     app.tree.anyDirty = false
 
 # ============================================================================
@@ -397,10 +441,9 @@ proc renderFrame(app: App) =
   # Composite root widget's cached texture to screen
   if app.tree.root != nil and app.tree.root.cachedTexture.isSome:
     # Draw at root's position (typically 0, 0); borrow, no copy
-    drawTexture(app.tree.root.cachedTexture.get().texture,
-                app.tree.root.bounds.x.int32,
-                app.tree.root.bounds.y.int32,
-                White)
+    drawRenderTexture(app.tree.root.cachedTexture.get(),
+                      app.tree.root.bounds.x,
+                      app.tree.root.bounds.y)
 
   # Visual indicator when being scripted
   if app.scriptManager != nil and app.scriptManager.isBeingScripted():

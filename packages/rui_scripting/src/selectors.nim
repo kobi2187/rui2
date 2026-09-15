@@ -166,6 +166,14 @@ proc resolvePath*(root: Widget, path: string): seq[Widget] =
     # Search children recursively for single ID
     return root.findDescendantsMatching(parsed.segments[0])
 
+  # If the first segment names the root itself, consume it here.
+  # resolvePathFrom() matches a segment against a widget's *children*, so
+  # without this a path like "root/*" looked for a child of the root called
+  # "root" and always came back empty.
+  if parsed.segments[0].kind == skId and
+     root.stringId == parsed.segments[0].value:
+    return resolvePathFrom(root, parsed.segments, 1)
+
   # Full path resolution
   return resolvePathFrom(root, parsed.segments, 0)
 

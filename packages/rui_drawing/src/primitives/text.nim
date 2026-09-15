@@ -6,7 +6,8 @@
 import raylib
 import strutils
 import rui_core
-import shapes  # For drawLine (underline support)
+import shapes      # For drawLine (underline support)
+import ../pango_text  # Real font rasterisation and metrics
 
 export types
 
@@ -38,13 +39,22 @@ type
 # Text Measurement
 # ============================================================================
 
+proc pangoFont*(style: TextStyle): string {.inline.} =
+  ## Translate a TextStyle into a Pango font description.
+  fontDescString(style.fontFamily, style.fontSize, style.bold, style.italic)
+
 proc measureText*(text: string, style: TextStyle): TextMetrics =
-  ## Measures text dimensions with given style
-  let fontSize = int32(style.fontSize)
-  result.width = float32(raylib.measureText(text, fontSize))
-  result.height = style.fontSize
-  result.lineHeight = style.fontSize * 1.2  # Standard line height
-  result.baseline = style.fontSize * 0.8    # Approximate baseline
+  ## Measure text with the real font.
+  ##
+  ## This used to call raylib.measureText, which measures the built-in 10-pixel
+  ## bitmap font and reports the *requested* size as the height, with the
+  ## baseline guessed at 0.8 of that. Both were wrong for any real font, which
+  ## is why labels were mis-centred and containers could not size to content.
+  let m = measureTextPango(text, style.pangoFont)
+  result.width = m.width
+  result.height = m.height
+  result.lineHeight = m.height
+  result.baseline = m.baseline
 
 proc measureTextLine*(text: string, style: TextStyle, maxWidth: float32): tuple[
   fits: bool, breakPos: int] =
@@ -78,11 +88,10 @@ proc drawText*(text: string, rect: Rect, style: TextStyle,
     x = rect.x + rect.width - metrics.width
   else: discard
 
-  # Basic style rendering
-  raylib.drawText(text, int32(x), int32(rect.y + (rect.height - metrics.height) / 2),
-    int32(style.fontSize),
-    style.color
-  )
+  # Pango rasterises the glyphs into an alpha mask; the colour is applied as a
+  # draw tint, so the cached texture is colour-independent.
+  let y = rect.y + (rect.height - metrics.height) / 2
+  drawTextPango(text, x, y, style.pangoFont, style.color)
 
   # Underline if needed
   if style.underline:
@@ -99,49 +108,39 @@ proc drawText*(text: string, rect: Rect, style: TextStyle,
 # ============================================================================
 
 proc drawTextLayout*(layout: TextLayout) =
-  ## Draws multi-line text with wrapping
-  var y = layout.rect.y
-  let spaceWidth = measureText(" ", layout.style).width
-  var currentLine = ""
-  var words: seq[string] = layout.text.split(' ')
+  ## Draw multi-line text, wrapped to the layout rect.
+  ##
+  ## Wrapping is delegated to Pango rather than the previous split-on-spaces
+  ## loop, which could not break Thai or CJK (no spaces), mismeasured any
+  ## proportional font, and re-measured the accumulated line once per word.
+  if layout.text.len == 0:
+    return
 
-  while words.len > 0:
-    let nextWord = words[0]
-    let testLine = if currentLine.len > 0:
-                    currentLine & " " & nextWord
-                   else:
-                    nextWord
+  let font = layout.style.pangoFont
+  let wrapWidth = if layout.wrap and layout.rect.width > 0:
+                    layout.rect.width.int32
+                  else:
+                    -1'i32
+  let m = measureTextPango(layout.text, font, wrapWidth)
 
-    let metrics = measureText(testLine, layout.style)
-    if metrics.width <= layout.rect.width:
-      currentLine = testLine
-      words.delete(0)
-    else:
-      if currentLine.len > 0:
-        # Draw current line
-        drawText(currentLine,
-                Rect(x: layout.rect.x,
-                     y: y,
-                     width: layout.rect.width,
-                     height: layout.style.fontSize),
-                layout.style,
-                layout.align)
-        y += layout.style.fontSize * 1.2
-        currentLine = ""
-      else:
-        # Word is too long, must split
-        currentLine = nextWord
-        words.delete(0)
+  var x = layout.rect.x
+  case layout.align
+  of TextAlign.Center: x = layout.rect.x + (layout.rect.width - m.width) / 2
+  of TextAlign.Right:  x = layout.rect.x + layout.rect.width - m.width
+  else: discard
 
-  # Draw last line
-  if currentLine.len > 0:
-    drawText(currentLine,
-            Rect(x: layout.rect.x,
-                 y: y,
-                 width: layout.rect.width,
-                 height: layout.style.fontSize),
-            layout.style,
-            layout.align)
+  drawTextPango(layout.text, x, layout.rect.y, font, layout.style.color,
+                wrapWidth)
+
+proc measureTextWrapped*(text: string, style: TextStyle,
+                         maxWidth: float32): TextMetrics =
+  ## Metrics for text wrapped to `maxWidth`. Containers use this to size
+  ## themselves to their content.
+  let m = measureTextPango(text, style.pangoFont, maxWidth.int32)
+  result.width = m.width
+  result.height = m.height
+  result.lineHeight = m.height
+  result.baseline = m.baseline
 
 proc drawEllipsis*(text: string, rect: Rect, style: TextStyle) =
   ## Draws text with ellipsis if it doesn't fit

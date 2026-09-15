@@ -32,6 +32,22 @@ proc freeWidgetTexture*(widget: Widget) =
   if widget.cachedTexture.isSome:
     widget.cachedTexture = none(RenderTexture2D)
 
+proc drawRenderTexture*(tex: RenderTexture2D, x, y: float32) =
+  ## Blit a cached render target with its top-left corner at (x, y).
+  ##
+  ## OpenGL stores framebuffer contents bottom-up, so a render texture drawn
+  ## with a plain drawTexture() comes out vertically mirrored. A negative source
+  ## height flips it back. Without this the whole tree composited upside down:
+  ## glyphs looked upright (two flips cancel) but every widget appeared mirrored
+  ## about the window's vertical centre, so a top-aligned stack rendered from the
+  ## bottom up in reverse order.
+  let w = tex.texture.width.float32
+  let h = tex.texture.height.float32
+  drawTexture(tex.texture,
+              Rectangle(x: 0, y: 0, width: w, height: -h),
+              Vector2(x: x, y: y),
+              White)
+
 proc compositeChildTexture*(child: Widget, offsetX, offsetY: float32) =
   ## Draw a child's cached texture at its position relative to parent
   ## Called during parent rendering
@@ -39,7 +55,7 @@ proc compositeChildTexture*(child: Widget, offsetX, offsetY: float32) =
     # Extract the Texture2D from RenderTexture2D for drawing (borrow, no copy)
     let relX = child.bounds.x - offsetX
     let relY = child.bounds.y - offsetY
-    drawTexture(child.cachedTexture.get().texture, relX.int32, relY.int32, White)
+    drawRenderTexture(child.cachedTexture.get(), relX, relY)
 
 # ============================================================================
 # Dirty Tracking Helpers
@@ -164,7 +180,7 @@ proc renderPass*(widget: Widget) =
         # Draw at child's relative position (relative to parent)
         let relX = child.bounds.x - originalX
         let relY = child.bounds.y - originalY
-        drawTexture(child.cachedTexture.get().texture, relX.int32, relY.int32, White)
+        drawRenderTexture(child.cachedTexture.get(), relX, relY)
 
     # End texture mode
     endTextureMode()

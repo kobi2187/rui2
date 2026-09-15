@@ -41,6 +41,12 @@ definePrimitive(Slider):
         return true
       return false
 
+  layout:
+    if widget.bounds.height <= 0:
+      widget.bounds.height = 24.0f32
+    if widget.bounds.width <= 0:
+      widget.bounds.width = 200.0f32
+
   render:
     let state = if widget.disabled: Disabled
                 elif widget.dragging: Pressed

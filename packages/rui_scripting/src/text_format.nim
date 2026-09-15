@@ -29,7 +29,8 @@ type
     of ctWrite:
       value*: string      # Value to write
     of ctCustom:
-      customCmd*: string  # Custom command name (after "custom:")
+      customCmd*: string    # Custom command name (after "custom:")
+      customValue*: string  # Optional argument: "custom:write hello"
 
   TextResponse* = object
     ## Response to write to responses.txt
@@ -88,7 +89,8 @@ proc parseCommand*(line: string): Option[TextCommand] =
       id: id,
       selector: selector,
       cmdType: ctCustom,
-      customCmd: customCmd
+      customCmd: customCmd,
+      customValue: (if parts.len >= 4: parts[3] else: "")
     ))
   else:
     return none(TextCommand)
@@ -192,58 +194,59 @@ proc newListResponse*(id: string, values: seq[string]): TextResponse =
 # ============================================================================
 
 proc translateToAction*(cmd: TextCommand, widgetType: string): (string, JsonNode) =
-  ## Translate generic command to widget-specific action
-  ## Returns (action, params) tuple for handleScriptAction
+  ## Translate a generic text command into (action, params) for
+  ## handleScriptAction.
+  ##
+  ## This used to switch on hard-coded widget type names ("CheckBox", "Slider",
+  ## ...) and emit widget-specific actions such as "setChecked" / "getChecked".
+  ## Two problems: the names did not match what getTypeName() actually returns
+  ## (the widget is `Checkbox`, not `CheckBox`), and any widget not on the list
+  ## fell through to actions nothing implemented.
+  ##
+  ## Since defineWidget/definePrimitive now generate a uniform scripting bridge
+  ## for every widget, the translation is type-independent:
+  ##
+  ##   read           -> "read"    (full state as JSON)
+  ##   write <value>   -> "write"   (params.value, optional params.field)
+  ##   invoke          -> "invoke"  (params.action, defaulting to a click/toggle)
+  ##   custom:<name>   -> "<name>"  (passed straight through)
+  discard widgetType  # kept in the signature for callers / future specialisation
 
   case cmd.cmdType
   of ctRead:
-    # Read maps to different actions depending on widget type
-    case widgetType
-    of "Button", "Label":
-      return ("getText", newJObject())
-    of "TextInput":
-      return ("getText", newJObject())
-    of "CheckBox":
-      return ("getChecked", newJObject())
-    else:
-      return ("getState", newJObject())  # Generic state query
+    return ("read", newJObject())
 
   of ctWrite:
-    # Write maps to setting value
-    case widgetType
-    of "TextInput":
-      return ("setText", %*{"text": cmd.value})
-    of "CheckBox":
-      let checked = cmd.value in ["true", "1", "yes", "on"]
-      return ("setChecked", %*{"checked": checked})
-    of "Slider", "NumberInput":
-      return ("setValue", %*{"value": cmd.value})
-    else:
-      return ("setValue", %*{"value": cmd.value})
+    # "field=value" targets a specific field; a bare value targets the widget's
+    # default field (its first state field, or `text`).
+    let eq = cmd.value.find('=')
+    if eq > 0:
+      let field = cmd.value[0 ..< eq]
+      let value = cmd.value[eq+1 .. ^1]
+      return ("write", %*{"field": field, "value": value})
+    return ("write", %*{"value": cmd.value})
 
   of ctInvoke:
-    # Invoke is widget-specific but usually unambiguous
-    case widgetType
-    of "Button":
-      return ("click", newJObject())
-    of "TextInput":
-      return ("submit", newJObject())
-    of "CheckBox":
-      return ("toggle", newJObject())
-    else:
-      return ("invoke", newJObject())
+    # The generic bridge resolves "click" to the widget's onClick action and
+    # falls back to "toggle" for checkable widgets.
+    return ("click", newJObject())
 
   of ctCustom:
-    # Custom commands are passed through
-    return ("custom:" & cmd.customCmd, newJObject())
+    # Passed through verbatim: "custom:toggle" -> action "toggle".
+    if cmd.customValue.len > 0:
+      return (cmd.customCmd, %*{"value": cmd.customValue})
+    return (cmd.customCmd, newJObject())
 
 proc canInvoke*(widgetType: string): bool =
-  ## Check if widget type supports invoke command
-  widgetType in ["Button", "TextInput", "CheckBox", "MenuItem"]
+  ## Every DSL-defined widget answers "invoke"; whether anything happens depends
+  ## on the actions it declares. Kept for API compatibility.
+  discard widgetType
+  true
 
 proc canWrite*(widgetType: string): bool =
-  ## Check if widget type supports write command
-  widgetType in ["TextInput", "CheckBox", "Slider", "NumberInput", "ComboBox"]
+  ## Likewise: writability is decided per-field by the generated bridge.
+  discard widgetType
+  true
 
 proc canRead*(widgetType: string): bool =
   ## All widgets can be read

@@ -38,6 +38,16 @@ definePrimitive(Hyperlink):
         return true
       return false
 
+  layout:
+    let style = TextStyle(fontFamily: "", fontSize: 14.0, color: BLACK,
+                          bold: false, italic: false,
+                          underline: widget.underline)
+    let m = measureText(widget.text, style)
+    if widget.bounds.height <= 0:
+      widget.bounds.height = m.height
+    if widget.bounds.width <= 0:
+      widget.bounds.width = m.width
+
   render:
     let color = if widget.disabled:
                   Color(r: 160, g: 160, b: 160, a: 255)

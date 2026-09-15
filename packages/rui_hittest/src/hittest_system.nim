@@ -73,8 +73,14 @@ proc isEmpty*(system: HitTestSystem): bool =
 
 proc insertWidget*(system: var HitTestSystem, widget: Widget) =
   ## Insert a widget into the hit-testing system
-  ## The widget is indexed by its bounding rectangle
+  ## The widget is indexed by its bounding rectangle.
+  ##
+  ## Degenerate bounds are skipped rather than raising: a widget can legitimately
+  ## be zero-sized mid-layout, and a negative extent (from a container whose own
+  ## bounds were never set) used to crash the whole app inside the interval tree.
   let r = widget.bounds
+  if r.width <= 0 or r.height <= 0:
+    return
   system.xTree.insert(r.x, r.x + r.width, widget)
   system.yTree.insert(r.y, r.y + r.height, widget)
   inc system.widgetCount
@@ -160,9 +166,18 @@ proc findWidgetsAt*(system: HitTestSystem, x, y: float32): seq[Widget] =
       if widget.bounds.contains(x, y):
         result.add(widget)
 
-  # Sort by z-index (higher z-index = rendered on top = should be first)
+  # Sort front-to-back.
+  #
+  # z-index alone is not enough: every widget in a plain container has z-index
+  # 0, so a click inside a Button also matches its enclosing VStack and the
+  # window root, and whichever the interval tree happened to yield first won --
+  # in practice always the root, so no button ever saw a click. Ties on z-index
+  # are therefore broken by tree depth: the more deeply nested widget is the one
+  # drawn on top and the one the user aimed at.
   result.sort(proc(a, b: Widget): int =
     result = cmp(b.zIndex, a.zIndex)
+    if result == 0:
+      result = cmp(b.treeDepth, a.treeDepth)
   )
 
 proc findWidgetsInRect*(system: HitTestSystem, rect: Rect): seq[Widget] =

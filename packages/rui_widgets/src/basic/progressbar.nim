@@ -26,6 +26,14 @@ definePrimitive(ProgressBar):
   actions:
     onComplete()
 
+  layout:
+    if widget.bounds.height <= 0:
+      let style = TextStyle(fontFamily: "", fontSize: 12.0, color: BLACK,
+                            bold: false, italic: false, underline: false)
+      widget.bounds.height = max(20.0f32, measureText("0%", style).height + 4)
+    if widget.bounds.width <= 0:
+      widget.bounds.width = 200.0f32
+
   render:
     let state = if widget.disabled: Disabled else: Normal
     let props = currentTheme.getThemeProps(widget.intent, state)

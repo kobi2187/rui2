@@ -14,8 +14,8 @@ defineWidget(ZStack):
       # Each child fills the container (minus padding)
       child.bounds.x = widget.bounds.x + widget.padding
       child.bounds.y = widget.bounds.y + widget.padding
-      child.bounds.width = widget.bounds.width - (widget.padding * 2)
-      child.bounds.height = widget.bounds.height - (widget.padding * 2)
+      child.bounds.width = max(0.0, widget.bounds.width - (widget.padding * 2))
+      child.bounds.height = max(0.0, widget.bounds.height - (widget.padding * 2))
 
       # Layout the child recursively
       child.layout()
