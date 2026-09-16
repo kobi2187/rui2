@@ -11,14 +11,30 @@
 
 import rui_core
 import rui_drawing
+import ../virtual_rows
+import ../list_input
 import std/[options, sets]
 
 import raylib
+
+export virtual_rows, list_input
 
 const
   BufferItems = 5
   LoadAheadItems = 10
   LoadBatchSize = 100
+
+template totalItems*(widget: untyped): int =
+  ## Rows the list claims to have. With lazy loading that is more than the rows
+  ## currently in `items`, which is what makes the scrollbar the right length
+  ## before the tail has been fetched.
+  (if widget.totalItemCount >= 0: widget.totalItemCount else: widget.items.len)
+
+template viewportOf*(widget: untyped): RowViewport =
+  ## A template, not a proc: the ListBox type does not exist until the macro
+  ## below has expanded, and the widget body needs this.
+  rowViewport(top = widget.bounds.y, height = widget.bounds.height,
+              rowHeight = widget.itemHeight, scrollY = widget.scrollY)
 
 definePrimitive(ListBox):
   props:
@@ -48,28 +64,21 @@ definePrimitive(ListBox):
     on_mouse_wheel:
       if widget.disabled:
         return false
-      let totalItems = if widget.totalItemCount >= 0: widget.totalItemCount
-                       else: widget.items.len
-      let maxScroll = max(0.0'f32,
-                          float32(totalItems) * widget.itemHeight - widget.bounds.height)
-      let newScroll = clamp(widget.scrollY - event.wheelDelta * widget.itemHeight * 3.0,
-                            0.0'f32, maxScroll)
+      let v = viewportOf(widget)
+      let total = widget.totalItems
+      let newScroll = v.scrolledBy(event.wheelDelta, total)
       if newScroll != widget.scrollY:
         widget.scrollY = newScroll
         widget.isDirty = true
 
-      let scrollRatio = if maxScroll > 0: widget.scrollY / maxScroll else: 0.0'f32
-      if scrollRatio > 0.8 and widget.onScrollNearEnd.isSome:
+      if v.nearEnd(total) and widget.onScrollNearEnd.isSome:
         widget.onScrollNearEnd.get()()
       return true
 
     on_mouse_move:
       if widget.disabled:
         return false
-      let idx = int((event.mousePos.y - widget.bounds.y + widget.scrollY) / widget.itemHeight)
-      let totalItems = if widget.totalItemCount >= 0: widget.totalItemCount
-                       else: widget.items.len
-      let newHover = if idx >= 0 and idx < totalItems: idx else: -1
+      let newHover = viewportOf(widget).rowAt(event.mousePos.y, widget.totalItems)
       if newHover != widget.hoverIndex:
         widget.hoverIndex = newHover
         widget.isDirty = true
@@ -78,19 +87,14 @@ definePrimitive(ListBox):
     on_mouse_down:
       if widget.disabled:
         return false
-      let idx = int((event.mousePos.y - widget.bounds.y + widget.scrollY) / widget.itemHeight)
-      let totalItems = if widget.totalItemCount >= 0: widget.totalItemCount
-                       else: widget.items.len
-      if idx < 0 or idx >= totalItems:
+      let idx = viewportOf(widget).rowAt(event.mousePos.y, widget.totalItems)
+      if idx < 0:
         return false
 
-      let ctrlDown = isKeyDown(LeftControl) or isKeyDown(RightControl)
-      if widget.multiSelect and ctrlDown:
-        if idx in widget.selection: widget.selection.excl(idx)
-        else: widget.selection.incl(idx)
-      else:
-        widget.selection = [idx].toHashSet
-
+      # A single-select list ignores ctrl rather than quietly multi-selecting.
+      let additive = widget.multiSelect and
+                     (isKeyDown(LeftControl) or isKeyDown(RightControl))
+      updateSelection(widget.selection, idx, additive)
       widget.focusIndex = idx
       widget.isDirty = true
       if widget.onSelect.isSome:
@@ -100,22 +104,11 @@ definePrimitive(ListBox):
     on_key_down:
       if widget.disabled:
         return false
-      let totalItems = if widget.totalItemCount >= 0: widget.totalItemCount
-                       else: widget.items.len
-      if totalItems == 0:
+      let total = widget.totalItems
+      if total == 0:
         return false
 
-      var newFocus = widget.focusIndex
-      case event.key
-      of Up:    newFocus = max(0, widget.focusIndex - 1)
-      of Down:  newFocus = min(totalItems - 1, widget.focusIndex + 1)
-      of Home:  newFocus = 0
-      of End:   newFocus = totalItems - 1
-      of PageUp:
-        newFocus = max(0, widget.focusIndex - widget.visibleRows)
-      of PageDown:
-        newFocus = min(totalItems - 1, widget.focusIndex + widget.visibleRows)
-      of Enter, KpEnter, Space:
+      if event.key in ActivateKeys:
         widget.selection = [widget.focusIndex].toHashSet
         widget.isDirty = true
         if widget.onItemActivate.isSome:
@@ -123,18 +116,17 @@ definePrimitive(ListBox):
         if widget.onSelect.isSome:
           widget.onSelect.get()(widget.selection)
         return true
-      else:
-        return false
 
-      if newFocus != widget.focusIndex:
-        widget.focusIndex = newFocus
+      # none means the key does not navigate, so the event stays unhandled
+      # rather than this list swallowing every key press.
+      let moved = nextFocusIndex(event.key, widget.focusIndex, total,
+                                 widget.visibleRows)
+      if moved.isNone:
+        return false
+      if moved.get() != widget.focusIndex:
+        widget.focusIndex = moved.get()
         # Keep the focused row inside the viewport.
-        let rowTop = float32(newFocus) * widget.itemHeight
-        let rowBottom = rowTop + widget.itemHeight
-        if rowTop < widget.scrollY:
-          widget.scrollY = rowTop
-        elif rowBottom > widget.scrollY + widget.bounds.height:
-          widget.scrollY = rowBottom - widget.bounds.height
+        widget.scrollY = viewportOf(widget).scrollToShow(moved.get(), total)
         widget.isDirty = true
       return true
 
@@ -153,31 +145,23 @@ definePrimitive(ListBox):
     let props = currentTheme.getThemeProps(widget.intent,
                                            if widget.disabled: Disabled else: Normal)
     let itemH = widget.itemHeight
-    let totalItems = if widget.totalItemCount >= 0: widget.totalItemCount
-                     else: widget.items.len
-    let viewHeight = widget.bounds.height
+    let total = widget.totalItems
+    let v = viewportOf(widget)
 
-    let visStart = max(0, int(widget.scrollY / itemH) - BufferItems)
-    let visEnd = min(totalItems - 1, int((widget.scrollY + viewHeight) / itemH) + BufferItems)
-    widget.visibleStart = visStart
-    widget.visibleEnd = visEnd
+    let visible = v.visibleRange(total, buffer = BufferItems)
+    widget.visibleStart = visible.a
+    widget.visibleEnd = visible.b
 
-    if widget.onLoadMore.isSome and visEnd >= widget.items.len - LoadAheadItems:
-      let needCount = min(LoadBatchSize, totalItems - widget.items.len)
+    if widget.onLoadMore.isSome and visible.b >= widget.items.len - LoadAheadItems:
+      let needCount = min(LoadBatchSize, total - widget.items.len)
       if needCount > 0:
         widget.onLoadMore.get()(widget.items.len, needCount)
 
     drawThemedBackground(widget.bounds, props)
 
     let clip = beginClip(widget.bounds)
-    for itemIdx in visStart..visEnd:
-      if itemIdx >= totalItems:
-        break
-      let itemY = widget.bounds.y + float32(itemIdx) * itemH - widget.scrollY
-      if itemY + itemH < widget.bounds.y or itemY > widget.bounds.y + viewHeight:
-        continue
-
-      let itemRect = Rect(x: widget.bounds.x, y: itemY,
+    for itemIdx in visible:
+      let itemRect = Rect(x: widget.bounds.x, y: v.rowTop(itemIdx),
                           width: widget.bounds.width, height: itemH)
       let text = if itemIdx < widget.items.len: widget.items[itemIdx] else: "Loading..."
       drawListItem(itemRect, text, props,

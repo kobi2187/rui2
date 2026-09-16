@@ -3,7 +3,10 @@
 ## Small, composable functions for data table operations
 ## Each function does ONE thing clearly
 
-import std/[json, strutils, tables, sets]
+import std/[json, strutils, tables]
+import ../list_input
+export list_input.toggleSelection, list_input.setSingleSelection,
+       list_input.updateSelection
 
 type
   FilterKind* = enum
@@ -304,23 +307,9 @@ proc getFilterValueText*(filter: Filter): string =
 # Selection Management
 # ============================================================================
 
-proc toggleSelection*(selected: var HashSet[int], idx: int) =
-  ## Toggle selection state for row
-  if idx in selected:
-    selected.excl(idx)
-  else:
-    selected.incl(idx)
-
-proc setSingleSelection*(selected: var HashSet[int], idx: int) =
-  ## Set selection to single row
-  selected = [idx].toHashSet
-
-proc updateSelection*(selected: var HashSet[int], idx: int, ctrlDown: bool) =
-  ## Update selection based on ctrl key state
-  if ctrlDown:
-    toggleSelection(selected, idx)
-  else:
-    setSingleSelection(selected, idx)
+# Selection is not table-specific -- ListBox, ListView and FilePicker need the
+# same rules -- so it lives in ../list_input and is re-exported here for the
+# callers and tests that already reach for it through this module.
 
 # ============================================================================
 # Scrollbar Calculations

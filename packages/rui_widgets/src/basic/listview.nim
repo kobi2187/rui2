@@ -13,15 +13,29 @@
 
 import rui_core
 import rui_drawing
+import ../virtual_rows
+import ../list_input
 import std/[options, sets]
 
 import raylib
+
+export virtual_rows, list_input
 
 const
   ScrollbarWidth = 12.0'f32
   BufferItems = 5          ## Extra rows drawn above/below the viewport.
   LoadAheadItems = 10
   LoadBatchSize = 100
+
+template totalItems*(widget: untyped): int =
+  ## Rows the list claims to have, which with lazy loading exceeds `items.len`.
+  (if widget.totalItemCount >= 0: widget.totalItemCount else: widget.items.len)
+
+template viewportOf*(widget: untyped): RowViewport =
+  ## A template, not a proc: the ListView type does not exist until the macro
+  ## below has expanded, and the widget body needs this.
+  rowViewport(top = widget.bounds.y, height = widget.bounds.height,
+              rowHeight = widget.itemHeight, scrollY = widget.scrollY)
 
 definePrimitive(ListView):
   props:
@@ -51,28 +65,21 @@ definePrimitive(ListView):
     on_mouse_wheel:
       if widget.disabled:
         return false
-      let totalItems = if widget.totalItemCount >= 0: widget.totalItemCount
-                       else: widget.items.len
-      let maxScroll = max(0.0'f32,
-                          float32(totalItems) * widget.itemHeight - widget.bounds.height)
-      let newScroll = clamp(widget.scrollY - event.wheelDelta * widget.itemHeight * 3.0,
-                            0.0'f32, maxScroll)
+      let v = viewportOf(widget)
+      let total = widget.totalItems
+      let newScroll = v.scrolledBy(event.wheelDelta, total)
       if newScroll != widget.scrollY:
         widget.scrollY = newScroll
         widget.isDirty = true
 
-      let scrollRatio = if maxScroll > 0: widget.scrollY / maxScroll else: 0.0'f32
-      if scrollRatio > 0.8 and widget.onScrollNearEnd.isSome:
+      if v.nearEnd(total) and widget.onScrollNearEnd.isSome:
         widget.onScrollNearEnd.get()()
       return true
 
     on_mouse_move:
       if widget.disabled:
         return false
-      let idx = int((event.mousePos.y - widget.bounds.y + widget.scrollY) / widget.itemHeight)
-      let totalItems = if widget.totalItemCount >= 0: widget.totalItemCount
-                       else: widget.items.len
-      let newHover = if idx >= 0 and idx < totalItems: idx else: -1
+      let newHover = viewportOf(widget).rowAt(event.mousePos.y, widget.totalItems)
       if newHover != widget.hoverIndex:
         widget.hoverIndex = newHover
         widget.isDirty = true
@@ -81,20 +88,16 @@ definePrimitive(ListView):
     on_mouse_down:
       if widget.disabled:
         return false
-      let idx = int((event.mousePos.y - widget.bounds.y + widget.scrollY) / widget.itemHeight)
-      let totalItems = if widget.totalItemCount >= 0: widget.totalItemCount
-                       else: widget.items.len
-      if idx < 0 or idx >= totalItems:
+      let idx = viewportOf(widget).rowAt(event.mousePos.y, widget.totalItems)
+      if idx < 0:
         return false
 
       # GuiEvent carries no modifier state, so ctrl is read straight from the
       # keyboard. Fine here: it is an input query, not render-time polling.
-      let ctrlDown = isKeyDown(LeftControl) or isKeyDown(RightControl)
-      if widget.multiSelect and ctrlDown:
-        if idx in widget.selection: widget.selection.excl(idx)
-        else: widget.selection.incl(idx)
-      else:
-        widget.selection = [idx].toHashSet
+      # A single-select list ignores ctrl rather than quietly multi-selecting.
+      let additive = widget.multiSelect and
+                     (isKeyDown(LeftControl) or isKeyDown(RightControl))
+      updateSelection(widget.selection, idx, additive)
 
       widget.isDirty = true
       if widget.onItemClick.isSome:
@@ -118,19 +121,18 @@ definePrimitive(ListView):
     let props = currentTheme.getThemeProps(widget.intent,
                                            if widget.disabled: Disabled else: Normal)
     let itemH = widget.itemHeight
-    let totalItems = if widget.totalItemCount >= 0: widget.totalItemCount
-                     else: widget.items.len
-    let totalHeight = float32(totalItems) * itemH
+    let total = widget.totalItems
+    let v = viewportOf(widget)
+    let totalHeight = v.contentHeight(total)
     let viewHeight = widget.bounds.height
 
     # Virtual rendering: only touch the rows that can be on screen.
-    let visStart = max(0, int(widget.scrollY / itemH) - BufferItems)
-    let visEnd = min(totalItems - 1, int((widget.scrollY + viewHeight) / itemH) + BufferItems)
-    widget.visibleStart = visStart
-    widget.visibleEnd = visEnd
+    let visible = v.visibleRange(total, buffer = BufferItems)
+    widget.visibleStart = visible.a
+    widget.visibleEnd = visible.b
 
-    if widget.onLoadMore.isSome and visEnd >= widget.items.len - LoadAheadItems:
-      let needCount = min(LoadBatchSize, totalItems - widget.items.len)
+    if widget.onLoadMore.isSome and visible.b >= widget.items.len - LoadAheadItems:
+      let needCount = min(LoadBatchSize, total - widget.items.len)
       if needCount > 0:
         widget.onLoadMore.get()(widget.items.len, needCount)
 
@@ -142,14 +144,9 @@ definePrimitive(ListView):
                     else:
                       widget.bounds.width
 
-    for itemIdx in visStart..visEnd:
-      if itemIdx >= totalItems:
-        break
-      let itemY = widget.bounds.y + float32(itemIdx) * itemH - widget.scrollY
-      if itemY + itemH < widget.bounds.y or itemY > widget.bounds.y + viewHeight:
-        continue
-
-      let itemRect = Rect(x: widget.bounds.x, y: itemY, width: listWidth, height: itemH)
+    for itemIdx in visible:
+      let itemRect = Rect(x: widget.bounds.x, y: v.rowTop(itemIdx),
+                          width: listWidth, height: itemH)
       let text = if itemIdx < widget.items.len: widget.items[itemIdx] else: "Loading..."
       drawListItem(itemRect, text, props,
                    selected = itemIdx in widget.selection,
