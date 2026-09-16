@@ -19,18 +19,26 @@
 import rui_core
 import text_buffer
 export text_buffer
+import ../text_content
+export text_content
 import rui_drawing
 import std/options
 
 import raylib
 
+template contentOf*(widget: untyped): TextContent =
+  ## This input's text as a TextContent, so measuring and drawing go through the
+  ## same engine Label and TextArea use. A template, not a proc: the TextInput
+  ## type does not exist until the macro below has expanded.
+  TextContent(
+    text: widget.text,
+    style: textStyle(widget.fontSize, BLACK),
+    align: TextAlign.Left, wrap: false, markup: false, wrapWidth: 0.0'f32)
+
 template indexAt*(widget: untyped, screenX: float32): int =
   ## Byte offset of the caret position under a click, via Pango.
   block:
-    let style = TextStyle(fontFamily: "", fontSize: widget.fontSize,
-                          color: BLACK, bold: false, italic: false,
-                          underline: false)
-    let hit = indexFromPosition(widget.text, style.pangoFont,
+    let hit = indexFromPosition(widget.text, widget.contentOf.style.pangoFont,
                                 screenX - widget.bounds.x - widget.padding, 0.0)
     clamp(hit.index + hit.trailing, 0, widget.text.len)
 

@@ -10,7 +10,25 @@
 
 import rui_core
 import rui_drawing
+import ../text_content
+export text_content
 import raylib
+
+template contentOf*(widget: untyped): TextContent =
+  ## This label as a TextContent. A template, not a proc: the Label type does
+  ## not exist until the macro below has expanded.
+  ##
+  ## `layout` and `render` both go through here, which is the point -- they used
+  ## to build the same seven-field TextStyle literal separately and decide
+  ## separately whether to wrap.
+  TextContent(
+    text: widget.text,
+    style: textStyle(widget.fontSize, widget.color, widget.fontFamily,
+                     widget.bold, widget.italic, widget.underline),
+    align: widget.align,
+    wrap: widget.wrap,
+    markup: widget.markup,
+    wrapWidth: widget.bounds.width)
 
 definePrimitive(Label):
   props:
@@ -32,28 +50,8 @@ definePrimitive(Label):
     selfHeight: float
 
   layout:
-    let style = TextStyle(
-      fontFamily: widget.fontFamily,
-      fontSize: widget.fontSize,
-      color: widget.color,
-      bold: widget.bold,
-      italic: widget.italic,
-      underline: widget.underline
-    )
-
-    # Measure against the assigned width when wrapping, otherwise on one line.
-    let wrapWidth = if widget.wrap and widget.bounds.width > 0:
-                      widget.bounds.width.int32
-                    else: -1'i32
-    let metrics =
-      if widget.markup:
-        let m = measureMarkupPango(widget.text, style.pangoFont, wrapWidth)
-        TextMetrics(width: m.width, height: m.height,
-                    lineHeight: m.height, baseline: m.baseline)
-      elif widget.wrap and widget.bounds.width > 0:
-        measureTextWrapped(widget.text, style, widget.bounds.width)
-      else:
-        measureText(widget.text, style)
+    let content = widget.contentOf
+    let metrics = content.measure()
 
     # Keep a width the *parent* assigned, but re-measure one this label set
     # for itself -- otherwise a free-standing label can never grow again once
@@ -68,28 +66,4 @@ definePrimitive(Label):
     widget.selfHeight = metrics.height
 
   render:
-    let style = TextStyle(
-      fontFamily: widget.fontFamily,
-      fontSize: widget.fontSize,
-      color: widget.color,
-      bold: widget.bold,
-      italic: widget.italic,
-      underline: widget.underline
-    )
-
-    if widget.markup:
-      let wrapWidth = if widget.wrap and widget.bounds.width > 0:
-                        widget.bounds.width.int32
-                      else: -1'i32
-      drawMarkupPango(widget.text, widget.bounds.x, widget.bounds.y,
-                      style.pangoFont, wrapWidth)
-    elif widget.wrap:
-      drawTextLayout(TextLayout(
-        text: widget.text,
-        rect: widget.bounds,
-        style: style,
-        align: widget.align,
-        wrap: true
-      ))
-    else:
-      drawText(widget.text, widget.bounds, style, widget.align)
+    widget.contentOf.paint(widget.bounds)
