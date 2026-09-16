@@ -40,6 +40,59 @@ const
   LoadAheadRows = 20
   LoadBatchSize = 100
 
+type
+  GridMetrics* = object
+    ## Where the header and the first row sit. Both event handlers and `render`
+    ## need the same answer, so they all ask this.
+    originX*, originY*: float32
+    headerH*: float32
+    rowsTop*: float32
+    viewHeight*: float32
+    rowHeight*: float32
+    scrollY*: float32
+    totalRows*: int
+
+template metricsOf*(widget: untyped): GridMetrics =
+  ## A template, not a proc: the DataGrid type does not exist until the macro
+  ## below has expanded, and the widget body needs this.
+  let hh = if widget.showHeader: widget.headerHeight else: 0.0'f32
+  GridMetrics(
+    originX: widget.bounds.x, originY: widget.bounds.y,
+    headerH: hh,
+    rowsTop: widget.bounds.y + hh,
+    viewHeight: widget.bounds.height - hh,
+    rowHeight: widget.rowHeight,
+    scrollY: widget.scrollY,
+    totalRows: if widget.totalRowCount >= 0: widget.totalRowCount
+               else: widget.data.len
+  )
+
+proc overHeader*(m: GridMetrics, mouseY: float32): bool =
+  m.headerH > 0 and mouseY < m.rowsTop
+
+proc rowAt*(m: GridMetrics, mouseY: float32, rowCount: int): int =
+  ## Index into the display order under `mouseY`, or -1 outside it.
+  assert m.rowHeight > 0, "rowHeight must be positive or every row maps to 0"
+  if mouseY < m.rowsTop:
+    return -1
+  let idx = int((mouseY - m.rowsTop + m.scrollY) / m.rowHeight)
+  if idx < 0 or idx >= rowCount: -1 else: idx
+
+proc maxScroll*(m: GridMetrics): float32 =
+  max(0.0'f32, float32(m.totalRows) * m.rowHeight - m.viewHeight)
+
+proc columnAt*(columns: openArray[GridColumn], originX, mouseX: float32): int =
+  ## Index of the column containing `mouseX`, or -1.
+  var x = originX
+  for i, col in columns:
+    if mouseX >= x and mouseX < x + col.width:
+      return i
+    x += col.width
+  -1
+
+proc isSortable*(columns: openArray[GridColumn], idx: int): bool =
+  idx >= 0 and idx < columns.len and columns[idx].sortable
+
 proc nextSortOrder(current: SortOrder): SortOrder =
   ## Header clicks cycle ascending -> descending -> unsorted.
   result = case current
@@ -47,11 +100,50 @@ proc nextSortOrder(current: SortOrder): SortOrder =
     of soAscending: soDescending
     of soDescending: soNone
 
+proc nextSortFor*(columns: openArray[GridColumn], idx, currentColumn: int,
+                  currentOrder: SortOrder): SortOrder =
+  ## The order a header click on column `idx` produces. Pure, so the cycle is
+  ## testable without a grid.
+  assert columns.isSortable(idx), "caller must check isSortable first"
+  if idx == currentColumn: nextSortOrder(currentOrder)
+  else: soAscending
+
 proc sortIndicatorFor(order: SortOrder): string =
   result = case order
     of soAscending: "  ^"
     of soDescending: "  v"
     of soNone: ""
+
+template sortByColumnAt*(widget: untyped, mouseX: float32): bool =
+  ## Cycle the sort order of the column under `mouseX`. A header click is always
+  ## consumed, whether or not it landed on a sortable column.
+  block:
+    let idx = columnAt(widget.columns, widget.bounds.x, mouseX)
+    if widget.columns.isSortable(idx):
+      let order = nextSortFor(widget.columns, idx,
+                              widget.sortColumn, widget.sortOrder)
+      widget.sortColumn = if order == soNone: -1 else: idx
+      widget.sortOrder = order
+      widget.isDirty = true
+      widget.layoutDirty = true   # ordering is decided in layout
+      if widget.onSort.isSome:
+        widget.onSort.get()(widget.sortColumn, order)
+    true
+
+template selectRowAt*(widget: untyped, viewIdx: int): bool =
+  ## Select the source row behind display-order row `viewIdx`.
+  block:
+    if viewIdx < 0:
+      false
+    else:
+      assert viewIdx < widget.order.len,
+             "rowAt must not return an index past the display order"
+      updateSelection(widget.selected, widget.order[viewIdx],
+                      isKeyDown(LeftControl) or isKeyDown(RightControl))
+      widget.isDirty = true
+      if widget.onSelect.isSome:
+        widget.onSelect.get()(widget.selected)
+      true
 
 proc cellText(row: GridRow, colIdx: int,
               formatFunc: Option[proc(value: JsonNode): string]): string =
@@ -94,59 +186,23 @@ definePrimitive(DataGrid):
 
   events:
     on_mouse_down:
-      let headerH = if widget.showHeader: widget.headerHeight else: 0.0'f32
-      let rowsTop = widget.bounds.y + headerH
-
-      if widget.showHeader and event.mousePos.y < rowsTop:
-        var x = widget.bounds.x
-        for colIdx, col in widget.columns:
-          if event.mousePos.x >= x and event.mousePos.x < x + col.width:
-            if not col.sortable:
-              return true
-            widget.sortOrder =
-              if colIdx == widget.sortColumn: nextSortOrder(widget.sortOrder)
-              else: soAscending
-            widget.sortColumn = if widget.sortOrder == soNone: -1 else: colIdx
-            widget.isDirty = true
-            widget.layoutDirty = true   # ordering is decided in layout
-            if widget.onSort.isSome:
-              widget.onSort.get()(widget.sortColumn, widget.sortOrder)
-            return true
-          x += col.width
-        return true
-
-      let viewIdx = int((event.mousePos.y - rowsTop + widget.scrollY) / widget.rowHeight)
-      if viewIdx < 0 or viewIdx >= widget.order.len:
-        return false
-
-      let rowIdx = widget.order[viewIdx]
-      let ctrlDown = isKeyDown(LeftControl) or isKeyDown(RightControl)
-      updateSelection(widget.selected, rowIdx, ctrlDown)
-      widget.isDirty = true
-      if widget.onSelect.isSome:
-        widget.onSelect.get()(widget.selected)
-      return true
+      let m = metricsOf(widget)
+      if m.overHeader(event.mousePos.y):
+        return widget.sortByColumnAt(event.mousePos.x)
+      return widget.selectRowAt(m.rowAt(event.mousePos.y, widget.order.len))
 
     on_mouse_move:
-      let headerH = if widget.showHeader: widget.headerHeight else: 0.0'f32
-      let rowsTop = widget.bounds.y + headerH
-      var newHover = -1
-      if event.mousePos.y >= rowsTop:
-        let viewIdx = int((event.mousePos.y - rowsTop + widget.scrollY) / widget.rowHeight)
-        if viewIdx >= 0 and viewIdx < widget.order.len:
-          newHover = viewIdx
+      let m = metricsOf(widget)
+      let newHover = m.rowAt(event.mousePos.y, widget.order.len)
       if newHover != widget.hoverRow:
         widget.hoverRow = newHover
         widget.isDirty = true
       return false
 
     on_mouse_wheel:
-      let headerH = if widget.showHeader: widget.headerHeight else: 0.0'f32
-      let viewHeight = widget.bounds.height - headerH
-      let totalRows = if widget.totalRowCount >= 0: widget.totalRowCount
-                      else: widget.data.len
-      let maxScroll = max(0.0'f32, float32(totalRows) * widget.rowHeight - viewHeight)
-      let newScroll = clamp(widget.scrollY - event.wheelDelta * widget.rowHeight * 3.0,
+      let m = metricsOf(widget)
+      let maxScroll = m.maxScroll()
+      let newScroll = clamp(widget.scrollY - event.wheelDelta * m.rowHeight * 3.0,
                             0.0'f32, maxScroll)
       if newScroll != widget.scrollY:
         widget.scrollY = newScroll
@@ -181,19 +237,19 @@ definePrimitive(DataGrid):
         total += col.width
       widget.bounds.width = total
     if widget.bounds.height <= 0:
-      let headerH = if widget.showHeader: widget.headerHeight else: 0.0'f32
-      widget.bounds.height = headerH + float32(widget.visibleRows) * widget.rowHeight
+      let m = metricsOf(widget)
+      widget.bounds.height = m.headerH + float32(widget.visibleRows) * widget.rowHeight
 
   render:
     let props = currentTheme.getThemeProps(widget.intent, Normal)
     let headerProps = currentTheme.getThemeProps(widget.intent, Selected)
-    let headerH = if widget.showHeader: widget.headerHeight else: 0.0'f32
-    let rowH = widget.rowHeight
-    let rowsTop = widget.bounds.y + headerH
-    let viewHeight = widget.bounds.height - headerH
+    let m = metricsOf(widget)
+    let headerH = m.headerH
+    let rowH = m.rowHeight
+    let rowsTop = m.rowsTop
+    let viewHeight = m.viewHeight
+    let totalRows = m.totalRows
 
-    let totalRows = if widget.totalRowCount >= 0: widget.totalRowCount
-                    else: widget.data.len
     let visStart = max(0, int(widget.scrollY / rowH) - BufferRows)
     let visEnd = min(totalRows - 1, int((widget.scrollY + viewHeight) / rowH) + BufferRows)
     widget.visibleStart = visStart
