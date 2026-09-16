@@ -131,6 +131,37 @@ proc anyChildDirty*(widget: Widget): bool =
 # Pass 1: Layout
 # ============================================================================
 
+proc invalidateForBoundsChange(widget: Widget) =
+  ## Invalidate precisely what a change of bounds actually affected.
+  ##
+  ## A widget renders into its own texture with its origin forced to (0, 0), so
+  ## that texture's content depends on the widget's SIZE and never on where it
+  ## sits. Position matters only to the parent, which composites children at
+  ## relative offsets. The two cases are therefore different:
+  ##
+  ##   resized  -> re-render this widget, and re-composite the parent
+  ##   moved    -> keep this widget's texture; only re-composite the parent
+  ##
+  ## The comparison is against `previousBounds` -- the bounds this widget had
+  ## when the last pass finished -- rather than against a snapshot taken around
+  ## the layout call, because that call does not always run. A parent's layout()
+  ## moves and resizes its children directly, without their own layoutDirty ever
+  ## being set, so a child's change would otherwise never be noticed by anything.
+  ##
+  ## The old rule was `bounds != oldBounds -> isDirty`, inside the layoutDirty
+  ## block. It re-rendered a whole subtree that had merely slid sideways, and it
+  ## never marked the parent at all -- so a child moved by its parent's layout
+  ## left the parent compositing it at the old offset.
+  if widget.bounds == widget.previousBounds:
+    return
+  let resized = widget.bounds.width != widget.previousBounds.width or
+                widget.bounds.height != widget.previousBounds.height
+  if resized:
+    widget.isDirty = true
+  if widget.parent != nil:
+    widget.parent.isDirty = true
+  widget.previousBounds = widget.bounds
+
 proc layoutPass*(widget: Widget) =
   ## Recursively update layout for dirty widgets
   ##
@@ -153,7 +184,7 @@ proc layoutPass*(widget: Widget) =
 
     widget.layoutDirty = false
 
-  # Invalidate precisely what the change actually affected.
+  widget.invalidateForBoundsChange()
   #
   # A widget renders into its own texture with its origin forced to (0, 0), so
   # that texture's content depends on the widget's SIZE and never on where it
@@ -174,15 +205,6 @@ proc layoutPass*(widget: Widget) =
   # re-rendered a whole subtree that had merely slid sideways, and it never
   # marked the parent at all -- so a child moved by its parent's layout left
   # the parent compositing it at the old offset.
-  if widget.bounds != widget.previousBounds:
-    let resized = widget.bounds.width != widget.previousBounds.width or
-                  widget.bounds.height != widget.previousBounds.height
-    if resized:
-      widget.isDirty = true
-    if widget.parent != nil:
-      widget.parent.isDirty = true
-    widget.previousBounds = widget.bounds
-
   # Recurse to children (both primitives and composites can have children)
   for child in widget.children:
     child.layoutPass()
@@ -191,81 +213,78 @@ proc layoutPass*(widget: Widget) =
 # Pass 2: Render
 # ============================================================================
 
-proc renderPass*(widget: Widget) =
-  ## Recursively render dirty widgets to textures (bottom-up)
+proc renderPass*(widget: Widget)
+
+proc renderChildrenFirst(widget: Widget) =
+  ## Bottom-up: a parent composites its children's cached textures, so those
+  ## have to exist before it paints.
   ##
-  ## Strategy:
-  ## 1. Render children first (so their textures are available)
-  ## 2. If widget is dirty:
-  ##    - Create RenderTexture2D
-  ##    - Render widget's own content
-  ##    - Composite children's cached textures
-  ##    - Store resulting Texture2D in cache
-  ## 3. If widget is clean: use existing cached texture
-
-  if not widget.visible:
-    return
-
-  # Step 1: Recurse to children first (bottom-up, so their textures are available)
+  ## An overlay parent sorts by zIndex, which is how a MenuBar's dropdown paints
+  ## over the controls that follow it in the child list. Only when it says so --
+  ## sorting every container every frame would cost more than it buys.
   if widget.hasOverlay and widget.children.len > 1:
     var sortedChildren = widget.children
     sortedChildren.sort(proc(a, b: Widget): int =
-      result = cmp(a.zIndex, b.zIndex)  # Ascending: lower z-index renders first
-    )
+      cmp(a.zIndex, b.zIndex))          # Ascending: lower z-index renders first
     for child in sortedChildren:
       child.renderPass()
   else:
-    # Normal case: render in tree order
     for child in widget.children:
       child.renderPass()
 
-  # Step 2: Render this widget if dirty
+proc compositeChildren(widget: Widget, originalX, originalY: float32) =
+  ## Blit each child's cached texture into this widget's, in coordinates
+  ## relative to this widget's top-left -- which is where bounds.x/y have been
+  ## zeroed to for the duration.
+  for child in widget.children:
+    if not child.visible or child.cachedTexture.isNone:
+      continue
+    let dest = Rect(x: child.bounds.x - originalX,
+                    y: child.bounds.y - originalY,
+                    width: child.bounds.width, height: child.bounds.height)
+    if widget.childClip.isSome:
+      drawRenderTexturePart(child.cachedTexture.get(), dest,
+                            widget.childClip.get())
+    else:
+      drawRenderTexture(child.cachedTexture.get(), dest.x, dest.y)
+
+proc renderToTexture(widget: Widget) =
+  ## Paint this widget and its children into a fresh cached texture.
+  freeWidgetTexture(widget)
+  let renderTex = createWidgetTexture(widget)
+
+  beginTextureMode(renderTex)
+  clearBackground(Color(r: 0, g: 0, b: 0, a: 0))   # Transparent background
+
+  # `render` draws at widget.bounds, and the texture's origin is the widget's
+  # top-left, so bounds.x/y are zeroed for the duration. This is why anything a
+  # widget draws outside its own bounds is silently clipped, and why a popup has
+  # to grow its bounds rather than just drawing further down.
+  let originalX = widget.bounds.x
+  let originalY = widget.bounds.y
+  widget.bounds.x = 0
+  widget.bounds.y = 0
+  widget.render()
+  widget.bounds.x = originalX
+  widget.bounds.y = originalY
+
+  compositeChildren(widget, originalX, originalY)
+
+  endTextureMode()
+  widget.cachedTexture = some(renderTex)
+  widget.isDirty = false
+
+proc renderPass*(widget: Widget) =
+  ## Render dirty widgets to textures, bottom-up.
+  ##
+  ## A clean widget keeps the texture it already has, which is the whole point
+  ## of the cache: only what changed is repainted, and its ancestors re-composite
+  ## from textures rather than re-drawing subtrees.
+  if not widget.visible:
+    return
+  renderChildrenFirst(widget)
   if widget.isDirty:
-    # Free old cached texture
-    freeWidgetTexture(widget)
-
-    # Create render target for this widget
-    let renderTex = createWidgetTexture(widget)
-
-    # Begin rendering to texture
-    beginTextureMode(renderTex)
-    clearBackground(Color(r: 0, g: 0, b: 0, a: 0))  # Transparent background
-
-    # Render widget's own content
-    # widget.render() draws at widget.bounds coordinates
-    # We need to draw at (0, 0) in texture space
-    let originalX = widget.bounds.x
-    let originalY = widget.bounds.y
-    widget.bounds.x = 0
-    widget.bounds.y = 0
-
-    widget.render()
-
-    # Restore original position
-    widget.bounds.x = originalX
-    widget.bounds.y = originalY
-
-    # Composite children's cached textures into this widget's texture (borrow,
-    # no copy), in coordinates relative to this widget's top-left corner --
-    # which is where bounds.x/y were just zeroed to.
-    for child in widget.children:
-      if child.visible and child.cachedTexture.isSome:
-        let dest = Rect(x: child.bounds.x - originalX,
-                        y: child.bounds.y - originalY,
-                        width: child.bounds.width, height: child.bounds.height)
-        if widget.childClip.isSome:
-          drawRenderTexturePart(child.cachedTexture.get(), dest,
-                                widget.childClip.get())
-        else:
-          drawRenderTexture(child.cachedTexture.get(), dest.x, dest.y)
-
-    # End texture mode
-    endTextureMode()
-
-    # Store the complete RenderTexture2D in cache
-    widget.cachedTexture = some(renderTex)
-
-    widget.isDirty = false
+    renderToTexture(widget)
 
 # ============================================================================
 # Main Frame Function

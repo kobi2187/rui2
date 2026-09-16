@@ -33,12 +33,18 @@ type
 # AST Helpers - Predicates
 # ============================================================================
 
+proc isDiscardOnly(node: NimNode): bool =
+  ## `discard` as the sole statement, which is how an empty DSL section is
+  ## written when Nim needs a body at all.
+  node.kind == nnkStmtList and node.len == 1 and node[0].kind == nnkDiscardStmt
+
 proc isEmpty*(node: NimNode): bool =
-  ## Check if node is empty or just contains discard
-  node.isNil or
-  node.kind == nnkEmpty or
-  (node.kind == nnkStmtList and node.len == 0) or
-  (node.kind == nnkStmtList and node.len == 1 and node[0].kind == nnkDiscardStmt)
+  ## Nothing to parse: absent, an empty node, an empty list, or just `discard`.
+  if node.isNil or node.kind == nnkEmpty:
+    return true
+  if node.kind != nnkStmtList:
+    return false
+  node.len == 0 or node.isDiscardOnly
 
 proc isCallWithArgs*(node: NimNode): bool =
   ## Check if node is a call with arguments
@@ -308,71 +314,42 @@ proc genEventCase*(event: EventDef): NimNode =
 # Parsing - Collect Definitions
 # ============================================================================
 
+proc sectionEntries(body: NimNode): seq[NimNode] =
+  ## The statements of a DSL section worth looking at: nothing for an absent or
+  ## `discard`-only section, and `discard` lines skipped inside a real one.
+  ##
+  ## Every parse* below asked these three questions for itself, which is most of
+  ## what put them over the complexity gate for logic that is the same in all
+  ## four.
+  if body.isEmpty or body.kind != nnkStmtList:
+    return
+  for entry in body:
+    if entry.kind != nnkDiscardStmt:
+      result.add(entry)
+
 proc parseProps*(propsBody: NimNode): seq[PropDef] =
   ## Parse props section into PropDef sequence
-  result = @[]
-  if propsBody.isEmpty:
-    return
-
-  if propsBody.kind != nnkStmtList:
-    return
-
-  for prop in propsBody:
-    if prop.kind == nnkDiscardStmt:
-      continue
+  for prop in sectionEntries(propsBody):
     if prop.isCallWithArgs:
       result.add(makePropDef(prop))
 
 proc parseState*(stateBody: NimNode): seq[StateDef] =
   ## Parse state section into StateDef sequence
-  result = @[]
-  if stateBody.isEmpty:
-    return
-
-  if stateBody.kind != nnkStmtList:
-    return
-
-  for stateField in stateBody:
-    if stateField.kind == nnkDiscardStmt:
-      continue
+  for stateField in sectionEntries(stateBody):
     if stateField.isCallWithArgs:
       result.add(makeStateDef(stateField))
 
 proc parseActions*(actionsBody: NimNode): seq[ActionDef] =
   ## Parse actions section into ActionDef sequence
-  result = @[]
-  if actionsBody.isEmpty:
-    return
-
-  if actionsBody.kind != nnkStmtList:
-    return
-
-  for action in actionsBody:
-    if action.kind == nnkDiscardStmt:
-      continue
+  for action in sectionEntries(actionsBody):
     result.add(makeActionDef(action))
 
 proc parseEvents*(eventsBody: NimNode): seq[EventDef] =
-  ## Parse events section into EventDef sequence
-  result = @[]
-  if eventsBody.isEmpty:
-    return
-
-  if eventsBody.kind != nnkStmtList:
-    return
-
-  var i = 0
-  while i < eventsBody.len:
-    let event = eventsBody[i]
-    if event.kind == nnkDiscardStmt:
-      inc i
-      continue
-
-    if event.kind == nnkCall and event.len == 2:
-      let eventName = event[0].strVal
-      let eventBody = event[1]
-      result.add(EventDef(name: eventName, body: eventBody))
-    inc i
+  ## Parse events section into EventDef sequence.
+  ## An `on_something:` line is a call of the handler name with its body.
+  for event in sectionEntries(eventsBody):
+    if event.isCallWithArgs:
+      result.add(EventDef(name: event[0].strVal, body: event[1]))
 
 # ============================================================================
 # Utilities
