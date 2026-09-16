@@ -61,6 +61,16 @@ type
     scriptDir*: string
     lastScriptPoll: MonoTime
 
+    # Per-frame hook
+    onFrame*: Option[proc() {.closure.}]
+      ## Called once per frame, before events are collected.
+      ##
+      ## For work the event stream cannot deliver: window file drops
+      ## (DragDropArea.pollFileDrops), animation ticks, polling an external
+      ## source. Widgets must not reach for raylib inside `render` to do this --
+      ## render only runs on frames where the widget is dirty, and it runs
+      ## inside a render texture with the widget's origin shifted to (0, 0).
+
     # Control
     shouldClose*: bool
 
@@ -538,6 +548,10 @@ proc run*(app: App, maxFrames: int = -1) =
       break
     inc framesRun
     let frameStart = getMonoTime()
+
+    # 0. Per-frame hook, before anything reads input state for this frame
+    if app.onFrame.isSome:
+      app.onFrame.get()()
 
     # 1. Collect events from Raylib
     app.collectRaylibEvents()

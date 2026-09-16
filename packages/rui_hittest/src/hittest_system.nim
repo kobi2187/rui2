@@ -29,10 +29,7 @@ type
 proc newRect*(x, y, width, height: float32): Rect =
   Rect(x: x, y: y, width: width, height: height)
 
-proc contains*(rect: Rect, x, y: float32): bool =
-  ## Check if a point (x, y) is inside the rectangle
-  x >= rect.x and x <= rect.x + rect.width and
-  y >= rect.y and y <= rect.y + rect.height
+# `contains(Rect, x, y)` now lives in rui_core, next to Rect itself.
 
 proc overlaps*(a, b: Rect): bool =
   ## Check if two rectangles overlap

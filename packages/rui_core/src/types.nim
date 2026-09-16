@@ -29,6 +29,19 @@ type
   EdgeInsets* = object
     top*, right*, bottom*, left*: float32
 
+proc contains*(rect: Rect, x, y: float32): bool =
+  ## Is the point (x, y) inside the rectangle?
+  ##
+  ## Lives here, next to Rect, because four widgets and the hit-test system all
+  ## needed it. When each of them declared its own copy, importing two of them
+  ## through the `rui` barrel made every call ambiguous.
+  ##
+  ## Inclusive on all four edges, which is what the hit-test system has always
+  ## used. Kept that way deliberately: making it half-open here would silently
+  ## stop clicks landing on a widget's right or bottom edge.
+  x >= rect.x and x <= rect.x + rect.width and
+  y >= rect.y and y <= rect.y + rect.height
+
 # Flutter-style EdgeInsets helpers
 proc edgeInsets*(all: float32): EdgeInsets =
   ## EdgeInsets.all(value) - Same padding on all sides
