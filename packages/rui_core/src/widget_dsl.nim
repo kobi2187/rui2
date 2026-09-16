@@ -9,9 +9,11 @@ export strutils  # generated code uses toLowerAscii / cmpIgnoreStyle
 import types
 import link
 import widget_dsl_helpers
+import script_bridge
 
 export types
 export link
+export script_bridge  # generated descriptors name ScriptDescriptor / scriptField
 
 # ============================================================================
 # Section Parsing - Collect All Definitions
@@ -323,38 +325,6 @@ proc buildUpdateLayoutMethod(name: NimNode, sections: WidgetSections): NimNode =
 # "Action not supported".
 # ============================================================================
 
-template scriptAssign*(dst: untyped, node: JsonNode): bool =
-  ## Coerce a JSON value (or a text-format string) into `dst`.
-  ## Returns false when the value cannot be represented in dst's type.
-  var ok = true
-  when dst is bool:
-    case node.kind
-    of JBool: dst = node.getBool()
-    of JInt: dst = node.getInt() != 0
-    of JString: dst = node.getStr().toLowerAscii() in ["true", "1", "yes", "on"]
-    else: ok = false
-  elif dst is SomeInteger:
-    case node.kind
-    of JInt: dst = typeof(dst)(node.getInt())
-    of JFloat: dst = typeof(dst)(node.getFloat())
-    of JString:
-      try: dst = typeof(dst)(parseInt(node.getStr()))
-      except ValueError: ok = false
-    else: ok = false
-  elif dst is SomeFloat:
-    case node.kind
-    of JFloat: dst = typeof(dst)(node.getFloat())
-    of JInt: dst = typeof(dst)(node.getInt())
-    of JString:
-      try: dst = typeof(dst)(parseFloat(node.getStr()))
-      except ValueError: ok = false
-    else: ok = false
-  elif dst is string:
-    dst = if node.kind == JString: node.getStr() else: $node
-  else:
-    ok = false
-  ok
-
 proc buildScriptStateMethod(name: NimNode, sections: WidgetSections): NimNode =
   ## Generate getScriptableState: base widget fields plus every prop and state
   ## field that json can represent.
@@ -401,208 +371,104 @@ proc buildScriptStateMethod(name: NimNode, sections: WidgetSections): NimNode =
     newEmptyNode(), newEmptyNode(), body
   )
 
+proc scriptFieldNode(typeName: NimNode, fieldName: string): NimNode =
+  ## `scriptField("foo", proc(w, v) = assignField(T(w).foo, v))`, as AST.
+  let fIdent = ident(fieldName)
+  quote do:
+    scriptField(`fieldName`, proc (w: Widget, v: JsonNode): bool {.closure.} =
+      assignField(`typeName`(w).`fIdent`, v))
+
+proc actionAliases(actionName: string): NimNode =
+  ## The names a script may call an action by: its own, lowercased, plus the
+  ## same with a leading `on` removed -- which is why `click` reaches `onClick`.
+  result = nnkBracket.newTree(newLit(actionName.toLowerAscii()))
+  if actionName.len > 2 and actionName[0..1] == "on":
+    result.add(newLit(actionName[2..^1].toLowerAscii()))
+
+proc scriptActionNode(typeName: NimNode, action: ActionDef,
+                      firstState: string): NimNode =
+  ## An action takes either nothing or the widget's own first state field --
+  ## which a preceding `write` has usually just set.
+  let aliases = actionAliases(action.name)
+  let aIdent = ident(action.name)
+  if action.params.len == 0:
+    quote do:
+      scriptAction(@`aliases`, proc (w: Widget): bool {.closure.} =
+        fireAction(`typeName`(w).`aIdent`))
+  else:
+    let sIdent = ident(firstState)
+    quote do:
+      scriptAction(@`aliases`, proc (w: Widget): bool {.closure.} =
+        fireAction(`typeName`(w).`aIdent`, `typeName`(w).`sIdent`))
+
 proc buildScriptActionMethod(name: NimNode, sections: WidgetSections): NimNode =
-  ## Generate handleScriptAction with a generic verb set:
-  ##   read / getstate      -> full state as JSON
-  ##   gettext              -> the `text` field, if the widget has one
-  ##   write / set          -> assign a state field (params.field, params.value)
-  ##   invoke               -> fire a declared action by name (params.action)
-  ##   <actionName>         -> fire that action directly (click == onClick)
+  ## Emit a ScriptDescriptor for this widget, plus a one-line
+  ## handleScriptAction that hands it to the runtime dispatcher.
+  ##
+  ## This used to generate the whole verb interpreter -- read, gettext, write,
+  ## invoke, toggle, per-action aliases, disabled checks and every error shape
+  ## -- into each of the 47 widget types: 203 lines of `quote do` at cc=43,
+  ## against a repo whose next-worst routine was 16. The behaviour is
+  ## identical and now lives once, as ordinary code, in script_bridge.nim.
+  ##
+  ## What is emitted here is data: field names paired with setters, action
+  ## names paired with invokers. A hand-written widget builds the same value
+  ## by hand and gets the same scripting support, with no macro involved.
   let typeName = makeWidgetTypeName(name)
 
-  var body = newStmtList()
-
-  # `quote do` gensyms locals, so shared temporaries must be plain idents that
-  # every generated block can refer to by the same name.
-  let act = ident("act")
-  let wanted = ident("wanted")
-  let field = ident("field")
-  let value = ident("value")
-  # `params` would otherwise bind to macros.params inside `quote do`
-  let prm = ident("params")
-
-  body.add nnkLetSection.newTree(
-    newIdentDefs(act, newEmptyNode(),
-                 newCall(ident("toLowerAscii"), ident("action"))))
-
-  body.add quote do:
-    if `act` in ["read", "getstate", "query", "state"]:
-      return %*{"success": true, "value": widget.getScriptableState()}
-
-  body.add quote do:
-    if `act` == "gettext":
-      when compiles($widget.text):
-        if widget.blockReading:
-          return %*{"success": false, "error": "Reading blocked"}
-        return %*{"success": true, "text": $widget.text}
-      else:
-        return %*{"success": false, "error": "Widget has no text field"}
-
-  # --- write: assign a state field --------------------------------------
-  var writeBody = newStmtList()
-  writeBody.add nnkVarSection.newTree(
-    newIdentDefs(field, newEmptyNode(),
-      quote do:
-        (if `prm`.hasKey("field"): `prm`["field"].getStr() else: "")))
-  writeBody.add nnkLetSection.newTree(
-    newIdentDefs(value, newEmptyNode(),
-      quote do:
-        (if `prm`.hasKey("value"): `prm`["value"]
-         elif `prm`.hasKey("text"): `prm`["text"]
-         else: newJNull())))
-  writeBody.add quote do:
-    if `value`.kind == JNull:
-      return %*{"success": false, "error": "Missing 'value' parameter"}
-
-  # Default target field: the first state field (or `text` if there is one)
-  var defaultField = ""
-  for st in sections.state:
-    defaultField = st.name.strVal
-    break
+  # `text`, when the widget has one, is both writable and the default target:
+  # `write hello` on a TextInput should mean its text, not its first state
+  # field. Otherwise the default is the first state field.
+  var hasText = false
   for prop in sections.props:
     if prop.name.strVal == "text":
-      defaultField = "text"
-      break
-  if defaultField.len > 0:
-    let defLit = newLit(defaultField)
-    writeBody.add quote do:
-      if `field`.len == 0: `field` = `defLit`
+      hasText = true
 
-  # Per-state-field assignment
+  var fields = nnkBracket.newTree()
+  var defaultField = ""
   for st in sections.state:
-    let fname = st.name.strVal
-    let fIdent = ident(fname)
-    let fLit = newLit(fname)
-    writeBody.add quote do:
-      if cmpIgnoreStyle(`field`, `fLit`) == 0:
-        when compiles(scriptAssign(widget.`fIdent`, `value`)):
-          if not scriptAssign(widget.`fIdent`, `value`):
-            return %*{"success": false, "error": "Bad value for " & `fLit`}
-          widget.isDirty = true
-          widget.layoutDirty = true
-          return %*{"success": true}
-        else:
-          return %*{"success": false,
-                    "error": "Field not script-writable: " & `fLit`}
+    if defaultField.len == 0:
+      defaultField = st.name.strVal
+    fields.add(scriptFieldNode(typeName, st.name.strVal))
+  let firstState = defaultField
+  if hasText:
+    defaultField = "text"
+    fields.add(scriptFieldNode(typeName, "text"))
 
-  # `text` prop is writable too (TextInput-style widgets)
-  writeBody.add quote do:
-    if cmpIgnoreStyle(`field`, "text") == 0:
-      when compiles(scriptAssign(widget.text, `value`)):
-        if not scriptAssign(widget.text, `value`):
-          return %*{"success": false, "error": "Bad value for text"}
-        widget.isDirty = true
-        widget.layoutDirty = true
-        return %*{"success": true}
-    return %*{"success": false, "error": "Unknown writable field: " & `field`}
-
-  body.add nnkIfStmt.newTree(
-    nnkElifBranch.newTree(
-      infix(act, "in", nnkBracket.newTree(
-        newLit("write"), newLit("set"), newLit("settext"), newLit("setvalue"))),
-      writeBody
-    )
-  )
-
-  # --- invoke / direct action names -------------------------------------
-  body.add nnkVarSection.newTree(newIdentDefs(wanted, newEmptyNode(), act))
-  body.add quote do:
-    if `act` == "invoke":
-      `wanted` = (if `prm`.hasKey("action"):
-                    `prm`["action"].getStr().toLowerAscii()
-                  else: "")
-      if `wanted`.len == 0:
-        return %*{"success": false, "error": "Missing 'action' parameter"}
-
-  # --- toggle convenience -------------------------------------------------
-  # Placed BEFORE the generic action dispatch so that "toggle"/"click" on a
-  # checkable widget flips the state first and *then* notifies the handler,
-  # rather than firing onToggle with the value unchanged.
-  #
-  # NOTE the doubled parentheses in `compiles((a = b))`: inside a call's
-  # argument list Nim parses `a = b` as a named argument, not an assignment,
-  # so `compiles(widget.checked = ...)` silently reports false. Wrapping the
-  # assignment in its own parentheses forces it to parse as a statement.
-  body.add quote do:
-    if `wanted` in ["toggle", "click"]:
-      when compiles((widget.checked = not widget.checked)):
-        widget.checked = not widget.checked
-        widget.isDirty = true
-        when compiles(widget.onToggle.get()(widget.checked)):
-          if widget.onToggle.isSome:
-            widget.onToggle.get()(widget.checked)
-        return %*{"success": true, "checked": widget.checked}
-
-
+  var actions = nnkBracket.newTree()
   for a in sections.actions:
-    let aName = a.name
-    let aIdent = ident(aName)
-    var aliases = @[aName.toLowerAscii()]
-    if aName.len > 2 and aName[0..1] == "on":
-      aliases.add(aName[2..^1].toLowerAscii())
-    var aliasBracket = nnkBracket.newTree()
-    for al in aliases:
-      aliasBracket.add(newLit(al))
-    let aLit = newLit(aName)
+    actions.add(scriptActionNode(typeName, a, firstState))
 
-    if a.params.len == 0:
-      body.add quote do:
-        if `wanted` in `aliasBracket`:
-          if not widget.enabled:
-            return %*{"success": false, "error": "Widget is disabled"}
-          when compiles(widget.`aIdent`.isSome):
-            if widget.`aIdent`.isSome:
-              widget.`aIdent`.get()()
-              widget.isDirty = true
-              return %*{"success": true, "invoked": `aLit`}
-            return %*{"success": true, "invoked": `aLit`,
-                      "note": "no handler attached"}
-          else:
-            return %*{"success": false, "error": "Action unavailable"}
-    else:
-      # One-argument actions (onToggle(checked: bool), onChange(text: string), ...)
-      # are fired against the widget's own first state field, which the `write`
-      # verb has usually just updated.
-      var firstState = ""
-      for st in sections.state:
-        firstState = st.name.strVal
-        break
-      if firstState.len > 0:
-        let sIdent = ident(firstState)
-        body.add quote do:
-          if `wanted` in `aliasBracket`:
-            if not widget.enabled:
-              return %*{"success": false, "error": "Widget is disabled"}
-            when compiles(widget.`aIdent`.get()(widget.`sIdent`)):
-              if widget.`aIdent`.isSome:
-                widget.`aIdent`.get()(widget.`sIdent`)
-                widget.isDirty = true
-                return %*{"success": true, "invoked": `aLit`}
-              return %*{"success": true, "invoked": `aLit`,
-                        "note": "no handler attached"}
-            else:
-              return %*{"success": false, "error": "Action unavailable"}
+  let descName = ident($name & "ScriptDescriptor")
+  let typeLit = newLit($name)
+  let defaultLit = newLit(defaultField)
+  result = newStmtList()
+  result.add quote do:
+    let `descName`* = ScriptDescriptor(
+      typeName: `typeLit`,
+      fields: @`fields`,
+      actions: @`actions`,
+      defaultField: `defaultLit`,
+      getText: (proc (w: Widget): string {.closure.} = textOrEmpty(`typeName`(w))),
+      toggle: (proc (w: Widget): Option[bool] {.closure.} =
+                 flipIfCheckable(`typeName`(w))))
 
-  # --- toggle convenience ------------------------------------------------
-  body.add quote do:
-    return %*{"success": false,
-              "error": "Unknown or unsupported action for this widget: " & action}
-
-  let widgetParam = newIdentDefs(ident("widget"), typeName)
-  let actionParam = newIdentDefs(ident("action"), ident("string"))
-  let paramsParam = newIdentDefs(prm, ident("JsonNode"))
+  # Built with newCall rather than `quote do`, because `params` and `body` are
+  # names in std/macros: inside a quote they bind to the NimNode accessors
+  # rather than to this method's own parameters.
   let formalParams = nnkFormalParams.newTree(
-    ident("JsonNode"), widgetParam, actionParam, paramsParam)
-
-  nnkMethodDef.newTree(
+    ident("JsonNode"),
+    newIdentDefs(ident("widget"), typeName),
+    newIdentDefs(ident("action"), ident("string")),
+    newIdentDefs(ident("params"), ident("JsonNode")))
+  let methodBody = newStmtList(
+    newCall(ident("dispatchScriptAction"),
+            ident("widget"), descName, ident("action"), ident("params")))
+  result.add nnkMethodDef.newTree(
     nnkPostfix.newTree(ident("*"), ident("handleScriptAction")),
     newEmptyNode(), newEmptyNode(), formalParams,
-    newEmptyNode(), newEmptyNode(), body
-  )
+    newEmptyNode(), newEmptyNode(), methodBody)
 
-# ============================================================================
-# Main Macro - definePrimitive
-# ============================================================================
 
 macro definePrimitive*(name: untyped, body: untyped): untyped =
   ## Define a primitive widget - clean, composable implementation

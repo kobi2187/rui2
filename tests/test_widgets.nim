@@ -240,3 +240,82 @@ suite "the DSL init section":
     # seeding convention set, so it has to come last.
     let w = newCheckbox(text = "x", initialChecked = true)
     check w.checked
+
+# ---------------------------------------------------------------------------
+# A widget written by hand, with no DSL involved.
+#
+# This is the point of splitting the scripting bridge out of the macro: the
+# descriptor is ordinary data. A `ref object of Widget` that builds one gets
+# the same verb set -- read, write, invoke, the action aliases, the error
+# shapes -- by calling the same proc the generated method calls.
+# ---------------------------------------------------------------------------
+
+type Gauge = ref object of Widget
+  level: float32
+  onCalibrate: Option[proc()]
+
+let GaugeScript = ScriptDescriptor(
+  typeName: "Gauge",
+  defaultField: "level",
+  fields: @[scriptField("level", proc (w: Widget, v: JsonNode): bool {.closure.} =
+                                   scriptAssign(Gauge(w).level, v))],
+  actions: @[scriptAction(@["oncalibrate", "calibrate"],
+                          proc (w: Widget): bool {.closure.} =
+                            fireAction(Gauge(w).onCalibrate))])
+
+method getTypeName(widget: Gauge): string = "Gauge"
+
+method handleScriptAction(widget: Gauge, action: string,
+                          params: JsonNode): JsonNode =
+  dispatchScriptAction(widget, GaugeScript, action, params)
+
+suite "a hand-written widget scripts the same way":
+  proc newGauge(): Gauge =
+    result = Gauge(level: 0.0)
+    result.enabled = true
+    result.visible = true
+
+  test "write reaches the default field with no field name given":
+    let g = newGauge()
+    let res = g.handleScriptAction("write", %*{"value": 0.75})
+    check res["success"].getBool()
+    check g.level == 0.75'f32
+
+  test "a write marks the widget dirty, as the generated bridge does":
+    let g = newGauge()
+    g.isDirty = false
+    g.layoutDirty = false
+    discard g.handleScriptAction("set", %*{"field": "level", "value": 1})
+    check g.isDirty
+    check g.layoutDirty
+
+  test "a value the field cannot hold is refused":
+    let g = newGauge()
+    let res = g.handleScriptAction("write", %*{"value": "not a number"})
+    check not res["success"].getBool()
+
+  test "an action fires under its on-less alias":
+    var fired = 0
+    let g = newGauge()
+    g.onCalibrate = some(proc() {.closure.} = inc fired)
+    check g.handleScriptAction("calibrate", newJObject())["success"].getBool()
+    check fired == 1
+
+  test "an action with nothing attached is not an error":
+    let g = newGauge()
+    let res = g.handleScriptAction("calibrate", newJObject())
+    check res["success"].getBool()
+    check res["note"].getStr() == "no handler attached"
+
+  test "a disabled widget refuses its actions":
+    let g = newGauge()
+    g.enabled = false
+    check not g.handleScriptAction("calibrate", newJObject())["success"].getBool()
+
+  test "an unknown action is refused":
+    let g = newGauge()
+    check not g.handleScriptAction("explode", newJObject())["success"].getBool()
+
+  test "toggle is refused on a widget with nothing to check":
+    let g = newGauge()
+    check not g.handleScriptAction("toggle", newJObject())["success"].getBool()
