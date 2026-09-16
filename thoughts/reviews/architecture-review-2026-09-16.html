@@ -1,0 +1,662 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
+    <title>Architecture review — rui2</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script type="module">
+      import mermaid from "https://cdn.jsdelivr.net/npm/mermaid@11/dist/mermaid.esm.min.mjs";
+      mermaid.initialize({ startOnLoad: true, theme: "neutral", securityLevel: "loose" });
+    </script>
+    <style>
+      .seam { stroke-dasharray: 4 4; }
+      .deep { background: linear-gradient(135deg, #0f172a, #1e293b); }
+      .hatch {
+        background-image: repeating-linear-gradient(45deg, #e2e8f0 0 6px, #f1f5f9 6px 12px);
+      }
+      .lbl { font-size: 10px; letter-spacing: .12em; text-transform: uppercase; }
+    </style>
+  </head>
+  <body class="bg-stone-50 text-slate-900 font-sans">
+    <main class="max-w-5xl mx-auto px-6 py-12 space-y-12">
+
+      <header class="space-y-5">
+        <div class="flex items-baseline justify-between flex-wrap gap-3">
+          <h1 class="font-serif text-4xl">Architecture review — <span class="text-indigo-700">rui2</span></h1>
+          <p class="font-mono text-xs text-slate-500">16 Sep 2026 · 7 packages · 16,395 lines · 607 routines</p>
+        </div>
+
+        <div class="grid grid-cols-2 sm:grid-cols-4 gap-3">
+          <div class="rounded-lg border border-slate-200 bg-white p-3">
+            <div class="lbl text-slate-500">cyclomatic debt</div>
+            <div class="text-2xl font-mono">205</div>
+            <div class="text-xs text-slate-500">sum of cc−5 over 51 routines</div>
+          </div>
+          <div class="rounded-lg border border-slate-200 bg-white p-3">
+            <div class="lbl text-slate-500">worst routine</div>
+            <div class="text-2xl font-mono text-red-600">43</div>
+            <div class="text-xs text-slate-500">next worst is 16</div>
+          </div>
+          <div class="rounded-lg border border-slate-200 bg-white p-3">
+            <div class="lbl text-slate-500">over cc=5</div>
+            <div class="text-2xl font-mono">51</div>
+            <div class="text-xs text-slate-500">of 607 routines</div>
+          </div>
+          <div class="rounded-lg border border-slate-200 bg-white p-3">
+            <div class="lbl text-slate-500">dead lines found</div>
+            <div class="text-2xl font-mono text-emerald-600">428</div>
+            <div class="text-xs text-slate-500">zero external callers</div>
+          </div>
+        </div>
+
+        <div class="rounded-lg border border-slate-200 bg-white p-4 text-xs text-slate-600 flex flex-wrap gap-x-6 gap-y-2">
+          <span><span class="inline-block w-4 h-3 border border-slate-700 align-middle"></span> module</span>
+          <span><svg width="26" height="10" class="inline align-middle"><line x1="0" y1="5" x2="26" y2="5" class="seam" stroke="#475569" stroke-width="2"/></svg> seam</span>
+          <span><svg width="26" height="10" class="inline align-middle"><line x1="0" y1="5" x2="22" y2="5" stroke="#dc2626" stroke-width="2"/><path d="M22 1 L26 5 L22 9 Z" fill="#dc2626"/></svg> leakage</span>
+          <span><span class="inline-block w-4 h-3 deep align-middle"></span> deep module</span>
+          <span class="hatch inline-block px-2 rounded">dead / unreachable</span>
+        </div>
+        <p class="text-sm text-slate-600">Scoped to the git hot spots (<code class="font-mono text-xs">app.nim</code>, <code class="font-mono text-xs">types.nim</code>, <code class="font-mono text-xs">widget_dsl_helpers.nim</code>, <code class="font-mono text-xs">main_loop.nim</code>, <code class="font-mono text-xs">pango_text.nim</code>) and to the largest files, per the request. No <code class="font-mono text-xs">CONTEXT.md</code> or ADRs exist in this repo yet.</p>
+      </header>
+
+      <section id="candidates" class="space-y-10">
+
+        <!-- ================= 1 ================= -->
+        <article id="c1" class="rounded-xl border border-slate-200 bg-white p-6 space-y-5">
+          <div class="flex items-start justify-between gap-4 flex-wrap">
+            <h2 class="font-serif text-2xl">1. Delete the text cache module nothing calls</h2>
+            <div class="flex gap-2 shrink-0">
+              <span class="rounded-full bg-emerald-100 text-emerald-800 px-3 py-1 text-xs font-medium">Strong</span>
+              <span class="rounded-full bg-slate-100 text-slate-700 px-3 py-1 text-xs font-mono">in-process</span>
+            </div>
+          </div>
+
+          <ul class="font-mono text-sm text-slate-600 space-y-0.5">
+            <li>packages/rui_drawing/src/primitives/text_cache.nim <span class="text-slate-400">(428 lines — 7th largest file)</span></li>
+            <li>packages/rui_drawing/src/pango_text.nim:308–367 <span class="text-slate-400">(the real cache)</span></li>
+            <li>packages/rui/src/app.nim:48, 114, 230–240</li>
+          </ul>
+
+          <div class="grid md:grid-cols-2 gap-4">
+            <div class="rounded-lg border border-slate-200 bg-white p-4">
+              <div class="lbl text-slate-500 mb-3">before</div>
+              <pre class="mermaid">
+flowchart TB
+  App["App&nbsp;module"]
+  TC["text_cache&nbsp;module<br/>428 lines"]
+  PT["pango_text&nbsp;module<br/>glyph cache"]
+  W["47 widgets"]
+  App -->|"holds textCache field"| TC
+  App -->|"clearTextCache / stats"| TC
+  W -->|"measureText / drawText"| PT
+  TC -.->|"never called"| PT
+  classDef dead fill:#f1f5f9,stroke:#94a3b8,stroke-dasharray:4 4,color:#64748b;
+  classDef real fill:#0f172a,color:#fff,stroke:#0f172a;
+  class TC dead
+  class PT real
+              </pre>
+              <p class="text-xs text-slate-500 mt-2">Every proc in <code class="font-mono">text_cache</code> is referenced only from inside itself.</p>
+            </div>
+            <div class="rounded-lg border border-slate-200 bg-white p-4">
+              <div class="lbl text-slate-500 mb-3">after</div>
+              <pre class="mermaid">
+flowchart TB
+  App2["App&nbsp;module"]
+  PT2["pango_text&nbsp;module<br/>one cache, one interface"]
+  W2["47 widgets"]
+  App2 -->|"clearTextCache / stats"| PT2
+  W2 -->|"measureText / drawText"| PT2
+  classDef real fill:#0f172a,color:#fff,stroke:#0f172a;
+  class PT2 real
+              </pre>
+              <p class="text-xs text-slate-500 mt-2">One cache. The App procs now act on the cache that actually holds glyphs.</p>
+            </div>
+          </div>
+
+          <div class="space-y-2 text-sm">
+            <p><span class="lbl text-slate-500">Problem</span><br/>
+              <code class="font-mono text-xs">text_cache.nim</code> has zero external callers, yet <code class="font-mono text-xs">App</code> keeps a <code class="font-mono text-xs">TextCache</code> field and exposes three procs over it — so <code class="font-mono text-xs">app.clearTextCache()</code> clears an always-empty cache and <code class="font-mono text-xs">getTextCacheStats()</code> always reports zeros, while the real glyph cache in <code class="font-mono text-xs">pango_text</code> keeps everything.</p>
+            <p><span class="lbl text-slate-500">Solution</span><br/>
+              Delete the module; point the three App procs at <code class="font-mono text-xs">pango_text</code>'s existing <code class="font-mono text-xs">clearTextCache()</code> / <code class="font-mono text-xs">getCacheStats()</code>.</p>
+          </div>
+
+          <div class="rounded-lg bg-stone-100 p-4">
+            <div class="lbl text-slate-500 mb-2">deletion test</div>
+            <p class="text-sm">Complexity <strong>vanishes</strong>. Nothing reappears at any caller — there are none. Textbook pass-through.</p>
+          </div>
+
+          <ul class="grid sm:grid-cols-2 gap-x-6 gap-y-1 text-sm">
+            <li class="flex gap-2"><span class="text-emerald-600">✓</span> Delete 428 lines</li>
+            <li class="flex gap-2"><span class="text-emerald-600">✓</span> Three App procs stop lying</li>
+            <li class="flex gap-2"><span class="text-emerald-600">✓</span> One cache, not two</li>
+            <li class="flex gap-2"><span class="text-emerald-600">✓</span> Cache locality returns to pango_text</li>
+          </ul>
+        </article>
+
+        <!-- ================= 2 ================= -->
+        <article id="c2" class="rounded-xl border border-slate-200 bg-white p-6 space-y-5">
+          <div class="flex items-start justify-between gap-4 flex-wrap">
+            <h2 class="font-serif text-2xl">2. Generate data, not dispatch, for the scripting bridge</h2>
+            <div class="flex gap-2 shrink-0">
+              <span class="rounded-full bg-emerald-100 text-emerald-800 px-3 py-1 text-xs font-medium">Strong</span>
+              <span class="rounded-full bg-slate-100 text-slate-700 px-3 py-1 text-xs font-mono">in-process</span>
+            </div>
+          </div>
+
+          <ul class="font-mono text-sm text-slate-600 space-y-0.5">
+            <li>packages/rui_core/src/widget_dsl.nim:381–575 <span class="text-red-600">buildScriptActionMethod — cc=43, 197 lines</span></li>
+            <li>packages/rui_core/src/widget_dsl.nim:303 <span class="text-slate-400">scriptAssign — cc=10</span></li>
+            <li>packages/rui_core/src/widget_dsl.nim:335 <span class="text-slate-400">buildScriptStateMethod — cc=7</span></li>
+          </ul>
+
+          <div class="grid md:grid-cols-2 gap-4">
+            <div class="rounded-lg border border-slate-200 bg-white p-4">
+              <div class="lbl text-slate-500 mb-3">before — dispatch emitted 47×</div>
+              <div class="space-y-1">
+                <div class="border border-red-300 bg-red-50 rounded p-2">
+                  <div class="lbl text-red-700">macro emits, per widget</div>
+                  <div class="text-xs font-mono text-slate-700 leading-5 mt-1">
+                    verb routing (read/getstate/gettext)<br/>
+                    write: field lookup + coercion<br/>
+                    invoke: alias resolution<br/>
+                    toggle/click convenience<br/>
+                    disabled checks · error JSON shapes
+                  </div>
+                </div>
+                <div class="text-center text-slate-400 text-xs">× 47 widget types</div>
+                <div class="grid grid-cols-8 gap-0.5">
+                  <!-- 47 copies -->
+                  <div class="h-3 bg-red-200 rounded-sm"></div><div class="h-3 bg-red-200 rounded-sm"></div><div class="h-3 bg-red-200 rounded-sm"></div><div class="h-3 bg-red-200 rounded-sm"></div><div class="h-3 bg-red-200 rounded-sm"></div><div class="h-3 bg-red-200 rounded-sm"></div><div class="h-3 bg-red-200 rounded-sm"></div><div class="h-3 bg-red-200 rounded-sm"></div>
+                  <div class="h-3 bg-red-200 rounded-sm"></div><div class="h-3 bg-red-200 rounded-sm"></div><div class="h-3 bg-red-200 rounded-sm"></div><div class="h-3 bg-red-200 rounded-sm"></div><div class="h-3 bg-red-200 rounded-sm"></div><div class="h-3 bg-red-200 rounded-sm"></div><div class="h-3 bg-red-200 rounded-sm"></div><div class="h-3 bg-red-200 rounded-sm"></div>
+                  <div class="h-3 bg-red-200 rounded-sm"></div><div class="h-3 bg-red-200 rounded-sm"></div><div class="h-3 bg-red-200 rounded-sm"></div><div class="h-3 bg-red-200 rounded-sm"></div><div class="h-3 bg-red-200 rounded-sm"></div><div class="h-3 bg-red-200 rounded-sm"></div><div class="h-3 bg-red-200 rounded-sm"></div><div class="h-3 bg-red-200 rounded-sm"></div>
+                  <div class="h-3 bg-red-200 rounded-sm"></div><div class="h-3 bg-red-200 rounded-sm"></div><div class="h-3 bg-red-200 rounded-sm"></div><div class="h-3 bg-red-200 rounded-sm"></div><div class="h-3 bg-red-200 rounded-sm"></div><div class="h-3 bg-red-200 rounded-sm"></div><div class="h-3 bg-red-200 rounded-sm"></div><div class="h-3 bg-red-200 rounded-sm"></div>
+                  <div class="h-3 bg-red-200 rounded-sm"></div><div class="h-3 bg-red-200 rounded-sm"></div><div class="h-3 bg-red-200 rounded-sm"></div><div class="h-3 bg-red-200 rounded-sm"></div><div class="h-3 bg-red-200 rounded-sm"></div><div class="h-3 bg-red-200 rounded-sm"></div><div class="h-3 bg-red-200 rounded-sm"></div><div class="h-3 bg-red-200 rounded-sm"></div>
+                  <div class="h-3 bg-red-200 rounded-sm"></div><div class="h-3 bg-red-200 rounded-sm"></div><div class="h-3 bg-red-200 rounded-sm"></div><div class="h-3 bg-red-200 rounded-sm"></div><div class="h-3 bg-red-200 rounded-sm"></div><div class="h-3 bg-red-200 rounded-sm"></div><div class="h-3 bg-red-200 rounded-sm"></div>
+                </div>
+                <p class="text-xs text-slate-500 pt-1">Testable only <em>through</em> a widget. No way to ask "what does <code class="font-mono">write</code> do with a missing field?" without picking one.</p>
+              </div>
+            </div>
+
+            <div class="rounded-lg border border-slate-200 bg-white p-4">
+              <div class="lbl text-slate-500 mb-3">after — one interpreter, 47 descriptors</div>
+              <div class="space-y-1">
+                <div class="deep text-white rounded p-3">
+                  <div class="lbl text-slate-300">rui_core/script_bridge — deep module</div>
+                  <div class="text-xs font-mono leading-5 mt-1 text-slate-200">
+                    dispatch(desc, widget, action, params)<br/>
+                    <span class="text-slate-400">all verb routing, coercion,<br/>error shapes, disabled checks</span>
+                  </div>
+                </div>
+                <svg height="22" width="100%"><line x1="50%" y1="0" x2="50%" y2="22" class="seam" stroke="#475569" stroke-width="2"/></svg>
+                <div class="grid grid-cols-8 gap-0.5">
+                  <div class="h-3 bg-emerald-200 rounded-sm"></div><div class="h-3 bg-emerald-200 rounded-sm"></div><div class="h-3 bg-emerald-200 rounded-sm"></div><div class="h-3 bg-emerald-200 rounded-sm"></div><div class="h-3 bg-emerald-200 rounded-sm"></div><div class="h-3 bg-emerald-200 rounded-sm"></div><div class="h-3 bg-emerald-200 rounded-sm"></div><div class="h-3 bg-emerald-200 rounded-sm"></div>
+                  <div class="h-3 bg-emerald-200 rounded-sm"></div><div class="h-3 bg-emerald-200 rounded-sm"></div><div class="h-3 bg-emerald-200 rounded-sm"></div><div class="h-3 bg-emerald-200 rounded-sm"></div><div class="h-3 bg-emerald-200 rounded-sm"></div><div class="h-3 bg-emerald-200 rounded-sm"></div><div class="h-3 bg-emerald-200 rounded-sm"></div><div class="h-3 bg-emerald-200 rounded-sm"></div>
+                </div>
+                <p class="text-xs text-slate-500 pt-1">Each widget emits a small <em>descriptor</em>: field setters, action invokers, type name. The behaviour lives once, behind one interface — and that interface is the test surface.</p>
+              </div>
+            </div>
+          </div>
+
+          <div class="space-y-2 text-sm">
+            <p><span class="lbl text-slate-500">Problem</span><br/>
+              <code class="font-mono text-xs">buildScriptActionMethod</code> is cc=43 — nearly triple the next worst routine in the repo — because it is a code generator emitting a whole dispatch tree. The generated behaviour is identical for all 47 widgets; only the field and action names vary.</p>
+            <p><span class="lbl text-slate-500">Solution</span><br/>
+              Put the seam between <em>invariant behaviour</em> and <em>per-widget data</em>. A runtime <code class="font-mono text-xs">script_bridge</code> module in rui_core does the dispatching; the macro emits only a descriptor of names and setters.</p>
+          </div>
+
+          <div class="rounded-lg bg-stone-100 p-4">
+            <div class="lbl text-slate-500 mb-2">deletion test</div>
+            <p class="text-sm">Complexity <strong>concentrates</strong> — the bridge earns its keep. But today it earns it 47 separate times. The complexity is accidental: it is a dispatch table written as emitted control flow.</p>
+          </div>
+
+          <ul class="grid sm:grid-cols-2 gap-x-6 gap-y-1 text-sm">
+            <li class="flex gap-2"><span class="text-emerald-600">✓</span> cc 43 → single digits</li>
+            <li class="flex gap-2"><span class="text-emerald-600">✓</span> Verb semantics testable directly</li>
+            <li class="flex gap-2"><span class="text-emerald-600">✓</span> One place to fix a verb bug</li>
+            <li class="flex gap-2"><span class="text-emerald-600">✓</span> 47 copies → 1 implementation</li>
+          </ul>
+        </article>
+
+        <!-- ================= 3 ================= -->
+        <article id="c3" class="rounded-xl border border-slate-200 bg-white p-6 space-y-5">
+          <div class="flex items-start justify-between gap-4 flex-wrap">
+            <h2 class="font-serif text-2xl">3. Split the App module along the frame pipeline</h2>
+            <div class="flex gap-2 shrink-0">
+              <span class="rounded-full bg-emerald-100 text-emerald-800 px-3 py-1 text-xs font-medium">Strong</span>
+              <span class="rounded-full bg-slate-100 text-slate-700 px-3 py-1 text-xs font-mono">local-substitutable</span>
+            </div>
+          </div>
+
+          <ul class="font-mono text-sm text-slate-600 space-y-0.5">
+            <li>packages/rui/src/app.nim <span class="text-slate-400">(596 lines — #1 git hot spot, 5 of last 12 commits)</span></li>
+            <li>:261 collectRaylibEvents <span class="text-slate-400">cc=9</span> · :355 handleEvent <span class="text-red-600">cc=15</span> · :514 run <span class="text-slate-400">cc=11</span> · :456 renderFrame <span class="text-slate-400">cc=6</span></li>
+          </ul>
+
+          <div class="grid md:grid-cols-2 gap-4">
+            <div class="rounded-lg border border-slate-200 bg-white p-4">
+              <div class="lbl text-slate-500 mb-3">before — one file, five concerns</div>
+              <div class="space-y-1 text-xs font-mono">
+                <div class="border-l-4 border-slate-400 bg-slate-50 pl-2 py-1.5">App type + config <span class="text-slate-400">:29–255</span></div>
+                <div class="border-l-4 border-amber-400 bg-amber-50 pl-2 py-1.5">raylib input adapter <span class="text-slate-400">:261–335</span></div>
+                <div class="border-l-4 border-red-400 bg-red-50 pl-2 py-1.5">event routing <span class="text-slate-400">:340–418</span></div>
+                <div class="border-l-4 border-indigo-400 bg-indigo-50 pl-2 py-1.5">layout + render pipeline <span class="text-slate-400">:423–499</span></div>
+                <div class="border-l-4 border-emerald-400 bg-emerald-50 pl-2 py-1.5">run loop <span class="text-slate-400">:504–585</span></div>
+              </div>
+              <p class="text-xs text-slate-500 mt-3">No seam between raylib and routing, so a frame can only be exercised by opening a real window.</p>
+            </div>
+
+            <div class="rounded-lg border border-slate-200 bg-white p-4">
+              <div class="lbl text-slate-500 mb-3">after — a seam under the input adapter</div>
+              <pre class="mermaid">
+flowchart TB
+  Run["app.run<br/>loop only"]
+  Src["EventSource<br/>interface"]
+  Raylib["raylib adapter"]
+  Fake["scripted adapter<br/>(tests)"]
+  Route["event_routing<br/>module"]
+  Frame["frame_pipeline<br/>module"]
+  Run --> Src
+  Src --> Raylib
+  Src --> Fake
+  Run --> Route
+  Route --> Frame
+  classDef deep fill:#0f172a,color:#fff,stroke:#0f172a;
+  class Route,Frame deep
+              </pre>
+              <p class="text-xs text-slate-500 mt-2">Two adapters justify the seam: raylib in production, a scripted one in tests.</p>
+            </div>
+          </div>
+
+          <div class="space-y-2 text-sm">
+            <p><span class="lbl text-slate-500">Problem</span><br/>
+              The busiest file in the repo holds five modules. <code class="font-mono text-xs">handleEvent</code> is cc=15 mostly because <code class="font-mono text-xs">evMouseDown / Up / Move / Wheel</code> repeat the same four-line hit-test-and-dispatch body with small variations.</p>
+            <p><span class="lbl text-slate-500">Solution</span><br/>
+              Extract <code class="font-mono text-xs">event_routing</code> and <code class="font-mono text-xs">frame_pipeline</code> modules; put a seam under event collection so an <code class="font-mono text-xs">EventSource</code> can be scripted. Collapse the four pointer branches into one <code class="font-mono text-xs">routePointerEvent</code>.</p>
+          </div>
+
+          <div class="rounded-lg bg-stone-100 p-4">
+            <div class="lbl text-slate-500 mb-2">deletion test</div>
+            <p class="text-sm">Complexity <strong>concentrates</strong> for routing and the pipeline — both are real modules. The four duplicated pointer branches are accidental; the window/keyboard branches are essential.</p>
+          </div>
+
+          <ul class="grid sm:grid-cols-2 gap-x-6 gap-y-1 text-sm">
+            <li class="flex gap-2"><span class="text-emerald-600">✓</span> Frames testable without a window</li>
+            <li class="flex gap-2"><span class="text-emerald-600">✓</span> handleEvent cc 15 → ~6</li>
+            <li class="flex gap-2"><span class="text-emerald-600">✓</span> Hot spot stops being one file</li>
+            <li class="flex gap-2"><span class="text-emerald-600">✓</span> Routing bugs have one home</li>
+          </ul>
+        </article>
+
+        <!-- ================= 4 ================= -->
+        <article id="c4" class="rounded-xl border border-red-200 bg-white p-6 space-y-5">
+          <div class="flex items-start justify-between gap-4 flex-wrap">
+            <h2 class="font-serif text-2xl">4. The missing seam: nothing ever clears <code class="font-mono text-xl">hovered</code></h2>
+            <div class="flex gap-2 shrink-0">
+              <span class="rounded-full bg-emerald-100 text-emerald-800 px-3 py-1 text-xs font-medium">Strong</span>
+              <span class="rounded-full bg-red-100 text-red-800 px-3 py-1 text-xs font-medium">live bug</span>
+            </div>
+          </div>
+
+          <ul class="font-mono text-sm text-slate-600 space-y-0.5">
+            <li>packages/rui/src/app.nim:391–396 <span class="text-red-600">the only write to `hovered` in the entire repo</span></li>
+            <li>packages/rui_core/src/types.nim:86 <span class="text-slate-400">Widget.hovered</span></li>
+            <li>consumers: every themed widget's `render`, and basic/tooltip.nim:47</li>
+          </ul>
+
+          <div class="rounded-lg border border-red-200 bg-red-50 p-4">
+            <div class="lbl text-red-700 mb-2">evidence</div>
+            <pre class="text-xs font-mono text-slate-800 leading-5 overflow-x-auto"># app.nim:390 — the comment describes a seam that does not exist
+of evMouseMove:
+  # Update hover state: clear old, set new
+  let widget = app.hitTestSystem.getWidgetAt(...)
+  if widget != nil:
+    if not widget.hovered:
+      widget.hovered = true      # <-- set, and never unset, anywhere</pre>
+            <p class="text-sm mt-3">A repo-wide search for writes to <code class="font-mono text-xs">hovered</code> returns exactly this one. Once a widget is hovered it stays hovered for the life of the process.</p>
+          </div>
+
+          <div class="grid md:grid-cols-2 gap-4">
+            <div class="rounded-lg border border-slate-200 bg-white p-4">
+              <div class="lbl text-slate-500 mb-3">before — hover accumulates</div>
+              <div class="space-y-2">
+                <div class="flex items-center gap-2"><span class="text-xs font-mono w-20 text-slate-500">frame 1</span><div class="h-6 flex-1 rounded bg-indigo-200 flex items-center px-2 text-xs">Button A hovered</div></div>
+                <div class="flex items-center gap-2"><span class="text-xs font-mono w-20 text-slate-500">frame 40</span><div class="h-6 flex-1 rounded bg-indigo-200 flex items-center px-2 text-xs">A <span class="text-red-600 font-medium">+</span> B hovered</div></div>
+                <div class="flex items-center gap-2"><span class="text-xs font-mono w-20 text-slate-500">frame 90</span><div class="h-6 flex-1 rounded bg-indigo-300 flex items-center px-2 text-xs">A + B <span class="text-red-600 font-medium">+</span> C hovered</div></div>
+                <div class="flex items-center gap-2"><span class="text-xs font-mono w-20 text-slate-500">…</span><div class="h-6 flex-1 rounded bg-indigo-400 flex items-center px-2 text-xs text-white">everything stays lit</div></div>
+              </div>
+            </div>
+            <div class="rounded-lg border border-slate-200 bg-white p-4">
+              <div class="lbl text-slate-500 mb-3">after — one owner of hover</div>
+              <pre class="mermaid">
+flowchart LR
+  Move["evMouseMove"] --> HM["hover module<br/>setHover(widget)"]
+  HM -->|"clears"| Prev["previous widget"]
+  HM -->|"sets"| Cur["current widget"]
+  classDef deep fill:#0f172a,color:#fff,stroke:#0f172a;
+  class HM deep
+              </pre>
+              <p class="text-xs text-slate-500 mt-2">Mirrors how <code class="font-mono">FocusManager</code> already owns focus. Hover has no such owner.</p>
+            </div>
+          </div>
+
+          <div class="space-y-2 text-sm">
+            <p><span class="lbl text-slate-500">Problem</span><br/>
+              There is no module owning "the pointer left this widget", so hover is a one-way latch. Buttons keep their highlight after the pointer leaves, and <code class="font-mono text-xs">Tooltip</code>, which hides itself on <code class="font-mono text-xs">not widget.hovered</code>, can never hide.</p>
+            <p><span class="lbl text-slate-500">Solution</span><br/>
+              Give hover the same shape focus already has: a small module that remembers the currently hovered widget and clears the previous one on transition.</p>
+          </div>
+
+          <div class="rounded-lg bg-stone-100 p-4">
+            <div class="lbl text-slate-500 mb-2">deletion test</div>
+            <p class="text-sm">There is nothing to delete — the module was never written. The symptom is spread across every widget's <code class="font-mono text-xs">render</code>, which is exactly what missing locality looks like.</p>
+          </div>
+
+          <ul class="grid sm:grid-cols-2 gap-x-6 gap-y-1 text-sm">
+            <li class="flex gap-2"><span class="text-emerald-600">✓</span> Hover highlights clear correctly</li>
+            <li class="flex gap-2"><span class="text-emerald-600">✓</span> Tooltip can hide</li>
+            <li class="flex gap-2"><span class="text-emerald-600">✓</span> Testable without a window</li>
+            <li class="flex gap-2"><span class="text-emerald-600">✓</span> Symmetric with FocusManager</li>
+          </ul>
+        </article>
+
+        <!-- ================= 5 ================= -->
+        <article id="c6" class="rounded-xl border border-slate-200 bg-white p-6 space-y-5">
+          <div class="flex items-start justify-between gap-4 flex-wrap">
+            <h2 class="font-serif text-2xl">6. Separate the theme-file adapter from the theme registry</h2>
+            <div class="flex gap-2 shrink-0">
+              <span class="rounded-full bg-amber-100 text-amber-800 px-3 py-1 text-xs font-medium">Worth exploring</span>
+              <span class="rounded-full bg-slate-100 text-slate-700 px-3 py-1 text-xs font-mono">ports &amp; adapters</span>
+            </div>
+          </div>
+
+          <ul class="font-mono text-sm text-slate-600 space-y-0.5">
+            <li>packages/rui_drawing/src/theme_manager.nim <span class="text-slate-400">(433 lines)</span></li>
+            <li>:123 parseColor <span class="text-slate-400">cc=7</span> · :171 toThemeProps <span class="text-slate-400">cc=7</span> · :236 toTheme <span class="text-slate-400">cc=9</span> · :344 derive <span class="text-slate-400">cc=7</span></li>
+          </ul>
+
+          <div class="grid md:grid-cols-2 gap-4">
+            <div class="rounded-lg border border-slate-200 bg-white p-4">
+              <div class="lbl text-slate-500 mb-3">before — shallow interface over two jobs</div>
+              <div class="relative">
+                <div class="border-2 border-slate-400 rounded">
+                  <div class="hatch px-2 py-1 text-xs font-mono border-b border-slate-300">interface: 16 exported procs</div>
+                  <div class="p-2 space-y-1 text-xs font-mono">
+                    <div class="bg-amber-50 border border-amber-300 rounded px-2 py-1">JSON/YAML parsing · parseColor · toThemeProps · toTheme</div>
+                    <div class="bg-indigo-50 border border-indigo-300 rounded px-2 py-1">registry · register / get / setTheme / derive</div>
+                  </div>
+                </div>
+                <p class="text-xs text-slate-500 mt-2">Parsing a theme file requires constructing a <code class="font-mono">ThemeManager</code> first — file-format bugs can only be reached through the registry.</p>
+              </div>
+            </div>
+
+            <div class="rounded-lg border border-slate-200 bg-white p-4">
+              <div class="lbl text-slate-500 mb-3">after — two modules, one seam</div>
+              <div class="space-y-1">
+                <div class="border-2 border-slate-700 rounded p-2">
+                  <div class="lbl text-slate-500">theme_file — adapter</div>
+                  <div class="text-xs font-mono mt-1">parse(text) → Theme</div>
+                </div>
+                <svg height="20" width="100%"><line x1="50%" y1="0" x2="50%" y2="20" class="seam" stroke="#475569" stroke-width="2"/></svg>
+                <div class="deep text-white rounded p-2">
+                  <div class="lbl text-slate-300">theme_manager — registry</div>
+                  <div class="text-xs font-mono mt-1 text-slate-200">register / get / setTheme / derive</div>
+                </div>
+                <p class="text-xs text-slate-500 pt-1">Parsing becomes a pure function: string in, Theme out. Tests need no manager and no files on disk.</p>
+              </div>
+            </div>
+          </div>
+
+          <div class="space-y-2 text-sm">
+            <p><span class="lbl text-slate-500">Problem</span><br/>
+              File-format handling and theme storage share one module, so the four highest-complexity routines — all parsing — sit behind a registry interface that has nothing to do with parsing.</p>
+            <p><span class="lbl text-slate-500">Solution</span><br/>
+              Cut the seam at <code class="font-mono text-xs">toTheme</code>: a <code class="font-mono text-xs">theme_file</code> adapter turns text into a <code class="font-mono text-xs">Theme</code>; the registry only stores and resolves.</p>
+          </div>
+
+          <div class="rounded-lg bg-stone-100 p-4">
+            <div class="lbl text-slate-500 mb-2">deletion test</div>
+            <p class="text-sm">Both halves <strong>concentrate</strong> complexity, which is the signal that they are two modules rather than one.</p>
+          </div>
+
+          <ul class="grid sm:grid-cols-2 gap-x-6 gap-y-1 text-sm">
+            <li class="flex gap-2"><span class="text-emerald-600">✓</span> Parsing testable as pure function</li>
+            <li class="flex gap-2"><span class="text-emerald-600">✓</span> −30 cyclomatic debt</li>
+            <li class="flex gap-2"><span class="text-emerald-600">✓</span> New formats need no registry change</li>
+            <li class="flex gap-2"><span class="text-emerald-600">✓</span> 433 lines → two ~200-line modules</li>
+          </ul>
+        </article>
+
+        <!-- ================= 5 ================= -->
+        <article id="c5" class="rounded-xl border border-slate-200 bg-white p-6 space-y-5">
+          <div class="flex items-start justify-between gap-4 flex-wrap">
+            <h2 class="font-serif text-2xl">5. Give theme lookup a seam at the widget</h2>
+            <div class="flex gap-2 shrink-0">
+              <span class="rounded-full bg-emerald-100 text-emerald-800 px-3 py-1 text-xs font-medium">Strong</span>
+              <span class="rounded-full bg-slate-100 text-slate-700 px-3 py-1 text-xs font-mono">in-process</span>
+            </div>
+          </div>
+
+          <ul class="font-mono text-sm text-slate-600 space-y-0.5">
+            <li>packages/rui_drawing/src/theme_sys_core.nim:190 getThemeProps · :257 getOrCreateProps · :268 <span class="text-slate-400">global var currentTheme</span></li>
+            <li>packages/rui_drawing/src/theme_manager.nim:335 getProps <span class="text-red-600">— 0 callers</span></li>
+            <li>packages/rui/src/app.nim:47,113,132,193,201 <span class="text-red-600">currentTheme field — 4 writes, 0 reads</span></li>
+            <li>43 call sites across 21 widget files, each preceded by a copied state ladder</li>
+          </ul>
+
+          <div class="grid md:grid-cols-2 gap-4">
+            <div class="rounded-lg border border-slate-200 bg-white p-4">
+              <div class="lbl text-slate-500 mb-3">before — ladder copied 21×, cache unreachable</div>
+              <pre class="mermaid">
+flowchart TB
+  W["21 widget modules<br/>each re-derives its own state"] --> G["global var currentTheme"]
+  G --> GP["getThemeProps"]
+  TM["ThemeManager.getProps"] --> TC["ThemeCache<br/>getOrCreateProps"]
+  AF["App.currentTheme field"]
+  classDef dead fill:#f1f5f9,stroke:#94a3b8,stroke-dasharray:4 4,color:#64748b;
+  class TM,TC,AF dead
+              </pre>
+              <p class="text-xs text-slate-500 mt-2">The memoising path is orphaned: the cache is reached only by <code class="font-mono">getProps</code>, which nothing calls. Three things claim to be &ldquo;the current theme&rdquo;; one is live.</p>
+            </div>
+            <div class="rounded-lg border border-slate-200 bg-white p-4">
+              <div class="lbl text-slate-500 mb-3">after — one interface, cache on the path</div>
+              <div class="space-y-1">
+                <div class="deep text-white rounded p-3">
+                  <div class="lbl text-slate-300">themeProps(widget, intent) — deep module</div>
+                  <div class="text-xs font-mono mt-1 text-slate-200">state derivation · caching · theme resolution</div>
+                </div>
+                <svg height="20" width="100%"><line x1="50%" y1="0" x2="50%" y2="20" class="seam" stroke="#475569" stroke-width="2"/></svg>
+                <div class="border border-slate-300 rounded p-2 text-xs font-mono text-center">21 widget modules · one line each</div>
+                <p class="text-xs text-slate-500 pt-1">Derive from the base <code class="font-mono">Widget</code> flags the ladder already reads: disabled, pressed, hovered, focused.</p>
+              </div>
+            </div>
+          </div>
+
+          <div class="space-y-2 text-sm">
+            <p><span class="lbl text-slate-500">Problem</span><br/>
+              Every widget hand-copies the same ladder — <code class="font-mono text-xs">if disabled: Disabled / elif pressed / elif hovered / elif focused / else Normal</code> — then calls the global. Meanwhile <code class="font-mono text-xs">ThemeManager.getProps</code> has zero callers, so <code class="font-mono text-xs">ThemeCache</code> is never on the path, and <code class="font-mono text-xs">App.currentTheme</code> is written four times and read never. <code class="font-mono text-xs">app.nim:461</code> looks like it reads the field but Nim resolves the bare name to the global.</p>
+            <p><span class="lbl text-slate-500">Solution</span><br/>
+              One <code class="font-mono text-xs">themeProps(widget, intent)</code> behind which state derivation, caching and the global all sit. Delete <code class="font-mono text-xs">App.currentTheme</code>.</p>
+          </div>
+
+          <div class="rounded-lg bg-stone-100 p-4">
+            <div class="lbl text-slate-500 mb-2">deletion test</div>
+            <p class="text-sm">The ladder is a <strong>pass-through</strong> repeated 21×, so it fails the test where it stands and passes once centralised. <code class="font-mono text-xs">ThemeCache</code> on its current path and <code class="font-mono text-xs">App.currentTheme</code> fail outright — delete or reconnect.</p>
+          </div>
+
+          <ul class="grid sm:grid-cols-2 gap-x-6 gap-y-1 text-sm">
+            <li class="flex gap-2"><span class="text-emerald-600">✓</span> 21 copies → 1 derivation</li>
+            <li class="flex gap-2"><span class="text-emerald-600">✓</span> Cache finally on the path</li>
+            <li class="flex gap-2"><span class="text-emerald-600">✓</span> One answer to &ldquo;current theme&rdquo;</li>
+            <li class="flex gap-2"><span class="text-emerald-600">✓</span> State derivation testable without a window</li>
+          </ul>
+        </article>
+
+        <!-- ================= 6 ================= -->
+        <article id="c7" class="rounded-xl border border-slate-200 bg-white p-6 space-y-5">
+          <div class="flex items-start justify-between gap-4 flex-wrap">
+            <h2 class="font-serif text-2xl">7. Stop re-exporting all of raylib from rui_core</h2>
+            <div class="flex gap-2 shrink-0">
+              <span class="rounded-full bg-amber-100 text-amber-800 px-3 py-1 text-xs font-medium">Worth exploring</span>
+              <span class="rounded-full bg-red-100 text-red-800 px-3 py-1 text-xs font-medium">leakage</span>
+            </div>
+          </div>
+
+          <ul class="font-mono text-sm text-slate-600 space-y-0.5">
+            <li>packages/rui_core/src/types.nim:10 <span class="text-red-600">export raylib.Color, raylib.KeyboardKey, raylib.RenderTexture2D, raylib</span></li>
+            <li>cost: menus/menubar.nim (6 sites), dialogs/messagebox.nim:44–60, basic/scrollbar.nim:113</li>
+          </ul>
+
+          <div class="grid md:grid-cols-2 gap-4">
+            <div class="rounded-lg border border-slate-200 bg-white p-4">
+              <div class="lbl text-slate-500 mb-3">before — every raylib name in every module</div>
+              <pre class="mermaid">
+flowchart LR
+  RC["rui_core"] -->|"export raylib (all)"| W["every widget module"]
+  RL["naylib<br/>KeyboardKey.Menu / Info<br/>Error / Warning / Default"] --> RC
+  W -.->|"name clashes"| X["Menu · Info · Error<br/>Warning · Default"]
+  classDef leak stroke:#dc2626,stroke-width:2px,fill:#fef2f2;
+  class RC,X leak
+              </pre>
+            </div>
+            <div class="rounded-lg border border-slate-200 bg-white p-4">
+              <div class="lbl text-slate-500 mb-3">after — export the names the interface needs</div>
+              <pre class="mermaid">
+flowchart LR
+  RC2["rui_core<br/>exports Color, KeyboardKey,<br/>RenderTexture2D, Vector2…"] --> W2["every widget module"]
+  RL2["naylib"] --> RC2
+  W2 --> Clean["no clashes"]
+  classDef deep fill:#0f172a,color:#fff,stroke:#0f172a;
+  class RC2 deep
+              </pre>
+            </div>
+          </div>
+
+          <div class="space-y-2 text-sm">
+            <p><span class="lbl text-slate-500">Problem</span><br/>
+              Line 10 names three symbols and then exports the whole module anyway, so every raylib enum field leaks into every widget. It already cost real workarounds: the <code class="font-mono text-xs">Menu</code> widget type must be written <code class="font-mono text-xs">menu.Menu</code> in six places, and two enum mappings in <code class="font-mono text-xs">messagebox.nim</code> exist only to give Nim a declared return type to disambiguate against.</p>
+            <p><span class="lbl text-slate-500">Solution</span><br/>
+              Drop the wholesale <code class="font-mono text-xs">export raylib</code> and keep an explicit list. Widen it as compile errors point at genuinely-needed names.</p>
+          </div>
+
+          <div class="rounded-lg bg-stone-100 p-4">
+            <div class="lbl text-slate-500 mb-2">deletion test</div>
+            <p class="text-sm">Deleting the wholesale export <strong>removes</strong> complexity from every downstream module. The explicit list is the interface rui_core meant to present.</p>
+          </div>
+
+          <ul class="grid sm:grid-cols-2 gap-x-6 gap-y-1 text-sm">
+            <li class="flex gap-2"><span class="text-emerald-600">✓</span> Widget names stop colliding</li>
+            <li class="flex gap-2"><span class="text-emerald-600">✓</span> Delete six qualification workarounds</li>
+            <li class="flex gap-2"><span class="text-amber-600">!</span> One-off churn across widgets</li>
+            <li class="flex gap-2"><span class="text-emerald-600">✓</span> rui_core's interface becomes readable</li>
+          </ul>
+        </article>
+
+        <!-- ================= 7 ================= -->
+        <article id="c8" class="rounded-xl border border-slate-200 bg-white p-6 space-y-5">
+          <div class="flex items-start justify-between gap-4 flex-wrap">
+            <h2 class="font-serif text-2xl">8. Give the rect-effect module a dispatch seam</h2>
+            <div class="flex gap-2 shrink-0">
+              <span class="rounded-full bg-amber-100 text-amber-800 px-3 py-1 text-xs font-medium">Worth exploring</span>
+            </div>
+          </div>
+
+          <ul class="font-mono text-sm text-slate-600 space-y-0.5">
+            <li>packages/rui_drawing/src/drawing_effects.nim <span class="text-slate-400">(670 lines — largest file, 8 procs)</span></li>
+            <li>:30 drawBeveledRect <span class="text-slate-400">173 lines, cc=8</span> · :563 drawThemedRect <span class="text-red-600">cc=13</span></li>
+            <li>packages/rui_drawing/src/primitives/controls.nim:16 <span class="text-slate-400">fadeColor — private, forcing inlined alpha maths in scrollbar.nim</span></li>
+          </ul>
+
+          <div class="grid md:grid-cols-2 gap-4">
+            <div class="rounded-lg border border-slate-200 bg-white p-4">
+              <div class="lbl text-slate-500 mb-3">before — precedence chain in one routine</div>
+              <div class="space-y-1 text-xs font-mono">
+                <div class="bg-red-50 border border-red-200 rounded px-2 py-1">if bevelStyle.isSome and ≠ Flat → drawBeveledRect</div>
+                <div class="bg-red-50 border border-red-200 rounded px-2 py-1">elif gradientStart &amp; gradientEnd → drawGradientRect</div>
+                <div class="bg-red-50 border border-red-200 rounded px-2 py-1">elif dropShadowOffset → drawShadowedRect</div>
+                <div class="bg-red-50 border border-red-200 rounded px-2 py-1">elif … glow · inset · neumorphic</div>
+                <div class="text-slate-500 pt-1">Adding an effect means editing this chain.</div>
+              </div>
+            </div>
+            <div class="rounded-lg border border-slate-200 bg-white p-4">
+              <div class="lbl text-slate-500 mb-3">after — effect selection as data</div>
+              <div class="space-y-1">
+                <div class="deep text-white rounded p-2">
+                  <div class="lbl text-slate-300">rect_effects — deep module</div>
+                  <div class="text-xs font-mono mt-1 text-slate-200">drawThemedRect(bounds, props)</div>
+                </div>
+                <svg height="20" width="100%"><line x1="50%" y1="0" x2="50%" y2="20" class="seam" stroke="#475569" stroke-width="2"/></svg>
+                <div class="grid grid-cols-3 gap-1 text-xs font-mono">
+                  <div class="border border-slate-300 rounded px-1 py-1 text-center">bevel</div>
+                  <div class="border border-slate-300 rounded px-1 py-1 text-center">gradient</div>
+                  <div class="border border-slate-300 rounded px-1 py-1 text-center">shadow</div>
+                  <div class="border border-slate-300 rounded px-1 py-1 text-center">glow</div>
+                  <div class="border border-slate-300 rounded px-1 py-1 text-center">inset</div>
+                  <div class="border border-slate-300 rounded px-1 py-1 text-center">neumorphic</div>
+                </div>
+                <p class="text-xs text-slate-500 pt-1">An ordered table of (does this apply?, draw it). New effects register; the chain never grows.</p>
+              </div>
+            </div>
+          </div>
+
+          <div class="space-y-2 text-sm">
+            <p><span class="lbl text-slate-500">Problem</span><br/>
+              <code class="font-mono text-xs">drawThemedRect</code> hard-codes both the effect set and their precedence, so the largest file in the repo grows by an <code class="font-mono text-xs">elif</code> every time an effect is added.</p>
+            <p><span class="lbl text-slate-500">Solution</span><br/>
+              Split the six effect implementations into their own module and leave <code class="font-mono text-xs">drawThemedRect</code> as a small ordered selection over them. While here, export <code class="font-mono text-xs">fadeColor</code> — widgets already need it.</p>
+          </div>
+
+          <div class="rounded-lg bg-stone-100 p-4">
+            <div class="lbl text-slate-500 mb-2">deletion test</div>
+            <p class="text-sm">The effects <strong>concentrate</strong> — 670 lines of real drawing. Only the precedence chain is accidental; a table makes the ordering explicit and data, not control flow.</p>
+          </div>
+
+          <ul class="grid sm:grid-cols-2 gap-x-6 gap-y-1 text-sm">
+            <li class="flex gap-2"><span class="text-emerald-600">✓</span> Effect precedence becomes readable</li>
+            <li class="flex gap-2"><span class="text-emerald-600">✓</span> drawThemedRect cc 13 → ~4</li>
+            <li class="flex gap-2"><span class="text-emerald-600">✓</span> Largest file splits cleanly</li>
+            <li class="flex gap-2"><span class="text-emerald-600">✓</span> fadeColor stops being re-inlined</li>
+          </ul>
+        </article>
+
+        <!-- ================= 8 ================= -->
+        <article id="c9" class="rounded-xl border border-slate-200 bg-white p-6 space-y-4">
+          <div class="flex items-start justify-between gap-4 flex-wrap">
+            <h2 class="font-serif text-2xl">9. Sentinel-as-absence in <code class="font-mono text-xl">makeThemeProps</code></h2>
+            <span class="rounded-full bg-slate-200 text-slate-700 px-3 py-1 text-xs font-medium shrink-0">Speculative</span>
+          </div>
+          <ul class="font-mono text-sm text-slate-600">
+            <li>packages/rui_drawing/src/builtin_themes.nim:14 <span class="text-red-600">cc=15</span>, 14 params, 14 guards</li>
+          </ul>
+          <p class="text-sm">Every parameter is non-optional and absence is inferred from a sentinel (<code class="font-mono text-xs">alpha == 0</code>, <code class="font-mono text-xs">value &gt; 0</code>), so the body is fourteen <code class="font-mono text-xs">if</code>s. High cc, but flat, readable, and zero coupling — and the deletion test says it <strong>concentrates</strong> complexity that would otherwise land at every call site in the builtin themes.</p>
+          <p class="text-sm text-slate-600">Listed for completeness because it is the third-highest cc in the repo. I would <strong>not</strong> touch it: switching to <code class="font-mono text-xs">Option[T]</code> params trades 14 guards here for <code class="font-mono text-xs">some(…)</code> noise at every caller. Worth an ADR to stop it resurfacing in future reviews.</p>
+        </article>
+
+        <!-- ================= not candidates ================= -->
+        <article class="rounded-xl border border-slate-200 bg-stone-100 p-6 space-y-3">
+          <h2 class="font-serif text-xl">Examined and left alone</h2>
+          <ul class="text-sm space-y-2">
+            <li><code class="font-mono text-xs">interval_tree.nim:173 removeNode</code> — cc=16. <strong>Essential</strong>: interval-tree deletion with rebalancing. The complexity is the algorithm.</li>
+            <li><code class="font-mono text-xs">widget_dsl.nim:113 buildConstructorBody</code> — cc=9. <strong>Essential</strong>: a real AST walk over prop/state/action sections.</li>
+            <li><code class="font-mono text-xs">pango_text.nim</code> — 417 lines but already a deep module: measure, cursor geometry, hit-testing and rasterisation behind a small interface, with the glyph cache as an internal seam. The one caveat is that the cache is a module-level <code class="font-mono text-xs">var</code>, so eviction cannot be tested in isolation.</li>
+            <li><code class="font-mono text-xs">main_loop.nim:127 renderPass</code> — cc=10, and load-bearing for the texture model. Leave until candidate 3 settles.</li>
+            <li><code class="font-mono text-xs">rui_widgets</code> — 59 files, 6,468 lines, only 5 routines over cc=5. The largest package is also the flattest; no action.</li>
+          </ul>
+        </article>
+
+      </section>
+
+      <section id="top-recommendation" class="rounded-xl deep text-white p-8 space-y-4">
+        <div class="lbl text-slate-400">top recommendation</div>
+        <h2 class="font-serif text-3xl">Start with #1 and #4 — then commit to #2</h2>
+        <p class="text-slate-200 max-w-3xl">
+          <a href="#c1" class="underline decoration-slate-500">Deleting the dead text cache</a> costs nothing and removes 428 lines plus three App procs that silently report the wrong thing. <a href="#c4" class="underline decoration-slate-500">The hover latch</a> is a live bug with a one-module fix, and it blocks the Tooltip widget from working at all. Both are an afternoon.
+        </p>
+        <p class="text-slate-200 max-w-3xl">
+          <a href="#c2" class="underline decoration-slate-500">The scripting bridge</a> is the real architectural win: one routine at cc=43 against a repo whose next worst is 16, emitting the same dispatch into 47 widget types, testable only by going through a widget. Moving the invariant behaviour behind one interface and emitting per-widget descriptors is the single change that buys the most locality — and it is the one that gets harder as more widgets land. <a href="#c5" class="underline decoration-slate-500">Theme lookup</a> is a close second for the same reason: 21 copies of one ladder, and a cache nothing reaches.
+        </p>
+      </section>
+
+    </main>
+  </body>
+</html>

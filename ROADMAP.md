@@ -5,14 +5,26 @@ optimization. See [STATUS.md](STATUS.md) for what works today.
 
 ---
 
-## Phase 0 — Lock in the foundation *(small, do first)*
-- **Compile-check CI** — a GitHub workflow running `nim check` on the 7 package
-  barrels + examples. The tree had no CI and never compiled before this branch;
-  without it, regressions are invisible.
-- **Choose a license** — fill the `# license` TODO in all 7 `.nimble` files.
-- **Pin dependencies** — record the `naylib`/`yaml` versions known to build.
+> **Tracking.** Phases with open work are [GitHub
+> milestones](https://github.com/kobi2187/rui2/milestones); cleanup and
+> housekeeping live in a local taskwarrior project (`task project:rui2 list`).
 
-## Phase 1 — Rendering correctness *(medium, load-bearing — blocks Phase 2)*
+## Phase 0 — Lock in the foundation *(small, do first)*
+- [x] **Compile-check CI** — done in `298fcfa`. Runs `nim check` on the 7 package
+  barrels + examples.
+- [ ] **Choose a license** — fill the `# license` TODO in all 7 `.nimble` files.
+  ([#26](https://github.com/kobi2187/rui2/issues/26))
+- [ ] **Pin dependencies** — record the `naylib`/`yaml` versions known to build.
+  Currently building against naylib 25.42.0.
+  ([#27](https://github.com/kobi2187/rui2/issues/27))
+
+## Phase 1 — Rendering correctness ✅ *(done — `f71d59e`)*
+Dirty marking now propagates up the direct ancestor line via `markDirtyToRoot`,
+called from `link.nim` and the event handlers, so a same-size child change
+recomposites into the parent texture. Original plan below for reference.
+
+<details><summary>Original Phase 1 plan</summary>
+
 The two-pass texture cache only repaints correctly if dirty-marking matches the
 compositing model.
 - **Mark dirty up the direct ancestor line only.** On a content change, set
@@ -29,6 +41,7 @@ compositing model.
   missing piece is the upward `isDirty` marking above.
 - **Verify visually:** change state, confirm the repaint reaches the screen and
   that sibling subtrees are not redrawn.
+</details>
 
 ## Phase 2 — Make reactivity real *(medium — the headline promise)*
 **Push-based, no per-frame polling.** A `Link[T]` holds direct refs to its
@@ -66,12 +79,16 @@ the binding sugar is missing. Provide both entry points:
   - `multiline: bool` → TextInput (false) vs TextArea (true)
   - `disabled: bool`, plus selection/cursor state when editable.
   RichText (styled runs) can extend it later.
-- **Wire the Pango binding into it.** You already use Pango to render glyphs and
-  compute offsets, handing a 2D texture to raylib — connect that path (the widget
-  currently uses raylib `drawText`), leaning on naylib RAII for the texture rather
-  than the abandoned manual GPU-cache experiment.
-- **Real text measurement** → fixes approximate label centering and lets
-  containers size to content.
+- [x] **Wire the Pango binding into it** — done. `drawText` routes through
+  `drawTextPango`, glyph textures are LRU-cached in `pango_text` on naylib RAII,
+  and `TextInput` uses `cursorPosition` / `indexFromPosition` for caret geometry
+  and click-to-caret.
+- [x] **Real text measurement** — done. `measureText` uses `measureTextPango`,
+  which fixed the approximate label centring and is what lets containers size to
+  content.
+- [ ] **The unification itself** — Label and TextInput are still separate modules
+  and TextArea does not exist.
+  ([#30](https://github.com/kobi2187/rui2/issues/30))
 
 ## Phase 5 — Performance refinements *(medium — after correctness; measure first, don't over-optimize)*
 - **Stop rebuilding children every layout pass** — composites like `Button` do
@@ -81,20 +98,24 @@ the binding sugar is missing. Provide both entry points:
   update the interval tree on changed bounds instead of a full rebuild per frame.
 - **Remove per-event `echo`** from the event loop (`rui/src/app.nim`).
 
-## Phase 6 — Widget library *(large, ongoing)*
-Cleanup parked many half-finished widgets. They are **not abandoned** — the intent
-is to bring them back, and some may carry useful ideas/innovations worth mining
-before any rewrite. Recover any of them from history:
+## Phase 6 — Widget library ✅ *(the parked widgets are back)*
 
-```bash
-git checkout efe72d6 -- widgets/<path>      # efe72d6 = pre-cleanup commit
-```
+All 35 parked widgets were restored from `a4bcc18^` and ported in September 2026:
+raygui calls replaced with themed primitives, input moved out of `render` into
+`events`, content-driven `layout` sections added, and popups taught to grow their
+own bounds. Each has a runnable example under `examples/widgets/` and coverage in
+`tests/test_restored_widgets.nim`. See the widget table in
+[STATUS.md](STATUS.md).
 
-Bring them back deliberately, one per PR: ported to the DSL + naylib, compiling,
-with a scripting-driven test, then promoted into STATUS's "works" list. Collapse
-near-duplicates into one well-made widget + flags (as with the text widget).
+Two of the collapses this phase asked for are still open:
 
-### Parked widgets (intended, recoverable)
+- Fold `textinput` into the unified text widget
+  ([#30](https://github.com/kobi2187/rui2/issues/30)).
+- Turn the pure-container widgets into template blocks
+  ([#28](https://github.com/kobi2187/rui2/issues/28)).
+
+<details><summary>Original parked-widget table (all now restored)</summary>
+
 | Category | Widgets | Notes |
 |----------|---------|-------|
 | Text | `input/textinput`, `textarea` | Fold into the unified text widget (Phase 4). |
@@ -108,12 +129,39 @@ near-duplicates into one well-made widget + flags (as with the text widget).
 
 Priority order to reintroduce: **unified text widget / TextInput → ListView /
 ComboBox → Menus → Dialogs → DataGrid / TreeView**.
+</details>
+
+## Phase 6.5 — Keyboard navigation *(medium — new)*
+Two-level navigation: Tab between containers, arrows within the focused one,
+Escape to pop out. Nothing in this roadmap covered keyboard navigation before;
+probed and tracked in `tests/test_keyboard_nav.nim` (13 cases).
+
+What works today: Tab/Shift+Tab with wrap, configurable navigation keys, routing
+to the focused widget, click-to-focus, and seven widgets that handle their own
+keys.
+
+Three defects block the feature, in dependency order:
+- [ ] `isFocusable` on `Widget` — today every container and label is a tab stop
+  ([#16](https://github.com/kobi2187/rui2/issues/16))
+- [ ] Invalidate the focus chain when the tree changes — `markDirty` and
+  `widgetRemoved` exist and are called from nowhere
+  ([#17](https://github.com/kobi2187/rui2/issues/17))
+- [ ] Scope keys to a container, so a list and its parent can both use arrows
+  ([#18](https://github.com/kobi2187/rui2/issues/18))
+- [ ] Focus groups — the feature itself
+  ([#19](https://github.com/kobi2187/rui2/issues/19))
 
 ## Phase 7 — Testing infrastructure *(medium)*
 Strategy is visual + scripting (no headless).
-- **Scripting-driven test harness** — use `rui_scripting`'s client to drive
-  examples and assert widget state (`getScriptableState`/`handleScriptAction`),
-  runnable in CI under a virtual display (Xvfb).
+- [x] **Unit suite** — 8 suites under `tests/`, no GL context needed. Layout,
+  binding, theming, hit-testing, text metrics, keyboard navigation, widgets.
+- [x] **Example compiles in CI** — a real `nim c` over all 26 examples, since
+  naylib's move-only GPU types only fail in a full build.
+- [x] **Complexity gate** — `nimtools cyc --gate 5` over `rui_widgets`.
+- [ ] **Scripting-driven test harness** — the harness exists and
+  `tools/run_tests.sh` runs it, but it reports `SKIP Xvfb not installed`, so the
+  only layer exercising the real render and event path never runs.
+  ([#36](https://github.com/kobi2187/rui2/issues/36))
 - Revisit **headless mode** later as a *real* feature (not the removed stub) if
   display-free CI becomes worthwhile.
 
@@ -126,7 +174,27 @@ Strategy is visual + scripting (no headless).
 
 ---
 
-**Critical path:** Phase 0 → 1 → 2 (CI, then dirty/cache propagation, then
-binding) is the spine — it turns RUI2 from "compiles and draws static UIs" into
-"reactive UIs that actually update." Phases 3–4 make it pleasant; 5–8 make it
-fast, complete, and shippable.
+**Critical path (original):** Phase 0 → 1 → 2 (CI, then dirty/cache propagation,
+then binding) is the spine — it turns RUI2 from "compiles and draws static UIs"
+into "reactive UIs that actually update." Phases 3–4 make it pleasant; 5–8 make
+it fast, complete, and shippable.
+
+**Where that leaves things (2026-09-16).** Phase 0 is done bar the license,
+Phase 1 is done, Phase 4's Pango work is done, and Phase 6's widget library is
+back. The spine now runs:
+
+```
+cleanup  →  bugs  →  features
+   │          │          │
+   │          │          └─ focus groups (6.5), template blocks + closures (3),
+   │          │             unified text widget (4)
+   │          └─ hover latch, focus chain, theme seam
+   └─ dead text cache, raylib re-export, theme_manager / drawing_effects splits,
+      the cc=43 scripting bridge
+```
+
+`app.nim` is the serialization point — six separate items touch it, so the
+split ([#22](https://github.com/kobi2187/rui2/issues/22)) goes last. Dropping the
+wholesale `export raylib` ([#23](https://github.com/kobi2187/rui2/issues/23))
+goes early: it blocks nothing, but every file written before it lands accumulates
+another qualification workaround.
