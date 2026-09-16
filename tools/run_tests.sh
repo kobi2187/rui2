@@ -66,10 +66,11 @@ if [ "$MODE" != "unit" ]; then
   echo
   echo "== scripted UI tests =="
   if command -v Xvfb >/dev/null 2>&1; then
-    # -d:ruiTestKeys compiles in the scripting `key` command. It is test-only
+    # -d:ruiTestKeys compiles in the scripting `key` command; -d:ruiInspect
+    # compiles in the read-only `inspect` verb. Both are test-only
     # on purpose: scripting is otherwise semantic (address a control, operate
     # it) rather than input emulation, and an ordinary build leaves it out.
-    if nim c $NIMFLAGS -d:ruiTestKeys examples/pango_showcase.nim >/tmp/rt_build.log 2>&1; then
+    if nim c $NIMFLAGS -d:ruiTestKeys -d:ruiInspect examples/pango_showcase.nim >/tmp/rt_build.log 2>&1; then
       if ./tools/ui_test.sh ./examples/pango_showcase >/tmp/rt_ui.log 2>&1; then
         grep -E "PASS|FAIL" /tmp/rt_ui.log | sed 's/^/  /'
         PASS=$((PASS+1))

@@ -46,6 +46,29 @@ type
       ## A closure rather than a direct reference, so rui_scripting does not
       ## need to depend on rui_events to relay a key.
 
+    onInspect*: proc(selector: string, what: string): Option[string]
+      ## Answer an `inspect` command. **Test-only.**
+      ##
+      ## Reports on the framework rather than on the UI's own data: where a
+      ## widget actually ends up on screen once clipping is applied, which
+      ## frame it last repainted on, what sits under a point, the shape of the
+      ## tree. An application has no use for any of it, and a script that
+      ## needed it would be testing rui rather than driving a UI -- so it is
+      ## gated separately from the public verbs.
+      ##
+      ## `none` means the host declined: an unknown inspector, or a selector
+      ## that matched nothing. `App.enableScripting` sets this only under
+      ## `-d:ruiInspect`, so an ordinary build leaves it nil and the `inspect`
+      ## command reports that the host has not wired it up.
+      ##
+      ## Takes the selector rather than a Widget, because two of the
+      ## inspectors -- `tree` and `settle` -- are about the app and have no
+      ## widget to address.
+      ##
+      ## A closure rather than a direct reference, for the same reason `onKey`
+      ## is one: rui_scripting would otherwise need to know about layout,
+      ## hit-testing and the frame loop to answer.
+
     pollInterval*: float64         # Seconds between polls (default: 1.0)
     lastPoll*: float64             # Last poll timestamp
 
@@ -111,67 +134,81 @@ proc detectCommandFormat(sm: ScriptManager): Option[CommandFormat] =
   else:
     return none(CommandFormat)
 
+proc answerKey(sm: ScriptManager, cmd: TextCommand): TextResponse =
+  ## A key press resolves no selector: it goes wherever focus is, which is the
+  ## whole point of being able to test it.
+  if sm.onKey == nil:
+    return newFailResponse(cmd.id, "Key injection not wired up by the host")
+  if sm.onKey(cmd.keyName):
+    return newSuccessResponse(cmd.id)
+  newFailResponse(cmd.id, "Key not handled: " & cmd.keyName)
+
+proc answerInspect(sm: ScriptManager, cmd: TextCommand): TextResponse =
+  ## Inspection resolves no selector here either: `tree` and `settle` address
+  ## the app rather than a widget, and the host resolves the rest itself.
+  if sm.onInspect == nil:
+    return newFailResponse(cmd.id,
+      "Inspection not available: build with -d:ruiInspect")
+  let answer = sm.onInspect(cmd.selector, cmd.what)
+  if answer.isNone:
+    return newFailResponse(cmd.id, "Cannot inspect: " & cmd.what)
+  newValueResponse(cmd.id, answer.get())
+
+proc answerWildcardRead(sm: ScriptManager, cmd: TextCommand): TextResponse =
+  ## `form/* read` lists the matching widgets as "TypeName:widgetId".
+  let widgets = sm.widgetTree.findWidgets(cmd.selector)
+  var ids: seq[string] = @[]
+  for w in widgets:
+    if w.stringId.len > 0:
+      ids.add(w.getTypeName() & ":" & w.stringId)
+  newListResponse(cmd.id, ids)
+
+proc splitSelector(selector: string): tuple[id, explicitType: string] =
+  ## "Button:save" names the type as well as the id; a bare "save" does not.
+  ## The type is advisory -- it is passed to translateToAction, which today
+  ## ignores it.
+  let colon = selector.find(':')
+  if colon <= 0:
+    return (selector, "")
+  (selector[colon + 1 .. ^1], selector[0 ..< colon])
+
+proc succeeded(res: JsonNode): bool =
+  res.hasKey("success") and res["success"].getBool()
+
+proc asTextResponse(res: JsonNode, id: string): TextResponse =
+  ## The generic bridge answers in JSON; the text protocol wants one line.
+  if not res.succeeded:
+    return newFailResponse(id,
+      if res.hasKey("error"): res["error"].getStr() else: "Fail")
+  if res.hasKey("text"):
+    return newValueResponse(id, res["text"].getStr())
+  if res.hasKey("value"):
+    return newValueResponse(id, $res["value"])
+  newSuccessResponse(id)
+
 proc processTextCommand(sm: ScriptManager, cmd: TextCommand): TextResponse =
-  ## Process a single text command and return text response
+  ## Process a single text command and return text response.
+  ##
+  ## Two verbs are intercepted before any selector is resolved -- `key` and
+  ## `inspect` -- because neither addresses a widget. Everything else resolves
+  ## the selector and goes through the widget's own scripting bridge.
+  case cmd.cmdType
+  of ctKey: return sm.answerKey(cmd)
+  of ctInspect: return sm.answerInspect(cmd)
+  of ctRead:
+    if cmd.selector.contains("*"):
+      return sm.answerWildcardRead(cmd)
+  else: discard
 
-  # A key press goes wherever focus is, so it resolves no selector.
-  if cmd.cmdType == ctKey:
-    if sm.onKey == nil:
-      return newFailResponse(cmd.id, "Key injection not wired up by the host")
-    if sm.onKey(cmd.keyName):
-      return newSuccessResponse(cmd.id)
-    return newFailResponse(cmd.id, "Key not handled: " & cmd.keyName)
-
-  # Handle wildcard reads (list children)
-  if cmd.cmdType == ctRead and cmd.selector.contains("*"):
-    let widgets = sm.widgetTree.findWidgets(cmd.selector)
-    var ids: seq[string] = @[]
-    for w in widgets:
-      if w.stringId.len > 0:
-        # Return format: TypeName:widgetId
-        let typeName = w.getTypeName()
-        ids.add(typeName & ":" & w.stringId)
-    return newListResponse(cmd.id, ids)
-
-  # Parse selector - may be "widgetId" or "TypeName:widgetId"
-  var selector = cmd.selector
-  var explicitType = ""
-
-  if cmd.selector.contains(":"):
-    let parts = cmd.selector.split(":", maxsplit = 1)
-    if parts.len == 2:
-      explicitType = parts[0]
-      selector = parts[1]
-
-  # Find widget
+  let (selector, explicitType) = splitSelector(cmd.selector)
   let widgetOpt = sm.widgetTree.findWidget(selector)
   if widgetOpt.isNone:
     return newFailResponse(cmd.id, "Widget not found")
 
   let widget = widgetOpt.get()
-
-  # Get widget type - use explicit if provided, otherwise get actual
   let widgetType = if explicitType.len > 0: explicitType else: widget.getTypeName()
-
-  # Translate command to action
   let (action, params) = cmd.translateToAction(widgetType)
-
-  # Execute action
-  let res = widget.handleScriptAction(action, params)
-
-  # Convert JSON result to text response
-  if res.hasKey("success") and res["success"].getBool():
-    # Success case
-    if res.hasKey("text"):
-      return newValueResponse(cmd.id, res["text"].getStr())
-    elif res.hasKey("value"):
-      return newValueResponse(cmd.id, $res["value"])
-    else:
-      return newSuccessResponse(cmd.id)
-  else:
-    # Error case
-    let error = if res.hasKey("error"): res["error"].getStr() else: "Fail"
-    return newFailResponse(cmd.id, error)
+  widget.handleScriptAction(action, params).asTextResponse(cmd.id)
 
 proc cleanupCommandFile(sm: ScriptManager, format: CommandFormat) =
   ## Delete command file after processing

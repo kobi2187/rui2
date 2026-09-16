@@ -9,7 +9,8 @@ import rui_scripting
 import rui_hittest
 import event_source
 import event_routing
-export event_source, event_routing
+import inspect
+export event_source, event_routing, inspect
 export rui_core
 export event_manager_refactored   # Export for users to access eventManager
 export focus_manager              # Export focus manager
@@ -165,6 +166,67 @@ proc setRootWidget*(app: App, root: Widget) =
   app.tree.anyDirty = true
   app.tree.isDirty = true
 
+proc injectKey(app: App, keyName: string): bool =
+  ## Synthesise a key press at whatever currently has focus. **Test-only** --
+  ## reached from `enableScripting` under -d:ruiTestKeys and nowhere else.
+  var key: KeyboardKey
+  try:
+    key = parseEnum[KeyboardKey](keyName)
+  except ValueError:
+    return false
+  let event = GuiEvent(kind: evKeyDown, key: key, timestamp: getMonoTime())
+  result = app.focusManager.handleKeyboardEvent(event, app.tree.root)
+  if result:
+    app.tree.anyDirty = true
+
+proc dirtyCount(widget: Widget): int =
+  ## How many widgets in this subtree still want a repaint or a relayout.
+  ## Zero means the frame has settled.
+  if widget == nil:
+    return 0
+  if widget.isDirty or widget.layoutDirty:
+    result = 1
+  for child in widget.children:
+    result += child.dirtyCount
+
+proc inspectSettle(app: App): string =
+  ## How much is still pending. The harness polls this instead of sleeping.
+  ##
+  ## Deliberately *not* a command that blocks until clean: settling needs
+  ## frames to run, and the script poll happens inside a frame, so a blocking
+  ## wait would deadlock against the thing it is waiting for. Returning the
+  ## count and letting the caller poll costs a few lines instead of
+  ## cross-frame pending state, and removes the fixed sleeps either way.
+  let pending = app.tree.root.dirtyCount
+  $pending & (if pending == 0: " settled" else: " pending")
+
+proc inspectAt(app: App, args: string): Option[string] =
+  ## `hit <x> <y>`: what a click there would land on.
+  let parts = args.splitWhitespace()
+  if parts.len < 3:
+    return none(string)
+  try:
+    some($inspectHit(app.hitTestSystem, parseFloat(parts[1]).float32,
+                     parseFloat(parts[2]).float32))
+  except ValueError:
+    none(string)
+
+proc answerInspect(app: App, selector, what: string): Option[string] =
+  ## The one place an inspector is added: a case arm, not another verb.
+  if what == "tree":
+    return some(inspectTree(app.tree.root))
+  if what == "settle":
+    return some(app.inspectSettle)
+  if what.startsWith("hit"):
+    return app.inspectAt(what)
+
+  let widget = app.tree.findWidget(selector)
+  if widget.isNone:
+    return none(string)
+  case what
+  of "visible": some($inspectVisible(widget.get()))
+  else: none(string)
+
 proc enableScripting*(app: App, scriptDir: string) =
   ## Enable scripting system with specified directory
   app.scriptingEnabled = true
@@ -188,17 +250,20 @@ proc enableScripting*(app: App, scriptDir: string) =
   # a real key press, so the capability exists for tools/ui_test.sh and is
   # absent from an ordinary build. Without the flag `onKey` stays nil and the
   # `key` command reports that the host has not wired it up.
+  # Inspection is a TEST-ONLY affordance too, compiled in with -d:ruiInspect.
+  #
+  # A separate flag from ruiTestKeys on purpose: these are read-only queries
+  # about the framework -- where a widget lands after clipping, which frame it
+  # last repainted on, what sits under a point -- and carry none of the
+  # objection that input emulation does. Different risk, different switch, so a
+  # harness can have one without the other.
+  when defined(ruiInspect):
+    app.scriptManager.onInspect = proc(selector, what: string): Option[string] =
+      app.answerInspect(selector, what)
+
   when defined(ruiTestKeys):
     app.scriptManager.onKey = proc(keyName: string): bool =
-      var key: KeyboardKey
-      try:
-        key = parseEnum[KeyboardKey](keyName)
-      except ValueError:
-        return false
-      let event = GuiEvent(kind: evKeyDown, key: key, timestamp: getMonoTime())
-      result = app.focusManager.handleKeyboardEvent(event, app.tree.root)
-      if result:
-        app.tree.anyDirty = true
+      app.injectKey(keyName)
 
 proc setScriptPollInterval*(app: App, seconds: float64) =
   ## How often the app checks for a script command file. The 1s default is fine

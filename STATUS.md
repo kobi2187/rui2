@@ -235,9 +235,33 @@ There is no headless mode (it was an experiment, deferred as a future feature).
    naylib's GPU types are move-only and those failures only appear in a full
    build.
 3. **Scripted UI tests** — drives a real window on Xvfb through the file-based
-   scripting protocol, 24 assertions. Runs locally and in CI.
+   scripting protocol, 32 assertions. Runs locally and in CI.
 
 51 green as of this writing.
+
+### Inspection: text for structure, pixels for appearance
+
+A harness gets two channels. The screenshot is the honest answer for
+appearance — a wrong colour, an upside-down composite, a font that failed to
+load. For structure and geometry it is the wrong tool, so `-d:ruiInspect`
+compiles in a read-only `inspect` verb:
+
+```
+<id> <selector> inspect visible     # where the widget lands after clipping
+<id> * inspect hit <x> <y>          # what a click reaches, and where focus goes
+<id> * inspect tree                 # the hierarchy, in a diffable order
+<id> * inspect settle               # how much is still dirty
+```
+
+`visible` is the one that matters most: the `visible` **field** is a flag and
+stays true for a widget clipped away, scrolled out of a viewport or off-window.
+`inspect visible` reports the rectangle actually on screen and names the
+ancestor doing the clipping.
+
+Gated separately from `-d:ruiTestKeys` on purpose. These are read-only queries
+about the framework and carry none of the objection input emulation does; a
+harness can have one without the other. An ordinary build answers
+`Inspection not available: build with -d:ruiInspect`.
 
 ### The frame pipeline is testable without a window
 

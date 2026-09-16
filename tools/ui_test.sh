@@ -29,10 +29,14 @@ XVFB_PID=$!
 sleep 2
 "$APP_ABS" >/tmp/uitest_app.log 2>&1 &
 APP_PID=$!
-sleep 3
 
 # `pgrep -x` cannot match process names longer than 15 characters, so check the
 # PID directly instead.
+for _ in $(seq 1 100); do
+  kill -0 "$APP_PID" 2>/dev/null || break
+  [ -d "$DIR" ] && break
+  sleep 0.1
+done
 if ! kill -0 "$APP_PID" 2>/dev/null; then
   echo "FATAL: app did not start"; tail -20 /tmp/uitest_app.log; exit 1
 fi
@@ -43,6 +47,20 @@ send() {  # send <cmd...>  -> prints responses
   for _ in $(seq 1 60); do [ -f "$DIR/responses.txt" ] && break; sleep 0.1; done
   cat "$DIR/responses.txt" 2>/dev/null
 }
+
+settle() {  # Wait until nothing is dirty, rather than sleeping a fixed time.
+  #
+  # `inspect settle` reports the pending count instead of blocking: settling
+  # needs frames to run, and the script poll happens inside a frame, so a
+  # blocking wait would deadlock against the thing it is waiting for.
+  for _ in $(seq 1 60); do
+    case "$(send "s * inspect settle")" in *" 0 settled"*) return 0;; esac
+    sleep 0.05
+  done
+  echo "  WARN  did not settle within 3s"
+}
+
+settle
 
 expect() {  # expect <label> <expected-substring> <cmd...>
   local label="$1" want="$2"; shift 2
@@ -99,6 +117,24 @@ expect "clearing the previous"          '"focused":false'  "27 clickButton read"
 send "28 * key Tab" >/dev/null
 expect "Tab reaches the checkbox"       '"focused":true'   "29 agree read"
 expect "a static label is never a stop" '"focused":false'  "30 title read"
+
+# ---------------------------------------------------------------------------
+# Inspection: what a screenshot answers badly.
+#
+# `visible` is a flag and stays true for a widget that is clipped away,
+# scrolled out or off-window. `inspect visible` reports where the widget
+# actually lands. `inspect hit` says what a click would reach and where the
+# focus would go, which is not the same widget. `inspect tree` is one round
+# trip for the whole hierarchy, in an order stable enough to diff.
+# ---------------------------------------------------------------------------
+expect "a laid-out widget reports a real size" '"width"'        "40 title inspect visible"
+expect "and is actually showing"               '"showing":true' "41 title inspect visible"
+expect "an unclipped widget is fully visible"  '"fullyVisible":true' "42 title inspect visible"
+expect "the tree dump reaches the leaves"      'Label'          "43 * inspect tree"
+expect "and records the focusable ones"        'tabstop'        "44 * inspect tree"
+expect "a hit names what a click would reach"  '"chain"'        "45 * inspect hit 60 60"
+expect "empty space hits nothing"              '"hit":null'     "46 * inspect hit 5000 5000"
+expect "the app is settled between commands"   '0 settled'      "47 * inspect settle"
 
 import -window root shot_uitest.png 2>/dev/null && echo "  screenshot: shot_uitest.png"
 

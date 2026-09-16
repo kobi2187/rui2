@@ -22,6 +22,15 @@ type
                 # Scripting is otherwise semantic -- address a control and
                 # operate it, never emulate input. Only honoured by a host
                 # built with -d:ruiTestKeys; see ScriptManager.onKey.
+    ctInspect   # Test-only: ask the host about a widget's geometry, its
+                # repaint history, what is under a point, or the shape of the
+                # tree ("1 scroll inspect visible").
+                #
+                # Read-only and answers nothing an application needs at
+                # runtime -- it reports on the framework rather than on the
+                # UI's own data, which is why it is gated separately from the
+                # public verbs. Only honoured by a host built with
+                # -d:ruiInspect; see ScriptManager.onInspect.
 
   TextCommand* = object
     ## Parsed text command from commands.txt
@@ -37,6 +46,8 @@ type
       customValue*: string  # Optional argument: "custom:write hello"
     of ctKey:
       keyName*: string      # Nim KeyboardKey name: Tab, Down, Enter, A, ...
+    of ctInspect:
+      what*: string         # visible | render | hit <x> <y> | tree | settle
 
   TextResponse* = object
     ## Response to write to responses.txt
@@ -100,6 +111,18 @@ proc parseCommand*(line: string): Option[TextCommand] =
       selector: selector,
       cmdType: ctKey,
       keyName: parts[3]
+    ))
+  elif cmdStr == "inspect":
+    # "<id> <selector> inspect <what>". `what` keeps its arguments -- `hit 40 12`
+    # is one string -- so adding an inspector later is a case arm in the host
+    # rather than another verb here.
+    if parts.len < 4:
+      return none(TextCommand)
+    return some(TextCommand(
+      id: id,
+      selector: selector,
+      cmdType: ctInspect,
+      what: parts[3]
     ))
   elif cmdStr.startsWith("custom:"):
     let customCmd = cmdStr[7..^1]  # Skip "custom:"
@@ -254,6 +277,12 @@ proc translateToAction*(cmd: TextCommand, widgetType: string): (string, JsonNode
     # has focus, so the script manager intercepts it before any selector is
     # resolved. Present so the case is exhaustive.
     return ("key", %*{"key": cmd.keyName})
+
+  of ctInspect:
+    # Also intercepted before the selector is resolved -- `tree` and `settle`
+    # have no widget to address, and the rest are answered by the host rather
+    # than by the widget. Present so the case is exhaustive.
+    return ("inspect", %*{"what": cmd.what})
 
   of ctCustom:
     # Passed through verbatim: "custom:toggle" -> action "toggle".
