@@ -158,11 +158,15 @@ suite "key routing":
     check fm.handleKeyboardEvent(keyEvent(KeyboardKey.Up), root)
     check fm.getFocusedWidget() != afterDown
 
-  test "NOTHING scopes keys to a container":
-    # There is no notion of "inside" a container: a key either hits the focus
-    # manager's global navigation keys or the one focused widget. A list that
-    # wants Up/Down for its rows and a container that wants Up/Down to move
-    # between containers cannot both have them.
+suite "key scoping":
+  ## The focused widget gets first refusal; only keys it leaves unhandled reach
+  ## the focus manager's own navigation. That is what lets a list use Up/Down
+  ## for its rows while the same keys move between containers everywhere else.
+  ##
+  ## Before this, handleKeyboardEvent tested its navigation keys first, so a
+  ## focused ListBox never saw Down at all.
+
+  test "a focused list keeps the arrows for its own rows":
     let root = newVStack(spacing = 4.0)
     let list = newListBox(items = @["a", "b", "c"], visibleRows = 3)
     root.addChild(list)
@@ -172,10 +176,71 @@ suite "key routing":
     fm.buildFocusChain(Widget(root))
     fm.setFocus(Widget(list))
 
-    # Down is swallowed by the focus manager before the ListBox ever sees it,
-    # so the list's own row navigation is unreachable.
     check fm.handleKeyboardEvent(keyEvent(KeyboardKey.Down), Widget(root))
-    check list.focusIndex == 0                 # never moved
+    check list.focusIndex == 1                 # the row moved
+    check fm.getFocusedWidget() == Widget(list) # focus did not
+
+  test "the same key moves focus when the focused widget ignores it":
+    let root = newVStack(spacing = 4.0)
+    let a = newButton(text = "a")
+    let b = newButton(text = "b")
+    root.addChild(a)
+    root.addChild(b)
+
+    let fm = newFocusManager()
+    fm.setNavigationKeys(@[KeyboardKey.Down], @[KeyboardKey.Up])
+    fm.buildFocusChain(Widget(root))
+    fm.setFocus(Widget(a))
+
+    # A Button has no on_key_down, so Down falls through to navigation.
+    check fm.handleKeyboardEvent(keyEvent(KeyboardKey.Down), Widget(root))
+    check fm.getFocusedWidget() == Widget(b)
+
+  test "a list at its last row lets the key through":
+    # nextFocusIndex clamps rather than wrapping, and the widget still reports
+    # the key handled -- so the list keeps the arrows for as long as it is
+    # focused. Escaping a list is Tab's job, not Down's.
+    let root = newVStack(spacing = 4.0)
+    let list = newListBox(items = @["only"], visibleRows = 1)
+    let after = newButton(text = "after")
+    root.addChild(list)
+    root.addChild(after)
+
+    let fm = newFocusManager()
+    fm.setNavigationKeys(@[KeyboardKey.Down], @[KeyboardKey.Up])
+    fm.buildFocusChain(Widget(root))
+    fm.setFocus(Widget(list))
+    discard fm.handleKeyboardEvent(keyEvent(KeyboardKey.Down), Widget(root))
+    check fm.getFocusedWidget() == Widget(list)
+
+  test "Tab still moves focus out of a list":
+    let root = newVStack(spacing = 4.0)
+    let list = newListBox(items = @["a", "b"], visibleRows = 2)
+    let after = newButton(text = "after")
+    root.addChild(list)
+    root.addChild(after)
+
+    let fm = newFocusManager()
+    fm.buildFocusChain(Widget(root))
+    fm.setFocus(Widget(list))
+
+    # ListBox leaves Tab unhandled, so it reaches navigation.
+    check fm.handleKeyboardEvent(keyEvent(Tab), Widget(root))
+    check fm.getFocusedWidget() == Widget(after)
+
+  test "a text field keeps Home for its caret":
+    let root = newVStack(spacing = 4.0)
+    let input = newTextInput(initialText = "hello")
+    root.addChild(input)
+
+    let fm = newFocusManager()
+    fm.setNavigationKeys(@[Home], @[])         # Home as a navigation key
+    fm.buildFocusChain(Widget(root))
+    fm.setFocus(Widget(input))
+    input.cursorPos = 3
+
+    check fm.handleKeyboardEvent(keyEvent(Home), Widget(root))
+    check input.cursorPos == 0                 # the caret moved, not the focus
 
 suite "focus chain invalidation":
   ## The chain is built lazily on first use and was never rebuilt after that:

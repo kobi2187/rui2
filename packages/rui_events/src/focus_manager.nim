@@ -233,10 +233,22 @@ proc prevFocus*(fm: FocusManager, rootWidget: Widget) =
 # ============================================================================
 
 proc handleKeyboardEvent*(fm: FocusManager, event: GuiEvent, rootWidget: Widget): bool =
-  ## Route keyboard event to focused widget
-  ## Returns true if event was handled
+  ## Route a keyboard event, innermost first.
+  ##
+  ## **The focused widget gets first refusal.** Only keys it leaves unhandled
+  ## reach this manager's own navigation keys. That is what lets a focused
+  ## ListBox use Up/Down for its rows while the same keys move between widgets
+  ## everywhere else, and a TextInput keep Home for its caret.
+  ##
+  ## This used to be the other way round -- navigation keys were tested first,
+  ## so a focused widget never saw any key that had been configured for
+  ## navigation, and the two levels could not coexist.
+  ##
+  ## Returns true if the event was handled, by either level.
+  if fm.focusedWidget != nil and fm.focusedWidget.handleInput(event):
+    return true
 
-  # Handle focus navigation keys
+  # Not claimed by the focused widget: fall outward to navigation.
   if event.kind == evKeyDown:
     # Check if this is a next-focus key
     if event.key in fm.nextFocusKeys:
@@ -258,11 +270,9 @@ proc handleKeyboardEvent*(fm: FocusManager, event: GuiEvent, rootWidget: Widget)
       fm.prevFocus(rootWidget)
       return true
 
-  # Route other keyboard events to focused widget
-  if fm.focusedWidget != nil:
-    return fm.focusedWidget.handleInput(event)
-
-  return false
+  # The focused widget already had its turn at the top, so there is nothing
+  # left to try.
+  false
 
 # ============================================================================
 # Focus Request from Click
