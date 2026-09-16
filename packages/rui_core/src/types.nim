@@ -134,6 +134,21 @@ type
       ##
       ## Before this existed, `collectFocusableWidgets` added every visible and
       ## enabled widget, so Tab landed on containers and static labels.
+    focusGroup*: bool
+      ## Is this widget a keyboard navigation group?
+      ##
+      ## A group is **one stop** for Tab from outside: Tab moves onto the group
+      ## and lands directly on a member, arrow keys then move between members,
+      ## and Tab again leaves the whole group rather than stepping through it.
+      ## Escape leaves it without moving on. This is the "roving tabindex"
+      ## arrangement every desktop toolkit uses for lists, toolbars and radio
+      ## groups, and what stops a twenty-row list being twenty tab stops.
+      ##
+      ## Groups nest: a list inside a tab page inside a form is three levels,
+      ## and each level's keys are tried innermost-first.
+      ##
+      ## Orthogonal to `focusable`. A group is normally not a tab stop in its
+      ## own right -- its members are.
 
     # Dirty flags
     isDirty*: bool             # Needs re-render

@@ -40,6 +40,10 @@ definePrimitive(RadioGroup):
 
   init:
     widget.focusable = true
+    # Not a focusGroup: RadioGroup draws its own options rather than owning
+    # child widgets, so there is nothing for group navigation to move between.
+    # Its Up/Down handling is internal, and reaches it because the focused
+    # widget gets first refusal on every key.
 
   events:
     on_mouse_down:

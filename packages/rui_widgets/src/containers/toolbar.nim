@@ -3,6 +3,11 @@
 ## A horizontal strip of quick-access controls, normally docked under a MenuBar.
 ## Children keep their own width if they have one, otherwise they are squared off
 ## to the toolbar's content height.
+##
+## A toolbar is a **focus group**: one Tab stop however many buttons it holds,
+## with Left and Right moving between them once entered. A strip of twelve tool
+## buttons that cost twelve Tab presses to get past is the case focus groups
+## exist for.
 
 import rui_core
 import rui_drawing
@@ -14,6 +19,9 @@ defineWidget(ToolBar):
     padding: float32 = 4.0
     showBorder: bool = true
     intent: ThemeIntent = Default
+
+  init:
+    widget.focusGroup = true
 
   layout:
     if widget.bounds.height <= 0:

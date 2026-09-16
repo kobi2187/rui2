@@ -111,6 +111,16 @@ proc addOrderedEvent*(em: EventManager, event: GuiEvent) =
 # Event Collection - Main Entry Point
 # ============================================================================
 
+proc routeSequenced(em: EventManager, event: GuiEvent, config: EventConfig) =
+  ## The three patterns that keep an ordered sequence rather than a queue or a
+  ## single cached slot.
+  if isDebouncedPattern(config.pattern):
+    addDebouncedEvent(em, event)
+  elif isBatchedPattern(config.pattern):
+    addBatchedEvent(em, event, config)
+  elif isOrderedPattern(config.pattern):
+    addOrderedEvent(em, event)
+
 proc routeEvent*(em: EventManager, event: GuiEvent, config: EventConfig) =
   ## Route event based on pattern
   if shouldAddToQueue(config.pattern):
@@ -120,12 +130,7 @@ proc routeEvent*(em: EventManager, event: GuiEvent, config: EventConfig) =
   elif shouldThrottle(config.pattern):
     addThrottledEvent(em, event, config)
   elif shouldAddToSequence(config.pattern):
-    if isDebouncedPattern(config.pattern):
-      addDebouncedEvent(em, event)
-    elif isBatchedPattern(config.pattern):
-      addBatchedEvent(em, event, config)
-    elif isOrderedPattern(config.pattern):
-      addOrderedEvent(em, event)
+    routeSequenced(em, event, config)
 
 proc addEvent*(em: EventManager, event: GuiEvent) =
   ## Add an event to the manager (applies coalescing based on pattern)

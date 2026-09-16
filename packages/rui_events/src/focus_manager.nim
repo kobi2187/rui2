@@ -12,7 +12,10 @@
 ## - Trigger onFocus/onBlur callbacks
 
 import rui_core
+import focus_groups
 import std/[options, tables]
+
+export focus_groups
 
 import raylib
 
@@ -29,6 +32,19 @@ type
     prevFocusKeys*: seq[KeyboardKey]      # Keys to move to previous widget (default: none)
     prevFocusModifiers*: seq[KeyboardKey] # Modifiers for prev (default: Shift)
 
+    # Within a focus group
+    activeGroup*: Widget
+      ## The group arrow keys currently navigate, or nil at the top level.
+      ## Kept in step with `focusedWidget` by setFocus.
+    groupNextKeys*: seq[KeyboardKey]      # Within a group, forwards (default: Down, Right)
+    groupPrevKeys*: seq[KeyboardKey]      # Within a group, backwards (default: Up, Left)
+    exitGroupKeys*: seq[KeyboardKey]      # Pop one level (default: Escape)
+    wrapWithinGroup*: bool
+      ## Does an arrow key at the end of a group come round to the start?
+      ## Default false: an arrow that silently jumps out of the group the user
+      ## is reading is worse than one that does nothing. See focus_groups.nim
+      ## for the rest of that argument.
+
 # ============================================================================
 # Initialization
 # ============================================================================
@@ -43,11 +59,32 @@ proc newFocusManager*(): FocusManager =
     focusableWidgets: initTable[WidgetId, Widget](),
     nextFocusKeys: @[Tab],
     prevFocusKeys: @[],
-    prevFocusModifiers: @[LeftShift, RightShift]
+    prevFocusModifiers: @[LeftShift, RightShift],
+    activeGroup: nil,
+    groupNextKeys: @[KeyboardKey.Down, KeyboardKey.Right],
+    groupPrevKeys: @[KeyboardKey.Up, KeyboardKey.Left],
+    exitGroupKeys: @[KeyboardKey.Escape],
+    wrapWithinGroup: false
   )
 # ============================================================================
 # Configuration
 # ============================================================================
+
+proc setGroupKeys*(fm: FocusManager,
+                   nextKeys: seq[KeyboardKey],
+                   prevKeys: seq[KeyboardKey] = @[],
+                   exitKeys: seq[KeyboardKey] = @[]) =
+  ## Configure the keys that navigate *within* the active focus group.
+  ## Examples:
+  ##   fm.setGroupKeys(@[Down], @[Up], @[Escape])       # a vertical list
+  ##   fm.setGroupKeys(@[Right], @[Left], @[Escape])    # a toolbar
+  ##   fm.setGroupKeys(@[J], @[K], @[Escape])           # vim-style
+  ##
+  ## These are only consulted after the focused widget has declined the key, so
+  ## a TextInput inside a group keeps Left and Right for its own caret.
+  fm.groupNextKeys = nextKeys
+  fm.groupPrevKeys = prevKeys
+  fm.exitGroupKeys = exitKeys
 
 proc setNavigationKeys*(fm: FocusManager,
                        nextKeys: seq[KeyboardKey],
@@ -120,14 +157,18 @@ proc ensureFocusChain(fm: FocusManager, rootWidget: Widget) =
 # Focus Management
 # ============================================================================
 
+proc blurCurrent(fm: FocusManager) =
+  if fm.focusedWidget == nil:
+    return
+  fm.focusedWidget.focused = false
+  if fm.focusedWidget.onBlur.isSome:
+    fm.focusedWidget.onBlur.get()()
+
 proc clearFocus*(fm: FocusManager) =
   ## Remove focus from current widget
-  if fm.focusedWidget != nil:
-    fm.focusedWidget.focused = false
-    # Trigger onBlur callback
-    if fm.focusedWidget.onBlur.isSome:
-      fm.focusedWidget.onBlur.get()()
-    fm.focusedWidget = nil
+  fm.blurCurrent()
+  fm.focusedWidget = nil
+  fm.activeGroup = nil
 
 proc setFocus*(fm: FocusManager, widget: Widget) =
   ## Set focus to a specific widget
@@ -141,15 +182,14 @@ proc setFocus*(fm: FocusManager, widget: Widget) =
   if fm.focusedWidget == widget:
     return
 
-  # Unfocus previous widget
-  if fm.focusedWidget != nil:
-    fm.focusedWidget.focused = false
-    # Trigger onBlur callback on previous widget
-    if fm.focusedWidget.onBlur.isSome:
-      fm.focusedWidget.onBlur.get()()
+  fm.blurCurrent()
 
-  # Focus new widget
+  # Focus new widget. The active group follows the focus rather than being set
+  # separately, so clicking into a list makes its arrow keys live for the same
+  # reason tabbing into it does -- there is one answer to "which group are we
+  # in", derived from where focus actually is.
   fm.focusedWidget = widget
+  fm.activeGroup = enclosingGroup(widget)
   widget.focused = true
   # Trigger onFocus callback on new widget
   if widget.onFocus.isSome:
@@ -167,112 +207,181 @@ proc hasFocus*(fm: FocusManager, widget: Widget): bool =
 # Tab Navigation
 # ============================================================================
 
-proc nextFocus*(fm: FocusManager, rootWidget: Widget) =
-  ## Move focus to next widget in tab order
-  ## Wraps around to first widget if at end
+proc navigationLevel(fm: FocusManager, rootWidget: Widget): Widget =
+  ## The level Tab navigates: one step outside whatever group the focus is in.
+  ## At the top level that is the root itself.
+  let inner = enclosingGroup(fm.focusedWidget)
+  if inner == nil:
+    return rootWidget
+  let outer = enclosingGroup(inner)
+  if outer == nil: rootWidget else: outer
 
+proc nextLanding(entries: openArray[Widget], current: Widget,
+                 delta: int): Widget =
+  ## The widget Tab should actually land on, skipping empty groups.
+  ##
+  ## A group with nothing focusable in it must not swallow the keypress, so the
+  ## walk continues past it. `guard` stops a tree of nothing but empty groups
+  ## spinning. Wrapping at this level is the long-standing Tab behaviour.
+  var current = current
+  var guard = entries.len + 1
+  while guard > 0:
+    dec guard
+    let nextEntry = step(entries, current, delta, wrap = true)
+    if nextEntry.isNone:
+      return nil
+    let target = descend(nextEntry.get(), forward = delta >= 0)
+    if target != nil:
+      return target
+    current = nextEntry.get()
+  nil
+
+proc moveAcross(fm: FocusManager, rootWidget: Widget, delta: int) =
+  ## Tab, or Shift+Tab: move between entries at the level *outside* any group
+  ## the focus is currently in.
+  ##
+  ## Tab always leaves the group, wherever in it the focus sits. That is the
+  ## roving-tabindex contract: a group is one stop, not N. Arrow keys are what
+  ## move inside it.
+  ##
+  ## Nested groups leave one level per press, which is what makes a list inside
+  ## a tab page inside a form navigable without the user having to know how
+  ## deeply it is nested.
   fm.ensureFocusChain(rootWidget)
 
-  if fm.focusChain.len == 0:
+  let level = fm.navigationLevel(rootWidget)
+  let entries = focusEntries(level)
+  if entries.len == 0:
     return
 
-  # No current focus - focus first widget
-  if fm.focusedWidget == nil:
-    fm.setFocus(fm.focusChain[0])
-    return
+  let landing = nextLanding(entries, entryFor(level, fm.focusedWidget), delta)
+  if landing != nil:
+    fm.setFocus(landing)
 
-  # Find current widget in chain
-  var currentIndex = -1
-  for i, widget in fm.focusChain:
-    if widget == fm.focusedWidget:
-      currentIndex = i
-      break
-
-  # Move to next (wrap around)
-  if currentIndex >= 0:
-    let nextIndex = (currentIndex + 1) mod fm.focusChain.len
-    fm.setFocus(fm.focusChain[nextIndex])
-  else:
-    # Current widget not in chain (removed?) - focus first
-    fm.setFocus(fm.focusChain[0])
+proc nextFocus*(fm: FocusManager, rootWidget: Widget) =
+  ## Move focus to the next entry in tab order, wrapping at the end.
+  fm.moveAcross(rootWidget, 1)
 
 proc prevFocus*(fm: FocusManager, rootWidget: Widget) =
-  ## Move focus to previous widget in tab order
-  ## Wraps around to last widget if at beginning
+  ## Move focus to the previous entry in tab order, wrapping at the start.
+  fm.moveAcross(rootWidget, -1)
 
-  fm.ensureFocusChain(rootWidget)
+proc moveWithinGroup*(fm: FocusManager, delta: int): bool =
+  ## An arrow key inside the active group. False when there is no group, or
+  ## when the move would run off an end and wrapping is off -- in which case
+  ## the key is left unhandled rather than jumping somewhere unexpected.
+  if fm.activeGroup == nil:
+    return false
+  let entries = focusEntries(fm.activeGroup)
+  let current = entryFor(fm.activeGroup, fm.focusedWidget)
+  let nextEntry = step(entries, current, delta, fm.wrapWithinGroup)
+  if nextEntry.isNone:
+    return false
+  let target = descend(nextEntry.get(), forward = delta >= 0)
+  if target == nil:
+    return false
+  fm.setFocus(target)
+  true
 
-  if fm.focusChain.len == 0:
-    return
+proc landingOutside(level, group: Widget): Widget =
+  ## Somewhere at `level` to put the focus that is not inside `group`.
+  for entry in focusEntries(level):
+    if entry != group:
+      let target = descend(entry, forward = true)
+      if target != nil:
+        return target
+  nil
 
-  # No current focus - focus last widget
-  if fm.focusedWidget == nil:
-    fm.setFocus(fm.focusChain[^1])  # Last widget
-    return
+proc popLevel(group, outer: Widget): Widget =
+  ## Where Escape pops to: the enclosing group if there is one, otherwise the
+  ## container the group sits in. nil when the group is the whole tree.
+  if outer != nil: outer else: group.parent
 
-  # Find current widget in chain
-  var currentIndex = -1
-  for i, widget in fm.focusChain:
-    if widget == fm.focusedWidget:
-      currentIndex = i
-      break
+proc exitGroup*(fm: FocusManager): bool =
+  ## Escape: leave the innermost group, one level only.
+  ##
+  ## Focus moves to the group's own level rather than being cleared, so the user
+  ## is still somewhere and the next Tab continues from there. From a list
+  ## inside a tab page, Escape leaves the list and stays on the page -- which is
+  ## the nested case that makes "one level" the right answer rather than "all
+  ## the way out".
+  if fm.activeGroup == nil:
+    return false
+  let group = fm.activeGroup
+  let outer = enclosingGroup(group)
+  let level = popLevel(group, outer)
+  if level == nil:
+    # A group with no parent is the whole tree; there is nowhere to pop to.
+    return false
 
-  # Move to previous (wrap around)
-  if currentIndex >= 0:
-    let prevIndex = if currentIndex == 0:
-                      fm.focusChain.len - 1
-                    else:
-                      currentIndex - 1
-    fm.setFocus(fm.focusChain[prevIndex])
-  else:
-    # Current widget not in chain (removed?) - focus last
-    fm.setFocus(fm.focusChain[^1])
+  # Prefer the group itself if it is a tab stop in its own right; otherwise the
+  # first thing at that level which is not inside it.
+  let landing = if group.focusable: group else: landingOutside(level, group)
+  if landing != nil:
+    fm.setFocus(landing)
 
-# ============================================================================
-# Event Routing
-# ============================================================================
+  # Whether or not there was somewhere to land, arrows stop routing into the
+  # group -- being unable to leave is worse than leaving without moving.
+  fm.activeGroup = outer
+  true
 
-proc handleKeyboardEvent*(fm: FocusManager, event: GuiEvent, rootWidget: Widget): bool =
-  ## Route a keyboard event, innermost first.
+proc groupDelta(fm: FocusManager, key: KeyboardKey): int =
+  ## Which way an arrow key moves inside a group; 0 for a key that is neither.
+  if key in fm.groupNextKeys: 1
+  elif key in fm.groupPrevKeys: -1
+  else: 0
+
+proc handleGroupKeys(fm: FocusManager, key: KeyboardKey): bool =
+  ## The innermost level: arrows and Escape inside the active group.
+  if fm.activeGroup == nil:
+    return false
+  let delta = fm.groupDelta(key)
+  if delta != 0:
+    return fm.moveWithinGroup(delta)
+  key in fm.exitGroupKeys and fm.exitGroup()
+
+proc anyModifierDown(fm: FocusManager): bool =
+  for modifier in fm.prevFocusModifiers:
+    if isKeyDown(modifier):
+      return true
+  false
+
+proc handleNavigationKeys(fm: FocusManager, key: KeyboardKey,
+                          rootWidget: Widget): bool =
+  ## The outer level: Tab and Shift+Tab between entries.
+  if key in fm.nextFocusKeys:
+    if fm.anyModifierDown(): fm.prevFocus(rootWidget)
+    else: fm.nextFocus(rootWidget)
+    return true
+  if key in fm.prevFocusKeys:
+    fm.prevFocus(rootWidget)
+    return true
+  false
+
+proc handleKeyboardEvent*(fm: FocusManager, event: GuiEvent,
+                          rootWidget: Widget): bool =
+  ## Route a keyboard event outward: focused widget, then its group, then the
+  ## global navigation keys.
   ##
   ## **The focused widget gets first refusal.** Only keys it leaves unhandled
-  ## reach this manager's own navigation keys. That is what lets a focused
-  ## ListBox use Up/Down for its rows while the same keys move between widgets
-  ## everywhere else, and a TextInput keep Home for its caret.
+  ## reach the group or the manager. That is what lets a focused ListBox use
+  ## Up/Down for its rows while the same keys move between toolbar buttons
+  ## elsewhere, and a TextInput keep Left and Right for its caret even inside a
+  ## group that navigates with them.
   ##
   ## This used to be the other way round -- navigation keys were tested first,
   ## so a focused widget never saw any key that had been configured for
-  ## navigation, and the two levels could not coexist.
+  ## navigation, and the levels could not coexist.
   ##
-  ## Returns true if the event was handled, by either level.
+  ## Returns true if the event was handled, at any level.
   if fm.focusedWidget != nil and fm.focusedWidget.handleInput(event):
     return true
 
-  # Not claimed by the focused widget: fall outward to navigation.
-  if event.kind == evKeyDown:
-    # Check if this is a next-focus key
-    if event.key in fm.nextFocusKeys:
-      # Check if modifiers pressed (for prev focus)
-      var modifierPressed = false
-      for modifier in fm.prevFocusModifiers:
-        if isKeyDown(modifier):
-          modifierPressed = true
-          break
+  if event.kind != evKeyDown:
+    return false
 
-      if modifierPressed:
-        fm.prevFocus(rootWidget)
-      else:
-        fm.nextFocus(rootWidget)
-      return true
-
-    # Check if this is a prev-focus key (without modifiers)
-    if event.key in fm.prevFocusKeys:
-      fm.prevFocus(rootWidget)
-      return true
-
-  # The focused widget already had its turn at the top, so there is nothing
-  # left to try.
-  false
+  fm.handleGroupKeys(event.key) or
+    fm.handleNavigationKeys(event.key, rootWidget)
 
 # ============================================================================
 # Focus Request from Click
