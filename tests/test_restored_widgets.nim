@@ -500,10 +500,12 @@ suite "restored modern widgets":
     check not cols.isSortable(9)     # past the end
 
     # Clicking the sorted column advances its cycle; a different one restarts.
-    check nextSortFor(cols, 0, "a", soNone) == soAscending
-    check nextSortFor(cols, 0, "a", soAscending) == soDescending
-    check nextSortFor(cols, 0, "a", soDescending) == soNone
-    check nextSortFor(cols, 0, "other", soDescending) == soAscending
+    # `sameColumn` rather than a column identity: DataTable tracks its sorted
+    # column by id and DataGrid by index, and the cycle does not care which.
+    check nextSortFor(sameColumn = true, soNone) == soAscending
+    check nextSortFor(sameColumn = true, soAscending) == soDescending
+    check nextSortFor(sameColumn = true, soDescending) == soNone
+    check nextSortFor(sameColumn = false, soDescending) == soAscending
 
     check columnAt(cols, 0.0, 10.0) == 0
     check columnAt(cols, 0.0, 100.0) == 1

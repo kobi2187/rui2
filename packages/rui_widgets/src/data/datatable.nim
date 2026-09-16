@@ -27,7 +27,8 @@ from std/algorithm import sort
 
 import raylib
 
-export datatable_helpers
+import tabular
+export datatable_helpers, tabular
 
 type
   ColumnDef* = object
@@ -41,14 +42,8 @@ type
 
 const BufferRows = 10
 
-type
-  TableMetrics* = object
-    ## Where the three bands of the table sit. Every event handler and `render`
-    ## needs the same answer, so they all ask this rather than each recomputing
-    ## it from showFilter / showHeader.
-    originX*, originY*: float32
-    filterH*, headerH*: float32
-    rows*: RowViewport     ## The scrollable body; owns all the row arithmetic
+type TableMetrics* = BandMetrics
+  ## Alias: the band arithmetic is shared with DataGrid, in tabular.nim.
 
 template metricsOf*(widget: untyped): TableMetrics =
   ## A template, not a proc: the DataTable type does not exist until the macro
@@ -58,36 +53,12 @@ template metricsOf*(widget: untyped): TableMetrics =
   TableMetrics(
     originX: widget.bounds.x, originY: widget.bounds.y,
     filterH: fh, headerH: hh,
+    totalRows: widget.filteredIndices.len,
     rows: rowViewport(top = widget.bounds.y + fh + hh,
                       height = widget.bounds.height - fh - hh,
                       rowHeight = widget.rowHeight,
                       scrollY = widget.scrollY)
   )
-
-proc headerTop*(m: TableMetrics): float32 =
-  m.originY + m.filterH
-
-proc rowsTop*(m: TableMetrics): float32 =
-  m.rows.top
-
-proc viewHeight*(m: TableMetrics): float32 =
-  m.rows.height
-
-proc rowHeight*(m: TableMetrics): float32 =
-  m.rows.rowHeight
-
-proc overHeader*(m: TableMetrics, mouseY: float32): bool =
-  m.headerH > 0 and mouseY >= m.headerTop and mouseY < m.rowsTop
-
-proc columnAt*(columns: openArray[ColumnDef], originX, mouseX: float32): int =
-  ## Index of the column containing `mouseX`, or -1. Columns are laid out left
-  ## to right at their own widths, so this walks rather than divides.
-  var x = originX
-  for i, col in columns:
-    if mouseX >= x and mouseX < x + col.width:
-      return i
-    x += col.width
-  -1
 
 proc passesFilters*(row: TableRow, filters: Table[string, Filter]): bool =
   ## Matching itself lives in datatable_helpers; this is just the conjunction.
@@ -96,40 +67,14 @@ proc passesFilters*(row: TableRow, filters: Table[string, Filter]): bool =
       return false
   true
 
-proc nextSortOrder(current: SortOrder): SortOrder =
-  ## Header clicks cycle ascending -> descending -> unsorted.
-  result = case current
-  of soNone: soAscending
-  of soAscending: soDescending
-  of soDescending: soNone
-
-proc sortIndicatorFor(order: SortOrder): string =
-  result = case order
-  of soAscending: "  ^"
-  of soDescending: "  v"
-  of soNone: ""
-
-proc isSortable*(columns: openArray[ColumnDef], idx: int): bool =
-  ## Is `idx` a real column that allows sorting?
-  idx >= 0 and idx < columns.len and columns[idx].sortable
-
-proc nextSortFor*(columns: openArray[ColumnDef], idx: int,
-                  currentColumn: string, currentOrder: SortOrder): SortOrder =
-  ## The order a header click on column `idx` produces. Clicking the column
-  ## already sorted advances its cycle; clicking a different one starts over at
-  ## ascending. Pure, so the cycle is testable without a table.
-  assert columns.isSortable(idx), "caller must check isSortable first"
-  if columns[idx].id == currentColumn: nextSortOrder(currentOrder)
-  else: soAscending
-
 template sortByColumnAt*(widget: untyped, mouseX: float32): bool =
   ## Cycle the sort order of the column under `mouseX`. A header click is always
   ## consumed, whether or not it landed on a sortable column.
   block:
     let idx = columnAt(widget.columns, widget.bounds.x, mouseX)
     if widget.columns.isSortable(idx):
-      let order = nextSortFor(widget.columns, idx,
-                              widget.sortColumn, widget.sortOrder)
+      let order = nextSortFor(widget.columns[idx].id == widget.sortColumn,
+                              widget.sortOrder)
       widget.sortColumn = if order == soNone: "" else: widget.columns[idx].id
       widget.sortOrder = order
       widget.isDirty = true

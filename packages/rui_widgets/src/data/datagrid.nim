@@ -24,7 +24,8 @@ from std/algorithm import sort
 
 import raylib
 
-export SortOrder
+import tabular
+export tabular
 
 type
   GridColumn* = object
@@ -43,15 +44,8 @@ const
   LoadAheadRows = 20
   LoadBatchSize = 100
 
-type
-  GridMetrics* = object
-    ## Where the header and the first row sit. Both event handlers and `render`
-    ## need the same answer, so they all ask this.
-    originX*, originY*: float32
-    headerH*: float32
-    totalRows*: int        ## Claimed row count, which lazy loading makes larger
-                           ## than `data.len`
-    rows*: RowViewport     ## The scrollable body; owns all the row arithmetic
+type GridMetrics* = BandMetrics
+  ## Alias: the band arithmetic is shared with DataTable, in tabular.nim.
 
 template metricsOf*(widget: untyped): GridMetrics =
   ## A template, not a proc: the DataGrid type does not exist until the macro
@@ -59,6 +53,7 @@ template metricsOf*(widget: untyped): GridMetrics =
   let hh = if widget.showHeader: widget.headerHeight else: 0.0'f32
   GridMetrics(
     originX: widget.bounds.x, originY: widget.bounds.y,
+    filterH: 0.0'f32,          # DataGrid has no filter band
     headerH: hh,
     totalRows: if widget.totalRowCount >= 0: widget.totalRowCount
                else: widget.data.len,
@@ -68,59 +63,13 @@ template metricsOf*(widget: untyped): GridMetrics =
                       scrollY = widget.scrollY)
   )
 
-proc rowsTop*(m: GridMetrics): float32 =
-  m.rows.top
-
-proc viewHeight*(m: GridMetrics): float32 =
-  m.rows.height
-
-proc rowHeight*(m: GridMetrics): float32 =
-  m.rows.rowHeight
-
-proc overHeader*(m: GridMetrics, mouseY: float32): bool =
-  m.headerH > 0 and mouseY < m.rowsTop
-
-proc columnAt*(columns: openArray[GridColumn], originX, mouseX: float32): int =
-  ## Index of the column containing `mouseX`, or -1.
-  var x = originX
-  for i, col in columns:
-    if mouseX >= x and mouseX < x + col.width:
-      return i
-    x += col.width
-  -1
-
-proc isSortable*(columns: openArray[GridColumn], idx: int): bool =
-  idx >= 0 and idx < columns.len and columns[idx].sortable
-
-proc nextSortOrder(current: SortOrder): SortOrder =
-  ## Header clicks cycle ascending -> descending -> unsorted.
-  result = case current
-    of soNone: soAscending
-    of soAscending: soDescending
-    of soDescending: soNone
-
-proc nextSortFor*(columns: openArray[GridColumn], idx, currentColumn: int,
-                  currentOrder: SortOrder): SortOrder =
-  ## The order a header click on column `idx` produces. Pure, so the cycle is
-  ## testable without a grid.
-  assert columns.isSortable(idx), "caller must check isSortable first"
-  if idx == currentColumn: nextSortOrder(currentOrder)
-  else: soAscending
-
-proc sortIndicatorFor(order: SortOrder): string =
-  result = case order
-    of soAscending: "  ^"
-    of soDescending: "  v"
-    of soNone: ""
-
 template sortByColumnAt*(widget: untyped, mouseX: float32): bool =
   ## Cycle the sort order of the column under `mouseX`. A header click is always
   ## consumed, whether or not it landed on a sortable column.
   block:
     let idx = columnAt(widget.columns, widget.bounds.x, mouseX)
     if widget.columns.isSortable(idx):
-      let order = nextSortFor(widget.columns, idx,
-                              widget.sortColumn, widget.sortOrder)
+      let order = nextSortFor(idx == widget.sortColumn, widget.sortOrder)
       widget.sortColumn = if order == soNone: -1 else: idx
       widget.sortOrder = order
       widget.isDirty = true
