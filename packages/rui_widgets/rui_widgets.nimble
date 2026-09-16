@@ -1,6 +1,6 @@
-version     = "0.2.0"
+version     = "0.3.0"
 author      = "RUI2 Contributors"
-description = "RUI2 widgets: primitives (label/rectangle/circle), basic controls (button/checkbox/radiobutton/slider/progressbar/hyperlink/image) and containers (vstack/hstack/zstack/scrollview)."
+description = "RUI2 widgets: primitives, basic controls, containers, text input, menus, dialogs, data views and canvas/map/timeline."
 srcDir      = "src"
 # license   = "TODO: choose a license"
 
