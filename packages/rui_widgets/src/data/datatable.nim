@@ -60,13 +60,6 @@ template metricsOf*(widget: untyped): TableMetrics =
                       scrollY = widget.scrollY)
   )
 
-proc passesFilters*(row: TableRow, filters: Table[string, Filter]): bool =
-  ## Matching itself lives in datatable_helpers; this is just the conjunction.
-  for colId, filter in filters:
-    if not matchesColumnFilter(row, colId, filter):
-      return false
-  true
-
 template sortByColumnAt*(widget: untyped, mouseX: float32): bool =
   ## Cycle the sort order of the column under `mouseX`. A header click is always
   ## consumed, whether or not it landed on a sortable column.
@@ -163,7 +156,7 @@ definePrimitive(DataTable):
     # it runs when the data or the filters change, not once per frame.
     widget.filteredIndices.setLen(0)
     for i, row in widget.data:
-      if row.passesFilters(widget.filters):
+      if row.matchesAllFilters(widget.filters):
         widget.filteredIndices.add(i)
 
     if widget.sortColumn.len > 0 and widget.sortOrder != soNone:

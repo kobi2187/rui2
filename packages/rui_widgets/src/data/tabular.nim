@@ -12,7 +12,7 @@
 
 import rui_core
 import virtual_rows
-import datatable_helpers  # SortOrder
+import table_sorting  # SortOrder
 
 export SortOrder
 
