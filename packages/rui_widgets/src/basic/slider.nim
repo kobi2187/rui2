@@ -1,14 +1,46 @@
 ## Slider Widget - RUI2
 ##
-## A slider control for selecting a numeric value within a range.
-## Supports optional value display and formatting.
-## Ported from Hummingbird (slider2.nim) to RUI2's definePrimitive DSL.
+## A horizontal slider over `minValue`..`maxValue`, holding its own `value`.
+##
+## Dragging is three events, not one: press sets the value and starts the drag,
+## move updates it, release ends it. The move handler is the one that matters
+## and it was missing -- the widget set `dragging = true` on press and had no
+## on_mouse_move at all, so the thumb never followed the pointer and `onChange`
+## never fired. The value was only ever whatever `initialValue` seeded.
+##
+## The pointer-to-value mapping is `valueAtX`, an ordinary proc rather than
+## something buried in an event handler, so it can be tested without a window
+## and so the reverse mapping in drawSlider has something to be checked against.
 
 import rui_core
 import rui_drawing
 import std/[options, strformat, strutils]
 
 import raylib
+
+proc valueAtX*(x, boundsX, boundsWidth, minValue, maxValue: float32): float32 =
+  ## Where a pointer at `x` falls on a slider spanning boundsX..+boundsWidth.
+  ## Clamped, so dragging past either end pins to that end rather than running
+  ## the value off the scale.
+  if boundsWidth <= 0:
+    return minValue
+  let t = clamp((x - boundsX) / boundsWidth, 0.0'f32, 1.0'f32)
+  minValue + t * (maxValue - minValue)
+
+template setValue(w, computed: untyped) =
+  ## Move the slider, and tell anyone listening -- but only on a real change, so
+  ## a drag that stays within one pixel does not fire onChange sixty times a
+  ## second.
+  ##
+  ## A template rather than a proc because it names the widget type, which does
+  ## not exist until definePrimitive below has run.
+  block:
+    let v = computed
+    if w.value != v:
+      w.value = v
+      w.isDirty = true
+      if w.onChange.isSome:
+        w.onChange.get()(v)
 
 definePrimitive(Slider):
   props:
@@ -33,14 +65,28 @@ definePrimitive(Slider):
 
   events:
     on_mouse_down:
+      # Pressing anywhere on the track jumps the thumb there, which is what
+      # every other slider does and what makes a single click useful.
       if not widget.disabled:
         widget.dragging = true
+        widget.setValue(valueAtX(event.mousePos.x, widget.bounds.x,
+                                 widget.bounds.width,
+                                 widget.minValue, widget.maxValue))
+        return true
+      return false
+
+    on_mouse_move:
+      if widget.dragging and not widget.disabled:
+        widget.setValue(valueAtX(event.mousePos.x, widget.bounds.x,
+                                 widget.bounds.width,
+                                 widget.minValue, widget.maxValue))
         return true
       return false
 
     on_mouse_up:
       if widget.dragging:
         widget.dragging = false
+        widget.isDirty = true
         return true
       return false
 

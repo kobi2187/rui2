@@ -1,10 +1,25 @@
 ## ScrollView Container Widget
 ##
-## Provides scrollable viewport for content that overflows
-## - Automatic scrollbars (show only when needed)
-## - Mouse wheel support
-## - Vertical and horizontal scrolling
-## - Clipping to viewport
+## A viewport over children that are larger than it. `layout` positions the
+## children offset by the scroll amount and measures the content extent;
+## `render` draws the scrollbars.
+##
+## It does NOT render its children, and must not. main_loop's renderPass draws
+## each widget into its own RenderTexture2D and then composites its children's
+## cached textures in -- so a container that also calls `child.render()` paints
+## every child twice. Worse, renderPass zeroes the parent's bounds.x/y for the
+## duration while leaving the children's absolute, so the second painting
+## landed at the wrong coordinates entirely. That loop, and the
+## beginScissorMode around it, have been removed.
+##
+## KNOWN GAP, issue #39: content is clipped to the ScrollView's own bounds,
+## because that is the size of its render texture -- not to the viewport, which
+## is smaller by the padding and the scrollbar width. So content can show
+## underneath the scrollbars. The scissor call that used to be here could not
+## have fixed it: raylib's BeginScissorMode computes its GL rectangle from the
+## screen height, so inside beginTextureMode it clips the wrong region unless
+## the texture happens to be screen-sized. A real fix belongs in renderPass,
+## clipping the composite blit by source-rectangle maths rather than GL state.
 
 import rui_core
 import rui_drawing
@@ -115,17 +130,8 @@ defineWidget(ScrollView):
     if needsHorizontalScrollbar:
       viewportRect.height -= widget.scrollbarWidth
 
-    # Begin scissor mode to clip children to viewport
-    beginScissorMode(viewportRect.x.int32, viewportRect.y.int32,
-                     viewportRect.width.int32, viewportRect.height.int32)
-
-    # Render children (they're already positioned with scroll offset in layout)
-    for child in widget.children:
-      if child.visible:
-        child.render()
-
-    # End scissor mode
-    endScissorMode()
+    # Children are NOT rendered here -- renderPass composites them. See the
+    # module comment.
 
     # Draw vertical scrollbar if needed
     if needsVerticalScrollbar:

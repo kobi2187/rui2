@@ -344,3 +344,66 @@ suite "json coercion, which the file protocol leans on":
     check asText(%"plain") == "plain"
     check asText(%42) == "42"
     check asText(%*{"a": 1}) == """{"a":1}"""
+
+suite "defects found while documenting the untouched widgets":
+  ## Three widgets declared behaviour they did not have. These pin the fixes.
+
+  test "Slider: the thumb follows the pointer":
+    # There was no on_mouse_move handler at all. `dragging` was set on press and
+    # cleared on release, and the value never moved -- it stayed at whatever
+    # initialValue had seeded.
+    check valueAtX(0.0, 0.0, 200.0, 0.0, 100.0) == 0.0'f32
+    check valueAtX(100.0, 0.0, 200.0, 0.0, 100.0) == 50.0'f32
+    check valueAtX(200.0, 0.0, 200.0, 0.0, 100.0) == 100.0'f32
+
+  test "Slider: dragging past an end pins rather than overruns":
+    check valueAtX(-50.0, 0.0, 200.0, 0.0, 100.0) == 0.0'f32
+    check valueAtX(500.0, 0.0, 200.0, 0.0, 100.0) == 100.0'f32
+
+  test "Slider: the track can start anywhere and span any range":
+    check valueAtX(120.0, 100.0, 40.0, 10.0, 20.0) == 15.0'f32
+
+  test "Slider: a zero-width track does not divide by zero":
+    check valueAtX(50.0, 0.0, 0.0, 5.0, 10.0) == 5.0'f32
+
+  test "ProgressBar: the format prop is actually read":
+    # `format` and `textLeft` were declared props that nothing looked at --
+    # render hard-coded "<n>%" whatever you passed.
+    check formatProgress(50.0, 100.0, "%.0f%%") == "50%"
+    check formatProgress(50.0, 200.0, "%.0f%%") == "25%"
+    check formatProgress(1.5, 100.0, "%.2f%%") == "1.50%"
+    check formatProgress(37.26, 100.0, "%.1f") == "37.3"
+
+  test "ProgressBar: a format that is not a format is a label":
+    check formatProgress(50.0, 100.0, "Loading") == "Loading"
+    check formatProgress(50.0, 100.0, "%.xf") == "%.xf"
+
+  test "ProgressBar: a zero maximum is 0%, not a division by zero":
+    check formatProgress(0.0, 0.0, "%.0f%%") == "0%"
+
+  test "ProgressBar: onComplete fires once, not once per frame":
+    let w = newProgressBar(initialValue = 0.0, maxValue = 100.0)
+    var fired = 0
+    w.onComplete = some(proc() {.closure.} = inc fired)
+    w.bounds = Rect(x: 0, y: 0, width: 100, height: 20)
+
+    w.value = 100.0
+    w.layout()
+    w.layout()
+    w.layout()
+    check fired == 1
+
+  test "ProgressBar: a bar that is reset completes again":
+    let w = newProgressBar(initialValue = 100.0, maxValue = 100.0)
+    var fired = 0
+    w.onComplete = some(proc() {.closure.} = inc fired)
+    w.bounds = Rect(x: 0, y: 0, width: 100, height: 20)
+
+    w.layout()
+    check fired == 1
+    w.value = 20.0
+    w.layout()
+    check fired == 1
+    w.value = 100.0
+    w.layout()
+    check fired == 2

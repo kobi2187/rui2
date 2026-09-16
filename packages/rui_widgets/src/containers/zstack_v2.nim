@@ -1,6 +1,13 @@
 ## ZStack Container Widget (DSL v2)
 ##
-## Layers children on top of each other (z-order)
+## Layers children in the same space: every child is given the container's full
+## bounds less padding, so they overlap rather than tile. Paint order is child
+## order -- last added is on top.
+##
+## Unlike VStack and HStack this one does not size itself to its content and
+## cannot: with every child in the same cell there is no direction to grow in,
+## and a child asked to fill a zero-sized parent would measure zero. A ZStack
+## needs bounds from its own parent or from the caller.
 
 import rui_core
 

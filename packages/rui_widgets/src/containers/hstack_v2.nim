@@ -1,6 +1,12 @@
 ## HStack Container Widget (DSL v2)
 ##
-## Arranges children horizontally with spacing
+## Arranges children left to right, then sizes itself to what it arranged.
+## The mirror of vstack_v2.nim, whose module comment explains the two-way
+## sizing both share.
+##
+## The bug that shaped it: a stack with no height of its own used to force
+## height 0 onto every child, so a row of buttons collapsed to a sliver. A child
+## is given a height only when this stack actually has one.
 
 import rui_core
 

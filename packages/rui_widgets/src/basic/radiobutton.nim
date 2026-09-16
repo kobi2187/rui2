@@ -1,8 +1,19 @@
 ## RadioButton Widget - RUI2
 ##
-## A radio button for mutually exclusive selection.
-## Typically used in groups where only one button can be selected at a time.
-## Ported from Hummingbird to RUI2's definePrimitive DSL.
+## A single radio button. Note what it does *not* have: any state. Whether it is
+## filled is `selectedValue == value`, both props, both pushed in from outside.
+## A click does not select it -- it reports `onChange(value)` and waits for the
+## owner to push a new `selectedValue` back.
+##
+## That is the only arrangement that can be exclusive. A button holding its own
+## `selected` flag has nothing to reconcile it with its siblings, so two of them
+## can be on at once.
+##
+## containers/radiogroup.nim takes this further and draws its options itself
+## rather than owning RadioButton children, for the same reason: one
+## selectedIndex in one place is what makes the group exclusive. Use a
+## RadioButton on its own when you are driving the selection from somewhere
+## else; use a RadioGroup when the group is the thing.
 
 import rui_core
 import rui_drawing

@@ -1,6 +1,22 @@
 ## VStack Container Widget (DSL v2)
 ##
-## Arranges children vertically with spacing
+## Arranges children top to bottom, then sizes itself to what it arranged.
+##
+## The layout is two-way, which is the part worth knowing. A stack that has a
+## width of its own imposes it on every child; a stack that does not leaves the
+## child's width at 0 and lets the child's own `layout` measure itself, then
+## takes the widest. Same for its own height: it is only computed when nothing
+## has already assigned one.
+##
+## That is why a Label placed in a stack does not need its bounds set by the
+## caller, and why passing width = 0 down the tree is deliberate rather than a
+## missing value. A container that unconditionally forced its own dimensions on
+## its children collapsed every text child to zero -- see the note in
+## hstack_v2.nim, which had exactly that bug.
+##
+## Children are laid out but never rendered here: main_loop's renderPass and
+## layoutPass both already recurse over `children`, so a container that drew its
+## own children would draw them twice.
 
 import rui_core
 

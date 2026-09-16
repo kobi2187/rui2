@@ -3,6 +3,22 @@
 ## A widget for displaying images (PNG, JPG, BMP, etc.) with various fit modes.
 ## Supports onClick actions and automatic texture loading/caching.
 ##
+## Loading happens on the first `render`, not in the constructor, and that is
+## load-bearing: constructing a widget must not require a GL context, or the
+## widget could not be built or unit-tested before the window opens. A missing
+## file sets `loadFailed` and draws the placeholder rather than raising.
+##
+## Textures live in a module-level `{.global.}` cache keyed by path, shared by
+## every ImageWidget in the process, so the same logo in twenty rows is one
+## upload. Nothing evicts from it -- naylib's Texture is move-only, and an image
+## a widget still points at must not be unloaded underneath it. The cache is
+## therefore bounded by the number of distinct paths an app ever shows.
+##
+## The fit modes follow CSS object-fit, and all five are computed against
+## `bounds`, which `render` overwrites from the `width`/`height` props each
+## frame. An ImageWidget does not size itself to its image: it sizes the image
+## to itself.
+##
 ## Usage:
 ##   ImageWidget(
 ##     imagePath = "assets/logo.png",

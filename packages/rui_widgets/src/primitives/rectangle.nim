@@ -1,6 +1,16 @@
 ## Rectangle Primitive Widget
 ##
-## Pure drawing primitive that renders rectangles using drawing_primitives
+## A fill and an optional border, drawn at whatever bounds it is given. It has
+## no `layout` section at all, which means it never sizes itself: a Rectangle in
+## a VStack contributes zero height unless something assigns its bounds.
+##
+## That is deliberate -- it is the shape composite widgets draw their background
+## with (see basic/button_v2.nim, which sets the rectangle's bounds from its own
+## measured text), not something you place on its own and expect to appear.
+##
+## The colours are plain raylib Colors rather than theme intents, for the same
+## reason: a themed widget resolves its own ThemeProps and hands the result
+## down. A Rectangle that read the theme itself could not be used as a part.
 
 import rui_core
 import rui_drawing

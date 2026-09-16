@@ -1,11 +1,19 @@
 ## Hyperlink Widget - RUI2
 ##
-## A clickable hyperlink with visited state tracking.
-## Displays as underlined text that changes color when clicked.
-## Ported from Hummingbird to RUI2's definePrimitive DSL.
+## Underlined text that remembers it has been clicked.
+##
+## It does not open anything. `onNavigate(url)` hands the url to the
+## application and stops there, because what a link should do is the app's
+## decision -- open a browser, route in-app, show a confirmation -- and a widget
+## that shelled out to a browser on click would be a widget you could not use
+## for the other two. `visited` latches on click regardless, so the colour
+## changes even for an app that ignores the url.
+##
+## The underline is drawn rather than asked for: it is a line under the
+## measured text, not TextStyle.underline, so its width comes from the same
+## Pango metrics the layout used and the two cannot drift.
 
 import rui_core
-import rui_drawing
 import rui_drawing
 import std/options
 
@@ -63,11 +71,17 @@ definePrimitive(Hyperlink):
     drawText(widget.text, widget.bounds.x + widget.bounds.width / 2, textY, 14.0, color, centered = true)
 
     if widget.underline:
-      let textWidth = measureText(widget.text, 14'i32)
+      # Pango metrics, matching `layout` and matching what drawText actually
+      # rendered. This used to call raylib's bitmap-font measureText, which
+      # measures a different font from the one on screen, so the rule was the
+      # wrong length for anything but plain ASCII at exactly 14px.
+      let style = TextStyle(fontFamily: "", fontSize: 14.0, color: color,
+                            bold: false, italic: false, underline: false)
+      let textWidth = measureText(widget.text, style).width
       shapes.drawLine(
-        widget.bounds.x + (widget.bounds.width - textWidth.float32) / 2,
+        widget.bounds.x + (widget.bounds.width - textWidth) / 2,
         widget.bounds.y + widget.bounds.height - 3,
-        widget.bounds.x + (widget.bounds.width + textWidth.float32) / 2,
+        widget.bounds.x + (widget.bounds.width + textWidth) / 2,
         widget.bounds.y + widget.bounds.height - 3,
         color,
         1.0f32

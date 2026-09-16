@@ -1,7 +1,27 @@
 ## Button Widget (DSL v2)
 ##
-## Composite widget: Rectangle (background) + Label (text)
-## Responds to mouse clicks
+## The reference composite: a Rectangle for the background and a Label for the
+## text, created once in `init` and *updated* by `layout`, never replaced. It is
+## worth reading before writing another composite, because the two rules it
+## follows are not obvious from the DSL.
+##
+## **Children are created once.** This used to `children.setLen(0)` and rebuild
+## both on every layout pass. That threw away exactly what the render pass
+## exists to reuse -- each child's identity and its cached texture -- so a
+## button whose hover state changed re-rasterised its text through Pango even
+## though the text had not changed, and handed every child a fresh WidgetId each
+## frame. `layout` indexes the children positionally, so the order in `init` is
+## part of the contract.
+##
+## **The theme is read in `layout`, not `render`.** Button draws nothing itself;
+## its children do. So the visual-state ladder (disabled, pressed, hovered,
+## normal) resolves to ThemeProps here and is pushed into the children's plain
+## colour props. A composite that read the theme in `render` would resolve it
+## after its children had already been composited.
+##
+## Sizing is from real font metrics: `measureText` plus symmetric padding, and
+## only when the parent has not already imposed a dimension. The older version
+## placed the label at a hard-coded 14px with a +10/-20 horizontal fudge.
 
 import rui_core
 import rui_drawing

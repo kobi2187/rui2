@@ -1,6 +1,13 @@
 ## Circle Primitive Widget
 ##
-## Pure drawing primitive that renders circles using drawing_primitives
+## The circle inscribed in its bounds: centred, with the radius taken from the
+## shorter side, so a non-square Rectangle gives a circle rather than an
+## ellipse. Like primitives/rectangle.nim it has no `layout` and so never sizes
+## itself -- it is a part for composites to place, not a standalone widget.
+##
+## `borderWidth` is a flag, not a width: raylib's drawCircleLines has no
+## thickness parameter, so any value above zero draws the same one-pixel
+## outline.
 
 import rui_core
 import rui_drawing
