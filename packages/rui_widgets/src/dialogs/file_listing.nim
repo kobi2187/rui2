@@ -7,6 +7,23 @@ import std/[os, algorithm, strutils]
 
 const ParentEntry* = ".."
 
+proc isDirectoryEntry*(entry: string): bool =
+  ## Entries that navigate rather than select: the parent, and any directory,
+  ## which listEntries marks with a trailing "/".
+  entry == ParentEntry or entry.endsWith("/")
+
+proc navigatedPath*(currentPath, entry: string): string =
+  ## Where clicking `entry` takes you, or "" when it is a plain file and the
+  ## click is a selection instead. Walking up from the root stays at the root
+  ## rather than producing an empty path.
+  if entry == ParentEntry:
+    let up = currentPath.parentDir()
+    result = if up.len == 0: "/" else: up
+  elif entry.endsWith("/"):
+    result = currentPath / entry[0 ..< ^1]
+  else:
+    result = ""
+
 proc isWildcard(filter: string): bool =
   ## A filter that lets everything through.
   filter.len == 0 or filter == "*"

@@ -10,7 +10,10 @@ import rui_core
 import rui_drawing
 import file_listing
 import modal
+import ../virtual_rows
 import std/[options, os, strutils]
+
+export virtual_rows
 
 import raylib
 
@@ -26,6 +29,19 @@ const
   ButtonWidth = 80.0'f32
   ButtonHeight = 30.0'f32
   Margin = 10.0'f32
+
+proc listViewport*(list: Rect, scrollY: float32): RowViewport =
+  ## The file list's scrollable body, inside the dialog panel.
+  rowViewport(top = list.y, height = list.height,
+              rowHeight = RowHeight, scrollY = scrollY)
+
+template openDirectory*(widget: untyped, path: string) =
+  ## Move to `path` and re-read it. The selection and scroll belong to the
+  ## directory you left, so both are dropped.
+  widget.currentPath = path
+  widget.files = listEntries(path, widget.filters, widget.mode == fdDirectory)
+  widget.selectedIndex = -1
+  widget.scrollY = 0
 
 proc okLabelFor(mode: FileDialogMode): string =
   case mode
@@ -96,24 +112,14 @@ definePrimitive(FileDialog):
 
       let list = listRect(panel)
       if list.contains(event.mousePos.x, event.mousePos.y):
-        let idx = int((event.mousePos.y - list.y + widget.scrollY) / RowHeight)
-        if idx >= 0 and idx < widget.files.len:
+        let idx = listViewport(list, widget.scrollY).rowAt(event.mousePos.y,
+                                                           widget.files.len)
+        if idx >= 0:
           let entry = widget.files[idx]
           # Directories navigate instead of selecting; ".." goes up.
-          if entry == ParentEntry:
-            widget.currentPath = widget.currentPath.parentDir()
-            if widget.currentPath.len == 0:
-              widget.currentPath = "/"
-            widget.files = listEntries(widget.currentPath, widget.filters,
-                                       widget.mode == fdDirectory)
-            widget.selectedIndex = -1
-            widget.scrollY = 0
-          elif entry.endsWith("/"):
-            widget.currentPath = widget.currentPath / entry[0..^2]
-            widget.files = listEntries(widget.currentPath, widget.filters,
-                                       widget.mode == fdDirectory)
-            widget.selectedIndex = -1
-            widget.scrollY = 0
+          let dest = navigatedPath(widget.currentPath, entry)
+          if dest.len > 0:
+            widget.openDirectory(dest)
           else:
             widget.selectedIndex = idx
           widget.isDirty = true
@@ -129,9 +135,8 @@ definePrimitive(FileDialog):
       let list = listRect(panel)
       var newHover = -1
       if list.contains(event.mousePos.x, event.mousePos.y):
-        let idx = int((event.mousePos.y - list.y + widget.scrollY) / RowHeight)
-        if idx >= 0 and idx < widget.files.len:
-          newHover = idx
+        newHover = listViewport(list, widget.scrollY).rowAt(event.mousePos.y,
+                                                            widget.files.len)
       if newHover != widget.hoverIndex:
         widget.hoverIndex = newHover
         widget.isDirty = true
@@ -141,10 +146,8 @@ definePrimitive(FileDialog):
       if not widget.isVisible:
         return false
       let panel = panelRect(widget.bounds, widget.dialogWidth, widget.dialogHeight)
-      let list = listRect(panel)
-      let maxScroll = max(0.0'f32, float32(widget.files.len) * RowHeight - list.height)
-      let newScroll = clamp(widget.scrollY - event.wheelDelta * RowHeight * 3.0,
-                            0.0'f32, maxScroll)
+      let v = listViewport(listRect(panel), widget.scrollY)
+      let newScroll = v.scrolledBy(event.wheelDelta, widget.files.len)
       if newScroll != widget.scrollY:
         widget.scrollY = newScroll
         widget.isDirty = true
@@ -193,13 +196,12 @@ definePrimitive(FileDialog):
     drawThemedBackground(list, props)
     drawThemedBorder(list, props)
 
+    let v = listViewport(list, widget.scrollY)
     let clip = beginClip(list)
-    for i, entry in widget.files:
-      let rowY = list.y + float32(i) * RowHeight - widget.scrollY
-      if rowY + RowHeight < list.y or rowY > list.y + list.height:
-        continue
-      drawListItem(Rect(x: list.x, y: rowY, width: list.width, height: RowHeight),
-                   entry, props,
+    for i in v.visibleRange(widget.files.len):
+      drawListItem(Rect(x: list.x, y: v.rowTop(i),
+                        width: list.width, height: RowHeight),
+                   widget.files[i], props,
                    selected = i == widget.selectedIndex,
                    hovered = i == widget.hoverIndex)
     endClip(clip)

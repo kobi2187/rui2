@@ -7,7 +7,11 @@
 import rui_core
 import rui_drawing
 import file_listing
+import ../virtual_rows
+import ../list_input
 import std/[options, os, sets, strutils]
+
+export virtual_rows, list_input
 
 import raylib
 
@@ -20,6 +24,26 @@ type
 const
   PathBarHeight = 28.0'f32
   RowHeight = 20.0'f32
+  ListGap = 4.0'f32        ## Space between the path strip and the list
+
+template listTopOf*(widget: untyped): float32 =
+  widget.bounds.y + PathBarHeight + ListGap
+
+template viewportOf*(widget: untyped): RowViewport =
+  ## A template, not a proc: the FilePicker type does not exist until the macro
+  ## below has expanded, and the widget body needs this.
+  rowViewport(top = widget.listTopOf,
+              height = widget.bounds.height - PathBarHeight - ListGap,
+              rowHeight = RowHeight, scrollY = widget.scrollY)
+
+template openDirectory*(widget: untyped, path: string) =
+  ## Move to `path` and re-read it. The selection and scroll belong to the
+  ## directory you left, so both are dropped.
+  widget.currentPath = path
+  widget.fileList = listEntries(path, widget.filters,
+                                widget.mode == fpDirectory)
+  widget.selectedFiles.clear()
+  widget.scrollY = 0
 
 definePrimitive(FilePicker):
   props:
@@ -43,39 +67,24 @@ definePrimitive(FilePicker):
 
   events:
     on_mouse_down:
-      let listTop = widget.bounds.y + PathBarHeight + 4
-      if event.mousePos.y < listTop:
-        return false
-
-      let idx = int((event.mousePos.y - listTop + widget.scrollY) / RowHeight)
-      if idx < 0 or idx >= widget.fileList.len:
+      let idx = viewportOf(widget).rowAt(event.mousePos.y, widget.fileList.len)
+      if idx < 0:
         return false
 
       let entry = widget.fileList[idx]
       # Directories navigate; only files are selectable.
-      if entry == ParentEntry or entry.endsWith("/"):
-        widget.currentPath =
-          if entry == ParentEntry:
-            let up = widget.currentPath.parentDir()
-            if up.len == 0: "/" else: up
-          else:
-            widget.currentPath / entry[0..^2]
-        widget.fileList = listEntries(widget.currentPath, widget.filters,
-                                      widget.mode == fpDirectory)
-        widget.selectedFiles.clear()
-        widget.scrollY = 0
+      let dest = navigatedPath(widget.currentPath, entry)
+      if dest.len > 0:
+        widget.openDirectory(dest)
         widget.isDirty = true
         if widget.onPathChange.isSome:
           widget.onPathChange.get()(widget.currentPath)
         return true
 
-      let fullPath = widget.currentPath / entry
-      let ctrlDown = isKeyDown(LeftControl) or isKeyDown(RightControl)
-      if widget.multiSelect and ctrlDown:
-        if fullPath in widget.selectedFiles: widget.selectedFiles.excl(fullPath)
-        else: widget.selectedFiles.incl(fullPath)
-      else:
-        widget.selectedFiles = [fullPath].toHashSet
+      # A single-select picker ignores ctrl rather than quietly multi-selecting.
+      let additive = widget.multiSelect and
+                     (isKeyDown(LeftControl) or isKeyDown(RightControl))
+      updateSelection(widget.selectedFiles, widget.currentPath / entry, additive)
 
       widget.isDirty = true
       if widget.onSelect.isSome:
@@ -83,22 +92,16 @@ definePrimitive(FilePicker):
       return true
 
     on_mouse_move:
-      let listTop = widget.bounds.y + PathBarHeight + 4
-      var newHover = -1
-      if event.mousePos.y >= listTop:
-        let idx = int((event.mousePos.y - listTop + widget.scrollY) / RowHeight)
-        if idx >= 0 and idx < widget.fileList.len:
-          newHover = idx
+      let newHover = viewportOf(widget).rowAt(event.mousePos.y,
+                                              widget.fileList.len)
       if newHover != widget.hoverIndex:
         widget.hoverIndex = newHover
         widget.isDirty = true
       return false
 
     on_mouse_wheel:
-      let listHeight = widget.bounds.height - PathBarHeight - 4
-      let maxScroll = max(0.0'f32, float32(widget.fileList.len) * RowHeight - listHeight)
-      let newScroll = clamp(widget.scrollY - event.wheelDelta * RowHeight * 3.0,
-                            0.0'f32, maxScroll)
+      let newScroll = viewportOf(widget).scrolledBy(event.wheelDelta,
+                                                    widget.fileList.len)
       if newScroll != widget.scrollY:
         widget.scrollY = newScroll
         widget.isDirty = true
@@ -127,20 +130,18 @@ definePrimitive(FilePicker):
     drawInteractiveBox(pathRect, props)
     drawThemedPaddedText(widget.currentPath, pathRect, props)
 
-    let list = Rect(x: widget.bounds.x, y: widget.bounds.y + PathBarHeight + 4,
-                    width: widget.bounds.width,
-                    height: widget.bounds.height - PathBarHeight - 4)
+    let v = viewportOf(widget)
+    let list = Rect(x: widget.bounds.x, y: v.top,
+                    width: widget.bounds.width, height: v.height)
     drawThemedBackground(list, props)
 
     let clip = beginClip(list)
-    for i, entry in widget.fileList:
-      let rowY = list.y + float32(i) * RowHeight - widget.scrollY
-      if rowY + RowHeight < list.y or rowY > list.y + list.height:
-        continue
-      let fullPath = widget.currentPath / entry
-      drawListItem(Rect(x: list.x, y: rowY, width: list.width, height: RowHeight),
+    for i in v.visibleRange(widget.fileList.len):
+      let entry = widget.fileList[i]
+      drawListItem(Rect(x: list.x, y: v.rowTop(i),
+                        width: list.width, height: RowHeight),
                    entry, props,
-                   selected = fullPath in widget.selectedFiles,
+                   selected = (widget.currentPath / entry) in widget.selectedFiles,
                    hovered = i == widget.hoverIndex)
     endClip(clip)
 

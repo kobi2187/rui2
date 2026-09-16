@@ -15,26 +15,27 @@ import raylib
 const ActivateKeys* = {Enter, KpEnter, Space}
   ## Keys that act on the focused row rather than moving the focus.
 
-proc toggleSelection*(selected: var HashSet[int], idx: int) =
+# Generic over the key because lists identify rows differently: ListBox,
+# ListView, DataTable and DataGrid select by index, FilePicker by path.
+proc toggleSelection*[T](selected: var HashSet[T], item: T) =
   ## Add the row if absent, remove it if present.
-  if idx in selected:
-    selected.excl(idx)
+  if item in selected:
+    selected.excl(item)
   else:
-    selected.incl(idx)
+    selected.incl(item)
 
-proc setSingleSelection*(selected: var HashSet[int], idx: int) =
+proc setSingleSelection*[T](selected: var HashSet[T], item: T) =
   ## Replace the whole selection with one row.
-  selected = [idx].toHashSet
+  selected = [item].toHashSet
 
-proc updateSelection*(selected: var HashSet[int], idx: int, additive: bool) =
+proc updateSelection*[T](selected: var HashSet[T], item: T, additive: bool) =
   ## Apply a click. `additive` is the caller's decision -- usually "this list
-  ## allows multi-select AND ctrl is held" -- not the raw modifier state, so
-  ## a single-select list cannot be talked into multi-selecting.
-  assert idx >= 0, "callers must reject a click that missed every row first"
+  ## allows multi-select AND ctrl is held" -- not the raw modifier state, so a
+  ## single-select list cannot be talked into multi-selecting.
   if additive:
-    toggleSelection(selected, idx)
+    toggleSelection(selected, item)
   else:
-    setSingleSelection(selected, idx)
+    setSingleSelection(selected, item)
 
 proc nextFocusIndex*(key: KeyboardKey, current, total, pageSize: int): Option[int] =
   ## Where an arrow, Home, End or Page key moves the focus. `none` when the key
