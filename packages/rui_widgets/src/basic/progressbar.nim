@@ -19,38 +19,46 @@ import std/[options, strutils]
 
 import raylib
 
+type ProgressFormat* = object
+  ## A parsed `%.<n>f` or `%.<n>f%%` caption spec.
+  decimals*: int
+  asPercent*: bool
+    ## true for the `%%` forms: show the percentage of maxValue, not the value.
+
+proc parseProgressFormat*(format: string): Option[ProgressFormat] =
+  ## `none` for anything that is not a spec, which the caller then uses
+  ## literally -- so passing "Loading" gets you "Loading".
+  if not format.startsWith("%."):
+    return none(ProgressFormat)
+  let fIdx = format.find('f', 2)
+  if fIdx < 0:
+    return none(ProgressFormat)
+  try:
+    some(ProgressFormat(decimals: parseInt(format[2 ..< fIdx]),
+                        asPercent: format.endsWith("%%")))
+  except ValueError:
+    none(ProgressFormat)
+
+proc render*(spec: ProgressFormat, value, maxValue: float): string =
+  let shown = if not spec.asPercent: value
+              elif maxValue == 0: 0.0
+              else: value / maxValue * 100.0
+  result = formatFloat(shown, ffDecimal, spec.decimals)
+  if spec.decimals == 0:
+    # formatFloat leaves a trailing point at zero decimals: "50." not "50".
+    result.removeSuffix('.')
+  if spec.asPercent:
+    result.add('%')
+
 proc formatProgress*(value, maxValue: float, format: string): string =
   ## Render the caption for a progress value.
   ##
   ## `format` is a small printf-ish subset, because that is what the shipped
   ## default ("%.0f%%") already looked like: `%.<n>f` prints the raw value to
   ## <n> decimals, and a trailing `%%` prints the percentage of maxValue
-  ## instead. Anything else is used literally, so a caller can pass "Loading"
-  ## and get "Loading".
-  if not format.startsWith("%."):
-    return format
-
-  let fIdx = format.find('f', 2)
-  if fIdx < 0:
-    return format
-
-  var decimals = 0
-  try:
-    decimals = parseInt(format[2 ..< fIdx])
-  except ValueError:
-    return format
-
-  let asPercent = format.endsWith("%%")
-  let shown = if asPercent:
-                (if maxValue == 0: 0.0 else: value / maxValue * 100.0)
-              else:
-                value
-  result = formatFloat(shown, ffDecimal, decimals)
-  if decimals == 0:
-    # formatFloat leaves a trailing point at zero decimals: "50." not "50".
-    result.removeSuffix('.')
-  if asPercent:
-    result.add('%')
+  ## instead. Anything else is used literally.
+  let spec = parseProgressFormat(format)
+  if spec.isNone: format else: spec.get().render(value, maxValue)
 
 definePrimitive(ProgressBar):
   props:
