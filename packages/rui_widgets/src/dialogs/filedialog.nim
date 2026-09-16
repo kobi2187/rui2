@@ -17,23 +17,8 @@ export virtual_rows
 
 import raylib
 
-type
-  FileDialogMode* = enum
-    fdOpen              # Open an existing file
-    fdSave              # Save a file (a new name is allowed)
-    fdDirectory         # Choose a directory
-
-const
-  TitleBarHeight = 30.0'f32
-  RowHeight = 20.0'f32
-  ButtonWidth = 80.0'f32
-  ButtonHeight = 30.0'f32
-  Margin = 10.0'f32
-
-proc listViewport*(list: Rect, scrollY: float32): RowViewport =
-  ## The file list's scrollable body, inside the dialog panel.
-  rowViewport(top = list.y, height = list.height,
-              rowHeight = RowHeight, scrollY = scrollY)
+import filedialog_layout
+export filedialog_layout
 
 template openDirectory*(widget: untyped, path: string) =
   ## Move to `path` and re-read it. The selection and scroll belong to the
@@ -42,28 +27,6 @@ template openDirectory*(widget: untyped, path: string) =
   widget.files = listEntries(path, widget.filters, widget.mode == fdDirectory)
   widget.selectedIndex = -1
   widget.scrollY = 0
-
-proc okLabelFor(mode: FileDialogMode): string =
-  case mode
-  of fdOpen: "Open"
-  of fdSave: "Save"
-  of fdDirectory: "Select"
-
-proc listRect*(panel: Rect): Rect =
-  ## The file list area inside the panel.
-  Rect(x: panel.x + Margin, y: panel.y + 70,
-       width: panel.width - Margin * 2,
-       height: panel.height - 70 - ButtonHeight - Margin * 3)
-
-proc okRect*(panel: Rect): Rect =
-  Rect(x: panel.x + panel.width - ButtonWidth - 20,
-       y: panel.y + panel.height - ButtonHeight - 15,
-       width: ButtonWidth, height: ButtonHeight)
-
-proc cancelRect*(panel: Rect): Rect =
-  let ok = okRect(panel)
-  Rect(x: ok.x - ButtonWidth - Margin, y: ok.y,
-       width: ButtonWidth, height: ButtonHeight)
 
 definePrimitive(FileDialog):
   props:
