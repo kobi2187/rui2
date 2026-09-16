@@ -61,9 +61,11 @@ proc dialogButtons*(panel: Rect, buttons: MessageBoxButtons): seq[DialogButton] 
     x -= ButtonWidth + ButtonGap
 
 proc intentFor(t: MessageBoxType): ThemeIntent =
-  ## Same disambiguation problem as alertLevelFor: `Info` and `Warning` exist in
-  ## more than one enum in scope, so the expected type has to come from a
-  ## declared return type rather than from a `case` inside a macro body.
+  ## Same disambiguation problem as alertLevelFor. `Info` belongs to both
+  ## ThemeIntent and AlertLevel, and `Warning` to both ThemeIntent and
+  ## ValidationState -- all four are rui_drawing's own enums, so trimming
+  ## rui_core's raylib re-export does not help here. A `case` inside a macro
+  ## body has no expected type to resolve against; a declared return type does.
   case t
   of mbInfo: Info
   of mbWarning: Warning

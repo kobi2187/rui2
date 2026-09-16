@@ -197,8 +197,12 @@ Verified, with a failing case or a grep behind each. Tracked as GitHub issues.
   and recreate every layout, so widget identity and per-child caches are lost.
 - **Hit-test tree is fully rebuilt** after every layout pass ([#32]);
   `previousBounds` exists for incremental updates and is still unused.
-- **`export raylib` is wholesale** ([#23]) — every raylib enum field is in scope
-  in every widget, which already costs several qualification workarounds.
+- **Some enum names still need qualifying** ([#23]) — `rui_core` now exports a
+  named list of raylib types rather than the whole module, but exporting an enum
+  exposes its fields unqualified, so `KeyboardKey.Menu` still collides with the
+  Menu widget and `KeyboardKey.Down`/`Up` with `ArrowDirection`. Separately,
+  `Info` and `Warning` each appear in two of rui_drawing's own enums. Both need
+  renames, not import changes.
 - **No license chosen yet** ([#26]) — `.nimble` files have a TODO placeholder.
 
 [#14]: https://github.com/kobi2187/rui2/issues/14

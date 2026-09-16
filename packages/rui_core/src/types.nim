@@ -5,9 +5,29 @@
 import std/[tables, sets, hashes, options, times, monotimes, json]
 export sets, tables, options, json  # Export for use in other modules
 
-# Raylib types - conditionally import or use stubs
+# Raylib types that are genuinely part of rui_core's interface.
+#
+# This used to be `export ... , raylib` -- three named symbols followed by the
+# whole module, which made the naming decorative and put every raylib proc,
+# type and enum field in scope in every module that imports rui_core. It cost
+# real workarounds: `TraceLogLevel`'s Info/Warning/Error collided with
+# rui_drawing's ThemeIntent, AlertLevel and ValidationState.
+#
+# Note what this does NOT fix. Exporting an enum type exposes its fields
+# unqualified, so `KeyboardKey.Menu` still collides with the Menu widget
+# (see menus/menubar.nim) and `KeyboardKey.Down`/`Up` with ArrowDirection.
+# Those need a rename, not an import change.
+#
+# Procs (drawTexture, isKeyDown, getTime, ...) are deliberately not re-exported:
+# a module that draws should say `import raylib` itself.
 import raylib
-export raylib.Color, raylib.KeyboardKey, raylib.RenderTexture2D, raylib
+export raylib.Color, raylib.KeyboardKey, raylib.MouseButton,
+       raylib.RenderTexture2D, raylib.Texture2D, raylib.Image,
+       raylib.Vector2, raylib.Vector3, raylib.Rectangle, raylib.Font,
+       raylib.WHITE, raylib.BLACK, raylib.GRAY, raylib.LIGHTGRAY,
+       raylib.DARKGRAY, raylib.RED, raylib.GREEN, raylib.BLUE,
+       raylib.YELLOW, raylib.ORANGE, raylib.PURPLE, raylib.MAROON,
+       raylib.RAYWHITE, raylib.BLANK
 # Size type - define locally for now
 type Size* = object
   width*, height*: float32

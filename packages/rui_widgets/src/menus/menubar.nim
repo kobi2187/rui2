@@ -3,8 +3,11 @@
 ## A horizontal strip of menu titles (File, Edit, View...). Each child is a Menu
 ## whose `title` the bar draws and whose dropdown it positions underneath.
 ##
-## The Menu type is written `menu.Menu` throughout: rui_core re-exports raylib,
-## and naylib's KeyboardKey has a `Menu` field, so the bare name is ambiguous.
+## The Menu type is written `menu.Menu` throughout: naylib's `KeyboardKey` has a
+## `Menu` field, and rui_core has to re-export that enum for `event.key` to be
+## usable, so the bare name is ambiguous wherever both are in scope. Exporting an
+## enum type in Nim exposes its fields unqualified, so this one cannot be fixed
+## by trimming the re-export -- only by renaming the widget.
 ##
 ## The bar's own bounds have to cover the open dropdown: renderPass composites a
 ## child into the parent's render texture, which is sized to the parent's
