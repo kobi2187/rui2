@@ -32,23 +32,29 @@ type
 const MinThumb* = 20.0'f32
   ## A thumb shorter than this is too small to grab.
 
+proc secondPass(e: ScrollExtent, vertical, horizontal: bool):
+    tuple[vertical, horizontal: bool] =
+  ## Exactly one bar so far: re-ask the other against the viewport this one has
+  ## already narrowed. One pass is enough, because a bar can only be added and
+  ## the second bar cannot un-need the first.
+  if vertical and not horizontal:
+    (true, e.contentWidth > e.viewportWidth - e.scrollbarWidth)
+  elif horizontal and not vertical:
+    (e.contentHeight > e.viewportHeight - e.scrollbarWidth, true)
+  else:
+    (vertical, horizontal)
+
 proc scrollBarsFor*(e: ScrollExtent): ScrollBars =
-  ## Resolve the mutual dependency by settling it twice: decide each bar
-  ## against the bare viewport, then re-ask each one against the viewport the
-  ## other has already reduced. Two passes is enough -- a bar can only ever be
-  ## added, never removed, so the second pass reaches the fixed point.
-  result.vertical = e.contentHeight > e.viewportHeight
-  result.horizontal = e.contentWidth > e.viewportWidth
-
-  if result.vertical and not result.horizontal:
-    result.horizontal = e.contentWidth > e.viewportWidth - e.scrollbarWidth
-  elif result.horizontal and not result.vertical:
-    result.vertical = e.contentHeight > e.viewportHeight - e.scrollbarWidth
-
+  ## Decide each bar against the bare viewport, then let secondPass settle the
+  ## mutual dependency.
+  let (v, h) = secondPass(e, e.contentHeight > e.viewportHeight,
+                             e.contentWidth > e.viewportWidth)
+  result.vertical = v
+  result.horizontal = h
   result.innerWidth = e.viewportWidth -
-                      (if result.vertical: e.scrollbarWidth else: 0.0'f32)
+                      (if v: e.scrollbarWidth else: 0.0'f32)
   result.innerHeight = e.viewportHeight -
-                       (if result.horizontal: e.scrollbarWidth else: 0.0'f32)
+                       (if h: e.scrollbarWidth else: 0.0'f32)
 
 proc maxScrollX*(e: ScrollExtent, bars: ScrollBars): float32 =
   max(0.0'f32, e.contentWidth - bars.innerWidth)

@@ -47,6 +47,14 @@ proc scaledToCover*(bounds: Rect, imageAspect: float32): Rectangle =
   else:
     centredIn(bounds, bounds.width, bounds.width / imageAspect)
 
+proc isDegenerate(bounds: Rect, texWidth, texHeight: float32): bool =
+  ## A zero-sized box or image. Every mode divides by one of these.
+  bounds.width <= 0 or bounds.height <= 0 or texWidth <= 0 or texHeight <= 0
+
+proc wholeOf(bounds: Rect): Rectangle =
+  Rectangle(x: bounds.x, y: bounds.y,
+            width: bounds.width, height: bounds.height)
+
 proc destinationFor*(fitMode: ImageFit, bounds: Rect,
                      texWidth, texHeight: float32): Rectangle =
   ## Where to paint an image of texWidth x texHeight inside `bounds`.
@@ -54,16 +62,13 @@ proc destinationFor*(fitMode: ImageFit, bounds: Rect,
   ## A degenerate box or image falls back to filling the bounds rather than
   ## dividing by zero -- a zero-sized widget paints nothing anyway, so the
   ## result is unobservable and a NaN rectangle is not.
-  if bounds.width <= 0 or bounds.height <= 0 or
-     texWidth <= 0 or texHeight <= 0:
-    return Rectangle(x: bounds.x, y: bounds.y,
-                     width: bounds.width, height: bounds.height)
+  if isDegenerate(bounds, texWidth, texHeight):
+    return wholeOf(bounds)
 
   let imageAspect = texWidth / texHeight
   case fitMode
   of Fill:
-    Rectangle(x: bounds.x, y: bounds.y,
-              width: bounds.width, height: bounds.height)
+    wholeOf(bounds)
   of Contain:
     scaledToFit(bounds, imageAspect)
   of Cover:

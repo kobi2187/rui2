@@ -28,7 +28,8 @@ from std/algorithm import sort
 import raylib
 
 import tabular
-export datatable_helpers, tabular
+import tabular_render
+export datatable_helpers, tabular, tabular_render
 
 type
   ColumnDef* = object
@@ -191,8 +192,8 @@ definePrimitive(DataTable):
     widget.visibleEnd = visible.b
 
     drawThemedBackground(widget.bounds, props)
-    let gridColor = props.borderColor.get(Color(r: 220, g: 220, b: 220, a: 255))
-    let fgColor = props.foregroundColor.get(Color(r: 40, g: 40, b: 40, a: 255))
+    let gridColor = props.borderColor.get(DefaultGridColor)
+    let fgColor = props.foregroundColor.get(DefaultInkColor)
     let clip = beginClip(widget.bounds)
 
     # Filter strip: shows the active filter per column. Editing a filter from
@@ -210,23 +211,18 @@ definePrimitive(DataTable):
           drawText(label, x + 6.0, widget.bounds.y + 6.0, 10.0, fgColor)
         x += col.width
 
-    # Header row with sort indicators.
+    # Header row with sort indicators. DataTable tracks its sorted column by
+    # id, so it resolves that to an index here; the shared drawing takes the
+    # index, because DataGrid keeps one.
     if widget.showHeader:
-      var x = widget.bounds.x
-      for col in widget.columns:
-        let headerRect = Rect(x: x, y: m.headerTop,
-                              width: col.width, height: m.headerH)
-        drawThemedBackground(headerRect, headerProps)
-        let indicator = if col.id == widget.sortColumn:
-                          sortIndicatorFor(widget.sortOrder)
-                        else:
-                          ""
-        drawThemedPaddedText(col.title & indicator, headerRect, headerProps,
-                             selected = true)
-        if widget.showGrid:
-          drawLine(x + col.width, headerRect.y,
-                   x + col.width, headerRect.y + m.headerH, gridColor)
-        x += col.width
+      var sortedIndex = -1
+      for i, col in widget.columns:
+        if col.id == widget.sortColumn:
+          sortedIndex = i
+          break
+      drawColumnHeaders(widget.columns, widget.bounds.x, m.headerTop, m.headerH,
+                        sortedIndex, widget.sortOrder, headerProps,
+                        widget.showGrid, gridColor)
 
     # Body: only the rows that can be on screen.
     for viewIdx in visible:
@@ -234,25 +230,20 @@ definePrimitive(DataTable):
       let rowY = m.rows.rowTop(viewIdx)
       let rowRect = Rect(x: widget.bounds.x, y: rowY,
                          width: widget.bounds.width, height: rowH)
-      if widget.alternateRowColor and viewIdx mod 2 == 1:
-        drawRect(rowRect, Color(r: 245, g: 245, b: 245, a: 255))
-      drawSelectionBackground(rowRect, props,
-                              selected = rowIdx in widget.selected,
-                              hovered = viewIdx == widget.hoverRow)
+      drawRowBackground(rowRect, props, viewIdx, widget.alternateRowColor,
+                        selected = rowIdx in widget.selected,
+                        hovered = viewIdx == widget.hoverRow)
 
-      var x = widget.bounds.x
+      var texts: seq[string] = @[]
       for col in widget.columns:
-        let text = getCellText(widget.data[rowIdx], col.id,
-                               if col.formatFunc.isSome: col.formatFunc.get()
-                               else: nil)
-        drawText(text, x + 4.0, rowY + (rowH - 12.0) / 2, 12.0, fgColor)
-        if widget.showGrid:
-          drawLine(x + col.width, rowY, x + col.width, rowY + rowH, gridColor)
-        x += col.width
+        texts.add(getCellText(widget.data[rowIdx], col.id,
+                              if col.formatFunc.isSome: col.formatFunc.get()
+                              else: nil))
+      drawCells(widget.columns, widget.bounds.x, rowY, rowH, texts, fgColor,
+                widget.showGrid, gridColor)
 
       if widget.showGrid:
-        drawLine(widget.bounds.x, rowY + rowH,
-                 widget.bounds.x + widget.bounds.width, rowY + rowH, gridColor)
+        drawRowGridLine(rowRect, gridColor)
 
     endClip(clip)
     drawThemedBorder(widget.bounds, props, widget.focused)

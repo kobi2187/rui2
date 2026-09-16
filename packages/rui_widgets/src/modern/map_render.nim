@@ -24,8 +24,7 @@ const
     ## Beyond this Mercator stretches the spacing so far that the lines stop
     ## telling you anything.
 
-proc drawGraticule*(view: MapView, bounds: Rect) =
-  ## Meridians and parallels, clipped to the visible rectangle.
+proc drawMeridians(view: MapView, bounds: Rect) =
   var lon = -180.0
   while lon <= 180.0:
     let p = view.worldToScreen(MapCoord(lat: 0.0, lon: lon))
@@ -33,12 +32,18 @@ proc drawGraticule*(view: MapView, bounds: Rect) =
       drawLine(p.x, bounds.y, p.x, bounds.y + bounds.height, GridColor)
     lon += GraticuleStep
 
+proc drawParallels(view: MapView, bounds: Rect) =
   var lat = -MaxGraticuleLat
   while lat <= MaxGraticuleLat:
     let p = view.worldToScreen(MapCoord(lat: lat, lon: 0.0))
     if p.y >= bounds.y and p.y <= bounds.y + bounds.height:
       drawLine(bounds.x, p.y, bounds.x + bounds.width, p.y, GridColor)
     lat += GraticuleStep
+
+proc drawGraticule*(view: MapView, bounds: Rect) =
+  ## Meridians and parallels, each clipped to the visible rectangle.
+  drawMeridians(view, bounds)
+  drawParallels(view, bounds)
 
 proc markerRadius*(marker: MapMarker, highlighted: bool): float32 =
   ## A marker with no size of its own gets the default; a highlighted one grows

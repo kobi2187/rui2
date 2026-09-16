@@ -25,7 +25,8 @@ from std/algorithm import sort
 import raylib
 
 import tabular
-export tabular
+import tabular_render
+export tabular, tabular_render
 
 type
   GridColumn* = object
@@ -208,56 +209,41 @@ definePrimitive(DataGrid):
         widget.onLoadMore.get()(widget.data.len, needCount)
 
     drawThemedBackground(widget.bounds, props)
-    let gridColor = props.borderColor.get(Color(r: 220, g: 220, b: 220, a: 255))
-    let fgColor = props.foregroundColor.get(Color(r: 40, g: 40, b: 40, a: 255))
+    let gridColor = props.borderColor.get(DefaultGridColor)
+    let fgColor = props.foregroundColor.get(DefaultInkColor)
     let clip = beginClip(widget.bounds)
 
     if widget.showHeader:
-      var x = widget.bounds.x
-      for colIdx, col in widget.columns:
-        let headerRect = Rect(x: x, y: widget.bounds.y,
-                              width: col.width, height: headerH)
-        drawThemedBackground(headerRect, headerProps)
-        let indicator = if colIdx == widget.sortColumn:
-                          sortIndicatorFor(widget.sortOrder)
-                        else:
-                          ""
-        drawThemedPaddedText(col.title & indicator, headerRect, headerProps,
-                             selected = true)
-        if widget.showGrid:
-          drawLine(x + col.width, headerRect.y,
-                   x + col.width, headerRect.y + headerH, gridColor)
-        x += col.width
+      drawColumnHeaders(widget.columns, widget.bounds.x, widget.bounds.y,
+                        headerH, widget.sortColumn, widget.sortOrder,
+                        headerProps, widget.showGrid, gridColor)
 
     for viewIdx in visible:
       let rowY = m.rows.rowTop(viewIdx)
       let rowRect = Rect(x: widget.bounds.x, y: rowY,
                          width: widget.bounds.width, height: rowH)
-      if widget.alternateRowColor and viewIdx mod 2 == 1:
-        drawRect(rowRect, Color(r: 245, g: 245, b: 245, a: 255))
 
       # Rows past the loaded tail are placeholders until onLoadMore delivers.
       if viewIdx >= widget.order.len:
-        drawText("Loading...", widget.bounds.x + 4.0, rowY + (rowH - 12.0) / 2,
-                 12.0, Color(r: 150, g: 150, b: 150, a: 255))
+        drawRowBackground(rowRect, props, viewIdx, widget.alternateRowColor,
+                          selected = false, hovered = false)
+        drawText("Loading...", widget.bounds.x + CellPadX,
+                 cellBaseline(rowY, rowH), CellFontSize, PlaceholderColor)
         continue
 
       let rowIdx = widget.order[viewIdx]
-      drawSelectionBackground(rowRect, props,
-                              selected = rowIdx in widget.selected,
-                              hovered = viewIdx == widget.hoverRow)
+      drawRowBackground(rowRect, props, viewIdx, widget.alternateRowColor,
+                        selected = rowIdx in widget.selected,
+                        hovered = viewIdx == widget.hoverRow)
 
-      var x = widget.bounds.x
+      var texts: seq[string] = @[]
       for colIdx, col in widget.columns:
-        drawText(cellText(widget.data[rowIdx], colIdx, col.formatFunc),
-                 x + 4.0, rowY + (rowH - 12.0) / 2, 12.0, fgColor)
-        if widget.showGrid:
-          drawLine(x + col.width, rowY, x + col.width, rowY + rowH, gridColor)
-        x += col.width
+        texts.add(cellText(widget.data[rowIdx], colIdx, col.formatFunc))
+      drawCells(widget.columns, widget.bounds.x, rowY, rowH, texts, fgColor,
+                widget.showGrid, gridColor)
 
       if widget.showGrid:
-        drawLine(widget.bounds.x, rowY + rowH,
-                 widget.bounds.x + widget.bounds.width, rowY + rowH, gridColor)
+        drawRowGridLine(rowRect, gridColor)
 
     endClip(clip)
     drawThemedBorder(widget.bounds, props, widget.focused)
