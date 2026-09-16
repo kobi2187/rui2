@@ -38,6 +38,67 @@ type
 
 const BufferRows = 10
 
+type
+  TableMetrics* = object
+    ## Where the three bands of the table sit. Every event handler and `render`
+    ## needs the same answer, so they all ask this rather than each recomputing
+    ## it from showFilter / showHeader.
+    originX*, originY*: float32
+    filterH*, headerH*: float32
+    rowsTop*: float32
+    viewHeight*: float32
+    rowHeight*: float32
+    scrollY*: float32
+
+template metricsOf*(widget: untyped): TableMetrics =
+  ## A template, not a proc: the DataTable type does not exist until the macro
+  ## below has expanded, and the widget body needs this.
+  let fh = if widget.showFilter: widget.filterHeight else: 0.0'f32
+  let hh = if widget.showHeader: widget.headerHeight else: 0.0'f32
+  TableMetrics(
+    originX: widget.bounds.x, originY: widget.bounds.y,
+    filterH: fh, headerH: hh,
+    rowsTop: widget.bounds.y + fh + hh,
+    viewHeight: widget.bounds.height - fh - hh,
+    rowHeight: widget.rowHeight,
+    scrollY: widget.scrollY
+  )
+
+proc headerTop*(m: TableMetrics): float32 =
+  m.originY + m.filterH
+
+proc overHeader*(m: TableMetrics, mouseY: float32): bool =
+  m.headerH > 0 and mouseY >= m.headerTop and mouseY < m.rowsTop
+
+proc rowAt*(m: TableMetrics, mouseY: float32, rowCount: int): int =
+  ## Index into the filtered view under `mouseY`, or -1 outside it.
+  assert m.rowHeight > 0, "rowHeight must be positive or every row maps to 0"
+  if mouseY < m.rowsTop:
+    return -1
+  let idx = int((mouseY - m.rowsTop + m.scrollY) / m.rowHeight)
+  if idx < 0 or idx >= rowCount: -1 else: idx
+
+proc maxScroll*(m: TableMetrics, rowCount: int): float32 =
+  assert rowCount >= 0
+  max(0.0'f32, float32(rowCount) * m.rowHeight - m.viewHeight)
+
+proc columnAt*(columns: openArray[ColumnDef], originX, mouseX: float32): int =
+  ## Index of the column containing `mouseX`, or -1. Columns are laid out left
+  ## to right at their own widths, so this walks rather than divides.
+  var x = originX
+  for i, col in columns:
+    if mouseX >= x and mouseX < x + col.width:
+      return i
+    x += col.width
+  -1
+
+proc passesFilters*(row: TableRow, filters: Table[string, Filter]): bool =
+  ## Matching itself lives in datatable_helpers; this is just the conjunction.
+  for colId, filter in filters:
+    if not matchesColumnFilter(row, colId, filter):
+      return false
+  true
+
 proc nextSortOrder(current: SortOrder): SortOrder =
   ## Header clicks cycle ascending -> descending -> unsorted.
   result = case current
@@ -50,6 +111,52 @@ proc sortIndicatorFor(order: SortOrder): string =
   of soAscending: "  ^"
   of soDescending: "  v"
   of soNone: ""
+
+proc isSortable*(columns: openArray[ColumnDef], idx: int): bool =
+  ## Is `idx` a real column that allows sorting?
+  idx >= 0 and idx < columns.len and columns[idx].sortable
+
+proc nextSortFor*(columns: openArray[ColumnDef], idx: int,
+                  currentColumn: string, currentOrder: SortOrder): SortOrder =
+  ## The order a header click on column `idx` produces. Clicking the column
+  ## already sorted advances its cycle; clicking a different one starts over at
+  ## ascending. Pure, so the cycle is testable without a table.
+  assert columns.isSortable(idx), "caller must check isSortable first"
+  if columns[idx].id == currentColumn: nextSortOrder(currentOrder)
+  else: soAscending
+
+template sortByColumnAt*(widget: untyped, mouseX: float32): bool =
+  ## Cycle the sort order of the column under `mouseX`. A header click is always
+  ## consumed, whether or not it landed on a sortable column.
+  block:
+    let idx = columnAt(widget.columns, widget.bounds.x, mouseX)
+    if widget.columns.isSortable(idx):
+      let order = nextSortFor(widget.columns, idx,
+                              widget.sortColumn, widget.sortOrder)
+      widget.sortColumn = if order == soNone: "" else: widget.columns[idx].id
+      widget.sortOrder = order
+      widget.isDirty = true
+      widget.layoutDirty = true   # ordering is decided in layout
+      if widget.onSort.isSome:
+        widget.onSort.get()(widget.columns[idx].id, order)
+    true
+
+template selectRowAt*(widget: untyped, viewIdx: int): bool =
+  ## Select the source row behind filtered-view row `viewIdx`. Selection is kept
+  ## against the source index so it survives a change of filter.
+  block:
+    if viewIdx < 0:
+      false
+    else:
+      assert viewIdx < widget.filteredIndices.len,
+             "rowAt must not return an index past the filtered view"
+      let rowIdx = widget.filteredIndices[viewIdx]
+      updateSelection(widget.selected, rowIdx,
+                      isKeyDown(LeftControl) or isKeyDown(RightControl))
+      widget.isDirty = true
+      if widget.onSelect.isSome:
+        widget.onSelect.get()(widget.selected)
+      true
 
 definePrimitive(DataTable):
   props:
@@ -83,69 +190,23 @@ definePrimitive(DataTable):
 
   events:
     on_mouse_down:
-      let filterH = if widget.showFilter: widget.filterHeight else: 0.0'f32
-      let headerH = if widget.showHeader: widget.headerHeight else: 0.0'f32
-      let headerTop = widget.bounds.y + filterH
-      let rowsTop = headerTop + headerH
-
-      # Header click: cycle this column's sort order.
-      if widget.showHeader and event.mousePos.y >= headerTop and
-         event.mousePos.y < rowsTop:
-        var x = widget.bounds.x
-        for col in widget.columns:
-          if event.mousePos.x >= x and event.mousePos.x < x + col.width:
-            if not col.sortable:
-              return true
-            widget.sortOrder =
-              if col.id == widget.sortColumn: nextSortOrder(widget.sortOrder)
-              else: soAscending
-            widget.sortColumn = if widget.sortOrder == soNone: "" else: col.id
-            widget.isDirty = true
-            widget.layoutDirty = true   # ordering is decided in layout
-            if widget.onSort.isSome:
-              widget.onSort.get()(col.id, widget.sortOrder)
-            return true
-          x += col.width
-        return true
-
-      if event.mousePos.y < rowsTop:
-        return false   # inside the filter strip
-
-      let viewIdx = int((event.mousePos.y - rowsTop + widget.scrollY) / widget.rowHeight)
-      if viewIdx < 0 or viewIdx >= widget.filteredIndices.len:
-        return false
-
-      # Selection is stored against the source row, so it survives re-filtering.
-      let rowIdx = widget.filteredIndices[viewIdx]
-      let ctrlDown = isKeyDown(LeftControl) or isKeyDown(RightControl)
-      updateSelection(widget.selected, rowIdx, ctrlDown)
-      widget.isDirty = true
-      if widget.onSelect.isSome:
-        widget.onSelect.get()(widget.selected)
-      return true
+      let m = metricsOf(widget)
+      if m.overHeader(event.mousePos.y):
+        return widget.sortByColumnAt(event.mousePos.x)
+      return widget.selectRowAt(m.rowAt(event.mousePos.y, widget.filteredIndices.len))
 
     on_mouse_move:
-      let filterH = if widget.showFilter: widget.filterHeight else: 0.0'f32
-      let headerH = if widget.showHeader: widget.headerHeight else: 0.0'f32
-      let rowsTop = widget.bounds.y + filterH + headerH
-      var newHover = -1
-      if event.mousePos.y >= rowsTop:
-        let viewIdx = int((event.mousePos.y - rowsTop + widget.scrollY) / widget.rowHeight)
-        if viewIdx >= 0 and viewIdx < widget.filteredIndices.len:
-          newHover = viewIdx
+      let m = metricsOf(widget)
+      let newHover = m.rowAt(event.mousePos.y, widget.filteredIndices.len)
       if newHover != widget.hoverRow:
         widget.hoverRow = newHover
         widget.isDirty = true
       return false
 
     on_mouse_wheel:
-      let filterH = if widget.showFilter: widget.filterHeight else: 0.0'f32
-      let headerH = if widget.showHeader: widget.headerHeight else: 0.0'f32
-      let viewHeight = widget.bounds.height - filterH - headerH
-      let maxScroll = max(0.0'f32,
-        float32(widget.filteredIndices.len) * widget.rowHeight - viewHeight)
-      let newScroll = clamp(widget.scrollY - event.wheelDelta * widget.rowHeight * 3.0,
-                            0.0'f32, maxScroll)
+      let m = metricsOf(widget)
+      let newScroll = clamp(widget.scrollY - event.wheelDelta * m.rowHeight * 3.0,
+                            0.0'f32, m.maxScroll(widget.filteredIndices.len))
       if newScroll != widget.scrollY:
         widget.scrollY = newScroll
         widget.isDirty = true
@@ -156,12 +217,7 @@ definePrimitive(DataTable):
     # it runs when the data or the filters change, not once per frame.
     widget.filteredIndices.setLen(0)
     for i, row in widget.data:
-      var keep = true
-      for colId, filter in widget.filters:
-        if not matchesColumnFilter(row, colId, filter):
-          keep = false
-          break
-      if keep:
+      if row.passesFilters(widget.filters):
         widget.filteredIndices.add(i)
 
     if widget.sortColumn.len > 0 and widget.sortOrder != soNone:
@@ -177,19 +233,18 @@ definePrimitive(DataTable):
         total += col.width
       widget.bounds.width = total
     if widget.bounds.height <= 0:
-      let filterH = if widget.showFilter: widget.filterHeight else: 0.0'f32
-      let headerH = if widget.showHeader: widget.headerHeight else: 0.0'f32
-      widget.bounds.height = filterH + headerH +
+      let m = metricsOf(widget)
+      widget.bounds.height = m.filterH + m.headerH +
                              float32(widget.visibleRows) * widget.rowHeight
 
   render:
     let props = currentTheme.getThemeProps(widget.intent, Normal)
     let headerProps = currentTheme.getThemeProps(widget.intent, Selected)
-    let filterH = if widget.showFilter: widget.filterHeight else: 0.0'f32
-    let headerH = if widget.showHeader: widget.headerHeight else: 0.0'f32
-    let rowH = widget.rowHeight
-    let rowsTop = widget.bounds.y + filterH + headerH
-    let viewHeight = widget.bounds.height - filterH - headerH
+    let m = metricsOf(widget)
+    let filterH = m.filterH
+    let rowH = m.rowHeight
+    let rowsTop = m.rowsTop
+    let viewHeight = m.viewHeight
 
     let visStart = max(0, int(widget.scrollY / rowH) - BufferRows)
     let visEnd = min(widget.filteredIndices.len - 1,
@@ -221,8 +276,8 @@ definePrimitive(DataTable):
     if widget.showHeader:
       var x = widget.bounds.x
       for col in widget.columns:
-        let headerRect = Rect(x: x, y: widget.bounds.y + filterH,
-                              width: col.width, height: headerH)
+        let headerRect = Rect(x: x, y: m.headerTop,
+                              width: col.width, height: m.headerH)
         drawThemedBackground(headerRect, headerProps)
         let indicator = if col.id == widget.sortColumn:
                           sortIndicatorFor(widget.sortOrder)
@@ -232,7 +287,7 @@ definePrimitive(DataTable):
                              selected = true)
         if widget.showGrid:
           drawLine(x + col.width, headerRect.y,
-                   x + col.width, headerRect.y + headerH, gridColor)
+                   x + col.width, headerRect.y + m.headerH, gridColor)
         x += col.width
 
     # Body: only the rows that can be on screen.
