@@ -6,6 +6,10 @@
 import rui_core
 import rui_drawing
 import std/[options, strutils]
+# rui_core does not re-export KeyboardKey -- its Menu/Down/Up fields collide
+# with the Menu widget and with rui_drawing's ArrowDirection. Widgets that read
+# keys ask for it by name.
+from raylib import KeyboardKey
 
 const
   ButtonWidth = 16.0'f32   ## Must match drawSpinnerButtons in rui_drawing.

@@ -203,7 +203,12 @@ proc drawSpinner*(center: tuple[x, y: float32], radius: float32,
 # Decorative Elements
 # ============================================================================
 
-type ArrowDirection* = enum
+type ArrowDirection* {.pure.} = enum
+  ## `{.pure.}` so the fields stay qualified. Bare Up/Down/Left/Right in every
+  ## module that imports rui_drawing collided with naylib's KeyboardKey, which
+  ## is what forced `KeyboardKey.Down` on the keyboard-navigation tests. An
+  ## arrow glyph's direction is named four times in the whole repo; a key is
+  ## named in every widget that reads one.
   Up, Down, Left, Right
 
 export ArrowDirection
@@ -216,25 +221,25 @@ proc drawArrow*(rect: Rect, direction: ArrowDirection,
 
   var points: array[3, Vector2]
   case direction:
-  of Up:
+  of ArrowDirection.Up:
     points = [
       Vector2(x: center.x, y: center.y - size),
       Vector2(x: center.x - size, y: center.y + size),
       Vector2(x: center.x + size, y: center.y + size)
     ]
-  of Down:
+  of ArrowDirection.Down:
     points = [
       Vector2(x: center.x, y: center.y + size),
       Vector2(x: center.x - size, y: center.y - size),
       Vector2(x: center.x + size, y: center.y - size)
     ]
-  of Left:
+  of ArrowDirection.Left:
     points = [
       Vector2(x: center.x - size, y: center.y),
       Vector2(x: center.x + size, y: center.y - size),
       Vector2(x: center.x + size, y: center.y + size)
     ]
-  of Right:
+  of ArrowDirection.Right:
     points = [
       Vector2(x: center.x + size, y: center.y),
       Vector2(x: center.x - size, y: center.y - size),

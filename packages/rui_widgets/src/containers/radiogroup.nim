@@ -10,6 +10,11 @@
 import rui_core
 import rui_drawing
 import std/options
+# rui_core does not re-export KeyboardKey -- its Menu/Down/Up fields collide
+# with the Menu widget and with rui_drawing's ArrowDirection. Widgets that read
+# keys ask for it by name, which is what keeps `of Up:` below meaning the key
+# rather than the arrow glyph.
+from raylib import KeyboardKey
 
 const
   ButtonSize = 20.0'f32

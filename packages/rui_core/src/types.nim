@@ -13,15 +13,20 @@ export sets, tables, options, json  # Export for use in other modules
 # real workarounds: `TraceLogLevel`'s Info/Warning/Error collided with
 # rui_drawing's ThemeIntent, AlertLevel and ValidationState.
 #
-# Note what this does NOT fix. Exporting an enum type exposes its fields
-# unqualified, so `KeyboardKey.Menu` still collides with the Menu widget
-# (see menus/menubar.nim) and `KeyboardKey.Down`/`Up` with ArrowDirection.
-# Those need a rename, not an import change.
+# KeyboardKey is deliberately NOT here, for the same reason. Exporting an enum
+# type exposes its fields unqualified, and KeyboardKey has a `Menu` field that
+# collides with the Menu widget, plus `Down` and `Up` that collide with
+# rui_drawing's ArrowDirection. That cost `menu.Menu` in six places in
+# menus/menubar.nim and `KeyboardKey.Down` in tests/test_keyboard_nav.nim --
+# for a type only nine files in the whole repo mention, nearly all of which
+# already import raylib on their own account. A module that reads keys says
+# `import raylib` and gets the fields; every other module gets its own `Menu`
+# back.
 #
 # Procs (drawTexture, isKeyDown, getTime, ...) are deliberately not re-exported:
 # a module that draws should say `import raylib` itself.
 import raylib
-export raylib.Color, raylib.KeyboardKey, raylib.MouseButton,
+export raylib.Color, raylib.MouseButton,
        raylib.RenderTexture2D, raylib.Texture2D, raylib.Image,
        raylib.Vector2, raylib.Vector3, raylib.Rectangle, raylib.Font,
        raylib.WHITE, raylib.BLACK, raylib.GRAY, raylib.LIGHTGRAY,

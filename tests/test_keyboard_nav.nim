@@ -8,6 +8,10 @@
 import std/unittest
 import rui
 import std/[options, monotimes]
+# rui_core no longer re-exports KeyboardKey: its Menu/Down/Up fields collided
+# with the Menu widget and with rui_drawing's ArrowDirection, which is why these
+# cases used to have to spell out `Down`.
+from raylib import KeyboardKey, Tab, Escape, Enter, Down, Up, Left, Right
 
 proc keyEvent(key: KeyboardKey): GuiEvent =
   GuiEvent(kind: evKeyDown, key: key, timestamp: getMonoTime())
@@ -150,12 +154,12 @@ suite "key routing":
     let fm = newFocusManager()
     # Qualified: rui_core re-exports raylib wholesale and rui_drawing has an
     # ArrowDirection.Down, so the bare name is ambiguous here.
-    fm.setNavigationKeys(@[KeyboardKey.Down], @[KeyboardKey.Up])
+    fm.setNavigationKeys(@[Down], @[Up])
     fm.buildFocusChain(root)
 
-    check fm.handleKeyboardEvent(keyEvent(KeyboardKey.Down), root)
+    check fm.handleKeyboardEvent(keyEvent(Down), root)
     let afterDown = fm.getFocusedWidget()
-    check fm.handleKeyboardEvent(keyEvent(KeyboardKey.Up), root)
+    check fm.handleKeyboardEvent(keyEvent(Up), root)
     check fm.getFocusedWidget() != afterDown
 
 suite "key scoping":
@@ -172,11 +176,11 @@ suite "key scoping":
     root.addChild(list)
 
     let fm = newFocusManager()
-    fm.setNavigationKeys(@[KeyboardKey.Down], @[KeyboardKey.Up])
+    fm.setNavigationKeys(@[Down], @[Up])
     fm.buildFocusChain(Widget(root))
     fm.setFocus(Widget(list))
 
-    check fm.handleKeyboardEvent(keyEvent(KeyboardKey.Down), Widget(root))
+    check fm.handleKeyboardEvent(keyEvent(Down), Widget(root))
     check list.focusIndex == 1                 # the row moved
     check fm.getFocusedWidget() == Widget(list) # focus did not
 
@@ -188,12 +192,12 @@ suite "key scoping":
     root.addChild(b)
 
     let fm = newFocusManager()
-    fm.setNavigationKeys(@[KeyboardKey.Down], @[KeyboardKey.Up])
+    fm.setNavigationKeys(@[Down], @[Up])
     fm.buildFocusChain(Widget(root))
     fm.setFocus(Widget(a))
 
     # A Button has no on_key_down, so Down falls through to navigation.
-    check fm.handleKeyboardEvent(keyEvent(KeyboardKey.Down), Widget(root))
+    check fm.handleKeyboardEvent(keyEvent(Down), Widget(root))
     check fm.getFocusedWidget() == Widget(b)
 
   test "a list at its last row lets the key through":
@@ -207,10 +211,10 @@ suite "key scoping":
     root.addChild(after)
 
     let fm = newFocusManager()
-    fm.setNavigationKeys(@[KeyboardKey.Down], @[KeyboardKey.Up])
+    fm.setNavigationKeys(@[Down], @[Up])
     fm.buildFocusChain(Widget(root))
     fm.setFocus(Widget(list))
-    discard fm.handleKeyboardEvent(keyEvent(KeyboardKey.Down), Widget(root))
+    discard fm.handleKeyboardEvent(keyEvent(Down), Widget(root))
     check fm.getFocusedWidget() == Widget(list)
 
   test "Tab still moves focus out of a list":

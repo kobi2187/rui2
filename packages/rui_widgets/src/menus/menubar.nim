@@ -3,12 +3,6 @@
 ## A horizontal strip of menu titles (File, Edit, View...). Each child is a Menu
 ## whose `title` the bar draws and whose dropdown it positions underneath.
 ##
-## The Menu type is written `menu.Menu` throughout: naylib's `KeyboardKey` has a
-## `Menu` field, and rui_core has to re-export that enum for `event.key` to be
-## usable, so the bare name is ambiguous wherever both are in scope. Exporting an
-## enum type in Nim exposes its fields unqualified, so this one cannot be fixed
-## by trimming the re-export -- only by renaming the widget.
-##
 ## The bar's own bounds have to cover the open dropdown: renderPass composites a
 ## child into the parent's render texture, which is sized to the parent's
 ## bounds, so a dropdown taller than the strip would be cut off at the strip's
@@ -33,9 +27,9 @@ proc titleSlots(children: seq[Widget], startX: float32): seq[TitleSlot] =
                         bold: false, italic: false, underline: false)
   var x = startX
   for i, child in children:
-    if not (child of menu.Menu):
+    if not (child of Menu):
       continue
-    let w = measureText(menu.Menu(child).title, style).width + TitlePadding * 2
+    let w = measureText(Menu(child).title, style).width + TitlePadding * 2
     result.add((index: i, x: x, width: w))
     x += w
 
@@ -78,9 +72,9 @@ definePrimitive(MenuBar):
       # Clicking the open menu closes it; clicking another switches to it.
       let opening = widget.activeMenuIndex != hit
       for j, other in widget.children:
-        if other of menu.Menu:
-          if j == hit and opening: menu.Menu(other).open()
-          else: menu.Menu(other).close()
+        if other of Menu:
+          if j == hit and opening: Menu(other).open()
+          else: Menu(other).close()
 
       if opening:
         widget.activeMenuIndex = hit
@@ -150,4 +144,4 @@ definePrimitive(MenuBar):
 
       if state != Normal:
         drawThemedBackground(titleRect, props, hovered = state == Hovered)
-      drawThemedCenteredText(menu.Menu(widget.children[slot.index]).title, titleRect, props)
+      drawThemedCenteredText(Menu(widget.children[slot.index]).title, titleRect, props)

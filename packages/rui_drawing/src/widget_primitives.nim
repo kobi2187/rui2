@@ -39,11 +39,11 @@ proc getPaddingLeft*(props: ThemeProps, default: float32): float32 =
   props.padding.get(EdgeInsets(left: default, top: default, right: default, bottom: default)).left
 
 proc drawArrow*(x, y, size: float32, angle: float32, color: raylib.Color) =
-  let direction: controls.ArrowDirection = if angle == 90.0f32: controls.Down
-                  elif angle == -90.0f32: controls.Up
-                  elif angle == 0.0f32: controls.Right
-                  elif angle == 180.0f32 or angle == -180.0f32: controls.Left
-                  else: controls.Right
+  let direction: controls.ArrowDirection = if angle == 90.0f32: ArrowDirection.Down
+                  elif angle == -90.0f32: ArrowDirection.Up
+                  elif angle == 0.0f32: ArrowDirection.Right
+                  elif angle == 180.0f32 or angle == -180.0f32: ArrowDirection.Left
+                  else: ArrowDirection.Right
   let rect = Rect(x: x - size, y: y - size, width: size * 2, height: size * 2)
   controls.drawArrow(rect, direction, color)
 

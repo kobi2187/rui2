@@ -6,6 +6,11 @@
 import rui_core
 import rui_drawing
 import std/options
+# rui_core does not re-export KeyboardKey: its Menu/Down/Up fields collide with
+# the Menu widget and with rui_drawing's ArrowDirection. A widget that reads
+# keys asks for it by name -- which is also what keeps `of Down:` below meaning
+# the key rather than the arrow glyph.
+from raylib import KeyboardKey
 
 definePrimitive(ComboBox):
   props:
