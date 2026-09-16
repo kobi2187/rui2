@@ -97,11 +97,9 @@ definePrimitive(ScrollBar):
         widget.bounds.width = 100.0'f32
 
   render:
-    let state = if widget.disabled: Disabled
-                elif widget.dragging: Pressed
-                elif widget.hovered: Hovered
-                else: Normal
-    let props = currentTheme.getThemeProps(widget.intent, state)
+    let props = widget.themeProps(widget.intent, slPointerFirst,
+                                  disabled = widget.disabled,
+                                  pressed = widget.dragging)
 
     let range = max(widget.maxValue - widget.minValue, 0.0001'f32)
     let contentSize = range + widget.pageSize

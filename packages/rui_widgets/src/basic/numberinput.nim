@@ -130,11 +130,13 @@ definePrimitive(NumberInput):
       widget.bounds.width = m.width + ButtonWidth + 24.0
 
   render:
-    let state = if widget.disabled: Disabled
-                elif widget.editing or widget.focused: Focused
-                elif widget.hovered: Hovered
-                else: Normal
-    let props = currentTheme.getThemeProps(widget.intent, state)
+    # `editing` counts as focused: typing in the field is what focus means
+    # here, whether or not the focus manager has caught up.
+    let props = currentTheme.getThemeProps(widget.intent,
+      visualState(widget.disabled, pressed = false,
+                  hovered = widget.hovered,
+                  focused = widget.editing or widget.focused,
+                  ladder = slFocusFirst))
 
     let display =
       if widget.editing: widget.textValue

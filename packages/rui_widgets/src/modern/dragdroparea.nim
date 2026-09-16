@@ -62,6 +62,9 @@ definePrimitive(DragDropArea):
       widget.bounds.height = 150.0'f32
 
   render:
+    # Not visualState's ladder: DragOver is a state only this widget has, and it
+    # sits above hover for the same reason Pressed does -- something is
+    # happening to this control right now.
     let state = if widget.isDragOver: DragOver
                 elif widget.hovered: Hovered
                 else: Normal

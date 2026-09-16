@@ -107,12 +107,9 @@ definePrimitive(ComboBox):
       widget.bounds.width = widest + 40.0   # padding + arrow gutter
 
   render:
-    let state = if widget.disabled: Disabled
-                elif widget.isOpen: Pressed
-                elif widget.focused: Focused
-                elif widget.hovered: Hovered
-                else: Normal
-    let props = currentTheme.getThemeProps(widget.intent, state)
+    let props = widget.themeProps(widget.intent, slFocusFirst,
+                                  disabled = widget.disabled,
+                                  pressed = widget.isOpen)
 
     let text = if widget.selectedIndex >= 0 and widget.selectedIndex < widget.items.len:
                  widget.items[widget.selectedIndex]

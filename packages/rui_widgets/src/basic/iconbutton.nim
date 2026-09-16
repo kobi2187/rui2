@@ -60,12 +60,9 @@ definePrimitive(IconButton):
       widget.bounds.height = widget.size
 
   render:
-    let state = if widget.disabled: Disabled
-                elif widget.isPressed: Pressed
-                elif widget.hovered: Hovered
-                elif widget.focused: Focused
-                else: Normal
-    let props = currentTheme.getThemeProps(widget.intent, state)
+    let props = widget.themeProps(widget.intent, slPointerFirst,
+                                  disabled = widget.disabled,
+                                  pressed = widget.isPressed)
 
     drawInteractiveBox(widget.bounds, props, widget.isPressed,
                        widget.hovered, widget.focused)

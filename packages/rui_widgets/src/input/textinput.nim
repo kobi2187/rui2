@@ -164,11 +164,8 @@ definePrimitive(TextInput):
       widget.bounds.width = max(200.0'f32, m.width + widget.padding * 2)
 
   render:
-    let state = if widget.disabled: Disabled
-                elif widget.focused: Focused
-                elif widget.hovered: Hovered
-                else: Normal
-    let props = currentTheme.getThemeProps(widget.intent, state)
+    let props = widget.themeProps(widget.intent, slFocusFirst,
+                                  disabled = widget.disabled)
 
     drawInteractiveBox(widget.bounds, props, focused = widget.focused)
 

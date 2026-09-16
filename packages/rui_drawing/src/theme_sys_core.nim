@@ -267,18 +267,15 @@ var currentTheme*: Theme = newTheme("Default")
   ## The active theme used by widgets during rendering.
   ## Set via app.setTheme() or directly for headless testing.
 
-# NOT extracted: the visual-state ladder every themed widget writes out in its
-# own `render`. The widgets do not agree on precedence, and the disagreement
-# looks deliberate rather than accidental:
+# The visual-state ladder lives in theme_state.nim now, as visualState() over
+# four bools plus a StateLadder saying which of Focused and Hovered wins.
 #
-#   Focused before Hovered   textinput, numberinput, spinner, combobox
-#   Hovered before Focused   iconbutton, toolbutton, radiogroup
-#
-# Which reads as a real distinction -- for a text field, showing where the caret
-# will go matters more than showing the pointer is nearby; for a button it is
-# the other way round. A single helper would have to pick one and silently
-# change the other group, so this stays a design decision for the project owner
-# rather than something a refactor settles. See issue #21.
+# The two groups still disagree, and the disagreement still looks deliberate --
+# for a text field, showing where the caret will go matters more than showing
+# the pointer is nearby; for a button it is the other way round. So the choice
+# is carried rather than made: each widget passes the ladder it already used,
+# nothing looks different, and deciding the two groups should agree is now a
+# one-word edit per widget rather than a re-derivation in each. See issue #21.
 
 proc canvasColor*(theme: Theme): Color =
   ## Colour for the window behind the widget tree.

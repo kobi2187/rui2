@@ -97,11 +97,9 @@ definePrimitive(Slider):
       widget.bounds.width = 200.0f32
 
   render:
-    let state = if widget.disabled: Disabled
-                elif widget.dragging: Pressed
-                elif widget.hovered: Hovered
-                else: Normal
-    let props = currentTheme.getThemeProps(widget.intent, state)
+    let props = widget.themeProps(widget.intent, slPointerFirst,
+                                  disabled = widget.disabled,
+                                  pressed = widget.dragging)
 
     drawSlider(
       widget.bounds,

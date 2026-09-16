@@ -77,11 +77,8 @@ definePrimitive(Spinner):
       widget.bounds.width = m.width + ButtonWidth + 24.0
 
   render:
-    let state = if widget.disabled: Disabled
-                elif widget.focused: Focused
-                elif widget.hovered: Hovered
-                else: Normal
-    let props = currentTheme.getThemeProps(widget.intent, state)
+    let props = widget.themeProps(widget.intent, slFocusFirst,
+                                  disabled = widget.disabled)
 
     let text = widget.textLeft & formatFloat(widget.value, ffDecimal, widget.decimals)
     drawSpinner(widget.bounds, text, props,

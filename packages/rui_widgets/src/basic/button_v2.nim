@@ -96,11 +96,12 @@ defineWidget(Button):
     let textLabel = Label(widget.children[1])
 
     # Look up theme colors based on widget state
-    let state = if widget.disabled: Disabled
-                elif widget.isPressed: Pressed
-                elif widget.isHovered: Hovered
-                else: Normal
-    let props = currentTheme.getThemeProps(widget.intent, state)
+    # `isHovered`, not the base `hovered` flag: Button tracks its own from
+    # on_mouse_move, and has since before the hover tracker existed.
+    let props = currentTheme.getThemeProps(widget.intent,
+      visualState(widget.disabled, widget.isPressed,
+                  hovered = widget.isHovered, focused = widget.focused,
+                  ladder = slPointerFirst))
 
     let buttonColor = props.backgroundColor.get(GRAY)
     let textColor = props.foregroundColor.get(WHITE)

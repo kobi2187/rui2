@@ -99,11 +99,13 @@ definePrimitive(RadioGroup):
     let style = TextStyle(fontFamily: "", fontSize: 14.0, color: BLACK,
                           bold: false, italic: false, underline: false)
     for i, option in widget.options:
-      let state = if widget.disabled: Disabled
-                  elif i == widget.hoverIndex: Hovered
-                  elif widget.focused and i == widget.selectedIndex: Focused
-                  else: Normal
-      let props = currentTheme.getThemeProps(widget.intent, state)
+      # Per option, not per widget: the group draws its own rows, so hover
+      # and focus are about this row rather than about the group.
+      let props = currentTheme.getThemeProps(widget.intent,
+        visualState(widget.disabled, pressed = false,
+                    hovered = i == widget.hoverIndex,
+                    focused = widget.focused and i == widget.selectedIndex,
+                    ladder = slPointerFirst))
 
       let rowY = widget.bounds.y + float32(i) * widget.spacing
       drawRadioButton(Rect(x: widget.bounds.x, y: rowY,

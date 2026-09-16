@@ -56,10 +56,8 @@ definePrimitive(RadioButton):
       widget.bounds.width = BoxSize + Gap + m.width
 
   render:
-    let state = if widget.disabled: Disabled
-                elif widget.focused: Focused
-                else: Normal
-    let props = currentTheme.getThemeProps(widget.intent, state)
+    let props = widget.themeProps(widget.intent, slFocusFirst,
+                                  disabled = widget.disabled)
 
     let isSelected = widget.selectedValue == widget.value
     let radioRect = Rect(

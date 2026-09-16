@@ -74,12 +74,8 @@ definePrimitive(ToolButton):
 
   render:
     let active = widget.isPressed or widget.toggled
-    let state = if widget.disabled: Disabled
-                elif active: Pressed
-                elif widget.hovered: Hovered
-                elif widget.focused: Focused
-                else: Normal
-    let props = currentTheme.getThemeProps(widget.intent, state)
+    let props = widget.themeProps(widget.intent, slPointerFirst,
+                                  disabled = widget.disabled, pressed = active)
 
     # Toolbar buttons stay flat until they have something to say.
     if active or widget.hovered or widget.focused:

@@ -102,8 +102,7 @@ definePrimitive(ProgressBar):
       widget.bounds.width = 200.0f32
 
   render:
-    let state = if widget.disabled: Disabled else: Normal
-    let props = currentTheme.getThemeProps(widget.intent, state)
+    let props = widget.themeProps(widget.intent, disabled = widget.disabled)
 
     let progress = (widget.value / widget.maxValue).float32
     drawProgressBar(widget.bounds, progress, props)

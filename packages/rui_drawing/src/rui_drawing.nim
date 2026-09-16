@@ -6,6 +6,7 @@
 import drawing_primitives; export drawing_primitives  # shapes, controls, panels, indicators, effects
 import theme_types;        export theme_types
 import theme_sys_core;     export theme_sys_core
+import theme_state;        export theme_state   # the visual-state ladder, once
 import theme_manager;      export theme_manager
 import builtin_themes;     export builtin_themes
 import widget_primitives;  export widget_primitives

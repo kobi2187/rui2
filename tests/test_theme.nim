@@ -304,3 +304,61 @@ suite "colour helpers":
     check c.g == 100
     check c.b == 50
     check c.a == 100
+
+suite "the visual-state ladder":
+  ## 43 call sites across 21 files each re-derived this from the same flags, and
+  ## it could only be reached by rendering. It is a function over four bools now.
+
+  test "disabled outranks everything":
+    check visualState(disabled = true, pressed = true, hovered = true,
+                      focused = true) == ThemeState.Disabled
+
+  test "pressed outranks hover and focus":
+    # Something is happening to this control right now, which is more use to
+    # show than where the pointer or the caret happens to be.
+    check visualState(false, pressed = true, hovered = true,
+                      focused = true) == ThemeState.Pressed
+
+  test "nothing set is Normal":
+    check visualState(false, false, false, false) == ThemeState.Normal
+
+  test "the pointer-first ladder shows hover over focus":
+    # Buttons: the pointer is about to act on THIS control.
+    check visualState(false, false, hovered = true, focused = true,
+                      ladder = slPointerFirst) == ThemeState.Hovered
+
+  test "the focus-first ladder shows focus over hover":
+    # Text fields: where the caret will go matters more than where the pointer is.
+    check visualState(false, false, hovered = true, focused = true,
+                      ladder = slFocusFirst) == ThemeState.Focused
+
+  test "the ladders agree when only one of the two is set":
+    for ladder in [slPointerFirst, slFocusFirst]:
+      check visualState(false, false, hovered = true, focused = false,
+                        ladder = ladder) == ThemeState.Hovered
+      check visualState(false, false, hovered = false, focused = true,
+                        ladder = ladder) == ThemeState.Focused
+
+  test "pointer-first is the default":
+    check visualState(false, false, true, true) ==
+          visualState(false, false, true, true, slPointerFirst)
+
+suite "themeProps reads the widget's own flags":
+
+  test "it uses hovered and focused from the base Widget fields":
+    let w = newButton(text = "x")
+    w.hovered = true
+    let hovered = w.themeProps(ThemeIntent.Default, slPointerFirst)
+    w.hovered = false
+    let normal = w.themeProps(ThemeIntent.Default, slPointerFirst)
+    # The built-in light theme gives these different backgrounds; what matters
+    # here is that the flag is being read at all.
+    check hovered != normal
+
+  test "disabled and pressed are passed in, because widgets spell them differently":
+    # A Slider is pressed while dragging, a ComboBox while its list is open, a
+    # ToolButton while it is the active tool. One base flag would lose that.
+    let w = newButton(text = "x")
+    let pressed = w.themeProps(ThemeIntent.Default, pressed = true)
+    let disabled = w.themeProps(ThemeIntent.Default, disabled = true)
+    check pressed != disabled
