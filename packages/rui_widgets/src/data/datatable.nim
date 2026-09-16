@@ -15,7 +15,10 @@
 
 import rui_core
 import rui_drawing
+import ../virtual_rows
 import datatable_helpers
+
+export virtual_rows
 import std/[options, sets, json, tables]
 # `from`, not `import`: std/algorithm exports its own SortOrder, which would make
 # ours ambiguous. The old file only escaped this because it declared SortOrder
@@ -45,10 +48,7 @@ type
     ## it from showFilter / showHeader.
     originX*, originY*: float32
     filterH*, headerH*: float32
-    rowsTop*: float32
-    viewHeight*: float32
-    rowHeight*: float32
-    scrollY*: float32
+    rows*: RowViewport     ## The scrollable body; owns all the row arithmetic
 
 template metricsOf*(widget: untyped): TableMetrics =
   ## A template, not a proc: the DataTable type does not exist until the macro
@@ -58,29 +58,26 @@ template metricsOf*(widget: untyped): TableMetrics =
   TableMetrics(
     originX: widget.bounds.x, originY: widget.bounds.y,
     filterH: fh, headerH: hh,
-    rowsTop: widget.bounds.y + fh + hh,
-    viewHeight: widget.bounds.height - fh - hh,
-    rowHeight: widget.rowHeight,
-    scrollY: widget.scrollY
+    rows: rowViewport(top = widget.bounds.y + fh + hh,
+                      height = widget.bounds.height - fh - hh,
+                      rowHeight = widget.rowHeight,
+                      scrollY = widget.scrollY)
   )
 
 proc headerTop*(m: TableMetrics): float32 =
   m.originY + m.filterH
 
+proc rowsTop*(m: TableMetrics): float32 =
+  m.rows.top
+
+proc viewHeight*(m: TableMetrics): float32 =
+  m.rows.height
+
+proc rowHeight*(m: TableMetrics): float32 =
+  m.rows.rowHeight
+
 proc overHeader*(m: TableMetrics, mouseY: float32): bool =
   m.headerH > 0 and mouseY >= m.headerTop and mouseY < m.rowsTop
-
-proc rowAt*(m: TableMetrics, mouseY: float32, rowCount: int): int =
-  ## Index into the filtered view under `mouseY`, or -1 outside it.
-  assert m.rowHeight > 0, "rowHeight must be positive or every row maps to 0"
-  if mouseY < m.rowsTop:
-    return -1
-  let idx = int((mouseY - m.rowsTop + m.scrollY) / m.rowHeight)
-  if idx < 0 or idx >= rowCount: -1 else: idx
-
-proc maxScroll*(m: TableMetrics, rowCount: int): float32 =
-  assert rowCount >= 0
-  max(0.0'f32, float32(rowCount) * m.rowHeight - m.viewHeight)
 
 proc columnAt*(columns: openArray[ColumnDef], originX, mouseX: float32): int =
   ## Index of the column containing `mouseX`, or -1. Columns are laid out left
@@ -193,11 +190,12 @@ definePrimitive(DataTable):
       let m = metricsOf(widget)
       if m.overHeader(event.mousePos.y):
         return widget.sortByColumnAt(event.mousePos.x)
-      return widget.selectRowAt(m.rowAt(event.mousePos.y, widget.filteredIndices.len))
+      return widget.selectRowAt(
+        m.rows.rowAt(event.mousePos.y, widget.filteredIndices.len))
 
     on_mouse_move:
       let m = metricsOf(widget)
-      let newHover = m.rowAt(event.mousePos.y, widget.filteredIndices.len)
+      let newHover = m.rows.rowAt(event.mousePos.y, widget.filteredIndices.len)
       if newHover != widget.hoverRow:
         widget.hoverRow = newHover
         widget.isDirty = true
@@ -205,8 +203,8 @@ definePrimitive(DataTable):
 
     on_mouse_wheel:
       let m = metricsOf(widget)
-      let newScroll = clamp(widget.scrollY - event.wheelDelta * m.rowHeight * 3.0,
-                            0.0'f32, m.maxScroll(widget.filteredIndices.len))
+      let newScroll = m.rows.scrolledBy(event.wheelDelta,
+                                        widget.filteredIndices.len)
       if newScroll != widget.scrollY:
         widget.scrollY = newScroll
         widget.isDirty = true
@@ -246,11 +244,10 @@ definePrimitive(DataTable):
     let rowsTop = m.rowsTop
     let viewHeight = m.viewHeight
 
-    let visStart = max(0, int(widget.scrollY / rowH) - BufferRows)
-    let visEnd = min(widget.filteredIndices.len - 1,
-                     int((widget.scrollY + viewHeight) / rowH) + BufferRows)
-    widget.visibleStart = visStart
-    widget.visibleEnd = visEnd
+    let visible = m.rows.visibleRange(widget.filteredIndices.len,
+                                      buffer = BufferRows)
+    widget.visibleStart = visible.a
+    widget.visibleEnd = visible.b
 
     drawThemedBackground(widget.bounds, props)
     let gridColor = props.borderColor.get(Color(r: 220, g: 220, b: 220, a: 255))
@@ -291,14 +288,9 @@ definePrimitive(DataTable):
         x += col.width
 
     # Body: only the rows that can be on screen.
-    for viewIdx in visStart..visEnd:
-      if viewIdx < 0 or viewIdx >= widget.filteredIndices.len:
-        break
+    for viewIdx in visible:
       let rowIdx = widget.filteredIndices[viewIdx]
-      let rowY = rowsTop + float32(viewIdx) * rowH - widget.scrollY
-      if rowY + rowH < rowsTop or rowY > rowsTop + viewHeight:
-        continue
-
+      let rowY = m.rows.rowTop(viewIdx)
       let rowRect = Rect(x: widget.bounds.x, y: rowY,
                          width: widget.bounds.width, height: rowH)
       if widget.alternateRowColor and viewIdx mod 2 == 1:

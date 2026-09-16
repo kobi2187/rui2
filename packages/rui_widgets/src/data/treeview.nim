@@ -9,7 +9,10 @@
 
 import rui_core
 import rui_drawing
+import ../virtual_rows
 import std/[options, json]
+
+export virtual_rows
 
 import raylib
 
@@ -30,6 +33,24 @@ type
 const
   BufferNodes = 5
   TwistyWidth = 16.0'f32
+
+proc twistyX*(flat: FlatNode, originX, indent: float32): float32 =
+  ## Left edge of the expand/collapse triangle for this row, which sits one
+  ## indent step in per level of depth.
+  originX + float32(flat.level) * indent
+
+proc hitsTwisty*(flat: FlatNode, mouseX, originX, indent: float32): bool =
+  ## Only a branch has a twisty, so a leaf never claims the click.
+  if flat.node.children.len == 0:
+    return false
+  let left = flat.twistyX(originX, indent)
+  mouseX >= left and mouseX < left + TwistyWidth
+
+template viewportOf*(widget: untyped): RowViewport =
+  ## A template, not a proc: the TreeView type does not exist until the macro
+  ## below has expanded, and the widget body needs this.
+  rowViewport(top = widget.bounds.y, height = widget.bounds.height,
+              rowHeight = widget.nodeHeight, scrollY = widget.scrollY)
 
 proc flatten*(node: TreeNode, level: int, dest: var seq[FlatNode]) =
   ## Depth-first walk of the expanded part of the tree.
@@ -65,17 +86,14 @@ definePrimitive(TreeView):
 
   events:
     on_mouse_down:
-      let idx = int((event.mousePos.y - widget.bounds.y + widget.scrollY) /
-                    widget.nodeHeight)
-      if idx < 0 or idx >= widget.flatNodes.len:
+      let idx = viewportOf(widget).rowAt(event.mousePos.y, widget.flatNodes.len)
+      if idx < 0:
         return false
 
       let flat = widget.flatNodes[idx]
-      let twistyX = widget.bounds.x + float32(flat.level) * widget.indent
 
-      # Clicking the twisty toggles; clicking the row selects.
-      if flat.node.children.len > 0 and
-         event.mousePos.x >= twistyX and event.mousePos.x < twistyX + TwistyWidth:
+      # Clicking the twisty toggles; clicking anywhere else on the row selects.
+      if flat.hitsTwisty(event.mousePos.x, widget.bounds.x, widget.indent):
         flat.node.expanded = not flat.node.expanded
         widget.isDirty = true
         widget.layoutDirty = true   # the flat list just changed length
@@ -93,22 +111,16 @@ definePrimitive(TreeView):
       return true
 
     on_mouse_move:
-      let idx = int((event.mousePos.y - widget.bounds.y + widget.scrollY) /
-                    widget.nodeHeight)
-      let newHover = if idx >= 0 and idx < widget.flatNodes.len:
-                       widget.flatNodes[idx].node.id
-                     else:
-                       ""
+      let idx = viewportOf(widget).rowAt(event.mousePos.y, widget.flatNodes.len)
+      let newHover = if idx >= 0: widget.flatNodes[idx].node.id else: ""
       if newHover != widget.hoveredId:
         widget.hoveredId = newHover
         widget.isDirty = true
       return false
 
     on_mouse_wheel:
-      let maxScroll = max(0.0'f32,
-        float32(widget.flatNodes.len) * widget.nodeHeight - widget.bounds.height)
-      let newScroll = clamp(widget.scrollY - event.wheelDelta * widget.nodeHeight * 3.0,
-                            0.0'f32, maxScroll)
+      let newScroll = viewportOf(widget).scrolledBy(event.wheelDelta,
+                                                    widget.flatNodes.len)
       if newScroll != widget.scrollY:
         widget.scrollY = newScroll
         widget.isDirty = true
@@ -134,25 +146,20 @@ definePrimitive(TreeView):
   render:
     let props = currentTheme.getThemeProps(widget.intent, Normal)
     let nodeH = widget.nodeHeight
+    let v = viewportOf(widget)
 
-    let visStart = max(0, int(widget.scrollY / nodeH) - BufferNodes)
-    let visEnd = min(widget.flatNodes.len - 1,
-                     int((widget.scrollY + widget.bounds.height) / nodeH) + BufferNodes)
-    widget.visibleStart = visStart
-    widget.visibleEnd = visEnd
+    let visible = v.visibleRange(widget.flatNodes.len, buffer = BufferNodes)
+    widget.visibleStart = visible.a
+    widget.visibleEnd = visible.b
 
     drawThemedBackground(widget.bounds, props)
 
     let fgColor = props.foregroundColor.get(Color(r: 60, g: 60, b: 60, a: 255))
     let clip = beginClip(widget.bounds)
 
-    for i in visStart..visEnd:
-      if i < 0 or i >= widget.flatNodes.len:
-        break
+    for i in visible:
       let flat = widget.flatNodes[i]
-      let rowY = widget.bounds.y + float32(i) * nodeH - widget.scrollY
-      if rowY + nodeH < widget.bounds.y or rowY > widget.bounds.y + widget.bounds.height:
-        continue
+      let rowY = v.rowTop(i)
 
       let rowRect = Rect(x: widget.bounds.x, y: rowY,
                          width: widget.bounds.width, height: nodeH)
@@ -160,7 +167,7 @@ definePrimitive(TreeView):
                               selected = flat.node.id == widget.selectedId,
                               hovered = flat.node.id == widget.hoveredId)
 
-      var x = widget.bounds.x + float32(flat.level) * widget.indent
+      var x = flat.twistyX(widget.bounds.x, widget.indent)
 
       # Twisty: only branches get one.
       if flat.node.children.len > 0:

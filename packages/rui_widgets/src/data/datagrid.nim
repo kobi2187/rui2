@@ -13,7 +13,10 @@
 
 import rui_core
 import rui_drawing
+import ../virtual_rows
 import datatable_helpers   # SortOrder, compareValues, updateSelection, ...
+
+export virtual_rows
 import std/[options, sets, json]
 
 # `from`, not `import`: std/algorithm exports its own SortOrder.
@@ -46,11 +49,9 @@ type
     ## need the same answer, so they all ask this.
     originX*, originY*: float32
     headerH*: float32
-    rowsTop*: float32
-    viewHeight*: float32
-    rowHeight*: float32
-    scrollY*: float32
-    totalRows*: int
+    totalRows*: int        ## Claimed row count, which lazy loading makes larger
+                           ## than `data.len`
+    rows*: RowViewport     ## The scrollable body; owns all the row arithmetic
 
 template metricsOf*(widget: untyped): GridMetrics =
   ## A template, not a proc: the DataGrid type does not exist until the macro
@@ -59,27 +60,25 @@ template metricsOf*(widget: untyped): GridMetrics =
   GridMetrics(
     originX: widget.bounds.x, originY: widget.bounds.y,
     headerH: hh,
-    rowsTop: widget.bounds.y + hh,
-    viewHeight: widget.bounds.height - hh,
-    rowHeight: widget.rowHeight,
-    scrollY: widget.scrollY,
     totalRows: if widget.totalRowCount >= 0: widget.totalRowCount
-               else: widget.data.len
+               else: widget.data.len,
+    rows: rowViewport(top = widget.bounds.y + hh,
+                      height = widget.bounds.height - hh,
+                      rowHeight = widget.rowHeight,
+                      scrollY = widget.scrollY)
   )
+
+proc rowsTop*(m: GridMetrics): float32 =
+  m.rows.top
+
+proc viewHeight*(m: GridMetrics): float32 =
+  m.rows.height
+
+proc rowHeight*(m: GridMetrics): float32 =
+  m.rows.rowHeight
 
 proc overHeader*(m: GridMetrics, mouseY: float32): bool =
   m.headerH > 0 and mouseY < m.rowsTop
-
-proc rowAt*(m: GridMetrics, mouseY: float32, rowCount: int): int =
-  ## Index into the display order under `mouseY`, or -1 outside it.
-  assert m.rowHeight > 0, "rowHeight must be positive or every row maps to 0"
-  if mouseY < m.rowsTop:
-    return -1
-  let idx = int((mouseY - m.rowsTop + m.scrollY) / m.rowHeight)
-  if idx < 0 or idx >= rowCount: -1 else: idx
-
-proc maxScroll*(m: GridMetrics): float32 =
-  max(0.0'f32, float32(m.totalRows) * m.rowHeight - m.viewHeight)
 
 proc columnAt*(columns: openArray[GridColumn], originX, mouseX: float32): int =
   ## Index of the column containing `mouseX`, or -1.
@@ -189,11 +188,11 @@ definePrimitive(DataGrid):
       let m = metricsOf(widget)
       if m.overHeader(event.mousePos.y):
         return widget.sortByColumnAt(event.mousePos.x)
-      return widget.selectRowAt(m.rowAt(event.mousePos.y, widget.order.len))
+      return widget.selectRowAt(m.rows.rowAt(event.mousePos.y, widget.order.len))
 
     on_mouse_move:
       let m = metricsOf(widget)
-      let newHover = m.rowAt(event.mousePos.y, widget.order.len)
+      let newHover = m.rows.rowAt(event.mousePos.y, widget.order.len)
       if newHover != widget.hoverRow:
         widget.hoverRow = newHover
         widget.isDirty = true
@@ -201,15 +200,12 @@ definePrimitive(DataGrid):
 
     on_mouse_wheel:
       let m = metricsOf(widget)
-      let maxScroll = m.maxScroll()
-      let newScroll = clamp(widget.scrollY - event.wheelDelta * m.rowHeight * 3.0,
-                            0.0'f32, maxScroll)
+      let newScroll = m.rows.scrolledBy(event.wheelDelta, m.totalRows)
       if newScroll != widget.scrollY:
         widget.scrollY = newScroll
         widget.isDirty = true
 
-      let scrollRatio = if maxScroll > 0: widget.scrollY / maxScroll else: 0.0'f32
-      if scrollRatio > 0.8 and widget.onScrollNearEnd.isSome:
+      if m.rows.nearEnd(m.totalRows) and widget.onScrollNearEnd.isSome:
         widget.onScrollNearEnd.get()()
       return true
 
@@ -250,12 +246,11 @@ definePrimitive(DataGrid):
     let viewHeight = m.viewHeight
     let totalRows = m.totalRows
 
-    let visStart = max(0, int(widget.scrollY / rowH) - BufferRows)
-    let visEnd = min(totalRows - 1, int((widget.scrollY + viewHeight) / rowH) + BufferRows)
-    widget.visibleStart = visStart
-    widget.visibleEnd = visEnd
+    let visible = m.rows.visibleRange(totalRows, buffer = BufferRows)
+    widget.visibleStart = visible.a
+    widget.visibleEnd = visible.b
 
-    if widget.onLoadMore.isSome and visEnd >= widget.data.len - LoadAheadRows:
+    if widget.onLoadMore.isSome and visible.b >= widget.data.len - LoadAheadRows:
       let needCount = min(LoadBatchSize, totalRows - widget.data.len)
       if needCount > 0:
         widget.onLoadMore.get()(widget.data.len, needCount)
@@ -282,13 +277,8 @@ definePrimitive(DataGrid):
                    x + col.width, headerRect.y + headerH, gridColor)
         x += col.width
 
-    for viewIdx in visStart..visEnd:
-      if viewIdx >= totalRows:
-        break
-      let rowY = rowsTop + float32(viewIdx) * rowH - widget.scrollY
-      if rowY + rowH < rowsTop or rowY > rowsTop + viewHeight:
-        continue
-
+    for viewIdx in visible:
+      let rowY = m.rows.rowTop(viewIdx)
       let rowRect = Rect(x: widget.bounds.x, y: rowY,
                          width: widget.bounds.width, height: rowH)
       if widget.alternateRowColor and viewIdx mod 2 == 1:
