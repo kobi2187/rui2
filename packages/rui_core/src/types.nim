@@ -337,6 +337,20 @@ proc newWidgetId*(): WidgetId =
   result = WidgetId(nextWidgetId)
   inc nextWidgetId
 
+proc initWidgetBase*(widget: Widget) =
+  ## Bring a freshly allocated widget up to "exists and will be drawn".
+  ##
+  ## Nim zeroes a new ref object, so without this a widget is born with
+  ## visible == false, enabled == false and a zero id: renderPass() skips it
+  ## and nothing ever appears. Every DSL constructor calls this first, and a
+  ## hand-written widget must do the same.
+  widget.id = newWidgetId()
+  widget.visible = true
+  widget.enabled = true
+  widget.isDirty = true
+  widget.layoutDirty = true
+  widget.children = @[]
+
 # Structural change counter.
 #
 # Anything that caches a walk of the widget tree -- the focus chain is the one

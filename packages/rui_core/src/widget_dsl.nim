@@ -112,96 +112,81 @@ proc buildConstructorParams(sections: WidgetSections): seq[NimNode] =
   for action in sections.actions:
     result.add(genActionParam(action))
 
-proc buildConstructorBody(name: NimNode, sections: WidgetSections): NimNode =
-  ## Build constructor body - initialize all fields
-  result = newStmtList()
+proc seedingPropFor(stateName: string, propNames: seq[string]): string =
+  ## The prop that seeds a state field, under the convention the whole widget
+  ## library follows: a prop named `initialFoo` seeds the state field `foo`
+  ## (Checkbox's `initialChecked` -> `checked`, ProgressBar's `initialValue` ->
+  ## `value`). "" when the widget declares no such prop.
+  ##
+  ## Compared with cmpIgnoreStyle, so `initialchecked` and `initial_checked`
+  ## work as well as `initialChecked`.
+  let seedName = "initial" & stateName[0..0].toUpperAscii() & stateName[1..^1]
+  for pn in propNames:
+    if cmpIgnoreStyle(pn, seedName) == 0:
+      return pn
+  ""
 
+proc stateInitNode(state: StateDef, propNames: seq[string]): NimNode =
+  ## `result.foo = initialFoo`, or `result.foo = default(T)` when nothing
+  ## seeds it. Before the seeding lookup existed every state field was
+  ## unconditionally set to default(T), so the initialX props were silently
+  ## ignored and a checkbox built with initialChecked = true still rendered
+  ## unchecked.
+  let stateName = state.name.strVal
+  let lhs = newDotExpr(ident("result"), ident(stateName))
+  let seedProp = seedingPropFor(stateName, propNames)
+  if seedProp.len > 0:
+    return nnkAsgn.newTree(lhs, ident(seedProp))
+  let stateType = if state.typ.kind == nnkIdent: ident(state.typ.strVal)
+                  else: state.typ
+  nnkAsgn.newTree(lhs, newCall(ident("default"), stateType))
+
+proc initSectionNode(initBody: NimNode): NimNode =
+  ## The `init:` section, wrapped so its `widget` means the object under
+  ## construction.
+  ##
+  ## This was parsed into WidgetSections.initBody and then used by nothing, so
+  ## every init block in the library was dead code. MenuBar's set
+  ## activeMenuIndex and hoverIndex to -1 and hasOverlay to true; without it
+  ## running they stayed at 0 and false, so a fresh MenuBar believed menu 0 was
+  ## open and its dropdowns did not sort above their siblings.
+  ##
+  ## Built by hand rather than with `quote do`, because quote gensyms its
+  ## locals: a quoted `let widget = result` binds to a fresh symbol and the
+  ## user's `widget` in the init body would not see it.
+  nnkBlockStmt.newTree(
+    newEmptyNode(),
+    newStmtList(
+      nnkLetSection.newTree(
+        newIdentDefs(ident("widget"), newEmptyNode(), ident("result"))),
+      initBody))
+
+proc buildConstructorBody(name: NimNode, sections: WidgetSections): NimNode =
+  ## Build constructor body: allocate, then props, state, actions, init --
+  ## in that order, so `init:` can correct or extend anything the seeding
+  ## convention has set.
+  result = newStmtList()
   let typeName = makeWidgetTypeName(name)
 
-  # Create object and initialize the inherited Widget base fields.
-  # Without this every widget is born with visible == false / enabled == false
-  # and a zero id, so renderPass() skips it and nothing ever appears.
-  result.add quote do:
-    result = `typeName`()
-    result.id = newWidgetId()
-    result.visible = true
-    result.enabled = true
-    result.isDirty = true
-    result.layoutDirty = true
-    result.children = @[]
+  result.add nnkAsgn.newTree(ident("result"), newCall(typeName))
+  result.add newCall(ident("initWidgetBase"), ident("result"))
 
-  # Initialize props (direct assignment from parameters)
-  for prop in sections.props:
-    # Create fresh idents from string values to avoid symbol binding issues
-    let propNameIdent = ident(prop.name.strVal)
-    let assignStmt = nnkAsgn.newTree(
-      nnkDotExpr.newTree(ident("result"), propNameIdent),
-      propNameIdent
-    )
-    result.add(assignStmt)
-
-  # Initialize state.
-  #
-  # Convention used throughout the widget library: a prop named `initialFoo`
-  # seeds the state field `foo` (Checkbox's `initialChecked` -> `checked`,
-  # ProgressBar's `initialValue` -> `value`). Previously every state field was
-  # unconditionally set to default(T), so those props were silently ignored and
-  # a checkbox built with initialChecked = true still rendered unchecked.
   var propNames: seq[string] = @[]
   for prop in sections.props:
-    propNames.add(prop.name.strVal)
+    let propName = prop.name.strVal
+    propNames.add(propName)
+    result.add nnkAsgn.newTree(
+      newDotExpr(ident("result"), ident(propName)), ident(propName))
 
   for state in sections.state:
-    let stateName = state.name.strVal
-    let stateNameIdent = ident(stateName)
-    let seedName = "initial" & stateName[0..0].toUpperAscii() & stateName[1..^1]
+    result.add stateInitNode(state, propNames)
 
-    var seedProp = ""
-    for pn in propNames:
-      if cmpIgnoreStyle(pn, seedName) == 0:
-        seedProp = pn
-        break
-
-    if seedProp.len > 0:
-      let seedIdent = ident(seedProp)
-      result.add quote do:
-        result.`stateNameIdent` = `seedIdent`
-    else:
-      let stateTypeIdent = if state.typ.kind == nnkIdent:
-        ident(state.typ.strVal)
-      else:
-        state.typ
-      result.add quote do:
-        result.`stateNameIdent` = default(`stateTypeIdent`)
-
-  # Initialize actions (already Option type from parameters)
   for action in sections.actions:
-    let actionName = ident(action.name)
-    result.add quote do:
-      result.`actionName` = `actionName`
+    result.add nnkAsgn.newTree(
+      newDotExpr(ident("result"), ident(action.name)), ident(action.name))
 
-  # The `init:` section, last, so it can correct or extend anything the seeding
-  # convention above has set.
-  #
-  # This was parsed into WidgetSections.initBody and then used by nothing, so
-  # every init block in the library was dead code. MenuBar's set activeMenuIndex
-  # and hoverIndex to -1 and hasOverlay to true; without it running they stayed
-  # at 0 and false, so a fresh MenuBar believed menu 0 was open and its
-  # dropdowns did not sort above their siblings.
-  #
-  # The body says `widget`, matching every other section, so it is bound to the
-  # `result` the constructor is building.
-  ## Built by hand rather than with `quote do`, because quote gensyms its
-  ## locals: a `let widget = result` inside one binds to a fresh symbol and the
-  ## user's `widget` in the init body would not see it. Same reason
-  ## buildScriptActionMethod uses plain idents for its shared temporaries.
   if not sections.initBody.isEmpty:
-    result.add nnkBlockStmt.newTree(
-      newEmptyNode(),
-      newStmtList(
-        nnkLetSection.newTree(
-          newIdentDefs(ident("widget"), newEmptyNode(), ident("result"))),
-        sections.initBody))
+    result.add initSectionNode(sections.initBody)
 
 proc buildConstructor(name: NimNode, sections: WidgetSections): NimNode =
   ## Generate constructor procedure
@@ -331,21 +316,15 @@ proc buildScriptStateMethod(name: NimNode, sections: WidgetSections): NimNode =
   let typeName = makeWidgetTypeName(name)
   let typeNameStr = $name
 
+  # Built with newCall, not `quote do`: quote gensyms the `result` it sees, so
+  # a quoted `result[key] = ...` would assign into a fresh local rather than
+  # the method's own result. The `when compiles` guards live in reportField for
+  # the same reason they left buildScriptActionMethod -- a `when` inside a
+  # quote still counts as a branch of the macro that quotes it.
   var body = newStmtList()
-  body.add quote do:
-    result = %*{
-      "id": widget.stringId,
-      "type": `typeNameStr`,
-      "visible": widget.visible,
-      "enabled": widget.enabled,
-      "focused": widget.focused,
-      "bounds": {
-        "x": widget.bounds.x,
-        "y": widget.bounds.y,
-        "width": widget.bounds.width,
-        "height": widget.bounds.height
-      }
-    }
+  body.add nnkAsgn.newTree(
+    ident("result"),
+    newCall(ident("baseScriptableState"), ident("widget"), newLit(typeNameStr)))
 
   var fieldNames: seq[string] = @[]
   for prop in sections.props:
@@ -354,14 +333,9 @@ proc buildScriptStateMethod(name: NimNode, sections: WidgetSections): NimNode =
     fieldNames.add(st.name.strVal)
 
   for fname in fieldNames:
-    let fIdent = ident(fname)
-    let keyLit = newLit(fname)
-    body.add quote do:
-      if not widget.blockReading:
-        when compiles(%widget.`fIdent`):
-          result[`keyLit`] = %widget.`fIdent`
-        elif compiles($widget.`fIdent`):
-          result[`keyLit`] = %($widget.`fIdent`)
+    body.add newCall(ident("reportField"), ident("result"), ident("widget"),
+                     newLit(fname),
+                     newDotExpr(ident("widget"), ident(fname)))
 
   let widgetParam = newIdentDefs(ident("widget"), typeName)
   let formalParams = nnkFormalParams.newTree(ident("JsonNode"), widgetParam)
@@ -401,6 +375,26 @@ proc scriptActionNode(typeName: NimNode, action: ActionDef,
       scriptAction(@`aliases`, proc (w: Widget): bool {.closure.} =
         fireAction(`typeName`(w).`aIdent`, `typeName`(w).`sIdent`))
 
+proc writableFieldNames(sections: WidgetSections):
+    tuple[writable: seq[string], default, firstState: string] =
+  ## Which fields a script may write, which one a bare `write <value>` means,
+  ## and which one a one-argument action is fired against.
+  ##
+  ## Every state field is writable. A `text` prop is writable too, and when it
+  ## exists it is the default target: `write hello` on a TextInput should mean
+  ## its text, not whichever state field happens to be declared first.
+  for st in sections.state:
+    if result.firstState.len == 0:
+      result.firstState = st.name.strVal
+    result.writable.add(st.name.strVal)
+  result.default = result.firstState
+
+  for prop in sections.props:
+    if prop.name.strVal == "text":
+      result.writable.add("text")
+      result.default = "text"
+      break
+
 proc buildScriptActionMethod(name: NimNode, sections: WidgetSections): NimNode =
   ## Emit a ScriptDescriptor for this widget, plus a one-line
   ## handleScriptAction that hands it to the runtime dispatcher.
@@ -415,29 +409,17 @@ proc buildScriptActionMethod(name: NimNode, sections: WidgetSections): NimNode =
   ## names paired with invokers. A hand-written widget builds the same value
   ## by hand and gets the same scripting support, with no macro involved.
   let typeName = makeWidgetTypeName(name)
-
-  # `text`, when the widget has one, is both writable and the default target:
-  # `write hello` on a TextInput should mean its text, not its first state
-  # field. Otherwise the default is the first state field.
-  var hasText = false
-  for prop in sections.props:
-    if prop.name.strVal == "text":
-      hasText = true
+  let names = writableFieldNames(sections)
 
   var fields = nnkBracket.newTree()
-  var defaultField = ""
-  for st in sections.state:
-    if defaultField.len == 0:
-      defaultField = st.name.strVal
-    fields.add(scriptFieldNode(typeName, st.name.strVal))
-  let firstState = defaultField
-  if hasText:
-    defaultField = "text"
-    fields.add(scriptFieldNode(typeName, "text"))
+  for fname in names.writable:
+    fields.add(scriptFieldNode(typeName, fname))
 
   var actions = nnkBracket.newTree()
   for a in sections.actions:
-    actions.add(scriptActionNode(typeName, a, firstState))
+    actions.add(scriptActionNode(typeName, a, names.firstState))
+
+  let defaultField = names.default
 
   let descName = ident($name & "ScriptDescriptor")
   let typeLit = newLit($name)

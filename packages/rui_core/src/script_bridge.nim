@@ -75,37 +75,59 @@ type
 # being executed.
 # ---------------------------------------------------------------------------
 
+proc asBool*(node: JsonNode): Option[bool] =
+  ## A script writing a checkbox may say true, 1, "yes" or "on". Text is what
+  ## the file protocol actually carries, so the string spellings are not a
+  ## convenience -- they are the common case.
+  case node.kind
+  of JBool: some(node.getBool())
+  of JInt: some(node.getInt() != 0)
+  of JString: some(node.getStr().toLowerAscii() in ["true", "1", "yes", "on"])
+  else: none(bool)
+
+proc asInteger*(node: JsonNode): Option[BiggestInt] =
+  case node.kind
+  of JInt: some(node.getInt().BiggestInt)
+  of JFloat: some(node.getFloat().BiggestInt)
+  of JString:
+    try: some(parseBiggestInt(node.getStr()))
+    except ValueError: none(BiggestInt)
+  else: none(BiggestInt)
+
+proc asNumber*(node: JsonNode): Option[float] =
+  case node.kind
+  of JFloat: some(node.getFloat())
+  of JInt: some(node.getInt().float)
+  of JString:
+    try: some(parseFloat(node.getStr()))
+    except ValueError: none(float)
+  else: none(float)
+
+proc asText*(node: JsonNode): string =
+  ## Never fails: anything that is not already a string is rendered as json,
+  ## which is more useful to a script than a refusal.
+  if node.kind == JString: node.getStr() else: $node
+
+template takeInto(opt, dst: untyped): bool =
+  ## Assign a coerced value if the coercion produced one.
+  block:
+    let coerced = opt
+    if coerced.isSome:
+      dst = typeof(dst)(coerced.get())
+      true
+    else:
+      false
+
 template scriptAssign*(dst: untyped, node: JsonNode): bool =
   ## Coerce a JSON value (or a text-format string) into `dst`.
   ## Returns false when the value cannot be represented in dst's type.
-  var ok = true
-  when dst is bool:
-    case node.kind
-    of JBool: dst = node.getBool()
-    of JInt: dst = node.getInt() != 0
-    of JString: dst = node.getStr().toLowerAscii() in ["true", "1", "yes", "on"]
-    else: ok = false
-  elif dst is SomeInteger:
-    case node.kind
-    of JInt: dst = typeof(dst)(node.getInt())
-    of JFloat: dst = typeof(dst)(node.getFloat())
-    of JString:
-      try: dst = typeof(dst)(parseInt(node.getStr()))
-      except ValueError: ok = false
-    else: ok = false
-  elif dst is SomeFloat:
-    case node.kind
-    of JFloat: dst = typeof(dst)(node.getFloat())
-    of JInt: dst = typeof(dst)(node.getInt())
-    of JString:
-      try: dst = typeof(dst)(parseFloat(node.getStr()))
-      except ValueError: ok = false
-    else: ok = false
+  when dst is bool: takeInto(asBool(node), dst)
+  elif dst is SomeInteger: takeInto(asInteger(node), dst)
+  elif dst is SomeFloat: takeInto(asNumber(node), dst)
   elif dst is string:
-    dst = if node.kind == JString: node.getStr() else: $node
-  else:
-    ok = false
-  ok
+    dst = asText(node)
+    true
+  else: false
 
 template assignField*(dst: untyped, node: JsonNode): bool =
   ## `scriptAssign` for a field that may not exist on this widget type.
@@ -147,6 +169,35 @@ template flipIfCheckable*(w: untyped): Option[bool] =
     some(w.checked)
   else:
     none(bool)
+
+proc baseScriptableState*(widget: Widget, typeName: string): JsonNode =
+  ## The half of a state report that is the same for every widget. Never
+  ## withheld by `blockReading`: a script that cannot see a widget's geometry
+  ## cannot address it at all, and hiding the id would break the selector
+  ## syntax rather than protect anything.
+  %*{
+    "id": widget.stringId,
+    "type": typeName,
+    "visible": widget.visible,
+    "enabled": widget.enabled,
+    "focused": widget.focused,
+    "bounds": {
+      "x": widget.bounds.x,
+      "y": widget.bounds.y,
+      "width": widget.bounds.width,
+      "height": widget.bounds.height
+    }
+  }
+
+template reportField*(dst: JsonNode, widget: Widget, key: string,
+                      value: untyped) =
+  ## Add one prop or state field to a report, if json can represent it and the
+  ## widget is not withholding its contents. A field of a type that is neither
+  ## json-encodable nor stringable is skipped rather than refused, so adding an
+  ## exotic field to a widget cannot break its scripting.
+  if not widget.blockReading:
+    when compiles(%value): dst[key] = %value
+    elif compiles($value): dst[key] = %($value)
 
 proc scriptField*(name: string,
                   assign: proc(widget: Widget, value: JsonNode): bool {.closure.}):

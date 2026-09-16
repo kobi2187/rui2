@@ -319,3 +319,28 @@ suite "a hand-written widget scripts the same way":
   test "toggle is refused on a widget with nothing to check":
     let g = newGauge()
     check not g.handleScriptAction("toggle", newJObject())["success"].getBool()
+
+suite "json coercion, which the file protocol leans on":
+  ## The scripting protocol carries text, not typed json, so `write 1` and
+  ## `write true` arrive as strings. If these coercions were strict, nothing
+  ## written from a script file would land.
+
+  test "a checkbox accepts the spellings a script actually sends":
+    for spelling in ["true", "1", "yes", "on", "TRUE", "Yes"]:
+      check asBool(%spelling) == some(true)
+    for spelling in ["false", "0", "no", "off", "anything else"]:
+      check asBool(%spelling) == some(false)
+
+  test "numbers survive the trip through text":
+    check asInteger(%"42") == some(42.BiggestInt)
+    check asNumber(%"0.5") == some(0.5)
+    check asInteger(%3.7) == some(3.BiggestInt)
+
+  test "text that is not a number is refused rather than read as zero":
+    check asInteger(%"twelve").isNone
+    check asNumber(%"").isNone
+
+  test "anything at all can be read as text":
+    check asText(%"plain") == "plain"
+    check asText(%42) == "42"
+    check asText(%*{"a": 1}) == """{"a":1}"""
