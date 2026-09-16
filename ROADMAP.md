@@ -86,9 +86,11 @@ the binding sugar is missing. Provide both entry points:
 - [x] **Real text measurement** — done. `measureText` uses `measureTextPango`,
   which fixed the approximate label centring and is what lets containers size to
   content.
-- [ ] **The unification itself** — Label and TextInput are still separate modules
-  and TextArea does not exist.
-  ([#30](https://github.com/kobi2187/rui2/issues/30))
+- [x] **The shared text engine** — `rui_widgets/text_content.nim`. Label,
+  TextInput and TextArea all measure and draw through it, so what is drawn is
+  what was measured. **TextArea now exists.** The three surfaces stay separate
+  rather than collapsing into one flag-carrying type; the reasoning and the open
+  question are on ([#30](https://github.com/kobi2187/rui2/issues/30)).
 
 ## Phase 5 — Performance refinements *(medium — after correctness; measure first, don't over-optimize)*
 - **Stop rebuilding children every layout pass** — composites like `Button` do
@@ -153,15 +155,17 @@ Three defects block the feature, in dependency order:
 
 ## Phase 7 — Testing infrastructure *(medium)*
 Strategy is visual + scripting (no headless).
-- [x] **Unit suite** — 8 suites under `tests/`, no GL context needed. Layout,
-  binding, theming, hit-testing, text metrics, keyboard navigation, widgets.
-- [x] **Example compiles in CI** — a real `nim c` over all 26 examples, since
+- [x] **Unit suite** — 18 suites under `tests/`, no GL context needed. Layout,
+  binding, theming, hit-testing, text metrics, keyboard navigation, focus
+  groups, widgets, and the frame pipeline.
+- [x] **Example compiles in CI** — a real `nim c` over all 32 examples, since
   naylib's move-only GPU types only fail in a full build.
-- [x] **Complexity gate** — `nimtools cyc --gate 5` over `rui_widgets`.
-- [ ] **Scripting-driven test harness** — the harness exists and
-  `tools/run_tests.sh` runs it, but it reports `SKIP Xvfb not installed`, so the
-  only layer exercising the real render and event path never runs.
-  ([#36](https://github.com/kobi2187/rui2/issues/36))
+- [x] **Complexity gate** — `nimtools cyc --gate 5`. Every package passes.
+- [x] **Scripting-driven test harness** — runs locally and in CI, 24 assertions
+  against a real window on Xvfb.
+- [x] **Headless frame tests** — `app.stepHeadless()` plus a `ListEventSource`
+  runs input, routing, layout and hit-testing with no window at all. The render
+  pass is the only part that needs one.
 - Revisit **headless mode** later as a *real* feature (not the removed stub) if
   display-free CI becomes worthwhile.
 

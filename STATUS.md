@@ -21,21 +21,25 @@ for usage.
 | Two-pass layout + render with per-widget texture caching | ✅ Working |
 | `definePrimitive` / `defineWidget` DSL macros | ✅ Working |
 | `Link[T]` reactive primitive (O(1) dirty-marking) | ✅ Working |
-| `bind` DSL operator (auto-rebind widgets to a Link) | 🚧 Roadmap — **not wired** |
+| `Link[T].bindTo` (widget follows a Link, repainting on change) | ✅ Working — see `examples/widgets/binding.nim` |
 | Theme system (ThemeState × ThemeIntent), runtime switching | ✅ Working |
 | Event manager (time-budgeted + coalescing) | ✅ Working |
-| Focus manager (focus tracking, keyboard routing) | ⚠️ Partial — Tab works; three known defects |
-| Keyboard navigation between/within containers | 🚧 Roadmap — no key scoping exists |
+| Focus manager (focus tracking, keyboard routing) | ✅ Working — opt-in tab stops, chain rebuilt on tree change |
+| Keyboard navigation between/within containers | ✅ Working — focus groups: Tab between, arrows within, Escape out |
 | Hit-testing (interval trees, O(log n)) | ✅ Working |
 | Scripting subsystem (file-based query/set) | ✅ Working (testing tool) |
 | naylib port, graphics-only build | ✅ Done — `nim check` clean |
 | 7-package split under `packages/` | ✅ Done |
-| Widget library (47 widgets) | ✅ Working — see the table below |
-| Unit test suite (8 suites) + 26 compiled examples | ✅ Working |
-| Scripted UI tests under Xvfb | ⚠️ Skipped — Xvfb not installed in CI |
+| Widget library (48 widgets) | ✅ Working — see the table below |
+| Unit test suite (18 suites) + 32 compiled examples | ✅ Working — 51 green |
+| Scripted UI tests under Xvfb | ✅ Running, in CI too — 24 assertions |
+| Frame pipeline testable headlessly (`app.stepHeadless`) | ✅ Working — event-source seam |
+| Cyclomatic complexity | ✅ Every package passes `nimtools cyc --gate 5` |
 | Text rendering | ✅ Pango-backed — real font metrics, glyph cache |
-| Pango/Cairo text (Unicode/BiDi/shaping) | ✅ Working — wired into `Label`, `TextInput` and every draw path |
-| One unified text widget (Label/TextInput/TextArea by flags) | 🚧 Roadmap — the three are still separate; no TextArea |
+| Pango/Cairo text (Unicode/BiDi/shaping) | ✅ Working — wired into every text widget and draw path |
+| Text engine shared by Label / TextInput / TextArea | ✅ Working — `text_content.nim`; TextArea now exists |
+| `ui:` block syntax for widget trees | ✅ Working — `VStack(spacing = 10.0): Label(...)` |
+| Handlers as bare closures (`btn.onClick = proc() = ...`) | ✅ Working — no `some(...)`, no `{.closure.}` |
 
 ---
 
@@ -223,20 +227,34 @@ Verified, with a failing case or a grep behind each. Tracked as GitHub issues.
 There is no headless mode (it was an experiment, deferred as a future feature).
 `./tools/run_tests.sh` does three things:
 
-1. **Unit tests** — `tests/test_*.nim`, 8 suites, no GL context required. Layout,
-   binding, theming, hit-testing, text metrics, keyboard navigation and the
-   widget library are all CPU-side.
-2. **Example compiles** — a real `nim c` over all 26 examples, not `nim check`:
+1. **Unit tests** — `tests/test_*.nim`, 18 suites, no GL context required.
+   Layout, binding, theming, hit-testing, text metrics, keyboard navigation,
+   focus groups, the widget library, and — since the event-source seam — the
+   frame pipeline itself.
+2. **Example compiles** — a real `nim c` over all 32 examples, not `nim check`:
    naylib's GPU types are move-only and those failures only appear in a full
    build.
 3. **Scripted UI tests** — drives a real window on Xvfb through the file-based
-   scripting protocol. **Currently skipped**: Xvfb is not installed ([#36]).
+   scripting protocol, 24 assertions. Runs locally and in CI.
 
-Complexity is gated with `nimtools cyc --gate 5` over `rui_widgets`. Note that
-cyc cannot see inside `definePrimitive` bodies — they are macro arguments, not
-routines — so widget logic must be extracted into named procs to be measured.
+51 green as of this writing.
 
-[#36]: https://github.com/kobi2187/rui2/issues/36
+### The frame pipeline is testable without a window
+
+`app.stepHeadless()` is a frame with the render pass left out — input
+collection, routing, layout, hit-testing — which is everything except the one
+part that needs a GL context. Input comes from an `EventSource`:
+`RaylibEventSource` in an app, `ListEventSource` in a test. See
+`tests/test_frame.nim`.
+
+### Complexity gate
+
+`nimtools cyc --gate 5`. **Every package passes with nothing over the ceiling.**
+
+Note that cyc cannot see inside `definePrimitive` bodies — they are macro
+arguments, not routines — so it reports "0 routines" for a file that is all
+widget. Widget logic has to be extracted into named modules to be measured at
+all, which is most of why `rui_widgets` is 79 files rather than 47.
 
 ---
 
