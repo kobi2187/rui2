@@ -16,51 +16,14 @@ export virtual_rows
 
 import raylib
 
-type
-  TreeNode* = ref object
-    id*: string
-    text*: string
-    icon*: string                # Icon glyph (e.g. a folder or file character)
-    expanded*: bool
-    children*: seq[TreeNode]
-    data*: JsonNode              # Custom payload
-    level*: int                  # Depth, filled in by the flatten pass
-
-  FlatNode* = object
-    node*: TreeNode
-    level*: int
-
-const
-  BufferNodes = 5
-  TwistyWidth = 16.0'f32
-
-proc twistyX*(flat: FlatNode, originX, indent: float32): float32 =
-  ## Left edge of the expand/collapse triangle for this row, which sits one
-  ## indent step in per level of depth.
-  originX + float32(flat.level) * indent
-
-proc hitsTwisty*(flat: FlatNode, mouseX, originX, indent: float32): bool =
-  ## Only a branch has a twisty, so a leaf never claims the click.
-  if flat.node.children.len == 0:
-    return false
-  let left = flat.twistyX(originX, indent)
-  mouseX >= left and mouseX < left + TwistyWidth
+import tree_model
+export tree_model
 
 template viewportOf*(widget: untyped): RowViewport =
   ## A template, not a proc: the TreeView type does not exist until the macro
   ## below has expanded, and the widget body needs this.
   rowViewport(top = widget.bounds.y, height = widget.bounds.height,
               rowHeight = widget.nodeHeight, scrollY = widget.scrollY)
-
-proc flatten*(node: TreeNode, level: int, dest: var seq[FlatNode]) =
-  ## Depth-first walk of the expanded part of the tree.
-  if node == nil:
-    return
-  node.level = level
-  dest.add(FlatNode(node: node, level: level))
-  if node.expanded:
-    for child in node.children:
-      flatten(child, level + 1, dest)
 
 definePrimitive(TreeView):
   props:
