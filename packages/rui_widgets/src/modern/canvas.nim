@@ -148,6 +148,9 @@ definePrimitive(Canvas):
     onDrawComplete(commands: seq[DrawCommand])
     onClear()
 
+  init:
+    widget.focusable = true
+
   events:
     on_mouse_down:
       if not widget.enableDrawing or widget.drawingMode == dmNone:

@@ -118,6 +118,17 @@ type
     hovered*: bool             # Mouse is over this widget
     pressed*: bool             # Mouse button down on this widget
     focused*: bool             # Has keyboard focus
+    focusable*: bool
+      ## Can this widget be a tab stop? Defaults to **false**, so a widget is
+      ## reachable by keyboard only if it says so.
+      ##
+      ## Widgets that handle keys set it in their own `init:` section — plain
+      ## code in the widget's own file, not something the DSL infers. A
+      ## hand-written widget sets the field like any other, and a container
+      ## opts in the same way when it becomes a focus group.
+      ##
+      ## Before this existed, `collectFocusableWidgets` added every visible and
+      ## enabled widget, so Tab landed on containers and static labels.
 
     # Dirty flags
     isDirty*: bool             # Needs re-render

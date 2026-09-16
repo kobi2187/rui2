@@ -22,6 +22,9 @@ defineWidget(Button):
   actions:
     onClick()
 
+  init:
+    widget.focusable = true
+
   events:
     on_mouse_down:
       if not widget.disabled:

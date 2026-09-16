@@ -141,6 +141,9 @@ definePrimitive(Timeline):
     onEventClick(event: TimelineEvent)
     onScroll(offset: float32)
 
+  init:
+    widget.focusable = true
+
   events:
     on_mouse_down:
       let axis = axisOf(widget)

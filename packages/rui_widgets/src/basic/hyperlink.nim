@@ -27,6 +27,9 @@ definePrimitive(Hyperlink):
     onClick()
     onNavigate(url: string)
 
+  init:
+    widget.focusable = true
+
   events:
     on_mouse_down:
       if not widget.disabled:

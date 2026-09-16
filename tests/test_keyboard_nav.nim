@@ -27,18 +27,32 @@ proc buildForm(): tuple[root: Widget, a, b, c: Widget] =
 
 suite "focus chain composition":
 
-  test "EVERY widget lands in the focus chain, not just the focusable ones":
-    # collectFocusableWidgets adds every visible+enabled widget and carries a
-    # `TODO: Add isFocusable field to Widget type`. So the root stack and a
-    # static Label are tab stops.
-    let (root, _, _, _) = buildForm()
+  test "only focusable widgets are tab stops":
+    # collectFocusableWidgets used to add every visible+enabled widget, so the
+    # root stack and a static Label were tab stops. Widgets opt in now.
+    let (root, a, b, c) = buildForm()
     let fm = newFocusManager()
     fm.buildFocusChain(root)
 
-    # root + heading + 3 controls = 5, when only 3 should be reachable.
-    check fm.focusChain.len == 5
-    check fm.focusChain[0] == root              # the container itself
-    check fm.focusChain[1].getTypeName() == "Label"
+    check fm.focusChain == @[a, b, c]           # the two inputs and the button
+    check root notin fm.focusChain              # the container is not a stop
+    for w in fm.focusChain:
+      check w.getTypeName() != "Label"          # nor is static text
+
+  test "a widget can be taken out of the tab order by hand":
+    let (root, a, _, _) = buildForm()
+    a.focusable = false
+    let fm = newFocusManager()
+    fm.buildFocusChain(root)
+    check a notin fm.focusChain
+
+  test "a plain container can opt in, for focus groups later":
+    let root = newVStack(spacing = 4.0)
+    root.addChild(newLabel(text = "x", fontSize = 14.0))
+    root.focusable = true
+    let fm = newFocusManager()
+    fm.buildFocusChain(Widget(root))
+    check Widget(root) in fm.focusChain
 
   test "an invisible or disabled subtree is skipped":
     let (root, a, _, _) = buildForm()
@@ -58,7 +72,7 @@ suite "focus chain composition":
 
     let fm = newFocusManager()
     fm.buildFocusChain(Widget(root))
-    check fm.focusChain.len == 1                # just the root
+    check fm.focusChain.len == 0                # nothing reachable
 
 suite "tab order":
 
@@ -94,9 +108,9 @@ suite "tab order":
     let (root, a, b, c) = buildForm()
     let fm = newFocusManager()
     fm.buildFocusChain(root)
-    check fm.focusChain[2] == a
-    check fm.focusChain[3] == b
-    check fm.focusChain[4] == c
+    check fm.focusChain[0] == a
+    check fm.focusChain[1] == b
+    check fm.focusChain[2] == c
 
   test "setFocus sets focused on the widget and clears the previous one":
     let (root, a, b, _) = buildForm()

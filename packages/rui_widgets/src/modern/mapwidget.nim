@@ -150,6 +150,9 @@ definePrimitive(MapWidget):
     onMarkerClick(marker: MapMarker)
     onMapClick(coord: MapCoord)
 
+  init:
+    widget.focusable = true
+
   events:
     on_mouse_down:
       let view = viewOf(widget)

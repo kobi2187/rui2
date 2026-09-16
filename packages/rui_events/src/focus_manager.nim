@@ -73,12 +73,15 @@ proc collectFocusableWidgets(widget: Widget, result: var seq[Widget]) =
   if not widget.visible or not widget.enabled:
     return
 
-  # Widget is focusable if it has any keyboard event handlers
-  # For now, we'll add all enabled visible widgets and filter later
-  # TODO: Add isFocusable field to Widget type
-  result.add(widget)
+  # Opt-in, via the `focusable` field. This used to add every visible and
+  # enabled widget -- so the root container and every static Label were tab
+  # stops -- with a `TODO: Add isFocusable field to Widget type` explaining why.
+  #
+  # Note the recursion continues regardless: a container is normally not a stop
+  # itself, but its children still are.
+  if widget.focusable:
+    result.add(widget)
 
-  # Recurse to children
   for child in widget.children:
     collectFocusableWidgets(child, result)
 

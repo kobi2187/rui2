@@ -33,6 +33,9 @@ definePrimitive(NumberInput):
     onChange(value: float32)
     onValidationError(input: string)
 
+  init:
+    widget.focusable = true
+
   events:
     on_mouse_down:
       if widget.disabled:

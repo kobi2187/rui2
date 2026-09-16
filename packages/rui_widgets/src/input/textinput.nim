@@ -43,6 +43,9 @@ definePrimitive(TextInput):
     onChange(newText: string)
     onSubmit(text: string)
 
+  init:
+    widget.focusable = true
+
   events:
     on_mouse_down:
       if widget.disabled:

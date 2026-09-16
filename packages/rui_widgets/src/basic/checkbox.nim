@@ -22,6 +22,9 @@ definePrimitive(Checkbox):
   actions:
     onToggle(checked: bool)
 
+  init:
+    widget.focusable = true
+
   events:
     on_mouse_down:
       if not widget.disabled:

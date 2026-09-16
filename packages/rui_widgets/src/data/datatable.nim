@@ -185,6 +185,9 @@ definePrimitive(DataTable):
     onFilter(filters: Table[string, Filter])
     onSelect(selected: HashSet[int])
 
+  init:
+    widget.focusable = true
+
   events:
     on_mouse_down:
       let m = metricsOf(widget)

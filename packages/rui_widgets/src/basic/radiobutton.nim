@@ -21,6 +21,9 @@ definePrimitive(RadioButton):
   actions:
     onChange(value: string)
 
+  init:
+    widget.focusable = true
+
   events:
     on_mouse_down:
       if not widget.disabled:

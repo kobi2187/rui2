@@ -64,6 +64,7 @@ definePrimitive(MenuBar):
     widget.hasOverlay = true
     widget.activeMenuIndex = -1
     widget.hoverIndex = -1
+    widget.focusable = true
 
   events:
     on_mouse_down:

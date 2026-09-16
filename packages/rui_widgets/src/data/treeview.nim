@@ -84,6 +84,9 @@ definePrimitive(TreeView):
     onExpand(nodeId: string)
     onCollapse(nodeId: string)
 
+  init:
+    widget.focusable = true
+
   events:
     on_mouse_down:
       let idx = viewportOf(widget).rowAt(event.mousePos.y, widget.flatNodes.len)

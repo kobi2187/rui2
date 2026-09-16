@@ -183,6 +183,9 @@ definePrimitive(DataGrid):
     onLoadMore(startIndex: int, count: int)
     onScrollNearEnd()
 
+  init:
+    widget.focusable = true
+
   events:
     on_mouse_down:
       let m = metricsOf(widget)

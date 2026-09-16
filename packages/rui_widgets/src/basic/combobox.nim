@@ -28,6 +28,9 @@ definePrimitive(ComboBox):
   actions:
     onSelect(index: int)
 
+  init:
+    widget.focusable = true
+
   events:
     on_mouse_down:
       if widget.disabled:

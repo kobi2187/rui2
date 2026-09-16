@@ -33,6 +33,9 @@ definePrimitive(ToolButton):
     onClick()
     onToggle(state: bool)
 
+  init:
+    widget.focusable = true
+
   events:
     on_mouse_down:
       if widget.disabled:

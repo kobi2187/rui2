@@ -60,6 +60,9 @@ definePrimitive(ListBox):
     onLoadMore(startIndex: int, count: int)
     onScrollNearEnd()
 
+  init:
+    widget.focusable = true
+
   events:
     on_mouse_wheel:
       if widget.disabled:

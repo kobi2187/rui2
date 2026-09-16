@@ -25,6 +25,9 @@ definePrimitive(TabControl):
   actions:
     onTabChanged(newTab: int)
 
+  init:
+    widget.focusable = true
+
   events:
     on_mouse_down:
       if widget.tabs.len == 0:

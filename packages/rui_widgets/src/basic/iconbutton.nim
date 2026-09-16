@@ -32,6 +32,9 @@ definePrimitive(IconButton):
   actions:
     onClick()
 
+  init:
+    widget.focusable = true
+
   events:
     on_mouse_down:
       if widget.disabled:

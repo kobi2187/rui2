@@ -65,6 +65,9 @@ definePrimitive(FilePicker):
     onSelect(paths: HashSet[string])
     onPathChange(path: string)
 
+  init:
+    widget.focusable = true
+
   events:
     on_mouse_down:
       let idx = viewportOf(widget).rowAt(event.mousePos.y, widget.fileList.len)

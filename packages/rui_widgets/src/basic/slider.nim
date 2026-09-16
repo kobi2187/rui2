@@ -28,6 +28,9 @@ definePrimitive(Slider):
   actions:
     onChange(value: float32)
 
+  init:
+    widget.focusable = true
+
   events:
     on_mouse_down:
       if not widget.disabled:

@@ -29,6 +29,9 @@ definePrimitive(ScrollBar):
   actions:
     onChange(value: float32)
 
+  init:
+    widget.focusable = true
+
   events:
     on_mouse_down:
       if widget.disabled:
