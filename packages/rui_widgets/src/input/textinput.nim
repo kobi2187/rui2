@@ -17,10 +17,46 @@
 ## `events:` handlers now.
 
 import rui_core
+import text_buffer
+export text_buffer
 import rui_drawing
 import std/options
 
 import raylib
+
+template indexAt*(widget: untyped, screenX: float32): int =
+  ## Byte offset of the caret position under a click, via Pango.
+  block:
+    let style = TextStyle(fontFamily: "", fontSize: widget.fontSize,
+                          color: BLACK, bold: false, italic: false,
+                          underline: false)
+    let hit = indexFromPosition(widget.text, style.pangoFont,
+                                screenX - widget.bounds.x - widget.padding, 0.0)
+    clamp(hit.index + hit.trailing, 0, widget.text.len)
+
+template edit*(widget: untyped, body: untyped) =
+  ## Run an editing operation against the widget's state as a TextBuffer, then
+  ## write it back and raise whatever flags the result calls for.
+  ##
+  ## Templates rather than procs, as everywhere else in the DSL widgets: the
+  ## TextInput type does not exist until the macro below has expanded.
+  block:
+    var buf {.inject.} = initTextBuffer(widget.text, widget.cursorPos,
+                                        widget.selectionStart,
+                                        widget.selectionEnd)
+    let before = buf.text
+    body
+    widget.text = buf.text
+    widget.cursorPos = buf.cursor
+    widget.selectionStart = buf.selStart
+    widget.selectionEnd = buf.selEnd
+    widget.isDirty = true
+    if widget.text != before:
+      # Only a change of text needs a re-measure or an onChange; moving the
+      # caret repaints and nothing more.
+      widget.layoutDirty = true
+      if widget.onChange.isSome:
+        widget.onChange.get()(widget.text)
 
 definePrimitive(TextInput):
   props:
@@ -50,64 +86,32 @@ definePrimitive(TextInput):
     on_mouse_down:
       if widget.disabled:
         return false
-      let style = TextStyle(fontFamily: "", fontSize: widget.fontSize, color: BLACK,
-                            bold: false, italic: false, underline: false)
-      let hit = indexFromPosition(widget.text, style.pangoFont,
-                                  event.mousePos.x - widget.bounds.x - widget.padding,
-                                  0.0)
-      widget.cursorPos = clamp(hit.index + hit.trailing, 0, widget.text.len)
-      widget.selectionStart = widget.cursorPos
-      widget.selectionEnd = widget.cursorPos
+      widget.edit: buf.placeCursor(widget.indexAt(event.mousePos.x))
       widget.dragging = true
-      widget.isDirty = true
       return true
 
     on_mouse_move:
       if not widget.dragging or widget.disabled:
         return false
-      let style = TextStyle(fontFamily: "", fontSize: widget.fontSize, color: BLACK,
-                            bold: false, italic: false, underline: false)
-      let hit = indexFromPosition(widget.text, style.pangoFont,
-                                  event.mousePos.x - widget.bounds.x - widget.padding,
-                                  0.0)
-      widget.cursorPos = clamp(hit.index + hit.trailing, 0, widget.text.len)
-      widget.selectionEnd = widget.cursorPos
-      widget.isDirty = true
+      widget.edit: buf.dragTo(widget.indexAt(event.mousePos.x))
       return true
 
     on_mouse_up:
       if not widget.dragging:
         return false
       widget.dragging = false
-      # A click without a drag leaves no selection behind.
-      if widget.selectionStart == widget.selectionEnd:
-        widget.selectionStart = -1
-        widget.selectionEnd = -1
+      widget.edit: buf.endDrag()
       return true
 
     on_char:
       if widget.disabled or not widget.focused:
         return false
+      # Printable ASCII only for now: `char` is one byte, so anything above
+      # this would be half a codepoint. TextBuffer indexes in bytes and is
+      # ready for more; the event type is what is not.
       if event.char < ' ' or event.char > '~':
         return false
-      if widget.maxLength >= 0 and widget.text.len >= widget.maxLength:
-        return true
-
-      # Typing over a selection replaces it.
-      if widget.selectionStart >= 0 and widget.selectionStart != widget.selectionEnd:
-        let a = min(widget.selectionStart, widget.selectionEnd)
-        let b = max(widget.selectionStart, widget.selectionEnd)
-        widget.text = widget.text[0..<a] & widget.text[b..^1]
-        widget.cursorPos = a
-        widget.selectionStart = -1
-        widget.selectionEnd = -1
-
-      widget.text.insert($event.char, widget.cursorPos)
-      widget.cursorPos += 1
-      widget.isDirty = true
-      widget.layoutDirty = true
-      if widget.onChange.isSome:
-        widget.onChange.get()(widget.text)
+      widget.edit: discard buf.insert($event.char, widget.maxLength)
       return true
 
     on_key_down:
@@ -117,51 +121,20 @@ definePrimitive(TextInput):
 
       case event.key
       of Backspace:
-        if widget.selectionStart >= 0 and widget.selectionStart != widget.selectionEnd:
-          let a = min(widget.selectionStart, widget.selectionEnd)
-          let b = max(widget.selectionStart, widget.selectionEnd)
-          widget.text = widget.text[0..<a] & widget.text[b..^1]
-          widget.cursorPos = a
-          widget.selectionStart = -1
-          widget.selectionEnd = -1
-        elif widget.cursorPos > 0:
-          widget.text = widget.text[0..<(widget.cursorPos - 1)] &
-                        widget.text[widget.cursorPos..^1]
-          widget.cursorPos -= 1
-        else:
-          return true
-        widget.isDirty = true
-        widget.layoutDirty = true
-        if widget.onChange.isSome:
-          widget.onChange.get()(widget.text)
+        widget.edit: discard buf.backspace()
         return true
 
       of Delete:
-        if widget.cursorPos < widget.text.len:
-          widget.text = widget.text[0..<widget.cursorPos] &
-                        widget.text[(widget.cursorPos + 1)..^1]
-          widget.isDirty = true
-          widget.layoutDirty = true
-          if widget.onChange.isSome:
-            widget.onChange.get()(widget.text)
+        widget.edit: discard buf.deleteForward()
         return true
 
       of Left, Right, Home, End:
-        let anchor = if widget.selectionStart >= 0: widget.selectionStart
-                     else: widget.cursorPos
-        case event.key
-        of Left:  widget.cursorPos = max(0, widget.cursorPos - 1)
-        of Right: widget.cursorPos = min(widget.text.len, widget.cursorPos + 1)
-        of Home:  widget.cursorPos = 0
-        else:     widget.cursorPos = widget.text.len
-
-        if shiftDown:
-          widget.selectionStart = anchor
-          widget.selectionEnd = widget.cursorPos
-        else:
-          widget.selectionStart = -1
-          widget.selectionEnd = -1
-        widget.isDirty = true
+        let target = case event.key
+                     of Left: widget.cursorPos - 1
+                     of Right: widget.cursorPos + 1
+                     of Home: 0
+                     else: widget.text.len
+        widget.edit: buf.moveCursor(target, extend = shiftDown)
         return true
 
       of Enter, KpEnter:

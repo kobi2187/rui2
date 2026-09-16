@@ -29,17 +29,10 @@
 
 import rui_core
 import std/[options, tables]
+import image_fit
+export image_fit
 
 import raylib
-
-# Image fit modes (similar to CSS object-fit)
-type
-  ImageFit* = enum
-    Contain  ## Scale to fit within bounds, maintaining aspect ratio
-    Cover    ## Scale to cover bounds, maintaining aspect ratio (may crop)
-    Fill     ## Stretch to fill bounds (may distort)
-    None     ## Display at original size (may crop)
-    ScaleDown ## Like Contain but never scale up
 
 # Cache for loaded textures to avoid reloading
 var textureCache {.global.}: Table[string, Texture2D]
@@ -116,107 +109,9 @@ definePrimitive(ImageWidget):
       let texWidth = float(textureCache[widget.imagePath].width)
       let texHeight = float(textureCache[widget.imagePath].height)
 
-      var destRect: Rectangle
-      var sourceRect = Rectangle(x: 0, y: 0, width: texWidth, height: texHeight)
-
-      case widget.fitMode:
-      of ImageFit.Fill:
-        # Stretch to fill entire bounds
-        destRect = Rectangle(
-          x: widget.bounds.x,
-          y: widget.bounds.y,
-          width: widget.bounds.width,
-          height: widget.bounds.height
-        )
-
-      of ImageFit.Contain:
-        # Scale to fit within bounds, maintaining aspect ratio
-        let widgetAspect = widget.bounds.width / widget.bounds.height
-        let imageAspect = texWidth / texHeight
-
-        if imageAspect > widgetAspect:
-          # Image is wider - fit to width
-          let scaledHeight = widget.bounds.width / imageAspect
-          destRect = Rectangle(
-            x: widget.bounds.x,
-            y: widget.bounds.y + (widget.bounds.height - scaledHeight) / 2,
-            width: widget.bounds.width,
-            height: scaledHeight
-          )
-        else:
-          # Image is taller - fit to height
-          let scaledWidth = widget.bounds.height * imageAspect
-          destRect = Rectangle(
-            x: widget.bounds.x + (widget.bounds.width - scaledWidth) / 2,
-            y: widget.bounds.y,
-            width: scaledWidth,
-            height: widget.bounds.height
-          )
-
-      of ImageFit.Cover:
-        # Scale to cover bounds, maintaining aspect ratio (may crop)
-        let widgetAspect = widget.bounds.width / widget.bounds.height
-        let imageAspect = texWidth / texHeight
-
-        if imageAspect > widgetAspect:
-          # Image is wider - fit to height and crop sides
-          let scaledWidth = widget.bounds.height * imageAspect
-          destRect = Rectangle(
-            x: widget.bounds.x + (widget.bounds.width - scaledWidth) / 2,
-            y: widget.bounds.y,
-            width: scaledWidth,
-            height: widget.bounds.height
-          )
-        else:
-          # Image is taller - fit to width and crop top/bottom
-          let scaledHeight = widget.bounds.width / imageAspect
-          destRect = Rectangle(
-            x: widget.bounds.x,
-            y: widget.bounds.y + (widget.bounds.height - scaledHeight) / 2,
-            width: widget.bounds.width,
-            height: scaledHeight
-          )
-
-      of ImageFit.None:
-        # Display at original size (centered, may crop)
-        destRect = Rectangle(
-          x: widget.bounds.x + (widget.bounds.width - texWidth) / 2,
-          y: widget.bounds.y + (widget.bounds.height - texHeight) / 2,
-          width: texWidth,
-          height: texHeight
-        )
-
-      of ImageFit.ScaleDown:
-        # Like Contain but never scale up
-        if texWidth <= widget.bounds.width and texHeight <= widget.bounds.height:
-          # Image fits - center it at original size
-          destRect = Rectangle(
-            x: widget.bounds.x + (widget.bounds.width - texWidth) / 2,
-            y: widget.bounds.y + (widget.bounds.height - texHeight) / 2,
-            width: texWidth,
-            height: texHeight
-          )
-        else:
-          # Image too large - scale down like Contain
-          let widgetAspect = widget.bounds.width / widget.bounds.height
-          let imageAspect = texWidth / texHeight
-
-          if imageAspect > widgetAspect:
-            let scaledHeight = widget.bounds.width / imageAspect
-            destRect = Rectangle(
-              x: widget.bounds.x,
-              y: widget.bounds.y + (widget.bounds.height - scaledHeight) / 2,
-              width: widget.bounds.width,
-              height: scaledHeight
-            )
-          else:
-            let scaledWidth = widget.bounds.height * imageAspect
-            destRect = Rectangle(
-              x: widget.bounds.x + (widget.bounds.width - scaledWidth) / 2,
-              y: widget.bounds.y,
-              width: scaledWidth,
-              height: widget.bounds.height
-            )
+      let sourceRect = Rectangle(x: 0, y: 0, width: texWidth, height: texHeight)
+      let destRect = destinationFor(widget.fitMode, widget.bounds,
+                                    texWidth, texHeight)
 
       # Draw the texture
       drawTexture(
