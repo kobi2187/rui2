@@ -136,6 +136,10 @@ proc setRootWidget*(app: App, root: Widget) =
   if app.tree.widgetsByStringId.len == 0:
     app.tree.widgetsByStringId = initTable[string, Widget]()
   app.tree.registerWidgetRecursive(root)
+  # A different root is a different focus chain, and swapping it does not go
+  # through addChild, so the structure version would not notice on its own.
+  app.focusManager.markDirty()
+  app.hoverTracker.clear()
   root.bounds = Rect(x: 0, y: 0,
                      width: app.window.width.float32,
                      height: app.window.height.float32)

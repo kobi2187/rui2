@@ -21,6 +21,7 @@ type
     focusedWidget*: Widget           # Currently focused widget (nil if none)
     focusChain*: seq[Widget]         # Tab order (built from widget tree)
     focusChainDirty*: bool           # Needs rebuild
+    builtAtVersion: int              # tree structure version the chain was built at
     focusableWidgets*: Table[WidgetId, Widget]  # Quick lookup
 
     # Configurable navigation keys
@@ -38,6 +39,7 @@ proc newFocusManager*(): FocusManager =
     focusedWidget: nil,
     focusChain: @[],
     focusChainDirty: true,
+    builtAtVersion: -1,              # -1 can never match a real version
     focusableWidgets: initTable[WidgetId, Widget](),
     nextFocusKeys: @[Tab],
     prevFocusKeys: @[],
@@ -95,10 +97,20 @@ proc buildFocusChain*(fm: FocusManager, rootWidget: Widget) =
       fm.focusableWidgets[widget.id] = widget
 
   fm.focusChainDirty = false
+  fm.builtAtVersion = structureVersion()
 
 proc ensureFocusChain(fm: FocusManager, rootWidget: Widget) =
-  ## Rebuild focus chain if dirty
-  if fm.focusChainDirty:
+  ## Rebuild the focus chain when it is stale.
+  ##
+  ## Stale means either something asked for a rebuild explicitly (markDirty, a
+  ## visibility change) or the tree's shape has changed since the chain was
+  ## built. The version check is what makes a widget added after the first Tab
+  ## press reachable; before it, `focusChainDirty` was set true once at
+  ## construction, cleared on first use, and never set again by anything.
+  ##
+  ## Comparing two ints per navigation, not walking the tree -- an unchanged
+  ## tree costs nothing.
+  if fm.focusChainDirty or fm.builtAtVersion != structureVersion():
     fm.buildFocusChain(rootWidget)
 
 # ============================================================================

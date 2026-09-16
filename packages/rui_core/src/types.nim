@@ -326,6 +326,26 @@ proc newWidgetId*(): WidgetId =
   result = WidgetId(nextWidgetId)
   inc nextWidgetId
 
+# Structural change counter.
+#
+# Anything that caches a walk of the widget tree -- the focus chain is the one
+# that exists today -- records this value when it builds and compares on use, so
+# it can tell "the tree grew since I last looked" without the tree having to
+# know its observers exist. rui_core cannot reach rui_events, so a callback or a
+# direct notification would be a dependency cycle.
+#
+# Bumped by addChild. There is no removeChild in the library yet; when one
+# arrives it must bump this too.
+var treeStructureVersion {.global.} = 0
+
+proc structureVersion*(): int =
+  ## Increments whenever the widget tree's shape changes.
+  treeStructureVersion
+
+proc noteStructureChanged*() =
+  ## Call after adding or removing a widget from the tree.
+  inc treeStructureVersion
+
 # ============================================================================
 # Base Widget Methods (to be overridden by specific widgets)
 # ============================================================================

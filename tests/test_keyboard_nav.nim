@@ -162,3 +162,60 @@ suite "key routing":
     # so the list's own row navigation is unreachable.
     check fm.handleKeyboardEvent(keyEvent(KeyboardKey.Down), Widget(root))
     check list.focusIndex == 0                 # never moved
+
+suite "focus chain invalidation":
+  ## The chain is built lazily on first use and was never rebuilt after that:
+  ## `focusChainDirty` started true, `ensureFocusChain` cleared it, and nothing
+  ## anywhere set it again. FocusManager.markDirty and widgetRemoved both existed
+  ## and were called from nowhere.
+
+  test "a widget added after the chain was built is still reachable":
+    let root = newVStack(spacing = 4.0)
+    root.addChild(newTextInput(initialText = "first"))
+
+    let fm = newFocusManager()
+    fm.nextFocus(Widget(root))              # builds the chain lazily
+    let before = fm.focusChain.len
+
+    root.addChild(newTextInput(initialText = "second"))
+    fm.nextFocus(Widget(root))              # must notice the tree grew
+    check fm.focusChain.len == before + 1
+
+  test "a widget added deeper in the tree also counts":
+    let root = newVStack(spacing = 4.0)
+    let inner = newVStack(spacing = 2.0)
+    root.addChild(inner)
+
+    let fm = newFocusManager()
+    fm.nextFocus(Widget(root))
+    let before = fm.focusChain.len
+
+    inner.addChild(newTextInput(initialText = "deep"))
+    fm.nextFocus(Widget(root))
+    check fm.focusChain.len == before + 1
+
+  test "markDirty forces a rebuild":
+    let root = newVStack(spacing = 4.0)
+    root.addChild(newTextInput(initialText = "a"))
+    let fm = newFocusManager()
+    fm.buildFocusChain(Widget(root))
+    let before = fm.focusChain.len
+
+    # Hide a widget without touching the structure, then ask for a rebuild.
+    root.children[0].visible = false
+    fm.markDirty()
+    fm.nextFocus(Widget(root))
+    check fm.focusChain.len == before - 1
+
+  test "an unchanged tree is not rebuilt on every navigation":
+    # The rebuild walks the whole tree, so it must not happen per key press.
+    let root = newVStack(spacing = 4.0)
+    for i in 0 .. 2:
+      root.addChild(newTextInput(initialText = $i))
+
+    let fm = newFocusManager()
+    fm.nextFocus(Widget(root))
+    let chain = fm.focusChain           # capture the seq's contents
+    fm.nextFocus(Widget(root))
+    fm.nextFocus(Widget(root))
+    check fm.focusChain == chain        # same widgets, same order

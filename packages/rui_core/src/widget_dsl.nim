@@ -635,6 +635,11 @@ macro defineWidget*(name: untyped, body: untyped): untyped =
 # ============================================================================
 
 proc addChild*(parent: Widget, child: Widget) =
-  ## Add child widget to parent
+  ## Add child widget to parent.
+  ##
+  ## Bumps the tree's structure version so anything caching a walk of the tree
+  ## -- the focus chain -- knows to rebuild. Without it a widget added after the
+  ## first Tab press was unreachable by keyboard forever.
   parent.children.add(child)
   child.parent = parent
+  noteStructureChanged()
