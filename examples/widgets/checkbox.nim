@@ -30,8 +30,8 @@ proc refresh() =
   summary.isDirty = true
   summary.layoutDirty = true
 
-optA.onToggle = some(proc(v: bool) {.closure.} = refresh())
-optB.onToggle = some(proc(v: bool) {.closure.} = refresh())
+optA.onToggle = proc(v: bool) = refresh()
+optB.onToggle = proc(v: bool) = refresh()
 
 root.addChild(summary)
 for w in [Widget(optA), Widget(optB), Widget(optC)]:

@@ -41,12 +41,12 @@ for w in [Widget(big), Widget(words), Widget(bar), Widget(greeting)]:
 
 let row = newHStack(spacing = 10.0).named("row")
 let inc = newButton(text = "Increment").named("inc")
-inc.onClick = some(proc() {.closure.} = count.set(count.get() + 1))
+inc.onClick = proc() = count.set(count.get() + 1)
 let reset = newButton(text = "Reset").named("reset")
-reset.onClick = some(proc() {.closure.} = count.set(0))
+reset.onClick = proc() = count.set(0)
 let rename = newButton(text = "Rename").named("rename")
-rename.onClick = some(proc() {.closure.} =
-  name.set(if name.get() == "world": "RUI2" else: "world"))
+rename.onClick = proc() =
+  name.set(if name.get() == "world": "RUI2" else: "world")
 for b in [inc, reset, rename]:
   row.addChild(b)
 root.addChild(row)

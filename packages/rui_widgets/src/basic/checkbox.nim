@@ -39,8 +39,8 @@ definePrimitive(Checkbox):
     on_mouse_down:
       if not widget.disabled:
         widget.checked = not widget.checked
-        if widget.onToggle.isSome:
-          widget.onToggle.get()(widget.checked)
+        if widget.onToggle != nil:
+          widget.onToggle(widget.checked)
         return true
       return false
 

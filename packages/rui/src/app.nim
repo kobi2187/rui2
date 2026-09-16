@@ -62,7 +62,7 @@ type
     lastScriptPoll: MonoTime
 
     # Per-frame hook
-    onFrame*: Option[proc() {.closure.}]
+    onFrame*: proc() {.closure.}
       ## Called once per frame, before events are collected.
       ##
       ## For work the event stream cannot deliver: window file drops
@@ -604,8 +604,8 @@ proc run*(app: App, maxFrames: int = -1) =
     let frameStart = getMonoTime()
 
     # 0. Per-frame hook, before anything reads input state for this frame
-    if app.onFrame.isSome:
-      app.onFrame.get()()
+    if app.onFrame != nil:
+      app.onFrame()
 
     # 1. Collect events from Raylib
     app.collectRaylibEvents()

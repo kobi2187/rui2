@@ -39,8 +39,8 @@ template setValue(w, computed: untyped) =
     if w.value != v:
       w.value = v
       w.isDirty = true
-      if w.onChange.isSome:
-        w.onChange.get()(v)
+      if w.onChange != nil:
+        w.onChange(v)
 
 definePrimitive(Slider):
   props:

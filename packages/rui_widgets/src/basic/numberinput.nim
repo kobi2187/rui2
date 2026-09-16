@@ -55,8 +55,8 @@ definePrimitive(NumberInput):
           widget.value = stepped
           widget.textValue = formatFloat(stepped, ffDecimal, widget.decimals)
           widget.isDirty = true
-          if widget.onChange.isSome:
-            widget.onChange.get()(stepped)
+          if widget.onChange != nil:
+            widget.onChange(stepped)
         return true
 
       # Clicking the text area starts editing from the current value.
@@ -105,11 +105,11 @@ definePrimitive(NumberInput):
           let clamped = clamp(float32(parseFloat(widget.textValue)),
                               widget.minValue, widget.maxValue)
           widget.value = clamped
-          if widget.onChange.isSome:
-            widget.onChange.get()(clamped)
+          if widget.onChange != nil:
+            widget.onChange(clamped)
         except ValueError:
-          if widget.onValidationError.isSome:
-            widget.onValidationError.get()(widget.textValue)
+          if widget.onValidationError != nil:
+            widget.onValidationError(widget.textValue)
           widget.textValue = formatFloat(widget.value, ffDecimal, widget.decimals)
         return true
       of Escape:

@@ -53,10 +53,10 @@ let track = newTimeline(events = events,
                         showGrid = true, showTimeLabels = true,
                         showNowMarker = true).named("track")
 track.bounds = Rect(x: 0, y: 0, width: 680, height: 260)
-track.onEventClick = some(proc(evt: TimelineEvent) {.closure.} =
+track.onEventClick = proc(evt: TimelineEvent) =
   summary.text = evt.title & " (" & evt.startTime.format("HH:mm") & ")"
   summary.isDirty = true
-  summary.layoutDirty = true)
+  summary.layoutDirty = true
 root.addChild(track)
 
 root.addChild(newLabel(text = "Drag the background to pan, scroll to move.",

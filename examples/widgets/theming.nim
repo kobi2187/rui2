@@ -40,7 +40,7 @@ let switcher = newHStack(spacing = 10.0).named("switcher")
 for name in ["light", "dark"]:
   let themeName = name
   let b = newButton(text = "Use " & name).named("use_" & name)
-  b.onClick = some(proc() {.closure.} = showTheme(themeName))
+  b.onClick = proc() = showTheme(themeName)
   switcher.addChild(b)
 root.addChild(switcher)
 

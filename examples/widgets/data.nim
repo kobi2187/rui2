@@ -45,8 +45,8 @@ let tree = TreeNode(id: "root", text: "project", expanded: true, children: @[
 let treeView = newTreeView(rootNode = tree, nodeHeight = 22.0,
                            visibleRows = 6).named("tree")
 treeView.bounds = Rect(x: 0, y: 0, width: 300, height: 132)
-treeView.onSelect = some(proc(nodeId: string) {.closure.} =
-  report("tree -> " & nodeId))
+treeView.onSelect = proc(nodeId: string) =
+  report("tree -> " & nodeId)
 root.addChild(treeView)
 
 # DataTable ----------------------------------------------------------------
@@ -74,13 +74,13 @@ table.bounds = Rect(x: 0, y: 0, width: 360, height: 0)
 # Filters are set from code; the strip shows what is active.
 table.filters["role"] = Filter(column: "role", kind: fkContains, text: "engineer")
 
-table.onSort = some(proc(column: string, order: SortOrder) {.closure.} =
-  report("sort " & column & " " & $order))
-table.onSelect = some(proc(selected: HashSet[int]) {.closure.} =
+table.onSort = proc(column: string, order: SortOrder) =
+  report("sort " & column & " " & $order)
+table.onSelect = proc(selected: HashSet[int]) =
   var picked: seq[string] = @[]
   for idx in selected:
     picked.add(tableRows[idx].id)
-  report("table -> " & picked.join(", ")))
+  report("table -> " & picked.join(", "))
 root.addChild(table)
 
 # DataGrid -----------------------------------------------------------------
@@ -97,8 +97,8 @@ let grid = newDataGrid(
     GridColumn(id: "sq", title: "Square", width: 120.0, sortable: true),
   ],
   data = gridRows, rowHeight = 22.0, visibleRows = 6).named("grid")
-grid.onSort = some(proc(column: int, order: SortOrder) {.closure.} =
-  report("grid sort col " & $column & " " & $order))
+grid.onSort = proc(column: int, order: SortOrder) =
+  report("grid sort col " & $column & " " & $order)
 root.addChild(grid)
 
 app.setRootWidget(root)

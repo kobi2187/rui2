@@ -31,10 +31,10 @@ let group = newGroupBox(title = "Shipping", padding = 10.0,
                         titleHeight = 20.0).named("group")
 let radios = newRadioGroup(options = @["Standard", "Express", "Overnight"],
                            initialSelectedIndex = 0, spacing = 24.0).named("radios")
-radios.onSelect = some(proc(index: int) {.closure.} =
+radios.onSelect = proc(index: int) =
   summary.text = "shipping -> " & radios.options[index]
   summary.isDirty = true
-  summary.layoutDirty = true)
+  summary.layoutDirty = true
 group.addChild(radios)
 root.addChild(group)
 
@@ -60,10 +60,10 @@ for i, caption in ["Content of tab one", "Content of tab two",
   # A Spacer soaks up whatever room is left in the page.
   page.addChild(newSpacer(minHeight = 8.0).named("pageSpacer" & $i))
   tabs.addChild(page)
-tabs.onTabChanged = some(proc(newTab: int) {.closure.} =
+tabs.onTabChanged = proc(newTab: int) =
   summary.text = "tab " & $(newTab + 1)
   summary.isDirty = true
-  summary.layoutDirty = true)
+  summary.layoutDirty = true
 root.addChild(tabs)
 
 # StatusBar: left message, right-aligned detail.

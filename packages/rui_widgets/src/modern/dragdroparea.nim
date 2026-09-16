@@ -51,8 +51,8 @@ definePrimitive(DragDropArea):
 
   events:
     on_mouse_down:
-      if widget.onClick.isSome:
-        widget.onClick.get()()
+      if widget.onClick != nil:
+        widget.onClick()
       return true
 
   layout:
@@ -116,11 +116,11 @@ proc announce(widget: DragDropArea, batch: DropBatch) =
   ## Fire whichever callbacks the batch warrants.
   if batch.accepted.len > 0:
     widget.lastDroppedFiles = batch.accepted
-    if widget.onFilesDropped.isSome:
-      widget.onFilesDropped.get()(batch.accepted)
+    if widget.onFilesDropped != nil:
+      widget.onFilesDropped(batch.accepted)
 
-  if batch.rejected.len > 0 and widget.onFilesRejected.isSome:
-    widget.onFilesRejected.get()(batch.rejected, batch.reason)
+  if batch.rejected.len > 0 and widget.onFilesRejected != nil:
+    widget.onFilesRejected(batch.rejected, batch.reason)
 
 proc pollFileDrops*(widget: DragDropArea) =
   ## Call once per frame. Picks up any files dropped on the window, filters them

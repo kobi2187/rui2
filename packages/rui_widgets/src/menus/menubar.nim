@@ -78,12 +78,12 @@ definePrimitive(MenuBar):
 
       if opening:
         widget.activeMenuIndex = hit
-        if widget.onMenuOpen.isSome:
-          widget.onMenuOpen.get()(hit)
+        if widget.onMenuOpen != nil:
+          widget.onMenuOpen(hit)
       else:
         widget.activeMenuIndex = -1
-        if widget.onMenuClose.isSome:
-          widget.onMenuClose.get()()
+        if widget.onMenuClose != nil:
+          widget.onMenuClose()
 
       widget.isDirty = true
       widget.layoutDirty = true

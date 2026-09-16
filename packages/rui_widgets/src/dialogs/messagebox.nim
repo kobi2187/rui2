@@ -44,8 +44,8 @@ definePrimitive(MessageBox):
           widget.isVisible = false
           widget.dialogResult = button.res
           widget.isDirty = true
-          if widget.onClose.isSome:
-            widget.onClose.get()(button.res)
+          if widget.onClose != nil:
+            widget.onClose(button.res)
           return true
       # A modal swallows every click, including the ones that miss a button.
       return true
@@ -80,8 +80,8 @@ definePrimitive(MessageBox):
       widget.isVisible = false
       widget.dialogResult = res
       widget.isDirty = true
-      if widget.onClose.isSome:
-        widget.onClose.get()(res)
+      if widget.onClose != nil:
+        widget.onClose(res)
       return true
 
   layout:

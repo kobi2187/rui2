@@ -29,8 +29,8 @@ proc report(text: string) =
 root.addChild(newLabel(text = "ComboBox:", fontSize = 14.0).named("t1"))
 let combo = newComboBox(items = @["Small", "Medium", "Large", "Extra large"],
                         initialSelectedIndex = 1).named("combo")
-combo.onSelect = some(proc(index: int) {.closure.} =
-  report("combo -> " & combo.items[index]))
+combo.onSelect = proc(index: int) =
+  report("combo -> " & combo.items[index])
 root.addChild(combo)
 
 # ListBox: keyboard-driven, single select ----------------------------------
@@ -38,8 +38,8 @@ root.addChild(newLabel(text = "ListBox (arrows + Enter):",
                        fontSize = 14.0).named("t2"))
 let box = newListBox(items = @["alpha", "beta", "gamma", "delta", "epsilon"],
                      itemHeight = 20.0, visibleRows = 4).named("box")
-box.onItemActivate = some(proc(index: int) {.closure.} =
-  report("listbox activated -> " & box.items[index]))
+box.onItemActivate = proc(index: int) =
+  report("listbox activated -> " & box.items[index])
 root.addChild(box)
 
 # ListView: ctrl-click multi select, ten thousand rows ----------------------
@@ -52,11 +52,11 @@ for i in 0 ..< 10_000:
 # Only the rows on screen are ever drawn, so the row count barely matters.
 let view = newListView(items = manyRows, itemHeight = 24.0, visibleRows = 6,
                        multiSelect = true).named("view")
-view.onSelect = some(proc(selection: HashSet[int]) {.closure.} =
+view.onSelect = proc(selection: HashSet[int]) =
   var picked: seq[string] = @[]
   for idx in selection:
     picked.add($idx)
-  report("listview -> " & picked.join(", ")))
+  report("listview -> " & picked.join(", "))
 root.addChild(view)
 
 app.setRootWidget(root)

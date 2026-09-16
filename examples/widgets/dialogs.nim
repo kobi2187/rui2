@@ -32,11 +32,11 @@ proc report(text: string) =
 let confirm = newMessageBox(title = "Confirm", message = "Discard changes?",
                             messageType = mbQuestion,
                             buttons = mbYesNoCancel).named("confirm")
-confirm.onClose = some(proc(res: MessageBoxResult) {.closure.} =
-  report("messagebox -> " & $res))
+confirm.onClose = proc(res: MessageBoxResult) =
+  report("messagebox -> " & $res)
 
 let askBtn = newButton(text = "Show MessageBox").named("askBtn")
-askBtn.onClick = some(proc() {.closure.} = confirm.show())
+askBtn.onClick = proc() = confirm.show()
 root.addChild(askBtn)
 
 # FileDialog ---------------------------------------------------------------
@@ -44,12 +44,12 @@ let picker = newFileDialog(title = "Open a Nim file", mode = fdOpen,
                            filters = @["*.nim"], initialPath = ".",
                            dialogWidth = 600.0,
                            dialogHeight = 400.0).named("fileDialog")
-picker.onSelect = some(proc(files: seq[string]) {.closure.} =
-  report("filedialog -> " & files.join(", ")))
-picker.onCancel = some(proc() {.closure.} = report("filedialog cancelled"))
+picker.onSelect = proc(files: seq[string]) =
+  report("filedialog -> " & files.join(", "))
+picker.onCancel = proc() = report("filedialog cancelled")
 
 let openBtn = newButton(text = "Show FileDialog").named("openBtn")
-openBtn.onClick = some(proc() {.closure.} = picker.show())
+openBtn.onClick = proc() = picker.show()
 root.addChild(openBtn)
 
 # FilePicker: not modal, just a widget -------------------------------------
@@ -58,13 +58,13 @@ root.addChild(newLabel(text = "Embedded FilePicker (double-click a folder to ent
 let embedded = newFilePicker(mode = fpOpen, filters = @["*.nim"],
                              initialPath = ".", multiSelect = true).named("embedded")
 embedded.bounds = Rect(x: 0, y: 0, width: 600, height: 260)
-embedded.onSelect = some(proc(paths: HashSet[string]) {.closure.} =
+embedded.onSelect = proc(paths: HashSet[string]) =
   var picked: seq[string] = @[]
   for p in paths:
     picked.add(extractFilename(p))
-  report("picker -> " & picked.join(", ")))
-embedded.onPathChange = some(proc(path: string) {.closure.} =
-  report("picker path -> " & path))
+  report("picker -> " & picked.join(", "))
+embedded.onPathChange = proc(path: string) =
+  report("picker path -> " & path)
 root.addChild(embedded)
 
 # Modals are drawn last so they sit on top of everything else.

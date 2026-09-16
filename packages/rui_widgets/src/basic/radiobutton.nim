@@ -39,8 +39,8 @@ definePrimitive(RadioButton):
     on_mouse_down:
       if not widget.disabled:
         if widget.selectedValue != widget.value:
-          if widget.onChange.isSome:
-            widget.onChange.get()(widget.value)
+          if widget.onChange != nil:
+            widget.onChange(widget.value)
         return true
       return false
 

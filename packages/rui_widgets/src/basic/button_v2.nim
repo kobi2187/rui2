@@ -63,8 +63,8 @@ defineWidget(Button):
     on_mouse_up:
       if widget.isPressed and not widget.disabled:
         widget.isPressed = false
-        if widget.onClick.isSome:
-          widget.onClick.get()()
+        if widget.onClick != nil:
+          widget.onClick()
         return true
       return false
 

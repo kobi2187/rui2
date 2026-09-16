@@ -33,8 +33,8 @@ let canvas = newCanvas(enableDrawing = true, drawingMode = dmFreehand,
                        defaultThickness = 2.0, showGrid = true,
                        gridSize = 20.0).named("canvas")
 canvas.bounds = Rect(x: 0, y: 0, width: 580, height: 260)
-canvas.onDrawComplete = some(proc(commands: seq[DrawCommand]) {.closure.} =
-  report("canvas: " & $commands.len & " commands"))
+canvas.onDrawComplete = proc(commands: seq[DrawCommand]) =
+  report("canvas: " & $commands.len & " commands")
 
 # Seed one shape from code. Coordinates are canvas-relative, so the shape stays
 # put if the canvas is ever moved or re-laid-out.
@@ -52,15 +52,15 @@ for (caption, mode, id) in [("Freehand", dmFreehand, "mFree"),
   let btn = newButton(text = caption).named(id)
   let captured = mode
   let capturedName = caption
-  btn.onClick = some(proc() {.closure.} =
+  btn.onClick = proc() =
     canvas.drawingMode = captured
-    report("mode: " & capturedName))
+    report("mode: " & capturedName)
   modeRow.addChild(btn)
 
 let clearBtn = newButton(text = "Clear").named("clearBtn")
-clearBtn.onClick = some(proc() {.closure.} =
+clearBtn.onClick = proc() =
   canvas.clearCanvas()
-  report("canvas cleared"))
+  report("canvas cleared")
 modeRow.addChild(clearBtn)
 root.addChild(modeRow)
 
@@ -72,13 +72,13 @@ let drop = newDragDropArea(mode = dmFiles, acceptedExtensions = @[".nim"],
                            hoverText = "Release to drop",
                            multiple = true).named("drop")
 drop.bounds = Rect(x: 0, y: 0, width: 580, height: 110)
-drop.onFilesDropped = some(proc(files: seq[DroppedItem]) {.closure.} =
+drop.onFilesDropped = proc(files: seq[DroppedItem]) =
   var names: seq[string] = @[]
   for f in files:
     names.add(extractFilename(f.path))
-  report("dropped: " & names.join(", ")))
-drop.onFilesRejected = some(proc(files: seq[string], reason: string) {.closure.} =
-  report("rejected " & $files.len & ": " & reason))
+  report("dropped: " & names.join(", "))
+drop.onFilesRejected = proc(files: seq[string], reason: string) =
+  report("rejected " & $files.len & ": " & reason)
 root.addChild(drop)
 
 app.setRootWidget(root)
@@ -87,6 +87,6 @@ app.enableScripting(scriptDir)
 app.setScriptPollInterval(0.05)
 
 # Drops arrive outside the event stream, so the app asks for them each frame.
-app.onFrame = some(proc() {.closure.} = drop.pollFileDrops())
+app.onFrame = proc() = drop.pollFileDrops()
 
 app.start()

@@ -76,15 +76,14 @@ let para = newLabel(
 let counter = newLabel(text = "Clicks: 0", fontSize = 16.0).named("counter")
 
 let clickButton = newButton(text = "Click me").named("clickButton")
-clickButton.onClick = some(proc() {.closure.} =
+clickButton.onClick = proc() =
   store.clicks += 1
   counter.text = "Clicks: " & $store.clicks
   counter.isDirty = true
   counter.layoutDirty = true
-)
 
 let quitButton = newButton(text = "Quit", intent = ThemeIntent.Danger).named("quitButton")
-quitButton.onClick = some(proc() {.closure.} = app.shouldClose = true)
+quitButton.onClick = proc() = app.shouldClose = true
 
 let buttonRow = newHStack(spacing = 10.0).named("buttonRow")
 buttonRow.addChild(clickButton)

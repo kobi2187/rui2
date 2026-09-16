@@ -106,7 +106,7 @@ suite "event routing":
   test "a click on a button fires its handler":
     let (root, button, _) = buildTree()
     var clicked = 0
-    button.onClick = some(proc() {.closure.} = inc clicked)
+    button.onClick = proc() = inc clicked
 
     discard button.handleInput(mouseEvent(evMouseDown, button.bounds.x + 5,
                                           button.bounds.y + 5))
@@ -119,7 +119,7 @@ suite "event routing":
     # input. Without bubbling the click stops there.
     let (root, button, _) = buildTree()
     var clicked = 0
-    button.onClick = some(proc() {.closure.} = inc clicked)
+    button.onClick = proc() = inc clicked
 
     check button.children.len > 0
     let inner = button.children[0]
@@ -142,7 +142,7 @@ suite "event routing":
     let disabled = newButton(text = "no", disabled = true)
     disabled.bounds = Rect(x: 0, y: 0, width: 100, height: 30)
     var clicked = 0
-    disabled.onClick = some(proc() {.closure.} = inc clicked)
+    disabled.onClick = proc() = inc clicked
     discard disabled.handleInput(mouseEvent(evMouseDown, 5, 5))
     discard disabled.handleInput(mouseEvent(evMouseUp, 5, 5))
     check clicked == 0
@@ -151,7 +151,7 @@ suite "event routing":
     let cb = newCheckbox(text = "opt", initialChecked = false)
     cb.bounds = Rect(x: 0, y: 0, width: 150, height: 24)
     var reported: seq[bool] = @[]
-    cb.onToggle = some(proc(v: bool) {.closure.} = reported.add v)
+    cb.onToggle = proc(v: bool) = reported.add v
 
     discard cb.handleInput(mouseEvent(evMouseDown, 5, 5))
     check cb.checked

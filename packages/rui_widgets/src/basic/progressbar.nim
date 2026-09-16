@@ -90,8 +90,8 @@ definePrimitive(ProgressBar):
     # handler that opened a dialog opened one per frame.
     let isComplete = widget.value >= widget.maxValue
     if isComplete and not widget.completed:
-      if widget.onComplete.isSome:
-        widget.onComplete.get()()
+      if widget.onComplete != nil:
+        widget.onComplete()
     widget.completed = isComplete
 
     if widget.bounds.height <= 0:

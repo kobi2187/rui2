@@ -141,19 +141,20 @@ template textOrEmpty*(w: untyped): string =
 
 template fireAction*(handler: untyped): bool =
   ## Call a no-argument action handler. False when the field does not exist on
-  ## this type, or exists with nothing attached.
-  when compiles(handler.get()()):
-    if handler.isSome:
-      handler.get()()
+  ## this type, or exists with nothing attached -- which is not an error, just
+  ## nothing to do.
+  when compiles(handler()):
+    if handler != nil:
+      handler()
       true
     else: false
   else: false
 
 template fireAction*(handler, arg: untyped): bool =
   ## Same, for a handler taking the widget's own state as its argument.
-  when compiles(handler.get()(arg)):
-    if handler.isSome:
-      handler.get()(arg)
+  when compiles(handler(arg)):
+    if handler != nil:
+      handler(arg)
       true
     else: false
   else: false

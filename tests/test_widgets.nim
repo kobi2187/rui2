@@ -73,7 +73,7 @@ suite "basic widgets":
   test "Button click through the scripting bridge":
     let w = newButton(text = "Go")
     var fired = 0
-    w.onClick = some(proc() {.closure.} = inc fired)
+    w.onClick = proc() = inc fired
     let res = w.handleScriptAction("click", newJObject())
     check res["success"].getBool()
     check fired == 1
@@ -252,7 +252,7 @@ suite "the DSL init section":
 
 type Gauge = ref object of Widget
   level: float32
-  onCalibrate: Option[proc()]
+  onCalibrate: proc() {.closure.}
 
 let GaugeScript = ScriptDescriptor(
   typeName: "Gauge",
@@ -297,7 +297,7 @@ suite "a hand-written widget scripts the same way":
   test "an action fires under its on-less alias":
     var fired = 0
     let g = newGauge()
-    g.onCalibrate = some(proc() {.closure.} = inc fired)
+    g.onCalibrate = proc() = inc fired
     check g.handleScriptAction("calibrate", newJObject())["success"].getBool()
     check fired == 1
 
@@ -384,7 +384,7 @@ suite "defects found while documenting the untouched widgets":
   test "ProgressBar: onComplete fires once, not once per frame":
     let w = newProgressBar(initialValue = 0.0, maxValue = 100.0)
     var fired = 0
-    w.onComplete = some(proc() {.closure.} = inc fired)
+    w.onComplete = proc() = inc fired
     w.bounds = Rect(x: 0, y: 0, width: 100, height: 20)
 
     w.value = 100.0
@@ -396,7 +396,7 @@ suite "defects found while documenting the untouched widgets":
   test "ProgressBar: a bar that is reset completes again":
     let w = newProgressBar(initialValue = 100.0, maxValue = 100.0)
     var fired = 0
-    w.onComplete = some(proc() {.closure.} = inc fired)
+    w.onComplete = proc() = inc fired
     w.bounds = Rect(x: 0, y: 0, width: 100, height: 20)
 
     w.layout()
@@ -407,3 +407,50 @@ suite "defects found while documenting the untouched widgets":
     w.value = 100.0
     w.layout()
     check fired == 2
+
+suite "attaching a handler":
+  ## Handlers are plain nilable closures. This used to be
+  ## `Option[proc(...) {.closure.}]`, so every call site read
+  ## `btn.onClick = some(proc() {.closure.} = ...)` -- an Option around a type
+  ## that is already nilable, plus a pragma the compiler could have inferred if
+  ## the Option had not been in the way.
+
+  test "a bare closure attaches":
+    let b = newButton(text = "Go")
+    var fired = 0
+    b.onClick = proc() = inc fired
+    check b.onClick != nil
+    b.onClick()
+    check fired == 1
+
+  test "a handler with arguments too":
+    let c = newCheckbox(text = "x")
+    var seen = false
+    c.onToggle = proc(checked: bool) = seen = checked
+    discard c.handleScriptAction("toggle", newJObject())
+    check seen
+
+  test "a widget with no handler has nil, not none":
+    let b = newButton(text = "Go")
+    check b.onClick == nil
+
+  test "the constructor takes one directly":
+    var fired = 0
+    let b = newButton(text = "Go", onClick = proc() = inc fired)
+    b.onClick()
+    check fired == 1
+
+  test "a handler can be detached with nil":
+    let b = newButton(text = "Go")
+    b.onClick = proc() = discard
+    b.onClick = nil
+    check b.onClick == nil
+
+  test "the scripting bridge still reports an unattached action, not an error":
+    # fireAction returns false for nil, which doInvoke renders as a note rather
+    # than a failure -- a script that only wanted to poke the widget is not
+    # broken just because nothing was listening.
+    let b = newButton(text = "Go")
+    let res = b.handleScriptAction("click", newJObject())
+    check res["success"].getBool()
+    check res["note"].getStr() == "no handler attached"

@@ -86,15 +86,15 @@ definePrimitive(Canvas):
                                 lineColor: widget.defaultColor,
                                 lineThickness: widget.defaultThickness)
           widget.commands.add(cmd)
-        if widget.onDrawComplete.isSome:
-          widget.onDrawComplete.get()(widget.commands)
+        if widget.onDrawComplete != nil:
+          widget.onDrawComplete(widget.commands)
       of dmLine:
         let cmd = DrawCommand(kind: dcLine, lineStart: start, lineEnd: last,
                               lineColor: widget.defaultColor,
                               lineThickness: widget.defaultThickness)
         widget.commands.add(cmd)
-        if widget.onDraw.isSome:
-          widget.onDraw.get()(cmd)
+        if widget.onDraw != nil:
+          widget.onDraw(cmd)
       of dmRect:
         let cmd = DrawCommand(kind: dcRect,
                               rect: Rect(x: min(start.x, last.x),
@@ -104,15 +104,15 @@ definePrimitive(Canvas):
                               rectColor: widget.defaultColor,
                               rectRounded: false, rectRoundness: 0.0)
         widget.commands.add(cmd)
-        if widget.onDraw.isSome:
-          widget.onDraw.get()(cmd)
+        if widget.onDraw != nil:
+          widget.onDraw(cmd)
       of dmCircle:
         let cmd = DrawCommand(kind: dcCircle, center: start,
                               radius: dist(start, last),
                               circleColor: widget.defaultColor)
         widget.commands.add(cmd)
-        if widget.onDraw.isSome:
-          widget.onDraw.get()(cmd)
+        if widget.onDraw != nil:
+          widget.onDraw(cmd)
 
       widget.currentPath.setLen(0)
       return true
@@ -177,8 +177,8 @@ proc clearCanvas*(widget: Canvas) =
   widget.currentPath.setLen(0)
   widget.isDrawing = false
   widget.isDirty = true
-  if widget.onClear.isSome:
-    widget.onClear.get()()
+  if widget.onClear != nil:
+    widget.onClear()
 
 proc addCommand*(widget: Canvas, cmd: DrawCommand) =
   ## Append a command from code (positions are canvas-relative).

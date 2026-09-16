@@ -64,16 +64,16 @@ definePrimitive(TreeView):
         widget.isDirty = true
         widget.layoutDirty = true   # the flat list just changed length
         if flat.node.expanded:
-          if widget.onExpand.isSome: widget.onExpand.get()(flat.node.id)
+          if widget.onExpand != nil: widget.onExpand(flat.node.id)
         else:
-          if widget.onCollapse.isSome: widget.onCollapse.get()(flat.node.id)
+          if widget.onCollapse != nil: widget.onCollapse(flat.node.id)
         return true
 
       if widget.selectedId != flat.node.id:
         widget.selectedId = flat.node.id
         widget.isDirty = true
-        if widget.onSelect.isSome:
-          widget.onSelect.get()(flat.node.id)
+        if widget.onSelect != nil:
+          widget.onSelect(flat.node.id)
       return true
 
     on_mouse_move:

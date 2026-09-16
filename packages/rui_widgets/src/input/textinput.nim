@@ -55,8 +55,8 @@ template edit*(widget: untyped, body: untyped) =
       # Only a change of text needs a re-measure or an onChange; moving the
       # caret repaints and nothing more.
       widget.layoutDirty = true
-      if widget.onChange.isSome:
-        widget.onChange.get()(widget.text)
+      if widget.onChange != nil:
+        widget.onChange(widget.text)
 
 definePrimitive(TextInput):
   props:
@@ -138,8 +138,8 @@ definePrimitive(TextInput):
         return true
 
       of Enter, KpEnter:
-        if widget.onSubmit.isSome:
-          widget.onSubmit.get()(widget.text)
+        if widget.onSubmit != nil:
+          widget.onSubmit(widget.text)
         return true
 
       else:

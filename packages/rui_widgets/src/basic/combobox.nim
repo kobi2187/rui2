@@ -50,8 +50,8 @@ definePrimitive(ComboBox):
           widget.isOpen = false
           widget.isDirty = true
           widget.layoutDirty = true
-          if widget.onSelect.isSome:
-            widget.onSelect.get()(idx)
+          if widget.onSelect != nil:
+            widget.onSelect(idx)
           return true
 
       widget.isOpen = not widget.isOpen
@@ -88,8 +88,8 @@ definePrimitive(ComboBox):
       else:
         return false
       widget.isDirty = true
-      if widget.onSelect.isSome:
-        widget.onSelect.get()(widget.selectedIndex)
+      if widget.onSelect != nil:
+        widget.onSelect(widget.selectedIndex)
       return true
 
   layout:

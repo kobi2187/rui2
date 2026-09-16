@@ -48,8 +48,8 @@ definePrimitive(IconButton):
         return false
       widget.isPressed = false
       widget.isDirty = true
-      if widget.onClick.isSome:
-        widget.onClick.get()()
+      if widget.onClick != nil:
+        widget.onClick()
       return true
 
   layout:

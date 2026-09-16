@@ -28,7 +28,7 @@ amount.bindTo(bar, proc(v: float) = bar.value = v)
 
 let slider = newSlider(initialValue = 35.0'f32, minValue = 0.0'f32,
                        maxValue = 100.0'f32).named("slider")
-slider.onChange = some(proc(v: float32) {.closure.} = amount.set(v.float))
+slider.onChange = proc(v: float32) = amount.set(v.float)
 
 root.addChild(readout)
 root.addChild(slider)
@@ -38,8 +38,8 @@ let row = newHStack(spacing = 8.0).named("row")
 for (caption, delta, id) in [("-10", -10.0, "minus"), ("+10", 10.0, "plus")]:
   let step = delta
   let b = newButton(text = caption).named(id)
-  b.onClick = some(proc() {.closure.} =
-    amount.set(max(0.0, min(100.0, amount.get() + step))))
+  b.onClick = proc() =
+    amount.set(max(0.0, min(100.0, amount.get() + step)))
   row.addChild(b)
 root.addChild(row)
 

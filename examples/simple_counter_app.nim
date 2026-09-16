@@ -24,10 +24,10 @@ proc buildUI(): Widget =
   root.addChild(newLabel(text = &"Count: {store.counter.get()}"))
 
   let row = newHStack(spacing = 8)
-  row.addChild(newButton(text = "-", onClick = some(proc() {.closure.} =
-    store.counter.set(store.counter.get() - 1))))
-  row.addChild(newButton(text = "+", onClick = some(proc() {.closure.} =
-    store.counter.set(store.counter.get() + 1))))
+  row.addChild(newButton(text = "-", onClick = proc() =
+    store.counter.set(store.counter.get() - 1)))
+  row.addChild(newButton(text = "+", onClick = proc() =
+    store.counter.set(store.counter.get() + 1)))
   root.addChild(row)
 
   result = root

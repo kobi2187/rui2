@@ -80,8 +80,8 @@ definePrimitive(FilePicker):
       if dest.len > 0:
         widget.openDirectory(dest)
         widget.isDirty = true
-        if widget.onPathChange.isSome:
-          widget.onPathChange.get()(widget.currentPath)
+        if widget.onPathChange != nil:
+          widget.onPathChange(widget.currentPath)
         return true
 
       # A single-select picker ignores ctrl rather than quietly multi-selecting.
@@ -90,8 +90,8 @@ definePrimitive(FilePicker):
       updateSelection(widget.selectedFiles, widget.currentPath / entry, additive)
 
       widget.isDirty = true
-      if widget.onSelect.isSome:
-        widget.onSelect.get()(widget.selectedFiles)
+      if widget.onSelect != nil:
+        widget.onSelect(widget.selectedFiles)
       return true
 
     on_mouse_move:

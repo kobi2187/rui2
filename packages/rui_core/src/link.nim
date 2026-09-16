@@ -152,12 +152,11 @@ proc bindTo*[T](link: Link[T], widget: Widget,
   link.addDependent(widget)
 
   let existing = widget.onRefresh
-  widget.onRefresh = some(proc() {.closure.} =
+  widget.onRefresh = proc() =
     # Chain, so several links can drive one widget.
-    if existing.isSome:
-      existing.get()()
+    if existing != nil:
+      existing()
     apply(link.value)
-  )
 
   # Seed the initial value.
   apply(link.value)

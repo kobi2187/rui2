@@ -73,8 +73,8 @@ proc open*(widget: Menu) =
   widget.isOpen = true
   widget.isDirty = true
   widget.layoutDirty = true
-  if widget.onOpen.isSome:
-    widget.onOpen.get()()
+  if widget.onOpen != nil:
+    widget.onOpen()
 
 proc close*(widget: Menu) =
   ## Hide the dropdown.
@@ -83,5 +83,5 @@ proc close*(widget: Menu) =
   widget.isOpen = false
   widget.isDirty = true
   widget.layoutDirty = true
-  if widget.onClose.isSome:
-    widget.onClose.get()()
+  if widget.onClose != nil:
+    widget.onClose()

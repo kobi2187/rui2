@@ -75,8 +75,8 @@ definePrimitive(ListView):
         widget.scrollY = newScroll
         widget.isDirty = true
 
-      if v.nearEnd(total) and widget.onScrollNearEnd.isSome:
-        widget.onScrollNearEnd.get()()
+      if v.nearEnd(total) and widget.onScrollNearEnd != nil:
+        widget.onScrollNearEnd()
       return true
 
     on_mouse_move:
@@ -103,10 +103,10 @@ definePrimitive(ListView):
       updateSelection(widget.selection, idx, additive)
 
       widget.isDirty = true
-      if widget.onItemClick.isSome:
-        widget.onItemClick.get()(idx)
-      if widget.onSelect.isSome:
-        widget.onSelect.get()(widget.selection)
+      if widget.onItemClick != nil:
+        widget.onItemClick(idx)
+      if widget.onSelect != nil:
+        widget.onSelect(widget.selection)
       return true
 
   layout:
@@ -134,10 +134,10 @@ definePrimitive(ListView):
     widget.visibleStart = visible.a
     widget.visibleEnd = visible.b
 
-    if widget.onLoadMore.isSome and visible.b >= widget.items.len - LoadAheadItems:
+    if widget.onLoadMore != nil and visible.b >= widget.items.len - LoadAheadItems:
       let needCount = min(LoadBatchSize, total - widget.items.len)
       if needCount > 0:
-        widget.onLoadMore.get()(widget.items.len, needCount)
+        widget.onLoadMore(widget.items.len, needCount)
 
     drawThemedBackground(widget.bounds, props)
 

@@ -26,15 +26,15 @@ let input = newTextInput(initialText = "", placeholder = "Type something...",
                          fontSize = 16.0, maxLength = 40).named("input")
 input.bounds = Rect(x: 0, y: 0, width: 440, height: 36)
 
-input.onChange = some(proc(newText: string) {.closure.} =
+input.onChange = proc(newText: string) =
   echoLabel.text = if newText.len > 0: newText else: "(nothing typed)"
   echoLabel.isDirty = true
-  echoLabel.layoutDirty = true)
+  echoLabel.layoutDirty = true
 
-input.onSubmit = some(proc(text: string) {.closure.} =
+input.onSubmit = proc(text: string) =
   submitted.text = "submitted: " & text
   submitted.isDirty = true
-  submitted.layoutDirty = true)
+  submitted.layoutDirty = true
 
 root.addChild(newLabel(text = "Click to focus, then type:",
                        fontSize = 14.0).named("t1"))

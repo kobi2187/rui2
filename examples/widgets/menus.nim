@@ -28,7 +28,7 @@ proc item(caption, shortcut, id: string, checkable = false): MenuItem =
   result = newMenuItem(text = caption, shortcut = shortcut,
                        checkable = checkable).named(id)
   let captured = caption
-  result.onClick = some(proc() {.closure.} = report("clicked: " & captured))
+  result.onClick = proc() = report("clicked: " & captured)
 
 # MenuBar draws each child Menu's title in the strip and hangs the dropdown
 # underneath. It grows its own bounds to cover whichever dropdown is open --
@@ -44,8 +44,8 @@ bar.addChild(fileMenu)
 
 let viewMenu = newMenu(title = "View", minWidth = 180.0).named("viewMenu")
 let wrapItem = item("Word wrap", "", "miWrap", checkable = true)
-wrapItem.onToggle = some(proc(checked: bool) {.closure.} =
-  report("word wrap " & (if checked: "on" else: "off")))
+wrapItem.onToggle = proc(checked: bool) =
+  report("word wrap " & (if checked: "on" else: "off"))
 viewMenu.addChild(wrapItem)
 viewMenu.addChild(item("Zoom in", "Ctrl++", "miZoomIn"))
 bar.addChild(viewMenu)
@@ -65,8 +65,8 @@ ctx.addChild(newMenuItem(separator = true).named("ctxSep"))
 ctx.addChild(item("Paste", "Ctrl+V", "ctxPaste"))
 
 let popBtn = newButton(text = "Show context menu").named("popBtn")
-popBtn.onClick = some(proc() {.closure.} =
-  ctx.openAt(200.0, 220.0))
+popBtn.onClick = proc() =
+  ctx.openAt(200.0, 220.0)
 body.addChild(popBtn)
 body.addChild(ctx)
 

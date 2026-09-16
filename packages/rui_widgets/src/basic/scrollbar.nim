@@ -46,8 +46,8 @@ definePrimitive(ScrollBar):
       if newValue != widget.value:
         widget.value = newValue
         widget.isDirty = true
-        if widget.onChange.isSome:
-          widget.onChange.get()(newValue)
+        if widget.onChange != nil:
+          widget.onChange(newValue)
       return true
 
     on_mouse_move:
@@ -61,8 +61,8 @@ definePrimitive(ScrollBar):
       if newValue != widget.value:
         widget.value = newValue
         widget.isDirty = true
-        if widget.onChange.isSome:
-          widget.onChange.get()(newValue)
+        if widget.onChange != nil:
+          widget.onChange(newValue)
       return true
 
     on_mouse_up:
@@ -79,8 +79,8 @@ definePrimitive(ScrollBar):
       if newValue != widget.value:
         widget.value = newValue
         widget.isDirty = true
-        if widget.onChange.isSome:
-          widget.onChange.get()(newValue)
+        if widget.onChange != nil:
+          widget.onChange(newValue)
       return true
 
   layout:

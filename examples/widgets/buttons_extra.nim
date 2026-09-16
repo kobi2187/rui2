@@ -30,7 +30,7 @@ let iconRow = newHStack(spacing = 8.0).named("iconRow")
 for (glyph, id) in [("+", "iconAdd"), ("-", "iconDel"), ("?", "iconHelp")]:
   let btn = newIconButton(iconText = glyph, size = 32.0).named(id)
   let captured = glyph
-  btn.onClick = some(proc() {.closure.} = report("icon button " & captured))
+  btn.onClick = proc() = report("icon button " & captured)
   iconRow.addChild(btn)
 root.addChild(iconRow)
 
@@ -45,8 +45,8 @@ for (glyph, caption, id) in [("B", "Bold", "tbBold"),
   let btn = newToolButton(iconText = glyph, text = caption, size = 28.0,
                           showText = true, toggleable = true).named(id)
   let captured = caption
-  btn.onToggle = some(proc(state: bool) {.closure.} =
-    report(captured & (if state: " on" else: " off")))
+  btn.onToggle = proc(state: bool) =
+    report(captured & (if state: " on" else: " off"))
   bar.addChild(btn)
 root.addChild(bar)
 

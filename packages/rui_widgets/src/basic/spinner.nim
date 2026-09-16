@@ -50,8 +50,8 @@ definePrimitive(Spinner):
       if stepped != widget.value:
         widget.value = stepped
         widget.isDirty = true
-        if widget.onChange.isSome:
-          widget.onChange.get()(stepped)
+        if widget.onChange != nil:
+          widget.onChange(stepped)
       return true
 
     on_mouse_move:

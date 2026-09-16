@@ -200,31 +200,40 @@ proc genStateField*(state: StateDef): NimNode =
     newEmptyNode()
   )
 
-proc genActionField*(action: ActionDef): NimNode =
-  ## Generate Option[proc(...)] field for action
-  var procType: NimNode
-
+proc actionProcType*(action: ActionDef): NimNode =
+  ## `proc(x: T, y: U): R {.closure.}` for one declared action.
+  ##
+  ## Always closure, never nimcall: a handler that cannot capture the variable
+  ## it is reporting to is not much of a handler.
   if action.params.len == 0 and action.returnType.strVal == "void":
-    # Simple: proc()
-    procType = nnkProcTy.newTree(
+    return nnkProcTy.newTree(
       nnkFormalParams.newTree(newEmptyNode()),
-      nnkPragma.newTree(ident("closure"))
-    )
-  else:
-    # With params/return: proc(x: T, y: U): R
-    var formalParams = nnkFormalParams.newTree(action.returnType)
-    for param in action.params:
-      formalParams.add(
-        nnkIdentDefs.newTree(ident(param.name), param.typ, newEmptyNode())
-      )
-    procType = nnkProcTy.newTree(formalParams, nnkPragma.newTree(ident("closure")))
+      nnkPragma.newTree(ident("closure")))
 
-  let optionType = nnkBracketExpr.newTree(ident("Option"), procType)
-  # Exported: callers assign handlers (widget.onClick = some(...)) from outside
-  # the widget's defining module.
+  var formalParams = nnkFormalParams.newTree(action.returnType)
+  for param in action.params:
+    formalParams.add(
+      nnkIdentDefs.newTree(ident(param.name), param.typ, newEmptyNode()))
+  nnkProcTy.newTree(formalParams, nnkPragma.newTree(ident("closure")))
+
+proc genActionField*(action: ActionDef): NimNode =
+  ## Generate the handler field for an action: a plain, nilable closure.
+  ##
+  ## This used to be `Option[proc(...)]`, which made every caller write
+  ## `btn.onClick = some(proc() {.closure.} = ...)` -- an Option wrapper around
+  ## a type that is already nilable, plus a pragma the compiler could have
+  ## inferred if the Option had not been in the way. `nil` is the only "no
+  ## handler" a proc needs, and with the wrapper gone a bare lambda assigns
+  ## directly:
+  ##
+  ## ```nim
+  ## btn.onClick = proc() = report("clicked")
+  ## ```
+  ##
+  ## Exported: callers attach handlers from outside the widget's module.
   nnkIdentDefs.newTree(
     nnkPostfix.newTree(ident("*"), ident(action.name)),
-    optionType,
+    actionProcType(action),
     newEmptyNode()
   )
 
@@ -253,36 +262,18 @@ proc genStateInit*(state: StateDef): NimNode =
   nnkExprColonExpr.newTree(state.name, initValue)
 
 proc genActionParam*(action: ActionDef): NimNode =
-  ## Generate constructor parameter for action with nil default
-  let actionIdent = ident(action.name)
-  var procType: NimNode
-
-  if action.params.len == 0 and action.returnType.strVal == "void":
-    procType = nnkProcTy.newTree(
-      nnkFormalParams.newTree(newEmptyNode()),
-      nnkPragma.newTree(ident("closure"))
-    )
-  else:
-    var formalParams = nnkFormalParams.newTree(action.returnType)
-    for param in action.params:
-      formalParams.add(
-        nnkIdentDefs.newTree(ident(param.name), param.typ, newEmptyNode())
-      )
-    procType = nnkProcTy.newTree(formalParams, nnkPragma.newTree(ident("closure")))
-
-  let optionType = nnkBracketExpr.newTree(ident("Option"), procType)
-  # Default to none[ProcType]()
-  let noneCall = newCall(ident("none"), procType)
-  nnkIdentDefs.newTree(actionIdent, optionType, noneCall)
+  ## Constructor parameter for an action, defaulting to nil -- so
+  ## `newButton(text = "Go")` compiles without naming every handler.
+  nnkIdentDefs.newTree(ident(action.name), actionProcType(action), newNilLit())
 
 proc genActionInit*(action: ActionDef): NimNode =
-  ## Generate action initialization in constructor
+  ## Generate action initialization in constructor.
+  ##
+  ## Unused: buildConstructorBody assigns the parameter straight to the field,
+  ## which is all a nilable proc needs. Kept because it is exported.
   let actionIdent = ident(action.name)
   quote do:
-    if `actionIdent`.isSome:
-      some(`actionIdent`.get())
-    else:
-      none(type(`actionIdent`.get()))
+    `actionIdent`
 
 # ============================================================================
 # Event Handling

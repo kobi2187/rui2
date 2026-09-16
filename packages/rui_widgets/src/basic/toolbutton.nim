@@ -52,11 +52,11 @@ definePrimitive(ToolButton):
 
       if widget.toggleable:
         widget.toggled = not widget.toggled
-        if widget.onToggle.isSome:
-          widget.onToggle.get()(widget.toggled)
+        if widget.onToggle != nil:
+          widget.onToggle(widget.toggled)
 
-      if widget.onClick.isSome:
-        widget.onClick.get()()
+      if widget.onClick != nil:
+        widget.onClick()
       return true
 
   layout:

@@ -75,14 +75,14 @@ definePrimitive(MapWidget):
         if zoomInRect(widget.bounds).contains(event.mousePos.x, event.mousePos.y):
           widget.zoom = clamp(widget.zoom + 1.0, widget.minZoom, widget.maxZoom)
           widget.isDirty = true
-          if widget.onZoomChanged.isSome:
-            widget.onZoomChanged.get()(widget.zoom)
+          if widget.onZoomChanged != nil:
+            widget.onZoomChanged(widget.zoom)
           return true
         if zoomOutRect(widget.bounds).contains(event.mousePos.x, event.mousePos.y):
           widget.zoom = clamp(widget.zoom - 1.0, widget.minZoom, widget.maxZoom)
           widget.isDirty = true
-          if widget.onZoomChanged.isSome:
-            widget.onZoomChanged.get()(widget.zoom)
+          if widget.onZoomChanged != nil:
+            widget.onZoomChanged(widget.zoom)
           return true
 
       # Markers are hit-tested before the map itself.
@@ -92,8 +92,8 @@ definePrimitive(MapWidget):
         if abs(event.mousePos.x - p.x) <= half and abs(event.mousePos.y - p.y) <= half:
           widget.selectedMarker = marker.id
           widget.isDirty = true
-          if widget.onMarkerClick.isSome:
-            widget.onMarkerClick.get()(marker)
+          if widget.onMarkerClick != nil:
+            widget.onMarkerClick(marker)
           return true
 
       if widget.enablePan:
@@ -101,8 +101,8 @@ definePrimitive(MapWidget):
         widget.panStart = Point(x: event.mousePos.x, y: event.mousePos.y)
         widget.panStartCenter = widget.center
 
-      if widget.onMapClick.isSome:
-        widget.onMapClick.get()(view.screenToWorld(event.mousePos.x, event.mousePos.y))
+      if widget.onMapClick != nil:
+        widget.onMapClick(view.screenToWorld(event.mousePos.x, event.mousePos.y))
       return true
 
     on_mouse_move:
@@ -116,8 +116,8 @@ definePrimitive(MapWidget):
                                           widget.panStart.x, widget.panStart.y,
                                           event.mousePos.x, event.mousePos.y)
         widget.isDirty = true
-        if widget.onCenterChanged.isSome:
-          widget.onCenterChanged.get()(widget.center)
+        if widget.onCenterChanged != nil:
+          widget.onCenterChanged(widget.center)
         return true
 
       widget.hoveredMarker = view.markerAt(widget.markers, event.mousePos.x,
@@ -139,8 +139,8 @@ definePrimitive(MapWidget):
       if newZoom != widget.zoom:
         widget.zoom = newZoom
         widget.isDirty = true
-        if widget.onZoomChanged.isSome:
-          widget.onZoomChanged.get()(newZoom)
+        if widget.onZoomChanged != nil:
+          widget.onZoomChanged(newZoom)
       return true
 
   layout:

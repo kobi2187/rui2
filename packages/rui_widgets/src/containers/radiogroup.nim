@@ -55,8 +55,8 @@ definePrimitive(RadioGroup):
       if idx != widget.selectedIndex:
         widget.selectedIndex = idx
         widget.isDirty = true
-        if widget.onSelect.isSome:
-          widget.onSelect.get()(idx)
+        if widget.onSelect != nil:
+          widget.onSelect(idx)
       return true
 
     on_mouse_move:
@@ -80,8 +80,8 @@ definePrimitive(RadioGroup):
       if newIndex != widget.selectedIndex:
         widget.selectedIndex = newIndex
         widget.isDirty = true
-        if widget.onSelect.isSome:
-          widget.onSelect.get()(newIndex)
+        if widget.onSelect != nil:
+          widget.onSelect(newIndex)
       return true
 
   layout:

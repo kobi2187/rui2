@@ -56,7 +56,7 @@ definePrimitive(ImageWidget):
 
   events:
     on_mouse_down:
-      if not widget.disabled and widget.onClick.isSome:
+      if not widget.disabled and widget.onClick != nil:
         widget.isPressed = true
         return true
       return false
@@ -64,8 +64,8 @@ definePrimitive(ImageWidget):
     on_mouse_up:
       if widget.isPressed and not widget.disabled:
         widget.isPressed = false
-        if widget.onClick.isSome:
-          widget.onClick.get()()
+        if widget.onClick != nil:
+          widget.onClick()
         return true
       return false
 
@@ -124,7 +124,7 @@ definePrimitive(ImageWidget):
       )
 
       # Optional: Draw border when hovered (if clickable)
-      if widget.onClick.isSome: # and widget.isHovered.get():
+      if widget.onClick != nil: # and widget.isHovered.get():
         drawRectangleLines(
           widget.bounds.x.int32,
           widget.bounds.y.int32,

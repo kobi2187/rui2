@@ -65,8 +65,8 @@ definePrimitive(Timeline):
         if axis.eventRectFor(i, evt).contains(event.mousePos.x, event.mousePos.y):
           widget.selectedEvent = evt.id
           widget.isDirty = true
-          if widget.onEventClick.isSome:
-            widget.onEventClick.get()(evt)
+          if widget.onEventClick != nil:
+            widget.onEventClick(evt)
           return true
       # Empty space starts a pan.
       widget.isDragging = true
@@ -79,8 +79,8 @@ definePrimitive(Timeline):
         if newOffset != widget.scrollOffset:
           widget.scrollOffset = newOffset
           widget.isDirty = true
-          if widget.onScroll.isSome:
-            widget.onScroll.get()(newOffset)
+          if widget.onScroll != nil:
+            widget.onScroll(newOffset)
         return true
 
       let axis = axisOf(widget)
@@ -105,8 +105,8 @@ definePrimitive(Timeline):
       if newOffset != widget.scrollOffset:
         widget.scrollOffset = newOffset
         widget.isDirty = true
-        if widget.onScroll.isSome:
-          widget.onScroll.get()(newOffset)
+        if widget.onScroll != nil:
+          widget.onScroll(newOffset)
       return true
 
   layout:

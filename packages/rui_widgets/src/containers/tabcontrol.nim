@@ -42,8 +42,8 @@ definePrimitive(TabControl):
       widget.activeTab = idx
       widget.isDirty = true
       widget.layoutDirty = true   # child visibility is decided in layout
-      if widget.onTabChanged.isSome:
-        widget.onTabChanged.get()(idx)
+      if widget.onTabChanged != nil:
+        widget.onTabChanged(idx)
       return true
 
     on_mouse_move:

@@ -74,8 +74,8 @@ definePrimitive(ListBox):
         widget.scrollY = newScroll
         widget.isDirty = true
 
-      if v.nearEnd(total) and widget.onScrollNearEnd.isSome:
-        widget.onScrollNearEnd.get()()
+      if v.nearEnd(total) and widget.onScrollNearEnd != nil:
+        widget.onScrollNearEnd()
       return true
 
     on_mouse_move:
@@ -100,8 +100,8 @@ definePrimitive(ListBox):
       updateSelection(widget.selection, idx, additive)
       widget.focusIndex = idx
       widget.isDirty = true
-      if widget.onSelect.isSome:
-        widget.onSelect.get()(widget.selection)
+      if widget.onSelect != nil:
+        widget.onSelect(widget.selection)
       return true
 
     on_key_down:
@@ -114,10 +114,10 @@ definePrimitive(ListBox):
       if event.key in ActivateKeys:
         widget.selection = [widget.focusIndex].toHashSet
         widget.isDirty = true
-        if widget.onItemActivate.isSome:
-          widget.onItemActivate.get()(widget.focusIndex)
-        if widget.onSelect.isSome:
-          widget.onSelect.get()(widget.selection)
+        if widget.onItemActivate != nil:
+          widget.onItemActivate(widget.focusIndex)
+        if widget.onSelect != nil:
+          widget.onSelect(widget.selection)
         return true
 
       # none means the key does not navigate, so the event stays unhandled
@@ -155,10 +155,10 @@ definePrimitive(ListBox):
     widget.visibleStart = visible.a
     widget.visibleEnd = visible.b
 
-    if widget.onLoadMore.isSome and visible.b >= widget.items.len - LoadAheadItems:
+    if widget.onLoadMore != nil and visible.b >= widget.items.len - LoadAheadItems:
       let needCount = min(LoadBatchSize, total - widget.items.len)
       if needCount > 0:
-        widget.onLoadMore.get()(widget.items.len, needCount)
+        widget.onLoadMore(widget.items.len, needCount)
 
     drawThemedBackground(widget.bounds, props)
 

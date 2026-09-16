@@ -161,8 +161,8 @@ proc blurCurrent(fm: FocusManager) =
   if fm.focusedWidget == nil:
     return
   fm.focusedWidget.focused = false
-  if fm.focusedWidget.onBlur.isSome:
-    fm.focusedWidget.onBlur.get()()
+  if fm.focusedWidget.onBlur != nil:
+    fm.focusedWidget.onBlur()
 
 proc clearFocus*(fm: FocusManager) =
   ## Remove focus from current widget
@@ -192,8 +192,8 @@ proc setFocus*(fm: FocusManager, widget: Widget) =
   fm.activeGroup = enclosingGroup(widget)
   widget.focused = true
   # Trigger onFocus callback on new widget
-  if widget.onFocus.isSome:
-    widget.onFocus.get()()
+  if widget.onFocus != nil:
+    widget.onFocus()
 
 proc getFocusedWidget*(fm: FocusManager): Widget =
   ## Get currently focused widget (nil if none)

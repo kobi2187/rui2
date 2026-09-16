@@ -42,13 +42,13 @@ for (id, title, lat, lon) in [("lon", "London", 51.5074, -0.1278),
     id: id, coord: MapCoord(lat: lat, lon: lon), title: title,
     color: Color(r: 220, g: 70, b: 70, a: 255), size: 8.0, data: newJObject()))
 
-map.onMarkerClick = some(proc(marker: MapMarker) {.closure.} =
+map.onMarkerClick = proc(marker: MapMarker) =
   report(marker.title & " @ " &
          formatFloat(marker.coord.lat, ffDecimal, 3) & ", " &
-         formatFloat(marker.coord.lon, ffDecimal, 3)))
+         formatFloat(marker.coord.lon, ffDecimal, 3))
 
-map.onZoomChanged = some(proc(newZoom: float) {.closure.} =
-  report("zoom " & formatFloat(newZoom, ffDecimal, 1)))
+map.onZoomChanged = proc(newZoom: float) =
+  report("zoom " & formatFloat(newZoom, ffDecimal, 1))
 
 root.addChild(map)
 

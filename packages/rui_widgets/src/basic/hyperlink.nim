@@ -42,10 +42,10 @@ definePrimitive(Hyperlink):
     on_mouse_down:
       if not widget.disabled:
         widget.visited = true
-        if widget.onClick.isSome:
-          widget.onClick.get()()
-        if widget.onNavigate.isSome and widget.url.len > 0:
-          widget.onNavigate.get()(widget.url)
+        if widget.onClick != nil:
+          widget.onClick()
+        if widget.onNavigate != nil and widget.url.len > 0:
+          widget.onNavigate(widget.url)
         return true
       return false
 

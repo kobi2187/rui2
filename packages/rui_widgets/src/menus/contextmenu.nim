@@ -79,8 +79,8 @@ proc openAt*(widget: ContextMenu, x, y: float32) =
   widget.isVisible = true
   widget.isDirty = true
   widget.layoutDirty = true
-  if widget.onOpen.isSome:
-    widget.onOpen.get()(x, y)
+  if widget.onOpen != nil:
+    widget.onOpen(x, y)
 
 proc close*(widget: ContextMenu) =
   ## Dismiss the menu.
@@ -89,5 +89,5 @@ proc close*(widget: ContextMenu) =
   widget.isVisible = false
   widget.isDirty = true
   widget.layoutDirty = true
-  if widget.onClose.isSome:
-    widget.onClose.get()()
+  if widget.onClose != nil:
+    widget.onClose()

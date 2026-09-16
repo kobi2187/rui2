@@ -36,9 +36,9 @@ root.addChild(newLabel(text = "Spinner (click the arrows):",
                        fontSize = 14.0).named("t1"))
 let spin = newSpinner(initialValue = 5.0, minValue = 0.0, maxValue = 10.0,
                       step = 0.5, decimals = 1).named("spin")
-spin.onChange = some(proc(value: float32) {.closure.} =
+spin.onChange = proc(value: float32) =
   spinValue = value
-  refresh())
+  refresh()
 root.addChild(spin)
 
 # NumberInput: click the text area to type, Enter commits, Escape reverts.
@@ -46,12 +46,12 @@ root.addChild(newLabel(text = "NumberInput (click, type, Enter):",
                        fontSize = 14.0).named("t2"))
 let num = newNumberInput(initialValue = 0.0, minValue = -50.0, maxValue = 50.0,
                          step = 1.0, decimals = 2).named("num")
-num.onChange = some(proc(value: float32) {.closure.} =
+num.onChange = proc(value: float32) =
   numValue = value
-  refresh())
-num.onValidationError = some(proc(input: string) {.closure.} =
+  refresh()
+num.onValidationError = proc(input: string) =
   summary.text = "not a number: " & input
-  summary.isDirty = true)
+  summary.isDirty = true
 root.addChild(num)
 
 # ScrollBar: drag the thumb, or use the wheel.
@@ -60,9 +60,9 @@ root.addChild(newLabel(text = "ScrollBar (drag or scroll):",
 let bar = newScrollBar(initialValue = 0.0, minValue = 0.0, maxValue = 100.0,
                        pageSize = 20.0, vertical = false).named("bar")
 bar.bounds = Rect(x: 0, y: 0, width: 300, height: 12)
-bar.onChange = some(proc(value: float32) {.closure.} =
+bar.onChange = proc(value: float32) =
   scrollValue = value
-  refresh())
+  refresh()
 root.addChild(bar)
 
 refresh()

@@ -40,10 +40,10 @@ definePrimitive(MenuItem):
       if widget.checkable:
         widget.checked = not widget.checked
         widget.isDirty = true
-        if widget.onToggle.isSome:
-          widget.onToggle.get()(widget.checked)
-      if widget.onClick.isSome:
-        widget.onClick.get()()
+        if widget.onToggle != nil:
+          widget.onToggle(widget.checked)
+      if widget.onClick != nil:
+        widget.onClick()
       return true
 
   layout:

@@ -75,8 +75,8 @@ template sortByColumnAt*(widget: untyped, mouseX: float32): bool =
       widget.sortOrder = order
       widget.isDirty = true
       widget.layoutDirty = true   # ordering is decided in layout
-      if widget.onSort.isSome:
-        widget.onSort.get()(widget.sortColumn, order)
+      if widget.onSort != nil:
+        widget.onSort(widget.sortColumn, order)
     true
 
 template selectRowAt*(widget: untyped, viewIdx: int): bool =
@@ -90,8 +90,8 @@ template selectRowAt*(widget: untyped, viewIdx: int): bool =
       updateSelection(widget.selected, widget.order[viewIdx],
                       isKeyDown(LeftControl) or isKeyDown(RightControl))
       widget.isDirty = true
-      if widget.onSelect.isSome:
-        widget.onSelect.get()(widget.selected)
+      if widget.onSelect != nil:
+        widget.onSelect(widget.selected)
       true
 
 proc cellText(row: GridRow, colIdx: int,
@@ -158,8 +158,8 @@ definePrimitive(DataGrid):
         widget.scrollY = newScroll
         widget.isDirty = true
 
-      if m.rows.nearEnd(m.totalRows) and widget.onScrollNearEnd.isSome:
-        widget.onScrollNearEnd.get()()
+      if m.rows.nearEnd(m.totalRows) and widget.onScrollNearEnd != nil:
+        widget.onScrollNearEnd()
       return true
 
   layout:
@@ -203,10 +203,10 @@ definePrimitive(DataGrid):
     widget.visibleStart = visible.a
     widget.visibleEnd = visible.b
 
-    if widget.onLoadMore.isSome and visible.b >= widget.data.len - LoadAheadRows:
+    if widget.onLoadMore != nil and visible.b >= widget.data.len - LoadAheadRows:
       let needCount = min(LoadBatchSize, totalRows - widget.data.len)
       if needCount > 0:
-        widget.onLoadMore.get()(widget.data.len, needCount)
+        widget.onLoadMore(widget.data.len, needCount)
 
     drawThemedBackground(widget.bounds, props)
     let gridColor = props.borderColor.get(DefaultGridColor)

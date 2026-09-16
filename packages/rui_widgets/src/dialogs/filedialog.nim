@@ -60,17 +60,17 @@ definePrimitive(FileDialog):
         widget.isVisible = false
         widget.accepted = false
         widget.isDirty = true
-        if widget.onCancel.isSome:
-          widget.onCancel.get()()
+        if widget.onCancel != nil:
+          widget.onCancel()
         return true
 
       if okRect(panel).contains(event.mousePos.x, event.mousePos.y):
         widget.isVisible = false
         widget.accepted = true
         widget.isDirty = true
-        if widget.onSelect.isSome and widget.selectedIndex >= 0 and
+        if widget.onSelect != nil and widget.selectedIndex >= 0 and
            widget.selectedIndex < widget.files.len:
-          widget.onSelect.get()(@[widget.currentPath / widget.files[widget.selectedIndex]])
+          widget.onSelect(@[widget.currentPath / widget.files[widget.selectedIndex]])
         return true
 
       let list = listRect(panel)
@@ -123,8 +123,8 @@ definePrimitive(FileDialog):
         widget.isVisible = false
         widget.accepted = false
         widget.isDirty = true
-        if widget.onCancel.isSome:
-          widget.onCancel.get()()
+        if widget.onCancel != nil:
+          widget.onCancel()
         return true
       return false
 

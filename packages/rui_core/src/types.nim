@@ -162,12 +162,14 @@ type
     # Scripting support (app-level control)
     blockReading*: bool                  # Prevent reading sensitive data (passwords, etc.)
 
-    # Focus callbacks
-    onFocus*: Option[proc() {.closure.}]       # Called when widget gains focus
-    onBlur*: Option[proc() {.closure.}]        # Called when widget loses focus
+    # Focus callbacks. Plain nilable closures, like every handler the DSL
+    # generates: nil is the only "nothing attached" a proc needs, and an Option
+    # around it only forced callers to write some(proc() {.closure.} = ...).
+    onFocus*: proc() {.closure.}       # Called when widget gains focus
+    onBlur*: proc() {.closure.}        # Called when widget loses focus
 
     # Data binding
-    onRefresh*: Option[proc() {.closure.}]
+    onRefresh*: proc() {.closure.}
       ## Invoked by the layout pass when the widget is dirty, before layout()
       ## runs. This is what makes Link[T] binding actually change what is on
       ## screen: `Link.set` marks its dependents dirty, and each dependent's

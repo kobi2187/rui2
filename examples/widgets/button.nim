@@ -35,7 +35,7 @@ for (caption, intent, id) in [("Default", ThemeIntent.Default, "bDefault"),
                               ("Danger", ThemeIntent.Danger, "bDanger")]:
   let b = newButton(text = caption, intent = intent).named(id)
   let name = caption
-  b.onClick = some(proc() {.closure.} = bump(name))
+  b.onClick = proc() = bump(name)
   root.addChild(b)
 
 let off = newButton(text = "Disabled", disabled = true).named("bDisabled")

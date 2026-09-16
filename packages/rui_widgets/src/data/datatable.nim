@@ -73,8 +73,8 @@ template sortByColumnAt*(widget: untyped, mouseX: float32): bool =
       widget.sortOrder = order
       widget.isDirty = true
       widget.layoutDirty = true   # ordering is decided in layout
-      if widget.onSort.isSome:
-        widget.onSort.get()(widget.columns[idx].id, order)
+      if widget.onSort != nil:
+        widget.onSort(widget.columns[idx].id, order)
     true
 
 template selectRowAt*(widget: untyped, viewIdx: int): bool =
@@ -90,8 +90,8 @@ template selectRowAt*(widget: untyped, viewIdx: int): bool =
       updateSelection(widget.selected, rowIdx,
                       isKeyDown(LeftControl) or isKeyDown(RightControl))
       widget.isDirty = true
-      if widget.onSelect.isSome:
-        widget.onSelect.get()(widget.selected)
+      if widget.onSelect != nil:
+        widget.onSelect(widget.selected)
       true
 
 definePrimitive(DataTable):
