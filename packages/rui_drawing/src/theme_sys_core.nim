@@ -249,17 +249,15 @@ states:
 #   renderer.drawRect(button.bounds, props.backgroundColor, props.cornerRadius)
 #   renderer.drawText(button.text, props.foregroundColor, props.fontSize)
 
-# Theme caching for performance
-type ThemeCache* = object
-  # Cache key combines intent and state
-  cache: Table[tuple[intent: ThemeIntent, state: ThemeState], ThemeProps]
-  
-proc getOrCreateProps*(cache: var ThemeCache, theme: Theme, 
-                     intent: ThemeIntent, state: ThemeState): ThemeProps =
-  let key = (intent, state)
-  if key notin cache.cache:
-    cache.cache[key] = theme.getThemeProps(intent, state)
-  result = cache.cache[key]
+# There was a ThemeCache here, memoising (intent, state) -> ThemeProps, reached
+# through ThemeManager.getProps. Nothing ever called getProps, so the cache was
+# never on any lookup path, and it was removed rather than wired up: measured
+# over two million lookups it was worth 2% (71.2ns uncached vs 69.6ns cached).
+#
+# Both paths are dominated by copying ThemeProps, which is some thirty Option
+# fields, and a cache does not avoid that copy -- it only skips one table lookup
+# and the state merge. A real win would have to return something cheaper to copy
+# (a reference, or a narrowed struct), which is a different change.
 
 # ============================================================================
 # Global Current Theme
@@ -268,6 +266,19 @@ proc getOrCreateProps*(cache: var ThemeCache, theme: Theme,
 var currentTheme*: Theme = newTheme("Default")
   ## The active theme used by widgets during rendering.
   ## Set via app.setTheme() or directly for headless testing.
+
+# NOT extracted: the visual-state ladder every themed widget writes out in its
+# own `render`. The widgets do not agree on precedence, and the disagreement
+# looks deliberate rather than accidental:
+#
+#   Focused before Hovered   textinput, numberinput, spinner, combobox
+#   Hovered before Focused   iconbutton, toolbutton, radiogroup
+#
+# Which reads as a real distinction -- for a text field, showing where the caret
+# will go matters more than showing the pointer is nearby; for a button it is
+# the other way round. A single helper would have to pick one and silently
+# change the other group, so this stays a design decision for the project owner
+# rather than something a refactor settles. See issue #21.
 
 proc canvasColor*(theme: Theme): Color =
   ## Colour for the window behind the widget tree.

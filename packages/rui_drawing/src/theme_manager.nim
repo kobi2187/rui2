@@ -5,7 +5,6 @@
 ## - Load from JSON or YAML files
 ## - Theme inheritance via "extends" field
 ## - Programmatic derivation: derive("dark", "My Custom")
-## - Cache for fast (intent, state) -> ThemeProps lookups
 ## - Syncs global currentTheme for widget access during rendering
 ##
 ## Usage:
@@ -69,7 +68,6 @@ export theme_sys_core, theme_types, theme_file
 type
   ThemeManager* = ref object
     current*: Theme
-    cache: ThemeCache
     registry: Table[string, Theme]
     searchPaths*: seq[string]
 
@@ -78,7 +76,6 @@ proc newThemeManager*(): ThemeManager =
   ## Sets "light" as the initial theme.
   result = ThemeManager(
     current: newTheme("Default"),
-    cache: ThemeCache(),
     registry: initTable[string, Theme](),
     searchPaths: @[]
   )
@@ -124,7 +121,6 @@ proc addSearchPath*(tm: ThemeManager, path: string) =
 proc setTheme*(tm: ThemeManager, theme: Theme) =
   ## Set the active theme directly
   tm.current = theme
-  tm.cache = ThemeCache()
   setCurrentTheme(theme)
 
 proc setTheme*(tm: ThemeManager, name: string) =
@@ -136,8 +132,12 @@ proc setTheme*(tm: ThemeManager, name: string) =
 
 proc getProps*(tm: ThemeManager, intent: ThemeIntent = Default,
                state: ThemeState = Normal): ThemeProps =
-  ## Get themed properties for intent+state (cached)
-  tm.cache.getOrCreateProps(tm.current, intent, state)
+  ## Themed properties for an intent and state.
+  ##
+  ## Widgets do not call this -- they read the global `currentTheme` directly,
+  ## which `setTheme` keeps in step. It exists for code that holds a manager and
+  ## wants its theme without reaching for a global.
+  tm.current.getThemeProps(intent, state)
 
 # ============================================================================
 # Theme Derivation (Programmatic Inheritance)

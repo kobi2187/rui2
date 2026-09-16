@@ -41,7 +41,11 @@ type
 
     # Theme and rendering
     themeManager*: ThemeManager
-    currentTheme*: Theme  # Shortcut, kept in sync by themeManager
+    # No `currentTheme` field: it was written on construction and on every
+    # setTheme and read by nothing. The apparent read in renderFrame is the
+    # *global* currentTheme from theme_sys_core -- Nim has no implicit self, so
+    # a bare name there was never the field. Read the theme with `app.getTheme`
+    # or the global; there is no third answer to "what theme is current".
 
     # Frame timing
     # Exported: examples, overlays and perf tooling read these from outside
@@ -107,7 +111,6 @@ proc newApp*(title = "RUI Application",
     scriptManager: nil,  # Created when scripting is enabled
     hitTestSystem: newHitTestSystem(),
     themeManager: newThemeManager(),  # Registers built-in themes, sets light as default
-    currentTheme: newTheme("Default"),  # Will be overwritten below
     lastFrameTime: getMonoTime(),
     frameCount: 0,
     fpsUpdateTime: getMonoTime(),
@@ -118,8 +121,7 @@ proc newApp*(title = "RUI Application",
     lastScriptPoll: getMonoTime(),
     shouldClose: false
   )
-  # ThemeManager already set "light" as default and updated the global
-  result.currentTheme = result.themeManager.current
+  # ThemeManager already set "light" as default and updated the global.
 
 proc setStore*(app: App, store: Store) =
   ## Set the application store
@@ -208,7 +210,6 @@ proc setTheme*(app: App, theme: Theme) =
   ## inside layout(), so every widget has to be marked or the switch does not
   ## reach the screen.
   app.themeManager.setTheme(theme)
-  app.currentTheme = app.themeManager.current
   app.tree.anyDirty = true
   app.tree.isDirty = true
   app.tree.root.markSubtreeDirty()
@@ -216,7 +217,6 @@ proc setTheme*(app: App, theme: Theme) =
 proc setTheme*(app: App, name: string) =
   ## Change the application theme by name (must be registered in themeManager)
   app.themeManager.setTheme(name)
-  app.currentTheme = app.themeManager.current
   app.tree.anyDirty = true
   app.tree.isDirty = true
   app.tree.root.markSubtreeDirty()

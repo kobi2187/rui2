@@ -218,3 +218,4 @@ base:
     check formatFor("theme.yaml") == tffYaml
     check formatFor("theme.yml") == tffYaml
     check formatFor("theme") == tffYaml          # no extension: assume YAML
+
