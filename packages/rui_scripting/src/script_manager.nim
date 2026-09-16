@@ -29,6 +29,15 @@ type
 
     widgetTree*: WidgetTree        # Reference to app's widget tree
 
+    onKey*: proc(keyName: string): bool
+      ## Synthesise a key press, for the `key` command. Set by the App, which
+      ## owns the focus manager that decides where a key goes.
+      ##
+      ## A closure rather than a direct reference, so rui_scripting does not
+      ## need to depend on rui_events to route a key it is only relaying.
+      ## Left nil when the host has not wired it up, and the command then
+      ## reports that rather than silently doing nothing.
+
     pollInterval*: float64         # Seconds between polls (default: 1.0)
     lastPoll*: float64             # Last poll timestamp
 
@@ -96,6 +105,14 @@ proc detectCommandFormat(sm: ScriptManager): Option[CommandFormat] =
 
 proc processTextCommand(sm: ScriptManager, cmd: TextCommand): TextResponse =
   ## Process a single text command and return text response
+
+  # A key press goes wherever focus is, so it resolves no selector.
+  if cmd.cmdType == ctKey:
+    if sm.onKey == nil:
+      return newFailResponse(cmd.id, "Key injection not wired up by the host")
+    if sm.onKey(cmd.keyName):
+      return newSuccessResponse(cmd.id)
+    return newFailResponse(cmd.id, "Key not handled: " & cmd.keyName)
 
   # Handle wildcard reads (list children)
   if cmd.cmdType == ctRead and cmd.selector.contains("*"):

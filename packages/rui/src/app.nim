@@ -159,6 +159,24 @@ proc enableScripting*(app: App, scriptDir: string) =
   app.tree.widgetsByStringId = initTable[string, Widget]()  # Ensure initialized
   app.scriptManager = newScriptManager(scriptDir, app.tree)
 
+  # Let scripts drive the keyboard. rui_scripting can address any widget by id
+  # but had no way to send a key, so focus order, key scoping and every widget's
+  # own key handling were unreachable from an end-to-end test -- the one layer
+  # that exercises the real event path.
+  #
+  # The key goes wherever focus is, which is why this lives here rather than on
+  # a widget: App owns the focus manager that decides that.
+  app.scriptManager.onKey = proc(keyName: string): bool =
+    var key: KeyboardKey
+    try:
+      key = parseEnum[KeyboardKey](keyName)
+    except ValueError:
+      return false
+    let event = GuiEvent(kind: evKeyDown, key: key, timestamp: getMonoTime())
+    result = app.focusManager.handleKeyboardEvent(event, app.tree.root)
+    if result:
+      app.tree.anyDirty = true
+
 proc setScriptPollInterval*(app: App, seconds: float64) =
   ## How often the app checks for a script command file. The 1s default is fine
   ## interactively but makes automated test runs crawl; a harness can drop this

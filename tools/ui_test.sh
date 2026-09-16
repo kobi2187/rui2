@@ -81,6 +81,25 @@ expect "RTL label renders"          '"type":"Label"'          "18 hebrew read"
 expect "wrapped paragraph exists"   '"wrap":true'             "19 paragraph read"
 expect "markup label is markup"     '"markup":true'           "20 markup read"
 
+# Keyboard assertions. These drive the real event path -- focus chain, key
+# scoping, widget key handling -- through a live window, which is the only place
+# the app-level wiring is exercised at all. Everything else about focus is
+# tested against FocusManager directly.
+#
+# Nothing has focus at startup, so the first Tab lands on the first focusable
+# widget in tree order. Labels and containers are not focusable, so that is the
+# Click me button rather than the title.
+expect "nothing is focused at startup"  '"focused":false'  "21 clickButton read"
+send "22 * key Tab" >/dev/null
+expect "Tab reaches the first control"  '"focused":true'   "23 clickButton read"
+expect "and only that one"              '"focused":false'  "24 quitButton read"
+send "25 * key Tab" >/dev/null
+expect "Tab moves on"                   '"focused":true'   "26 quitButton read"
+expect "clearing the previous"          '"focused":false'  "27 clickButton read"
+send "28 * key Tab" >/dev/null
+expect "Tab reaches the checkbox"       '"focused":true'   "29 agree read"
+expect "a static label is never a stop" '"focused":false'  "30 title read"
+
 import -window root shot_uitest.png 2>/dev/null && echo "  screenshot: shot_uitest.png"
 
 echo

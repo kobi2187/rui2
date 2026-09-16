@@ -18,6 +18,7 @@ type
     ctWrite     # Write value to widget (e.g., set text)
     ctInvoke    # Invoke widget action (e.g., click button)
     ctCustom    # Widget-specific custom command (e.g., custom:inc)
+    ctKey       # Synthesise a key press (e.g., "1 * key Tab")
 
   TextCommand* = object
     ## Parsed text command from commands.txt
@@ -31,6 +32,8 @@ type
     of ctCustom:
       customCmd*: string    # Custom command name (after "custom:")
       customValue*: string  # Optional argument: "custom:write hello"
+    of ctKey:
+      keyName*: string      # Nim KeyboardKey name: Tab, Down, Enter, A, ...
 
   TextResponse* = object
     ## Response to write to responses.txt
@@ -82,6 +85,18 @@ proc parseCommand*(line: string): Option[TextCommand] =
       selector: selector,
       cmdType: ctWrite,
       value: parts[3]
+    ))
+  elif cmdStr == "key":
+    # "<id> <selector> key <KeyName>". The selector is ignored -- a key press
+    # goes wherever focus currently is, which is the whole point of testing it.
+    # Conventionally written with "*" to make that obvious.
+    if parts.len < 4:
+      return none(TextCommand)
+    return some(TextCommand(
+      id: id,
+      selector: selector,
+      cmdType: ctKey,
+      keyName: parts[3]
     ))
   elif cmdStr.startsWith("custom:"):
     let customCmd = cmdStr[7..^1]  # Skip "custom:"
@@ -230,6 +245,12 @@ proc translateToAction*(cmd: TextCommand, widgetType: string): (string, JsonNode
     # The generic bridge resolves "click" to the widget's onClick action and
     # falls back to "toggle" for checkable widgets.
     return ("click", newJObject())
+
+  of ctKey:
+    # Never reaches a widget through this path: a key press goes to whatever
+    # has focus, so the script manager intercepts it before any selector is
+    # resolved. Present so the case is exhaustive.
+    return ("key", %*{"key": cmd.keyName})
 
   of ctCustom:
     # Passed through verbatim: "custom:toggle" -> action "toggle".
