@@ -215,3 +215,28 @@ suite "scripting bridge, generically":
     check not w.getScriptableState().hasKey("text")
     let res = w.handleScriptAction("getText", newJObject())
     check not res["success"].getBool()
+
+suite "the DSL init section":
+  ## `init:` is parsed into WidgetSections.initBody and was then used by
+  ## nothing, so every init block in the library was silently dead code -- the
+  ## same failure as TextInput's `input:` and `on_click:` sections, which the
+  ## DSL also parsed and ignored.
+
+  test "MenuBar starts with no menu open":
+    # Its init sets activeMenuIndex and hoverIndex to -1. Without init running
+    # they defaulted to 0, so a fresh MenuBar believed menu 0 was already open
+    # and painted its title as selected.
+    let bar = newMenuBar()
+    check bar.activeMenuIndex == -1
+    check bar.hoverIndex == -1
+
+  test "MenuBar sorts its dropdowns on top":
+    # Dropdowns must paint over whatever follows them in the child list.
+    let bar = newMenuBar()
+    check bar.hasOverlay
+
+  test "init runs after the initialX props have seeded state":
+    # Ordering matters: init is where a widget corrects or extends what the
+    # seeding convention set, so it has to come last.
+    let w = newCheckbox(text = "x", initialChecked = true)
+    check w.checked

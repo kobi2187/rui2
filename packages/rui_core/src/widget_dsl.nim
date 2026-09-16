@@ -178,6 +178,29 @@ proc buildConstructorBody(name: NimNode, sections: WidgetSections): NimNode =
     result.add quote do:
       result.`actionName` = `actionName`
 
+  # The `init:` section, last, so it can correct or extend anything the seeding
+  # convention above has set.
+  #
+  # This was parsed into WidgetSections.initBody and then used by nothing, so
+  # every init block in the library was dead code. MenuBar's set activeMenuIndex
+  # and hoverIndex to -1 and hasOverlay to true; without it running they stayed
+  # at 0 and false, so a fresh MenuBar believed menu 0 was open and its
+  # dropdowns did not sort above their siblings.
+  #
+  # The body says `widget`, matching every other section, so it is bound to the
+  # `result` the constructor is building.
+  ## Built by hand rather than with `quote do`, because quote gensyms its
+  ## locals: a `let widget = result` inside one binds to a fresh symbol and the
+  ## user's `widget` in the init body would not see it. Same reason
+  ## buildScriptActionMethod uses plain idents for its shared temporaries.
+  if not sections.initBody.isEmpty:
+    result.add nnkBlockStmt.newTree(
+      newEmptyNode(),
+      newStmtList(
+        nnkLetSection.newTree(
+          newIdentDefs(ident("widget"), newEmptyNode(), ident("result"))),
+        sections.initBody))
+
 proc buildConstructor(name: NimNode, sections: WidgetSections): NimNode =
   ## Generate constructor procedure
   let constructorName = makeConstructorName(name)
