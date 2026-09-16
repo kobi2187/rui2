@@ -219,3 +219,88 @@ base:
     check formatFor("theme.yml") == tffYaml
     check formatFor("theme") == tffYaml          # no extension: assume YAML
 
+
+suite "which effect a theme asks for":
+  ## drawThemedRect used to hard-code both the set of effects and their order in
+  ## an if/elif chain, so precedence was control flow you had to trace and could
+  ## not assert on. It is a list now, and `effectFor` is the selection.
+
+  test "no effect props means a plain fill":
+    check effectFor(ThemeProps()).isNone
+
+  test "Flat is the absence of a bevel, not a bevel":
+    var props = ThemeProps()
+    props.bevelStyle = some(Flat)
+    check effectFor(props).isNone
+
+  test "each effect is picked when its props are set":
+    var bevel = ThemeProps()
+    bevel.bevelStyle = some(Raised)
+    check effectFor(bevel).get().name == "bevel"
+
+    var gradient = ThemeProps()
+    gradient.gradientStart = some(WHITE)
+    gradient.gradientEnd = some(BLACK)
+    check effectFor(gradient).get().name == "gradient"
+
+    var shadow = ThemeProps()
+    shadow.dropShadowOffset = some((x: 4.0'f32, y: 4.0'f32))
+    check effectFor(shadow).get().name == "dropShadow"
+
+    var glow = ThemeProps()
+    glow.glowColor = some(WHITE)
+    check effectFor(glow).get().name == "glow"
+
+    var inset = ThemeProps()
+    inset.insetShadowDepth = some(3.0'f32)
+    check effectFor(inset).get().name == "inset"
+
+  test "a gradient with only one end is not a gradient":
+    var props = ThemeProps()
+    props.gradientStart = some(WHITE)
+    check effectFor(props).isNone
+
+  test "precedence: a bevel wins over everything a theme also sets":
+    # A BeOS-style theme sets a bevel and a gradient and means the bevel.
+    var props = ThemeProps()
+    props.bevelStyle = some(Raised)
+    props.gradientStart = some(WHITE)
+    props.gradientEnd = some(BLACK)
+    props.dropShadowOffset = some((x: 2.0'f32, y: 2.0'f32))
+    props.glowColor = some(WHITE)
+    check effectFor(props).get().name == "bevel"
+
+  test "precedence: depth before emphasis":
+    # A theme setting both a drop shadow and a glow is describing depth.
+    var props = ThemeProps()
+    props.dropShadowOffset = some((x: 2.0'f32, y: 2.0'f32))
+    props.glowColor = some(WHITE)
+    check effectFor(props).get().name == "dropShadow"
+
+  test "the order the table declares is the order it is searched":
+    check RectEffects.len == 5
+    var names: seq[string] = @[]
+    for e in RectEffects:
+      names.add(e.name)
+    check names == @["bevel", "gradient", "dropShadow", "glow", "inset"]
+
+suite "colour helpers":
+  ## `fadeColor` was private and documented as fading to transparent, while
+  ## actually scaling the RGB channels. basic/scrollbar.nim wanted the fade and
+  ## inlined its own maths rather than call it -- exporting the proc would not
+  ## have helped, because it does a different thing. Now there are two, named
+  ## for what they each do.
+
+  test "dimColor scales toward black and keeps the alpha":
+    let c = dimColor(Color(r: 200, g: 100, b: 50, a: 255), 0.5)
+    check c.r == 100
+    check c.g == 50
+    check c.b == 25
+    check c.a == 255
+
+  test "withAlpha scales the opacity and keeps the hue":
+    let c = withAlpha(Color(r: 200, g: 100, b: 50, a: 200), 0.5)
+    check c.r == 200
+    check c.g == 100
+    check c.b == 50
+    check c.a == 100

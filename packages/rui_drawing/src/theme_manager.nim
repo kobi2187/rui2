@@ -39,8 +39,13 @@
 ##
 ## Bevel implementation status:
 ##   Working: Flat, Raised, Sunken
-##   Partial: Ridge, Groove (fallback to simple border)
-##   Stub:    Soft, Convex, Drop, Interior, Flatsoft, Flatconvex
+##   Partial: Ridge, Groove (one ring instead of three)
+##   Aliased: Interior renders as Sunken; Soft, Convex, Drop, Flatsoft and
+##            Flatconvex render as Raised. Each wants its own softened or
+##            rounded treatment and does not have one yet, so they fall back to
+##            the nearest implemented style rather than drawing nothing --
+##            which is what they used to do, despite a comment claiming
+##            otherwise.
 
 import std/[tables, os, strutils]
 import theme_sys_core

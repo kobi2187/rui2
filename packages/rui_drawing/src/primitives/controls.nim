@@ -13,14 +13,26 @@ import text as textModule  # Import with alias to avoid identifier conflicts
 # Helper Functions
 # ============================================================================
 
-proc fadeColor(color: raylib.Color, factor: float32): raylib.Color =
-  ## Fades a color by a factor (0.0 = transparent, 1.0 = opaque)
+proc dimColor*(color: raylib.Color, factor: float32): raylib.Color =
+  ## Scales a colour toward black, leaving it fully opaque.
+  ##
+  ## This was `fadeColor`, private, documented as "0.0 = transparent, 1.0 =
+  ## opaque" -- which is what `withAlpha` below does. It never touched alpha;
+  ## it multiplies the channels. The old name is why basic/scrollbar.nim
+  ## inlined its own alpha maths rather than calling it: exporting the proc
+  ## would not have helped, because it does a different thing.
   raylib.Color(
     r: uint8(color.r.float32 * factor),
     g: uint8(color.g.float32 * factor),
     b: uint8(color.b.float32 * factor),
     a: color.a
   )
+
+proc withAlpha*(color: raylib.Color, factor: float32): raylib.Color =
+  ## Scales a colour's opacity, leaving its hue alone.
+  ## 0.0 is fully transparent, 1.0 leaves it as it was.
+  raylib.Color(r: color.r, g: color.g, b: color.b,
+               a: uint8(float32(color.a) * factor))
 
 # ============================================================================
 # Basic Interactive Marks
@@ -98,7 +110,7 @@ proc drawScrollbar*(rect: Rect, contentSize, viewSize, offset: float32,
                    color: raylib.Color, hovered = false) =
   ## Draws a scrollbar with thumb
   # Track
-  drawRect(rect, color.fadeColor(0.3))
+  drawRect(rect, color.dimColor(0.3))
 
   # Calculate thumb size and position
   let ratio = viewSize / contentSize
@@ -115,7 +127,7 @@ proc drawScrollbar*(rect: Rect, contentSize, viewSize, offset: float32,
       height: thumbSize
     ),
     rect.width / 2,
-    if hovered: color else: color.fadeColor(0.8)
+    if hovered: color else: color.dimColor(0.8)
   )
 
 proc drawResizeHandle*(rect: Rect, color: raylib.Color) =

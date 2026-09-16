@@ -114,8 +114,7 @@ definePrimitive(ScrollBar):
       # The shared primitive measures the thumb off rect.height, so it only
       # works vertically. Horizontal gets its own two rects.
       let color = props.foregroundColor.get(Color(r: 160, g: 160, b: 160, a: 255))
-      let trackColor = Color(r: color.r, g: color.g, b: color.b,
-                              a: uint8(float32(color.a) * 0.3))
+      let trackColor = color.withAlpha(0.3)
       drawRect(widget.bounds, trackColor)
       let ratio = widget.pageSize / contentSize
       let thumbW = max(widget.bounds.width * ratio, MinThumb)
