@@ -12,14 +12,14 @@
 ## landed at the wrong coordinates entirely. That loop, and the
 ## beginScissorMode around it, have been removed.
 ##
-## KNOWN GAP, issue #39: content is clipped to the ScrollView's own bounds,
-## because that is the size of its render texture -- not to the viewport, which
-## is smaller by the padding and the scrollbar width. So content can show
-## underneath the scrollbars. The scissor call that used to be here could not
-## have fixed it: raylib's BeginScissorMode computes its GL rectangle from the
-## screen height, so inside beginTextureMode it clips the wrong region unless
-## the texture happens to be screen-sized. A real fix belongs in renderPass,
-## clipping the composite blit by source-rectangle maths rather than GL state.
+## Content is clipped to the viewport -- bounds less the padding and whichever
+## scrollbars are showing -- through `Widget.childClip`, which renderPass honours
+## when it composites. Not through raylib's BeginScissorMode, which is unusable
+## here: it computes its GL rectangle from the *screen* height, so inside
+## beginTextureMode, where the bound framebuffer is this widget's own render
+## texture, it clips the wrong region unless the texture happens to be
+## screen-sized. Clipping by source rectangle is arithmetic rather than GL
+## state, and is correct at any size.
 
 import rui_core
 import rui_drawing
@@ -96,6 +96,11 @@ defineWidget(ScrollView):
                                  widget.extent.maxScrollX(bars))
     widget.scrollOffsetY = clamp(widget.scrollOffsetY, 0.0f,
                                  widget.extent.maxScrollY(bars))
+
+    # Widget-local, because renderPass zeroes bounds.x/y while compositing.
+    widget.childClip = some(Rect(
+      x: widget.padding, y: widget.padding,
+      width: bars.innerWidth, height: bars.innerHeight))
 
   events:
     on_mouse_wheel:

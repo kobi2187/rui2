@@ -48,6 +48,50 @@ proc drawRenderTexture*(tex: RenderTexture2D, x, y: float32) =
               Vector2(x: x, y: y),
               White)
 
+proc intersect*(a, b: Rect): Rect =
+  ## The overlapping part of two rectangles, or a zero-sized rect when they do
+  ## not overlap. Width and height are floored at 0 rather than going negative,
+  ## so `result.width <= 0` is the "nothing to draw" test.
+  let x = max(a.x, b.x)
+  let y = max(a.y, b.y)
+  let right = min(a.x + a.width, b.x + b.width)
+  let bottom = min(a.y + a.height, b.y + b.height)
+  Rect(x: x, y: y, width: max(0.0'f32, right - x), height: max(0.0'f32, bottom - y))
+
+proc drawRenderTexturePart*(tex: RenderTexture2D, dest: Rect, clip: Rect) =
+  ## Blit the part of a cached render target that falls inside `clip`.
+  ##
+  ## `dest` is where the whole texture would go; `clip` is in the same
+  ## coordinate space. Nothing is drawn when they do not overlap.
+  ##
+  ## This exists because raylib's BeginScissorMode is unusable here: it computes
+  ## its GL rectangle as `GetScreenHeight() - (y + height)`, using the *screen*
+  ## height, so inside beginTextureMode -- where the bound framebuffer is a
+  ## widget's own render texture -- it clips the wrong region unless the texture
+  ## happens to be screen-sized. Clipping by source rectangle is arithmetic, not
+  ## GL state, and is correct at any texture size.
+  let visible = intersect(dest, clip)
+  if visible.width <= 0 or visible.height <= 0:
+    return
+
+  let texH = tex.texture.height.float32
+
+  # The source rectangle, in upright coordinates: how far into the texture the
+  # visible part starts.
+  let sx = visible.x - dest.x
+  let uy = visible.y - dest.y
+
+  # Then flipped. With a negative source height raylib samples stored rows
+  # [sy, sy + sh] and turns them over, and the framebuffer stores them
+  # bottom-up -- so the upright rows [uy, uy + sh] live at sy = texH - uy - sh.
+  let sy = texH - uy - visible.height
+
+  drawTexture(tex.texture,
+              Rectangle(x: sx, y: sy, width: visible.width, height: -visible.height),
+              Rectangle(x: visible.x, y: visible.y,
+                        width: visible.width, height: visible.height),
+              Vector2(x: 0, y: 0), 0.0, White)
+
 proc compositeChildTexture*(child: Widget, offsetX, offsetY: float32) =
   ## Draw a child's cached texture at its position relative to parent
   ## Called during parent rendering
@@ -201,13 +245,19 @@ proc renderPass*(widget: Widget) =
     widget.bounds.x = originalX
     widget.bounds.y = originalY
 
-    # Composite children's cached textures into this widget's texture (borrow, no copy)
+    # Composite children's cached textures into this widget's texture (borrow,
+    # no copy), in coordinates relative to this widget's top-left corner --
+    # which is where bounds.x/y were just zeroed to.
     for child in widget.children:
       if child.visible and child.cachedTexture.isSome:
-        # Draw at child's relative position (relative to parent)
-        let relX = child.bounds.x - originalX
-        let relY = child.bounds.y - originalY
-        drawRenderTexture(child.cachedTexture.get(), relX, relY)
+        let dest = Rect(x: child.bounds.x - originalX,
+                        y: child.bounds.y - originalY,
+                        width: child.bounds.width, height: child.bounds.height)
+        if widget.childClip.isSome:
+          drawRenderTexturePart(child.cachedTexture.get(), dest,
+                                widget.childClip.get())
+        else:
+          drawRenderTexture(child.cachedTexture.get(), dest.x, dest.y)
 
     # End texture mode
     endTextureMode()

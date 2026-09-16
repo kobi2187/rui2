@@ -156,6 +156,18 @@ type
 
     # Rendering
     cachedTexture*: Option[RenderTexture2D]  # Cached render target for this widget
+    childClip*: Option[Rect]
+      ## Clip composited children to this rectangle, in coordinates relative to
+      ## this widget's own top-left corner.
+      ##
+      ## For a viewport that is smaller than the widget holding it: a ScrollView
+      ## is as big as its frame, but its content must stop short of the
+      ## scrollbars and the padding. Without this, content is clipped only by
+      ## the widget's render texture -- which is the full bounds -- and shows
+      ## through in the gutter.
+      ##
+      ## `none` means the whole widget, which is what almost every container
+      ## wants and what it costs nothing to leave alone.
     zIndex*: int
     hasOverlay*: bool          # If true, children are sorted by z-index during rendering
 
