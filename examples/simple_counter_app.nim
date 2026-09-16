@@ -1,14 +1,14 @@
 ## Simple Counter — canonical RUI2 example
 ##
-## Shows the real, working API: construct widgets with `newX(...)`, assemble the
-## tree with `addChild`, hold state in `Link[T]`, then run the app.
+## State lives in a `Link[T]`, the tree is written with `ui:`, handlers are
+## plain closures.
 ##
-## (An ergonomic block-children DSL — `VStack(spacing = 10): ...` — is a roadmap
-## item; see STATUS.md. Today you build the tree explicitly, and widget actions
-## are `Option[proc]`, so callbacks are wrapped in `some(...)`.)
+## Everything `ui:` does could be written with the generated constructors and
+## `addChild` — see examples/widgets/ for trees built that way. It is sugar you
+## can stop using in the middle of a tree without rewriting the rest.
 
 import rui
-import std/[strformat, options]
+import std/strformat
 
 # 1. Reactive state lives in Link[T]
 type AppStore = object
@@ -18,21 +18,26 @@ var store = AppStore(counter: newLink(0))
 
 # 2. The widget tree is an ordinary proc returning a Widget
 proc buildUI(): Widget =
-  let root = newVStack(spacing = 10, padding = 16)
+  # `countLabel` is declared here rather than inside the tree because the
+  # binding below needs it: `ui:` is an expression, so a name introduced inside
+  # it does not escape.
+  var countLabel: Label
 
-  root.addChild(newLabel(text = "RUI2 Counter Demo", fontSize = 20))
-  root.addChild(newLabel(text = &"Count: {store.counter.get()}"))
+  result = ui:
+    VStack(spacing = 10.0, padding = 16.0):
+      Label(text = "RUI2 Counter Demo", fontSize = 20.0)
+      countLabel = Label(text = "", fontSize = 14.0)
+      HStack(spacing = 8.0):
+        Button(text = "-", onClick = proc() =
+          store.counter.set(store.counter.get() - 1))
+        Button(text = "+", onClick = proc() =
+          store.counter.set(store.counter.get() + 1))
 
-  let row = newHStack(spacing = 8)
-  row.addChild(newButton(text = "-", onClick = proc() =
-    store.counter.set(store.counter.get() - 1)))
-  row.addChild(newButton(text = "+", onClick = proc() =
-    store.counter.set(store.counter.get() + 1)))
-  root.addChild(row)
+  # 3. Bind the label to the link, so pressing a button repaints the count
+  store.counter.bindTo(countLabel, proc(v: int) =
+    countLabel.text = &"Count: {v}")
 
-  result = root
-
-# 3. Create the app, set the root widget, run
+# 4. Create the app, set the root widget, run
 when isMainModule:
   let app = newApp(title = "Counter", width = 400, height = 300)
   app.setRootWidget(buildUI())
