@@ -31,6 +31,19 @@ type
     isDirectory*: bool
     size*: int64
 
+  DropVerdict* = object
+    ## The decision on one dropped path. `item` is only meaningful when
+    ## accepted; `reason` only when refused.
+    accepted*: bool
+    item*: DroppedItem
+    reason*: string
+
+  DropBatch* = object
+    ## The outcome of one drop event, before any callback fires.
+    accepted*: seq[DroppedItem]
+    rejected*: seq[string]
+    reason*: string
+
 definePrimitive(DragDropArea):
   props:
     mode: DropMode = dmFiles
@@ -103,45 +116,88 @@ definePrimitive(DragDropArea):
                          width: widget.bounds.width, height: 20)
       drawThemedCenteredText(widget.errorMessage, errRect, errProps)
 
-proc classify(widget: DragDropArea, path: string,
-               accepted: var seq[DroppedItem], rejected: var seq[string],
-               reason: var string) =
-  ## Sort one dropped path into accepted or rejected, recording why.
+proc modeRejection*(mode: DropMode, isDir: bool): string =
+  ## Why an entry of this kind is refused in this mode, or "" if it is fine.
+  case mode
+  of dmFiles: (if isDir: "Directories not accepted" else: "")
+  of dmDirectories: (if isDir: "" else: "Only directories accepted")
+  of dmBoth: ""
+
+proc extensionRejection*(path: string, allowed: seq[string]): string =
+  ## Why this path's extension is refused, or "" if it passes. An empty
+  ## `allowed` accepts everything.
+  if allowed.len == 0:
+    return ""
+  let ext = splitFile(path).ext
+  if ext in allowed: "" else: "File type not accepted: " & ext
+
+proc fileSizeOrNone(path: string): Option[int64] =
+  ## none when the file cannot be read at all.
+  try: some(getFileSize(path))
+  except OSError, IOError: none(int64)
+
+proc judgeFile(path: string, allowed: seq[string], maxSize: int64): DropVerdict =
+  ## Extension and size checks, for a path already known to be a file.
+  let extWhy = extensionRejection(path, allowed)
+  if extWhy.len > 0:
+    return DropVerdict(accepted: false, reason: extWhy)
+
+  let size = fileSizeOrNone(path)
+  if size.isNone:
+    return DropVerdict(accepted: false, reason: "Could not read: " & path)
+  if size.get() > maxSize:
+    return DropVerdict(accepted: false, reason: "File too large: " & path)
+
+  DropVerdict(accepted: true,
+              item: DroppedItem(path: path, isDirectory: false, size: size.get()))
+
+proc judgeDrop*(mode: DropMode, allowed: seq[string], maxSize: int64,
+                path: string): DropVerdict =
+  ## Decide one dropped path. Takes the rules rather than the widget, so the
+  ## accept/reject policy is testable without a widget or a window.
+  assert maxSize > 0, "maxFileSize of 0 would reject every file"
   let isDir = dirExists(path)
 
-  if widget.mode == dmFiles and isDir:
-    rejected.add(path)
-    reason = "Directories not accepted"
-    return
-  if widget.mode == dmDirectories and not isDir:
-    rejected.add(path)
-    reason = "Only directories accepted"
-    return
+  let modeWhy = modeRejection(mode, isDir)
+  if modeWhy.len > 0:
+    return DropVerdict(accepted: false, reason: modeWhy)
 
-  if not isDir:
-    if widget.acceptedExtensions.len > 0:
-      let ext = splitFile(path).ext
-      if ext notin widget.acceptedExtensions:
-        rejected.add(path)
-        reason = "File type not accepted: " & ext
-        return
+  if isDir:
+    return DropVerdict(accepted: true,
+                       item: DroppedItem(path: path, isDirectory: true, size: 0))
+  judgeFile(path, allowed, maxSize)
 
-    var size: int64 = 0
-    try:
-      size = getFileSize(path)
-    except OSError, IOError:
-      rejected.add(path)
-      reason = "Could not read: " & path
-      return
+proc keepFirstOnly(batch: var DropBatch) =
+  ## Single-file mode keeps the first accepted item and rejects the rest.
+  assert batch.accepted.len > 1
+  for item in batch.accepted[1..^1]:
+    batch.rejected.add(item.path)
+  batch.reason = "Only one item accepted"
+  batch.accepted.setLen(1)
 
-    if size > widget.maxFileSize:
-      rejected.add(path)
-      reason = "File too large: " & path
-      return
+proc judgeAll(widget: DragDropArea, paths: seq[string]): DropBatch =
+  ## Run every dropped path past the widget's rules.
+  for path in paths:
+    let verdict = judgeDrop(widget.mode, widget.acceptedExtensions,
+                            widget.maxFileSize, path)
+    if verdict.accepted:
+      result.accepted.add(verdict.item)
+    else:
+      result.rejected.add(path)
+      result.reason = verdict.reason
 
-    accepted.add(DroppedItem(path: path, isDirectory: false, size: size))
-  else:
-    accepted.add(DroppedItem(path: path, isDirectory: true, size: 0))
+  if not widget.multiple and result.accepted.len > 1:
+    result.keepFirstOnly()
+
+proc announce(widget: DragDropArea, batch: DropBatch) =
+  ## Fire whichever callbacks the batch warrants.
+  if batch.accepted.len > 0:
+    widget.lastDroppedFiles = batch.accepted
+    if widget.onFilesDropped.isSome:
+      widget.onFilesDropped.get()(batch.accepted)
+
+  if batch.rejected.len > 0 and widget.onFilesRejected.isSome:
+    widget.onFilesRejected.get()(batch.rejected, batch.reason)
 
 proc pollFileDrops*(widget: DragDropArea) =
   ## Call once per frame. Picks up any files dropped on the window, filters them
@@ -150,28 +206,8 @@ proc pollFileDrops*(widget: DragDropArea) =
   if not isFileDropped():
     return
 
-  var accepted: seq[DroppedItem] = @[]
-  var rejected: seq[string] = @[]
-  var reason = ""
-
-  for path in getDroppedFiles():
-    widget.classify(path, accepted, rejected, reason)
-
-  if not widget.multiple and accepted.len > 1:
-    # Single-file mode keeps the first and rejects the rest.
-    for item in accepted[1..^1]:
-      rejected.add(item.path)
-    reason = "Only one item accepted"
-    accepted.setLen(1)
-
+  let batch = widget.judgeAll(getDroppedFiles())
   widget.isDragOver = false
-  widget.errorMessage = reason
+  widget.errorMessage = batch.reason
   widget.isDirty = true
-
-  if accepted.len > 0:
-    widget.lastDroppedFiles = accepted
-    if widget.onFilesDropped.isSome:
-      widget.onFilesDropped.get()(accepted)
-
-  if rejected.len > 0 and widget.onFilesRejected.isSome:
-    widget.onFilesRejected.get()(rejected, reason)
+  widget.announce(batch)

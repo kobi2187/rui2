@@ -11,7 +11,7 @@
 
 import std/unittest
 import rui
-import std/[options, json, sets, tables, times]
+import std/[options, json, sets, tables, times, strutils]
 
 template checkSizes(w: Widget) =
   ## Every widget must be able to give itself a size.
@@ -456,6 +456,58 @@ suite "restored modern widgets":
     check w.commands.len == 0
     w.checkSizes()
     w.checkScriptable("Canvas")
+
+  test "DragDropArea drop policy is decided without a widget":
+    # judgeDrop takes the rules rather than the widget, so accept/reject is
+    # testable with no window and no drop event.
+    check modeRejection(dmFiles, isDir = true).len > 0
+    check modeRejection(dmFiles, isDir = false) == ""
+    check modeRejection(dmDirectories, isDir = false).len > 0
+    check modeRejection(dmBoth, isDir = true) == ""
+
+    check extensionRejection("a.nim", @[]) == ""          # no filter = accept all
+    check extensionRejection("a.nim", @[".nim"]) == ""
+    check extensionRejection("a.txt", @[".nim"]).len > 0
+
+    let ok = judgeDrop(dmFiles, @[".nim"], 100_000_000,
+                       "tests/test_restored_widgets.nim")
+    check ok.accepted
+    check not ok.item.isDirectory
+    check ok.item.size > 0
+
+    check not judgeDrop(dmFiles, @[".txt"], 100_000_000,
+                        "tests/test_restored_widgets.nim").accepted
+
+    let tooBig = judgeDrop(dmFiles, @[], 1, "tests/test_restored_widgets.nim")
+    check not tooBig.accepted
+    check "too large" in tooBig.reason
+
+    let missing = judgeDrop(dmFiles, @[], 100_000_000, "tests/no_such_file.nim")
+    check not missing.accepted
+
+    let dir = judgeDrop(dmDirectories, @[], 100_000_000, "tests")
+    check dir.accepted
+    check dir.item.isDirectory
+
+  test "DataTable sort cycle is decided without a table":
+    let cols = @[
+      ColumnDef(id: "a", title: "A", width: 80.0, sortable: true),
+      ColumnDef(id: "b", title: "B", width: 80.0, sortable: false),
+    ]
+    check cols.isSortable(0)
+    check not cols.isSortable(1)     # not sortable
+    check not cols.isSortable(-1)    # no column under the pointer
+    check not cols.isSortable(9)     # past the end
+
+    # Clicking the sorted column advances its cycle; a different one restarts.
+    check nextSortFor(cols, 0, "a", soNone) == soAscending
+    check nextSortFor(cols, 0, "a", soAscending) == soDescending
+    check nextSortFor(cols, 0, "a", soDescending) == soNone
+    check nextSortFor(cols, 0, "other", soDescending) == soAscending
+
+    check columnAt(cols, 0.0, 10.0) == 0
+    check columnAt(cols, 0.0, 100.0) == 1
+    check columnAt(cols, 0.0, 500.0) == -1
 
   test "DragDropArea constructs and sizes":
     let w = newDragDropArea(mode = dmFiles, acceptedExtensions = @[".nim"])
