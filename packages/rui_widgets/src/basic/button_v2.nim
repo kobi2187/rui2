@@ -25,6 +25,14 @@ defineWidget(Button):
   init:
     widget.focusable = true
 
+    # The two children are created once and then updated by `layout`, never
+    # replaced. addChild rather than children.add, so the parent link is set --
+    # hit-testing depth and event bubbling both rely on it. `layout` indexes
+    # these positionally, so the order here is part of the contract.
+    widget.addChild(newRectangle(filled = true))
+    widget.addChild(newLabel(text = "", fontSize = 14.0,
+                             align = TextAlign.Center))
+
   events:
     on_mouse_down:
       if not widget.disabled:
@@ -52,8 +60,20 @@ defineWidget(Button):
       return false
 
   layout:
-    # Clear children before recreating (layout is called on every dirty)
-    widget.children.setLen(0)
+    # The background and label are created once, in `init`, and updated here.
+    #
+    # This used to do `children.setLen(0)` and rebuild both on every layout
+    # pass, with the comment "layout is called on every dirty". That threw away
+    # the two things the render pass exists to reuse: each child's identity, and
+    # its cached texture. renderPass composites children from their caches, so a
+    # button whose hover state changed rebuilt its Rectangle and its Label from
+    # scratch -- including re-rasterising the text through Pango -- when neither
+    # had actually changed. It also handed every widget a fresh WidgetId each
+    # frame, which nothing downstream expects.
+    # `rectangle.Rectangle`: raylib has a Rectangle too, and rui_core exports
+    # the types it needs, so the bare name is ambiguous here.
+    let bg = rectangle.Rectangle(widget.children[0])
+    let textLabel = Label(widget.children[1])
 
     # Look up theme colors based on widget state
     let state = if widget.disabled: Disabled
@@ -83,29 +103,22 @@ defineWidget(Button):
       widget.bounds.width = metrics.width + PadX * 2
 
     # Background
-    let bg = newRectangle(
-      color = buttonColor,
-      cornerRadius = radius,
-      filled = true
-    )
+    bg.color = buttonColor
+    bg.cornerRadius = radius
+    bg.filled = true
     bg.bounds = widget.bounds
-    widget.addChild(bg)
 
-    # Centred label. addChild (not children.add) so the parent link is set --
-    # hit-testing depth and event bubbling both rely on it.
-    let textLabel = newLabel(
-      text = widget.text,
-      fontSize = fontSize,
-      color = textColor,
-      align = TextAlign.Center
-    )
+    # Centred label
+    textLabel.text = widget.text
+    textLabel.fontSize = fontSize
+    textLabel.color = textColor
+    textLabel.align = TextAlign.Center
     textLabel.bounds = Rect(
       x: widget.bounds.x + PadX,
       y: widget.bounds.y + (widget.bounds.height - metrics.height) / 2,
       width: max(0.0f32, widget.bounds.width - PadX * 2),
       height: metrics.height
     )
-    widget.addChild(textLabel)
 
 # ============================================================================
 # Scripting Support

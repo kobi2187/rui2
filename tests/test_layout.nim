@@ -313,3 +313,44 @@ suite "what a bounds change invalidates":
     check not stack.isDirty
     check not a.isDirty
     check not b.isDirty
+
+suite "composites reuse their children":
+  ## renderPass composites a parent from its children's cached textures, so a
+  ## composite that recreates its children every layout throws away the very
+  ## thing the cache exists to reuse -- and hands each child a fresh WidgetId
+  ## each frame, which hit-testing and the focus chain do not expect.
+
+  test "a Button keeps the same child widgets across relayouts":
+    let b = newButton(text = "press")
+    b.layoutDirty = true
+    b.layoutPass()
+    check b.children.len == 2
+    let bgId = b.children[0].id
+    let labelId = b.children[1].id
+
+    # Relayout for a reason that changes nothing structural.
+    b.isHovered = true
+    b.layoutDirty = true
+    b.layoutPass()
+
+    check b.children.len == 2
+    check b.children[0].id == bgId        # same widget, not a replacement
+    check b.children[1].id == labelId
+
+  test "the child keeps its parent link, which bubbling relies on":
+    let b = newButton(text = "press")
+    b.layoutDirty = true
+    b.layoutPass()
+    for child in b.children:
+      check child.parent == Widget(b)
+
+  test "the label still tracks the button's text":
+    let b = newButton(text = "before")
+    b.layoutDirty = true
+    b.layoutPass()
+    check Label(b.children[1]).text == "before"
+
+    b.text = "after"
+    b.layoutDirty = true
+    b.layoutPass()
+    check Label(b.children[1]).text == "after"
