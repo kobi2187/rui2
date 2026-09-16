@@ -34,7 +34,7 @@ for usage.
 | Unit test suite (18 suites) + 32 compiled examples | ✅ Working — 51 green |
 | Scripted UI tests under Xvfb | ✅ Running, in CI too — 24 assertions |
 | Frame pipeline testable headlessly (`app.stepHeadless`) | ✅ Working — event-source seam |
-| Cyclomatic complexity | ✅ Every package passes `nimtools cyc --gate 5` |
+| Cyclomatic complexity | ⚠️ 4 of 7 packages pass `nimtools cyc --gate 5`; 26 routines over in the other 3 |
 | Text rendering | ✅ Pango-backed — real font metrics, glyph cache |
 | Pango/Cairo text (Unicode/BiDi/shaping) | ✅ Working — wired into every text widget and draw path |
 | Text engine shared by Label / TextInput / TextArea | ✅ Working — `text_content.nim`; TextArea now exists |
@@ -249,7 +249,23 @@ part that needs a GL context. Input comes from an `EventSource`:
 
 ### Complexity gate
 
-`nimtools cyc --gate 5`. **Every package passes with nothing over the ceiling.**
+`nimtools cyc --gate 5`.
+
+| Package | Over the ceiling |
+|---------|------------------|
+| `rui_core` | 0 |
+| `rui_events` | 0 |
+| `rui_widgets` | 0 (205 routines in 79 files) |
+| `rui` | 0 |
+| `rui_drawing` | 11 — mostly `theme_file` parsing and the Pango/Cairo edge |
+| `rui_hittest` | 5 — 4 of them `interval_tree`, rebalancing |
+| `rui_scripting` | 10 — selectors, the command parser, the client |
+
+The four clean packages are the ones this cleanup pass went through. The
+remaining 26 have not been assessed one by one; `interval_tree.removeNode`
+(cc=16) was examined during the architecture review and judged **essential**
+complexity — interval-tree rebalancing does not decompose into smaller pieces
+without becoming harder to read.
 
 Note that cyc cannot see inside `definePrimitive` bodies — they are macro
 arguments, not routines — so it reports "0 routines" for a file that is all

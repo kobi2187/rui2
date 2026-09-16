@@ -160,7 +160,10 @@ Strategy is visual + scripting (no headless).
   groups, widgets, and the frame pipeline.
 - [x] **Example compiles in CI** — a real `nim c` over all 32 examples, since
   naylib's move-only GPU types only fail in a full build.
-- [x] **Complexity gate** — `nimtools cyc --gate 5`. Every package passes.
+- [x] **Complexity gate** — `nimtools cyc --gate 5`. rui_core, rui_events,
+  rui_widgets and rui pass with nothing over the ceiling. rui_drawing (11),
+  rui_hittest (5) and rui_scripting (10) have not been through the pass;
+  `interval_tree`'s rebalancing is essential complexity and stays.
 - [x] **Scripting-driven test harness** — runs locally and in CI, 24 assertions
   against a real window on Xvfb.
 - [x] **Headless frame tests** — `app.stepHeadless()` plus a `ListEventSource`
