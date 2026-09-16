@@ -666,3 +666,10 @@ proc addChild*(parent: Widget, child: Widget) =
   parent.children.add(child)
   child.parent = parent
   noteStructureChanged()
+
+  # A new child has no bounds yet, so the parent needs laying out. This also
+  # keeps the frame's post-layout work reachable: the hit-test rebuild and the
+  # stringId re-registration are gated on layout having run, so a widget added
+  # without this would be invisible to clicks and to scripting selectors.
+  parent.layoutDirty = true
+  parent.isDirty = true

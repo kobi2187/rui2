@@ -479,17 +479,27 @@ proc rebuildHitTestTree(app: App) =
 proc updateLayoutAndRender(app: App) =
   ## Run layout and render passes if needed
   if app.tree.root != nil:
+    # Does anything actually need laying out this frame? Asked before frame(),
+    # because frame() clears the flags it checks.
+    let layoutWillRun = app.tree.root.layoutDirty or
+                        app.tree.root.anyChildLayoutDirty()
+
     # Run the two-pass system from main_loop
     app.tree.root.frame()  # Calls layoutPass() and renderPass()
 
-    # Rebuild hit-test tree after layout (bounds are now up to date)
-    app.rebuildHitTestTree()
+    # Both of these walk the whole tree, and both only have anything to do when
+    # bounds moved or a widget appeared -- so they are gated on layout having
+    # run. They used to happen unconditionally on every frame: frame() guards
+    # the layout and render passes on the dirty flags, but these two sat outside
+    # that guard and ran 60 times a second whether or not anything had changed.
+    # Measured at 53.5us for a 201-widget tree, growing linearly with the tree.
+    if layoutWillRun:
+      # Bounds are up to date now, so the hit-test trees can be rebuilt.
+      app.rebuildHitTestTree()
 
-    # Re-register the tree so scripting selectors can find widgets by stringId.
-    # This must happen after layout, because composite widgets rebuild their
-    # children inside layout() -- registering only in setRootWidget() left
-    # widgetsByStringId empty and every script selector returned "not found".
-    app.tree.registerWidgetRecursive(app.tree.root)
+      # Re-register so scripting selectors can find widgets by stringId. This
+      # has to follow layout because a widget can be added during it.
+      app.tree.registerWidgetRecursive(app.tree.root)
 
     app.tree.anyDirty = false
 

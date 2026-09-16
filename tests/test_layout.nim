@@ -354,3 +354,27 @@ suite "composites reuse their children":
     b.layoutDirty = true
     b.layoutPass()
     check Label(b.children[1]).text == "after"
+
+suite "adding a widget marks the parent for layout":
+  ## The frame's post-layout work -- rebuilding the hit-test trees and
+  ## re-registering stringIds -- is gated on layout having run, so a widget
+  ## added without marking its parent would be invisible to both clicks and
+  ## scripting selectors.
+
+  test "addChild marks the parent layoutDirty":
+    let root = newVStack(spacing = 4.0)
+    root.layoutDirty = false
+    root.addChild(newLabel(text = "x", fontSize = 14.0))
+    check root.layoutDirty
+
+  test "a child added after the first layout still gets bounds":
+    let root = newVStack(spacing = 4.0)
+    root.bounds = Rect(x: 0, y: 0, width: 200, height: 200)
+    root.addChild(newLabel(text = "first", fontSize = 14.0))
+    root.layoutPass()
+
+    let late = newLabel(text = "added later", fontSize = 14.0)
+    root.addChild(late)
+    root.layoutPass()
+
+    check late.bounds.height > 0      # it was laid out, not left at zero
