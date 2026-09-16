@@ -12,4 +12,5 @@ import widget_primitives;  export widget_primitives
 import pango_binding;       export pango_binding   # Pango/Cairo FFI
 import pango_text;          export pango_text      # glyph cache, cursor + hit-test API
 import primitives/text;       export text
-import primitives/text_cache; export text_cache
+# primitives/text_cache was deleted: 428 lines with no callers anywhere. The
+# real glyph and measurement caches live in pango_text, exported above.

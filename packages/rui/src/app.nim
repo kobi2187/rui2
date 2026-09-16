@@ -3,18 +3,13 @@
 ## Main application loop with integrated event processing, layout, and rendering
 
 import rui_core
-import rui_core
 import rui_events
-import rui_events
-import rui_drawing
-import rui_drawing
 import rui_drawing
 import rui_scripting
 import rui_hittest
 export rui_core
 export event_manager_refactored   # Export for users to access eventManager
 export focus_manager              # Export focus manager
-export text_cache     # Export text cache types
 export theme_sys_core # Export theme types
 export theme_manager  # Export theme manager
 export script_manager # Export script manager
@@ -45,7 +40,6 @@ type
     # Theme and rendering
     themeManager*: ThemeManager
     currentTheme*: Theme  # Shortcut, kept in sync by themeManager
-    textCache*: TextCache
 
     # Frame timing
     # Exported: examples, overlays and perf tooling read these from outside
@@ -111,13 +105,6 @@ proc newApp*(title = "RUI Application",
     hitTestSystem: newHitTestSystem(),
     themeManager: newThemeManager(),  # Registers built-in themes, sets light as default
     currentTheme: newTheme("Default"),  # Will be overwritten below
-    textCache: TextCache(
-      measurements: initTable[MeasurementKey, TextMetrics](),
-      textures: initTable[RenderKey, TextureCacheEntry](),
-      maxTextureMemoryMB: 100,
-      maxEntries: 1000,
-      currentMemoryBytes: 0
-    ),
     lastFrameTime: getMonoTime(),
     frameCount: 0,
     fpsUpdateTime: getMonoTime(),
@@ -227,17 +214,26 @@ proc currentFocusedWidget*(app: App): Widget =
 # Text Cache Management
 # ============================================================================
 
-proc clearTextCache*(app: App) =
-  ## Clear the text rendering cache
-  clearCache(app.textCache)
+# These used to operate on an `App.textCache` field that nothing ever wrote to,
+# so `clearTextCache` cleared an always-empty table and `getTextCacheStats`
+# always reported zeros while the real glyph cache kept its contents. They act on
+# the live cache in pango_text now, which is the one that actually holds glyphs.
 
-proc getTextCacheStats*(app: App): auto =
-  ## Get text cache statistics
-  getCacheStats(app.textCache)
+proc clearTextCache*(app: App) =
+  ## Drop every cached glyph texture.
+  pango_text.clearTextCache()
+
+proc getTextCacheStats*(app: App): TextureCacheStats =
+  ## Entry count, memory use, hits and misses for the glyph cache.
+  textCacheStats()
 
 proc printTextCacheStats*(app: App) =
-  ## Print text cache statistics for debugging
-  printCacheStats(app.textCache)
+  ## Print glyph cache statistics for debugging.
+  let s = textCacheStats()
+  echo "Glyph cache:   ", s.entries, " entries, ", s.memoryBytes div 1024,
+       " KiB, ", s.hits, " hits / ", s.misses, " misses"
+  echo "Measure cache: ", s.measureEntries, " entries, ",
+       s.measureHits, " hits / ", s.measureMisses, " misses"
 
 proc setWindowSize*(app: App, width, height: int) =
   ## Programmatically resize the window
@@ -337,6 +333,15 @@ proc collectRaylibEvents(app: App) =
 # Event Handling
 # ============================================================================
 
+template traceEvent(args: varargs[untyped]) =
+  ## Per-event tracing, compiled out entirely unless built with `-d:ruiTrace`.
+  ##
+  ## These used to be bare `echo`s inside `handleEvent`, which runs per event
+  ## under a time budget — a held key or a window drag turned into a stream of
+  ## writes to stdout in the hot path, in every application built on the library.
+  when defined(ruiTrace):
+    echo args
+
 proc dispatchBubbling(widget: Widget, event: GuiEvent): bool =
   ## Offer the event to the hit widget, then to each ancestor in turn until one
   ## handles it.
@@ -367,7 +372,7 @@ proc handleEvent(app: App, event: GuiEvent) =
       app.tree.root.layoutDirty = true
       app.tree.root.isDirty = true
     app.tree.anyDirty = true
-    echo "[Event] Window resized to ", event.windowSize.width, "x", event.windowSize.height
+    traceEvent "[Event] Window resized to ", event.windowSize.width, "x", event.windowSize.height
 
   of evMouseDown:
     # Hit-test to find widget under mouse and request focus
@@ -409,9 +414,9 @@ proc handleEvent(app: App, event: GuiEvent) =
     if app.tree.root != nil:
       let handled = app.focusManager.handleKeyboardEvent(event, app.tree.root)
       if not handled:
-        echo "[Event] Keyboard event not handled: ", event.kind
+        traceEvent "[Event] Keyboard event not handled: ", event.kind
     else:
-      echo "[Event] No root widget - keyboard event ignored"
+      traceEvent "[Event] No root widget - keyboard event ignored"
 
   else:
     discard
