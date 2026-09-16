@@ -147,3 +147,74 @@ suite "theme: derivation and registration":
     check "corporate" in tm.listThemes()
     tm.setTheme("corporate")
     check tm.current.name == "Corporate"
+
+suite "theme files parse without a manager":
+  ## The whole point of splitting theme_file.nim out of theme_manager.nim: a
+  ## file-format bug used to be reachable only by constructing a ThemeManager
+  ## and going through the registry. These call the adapter directly, with a
+  ## string literal and a trivial resolver.
+
+  proc noExtends(name: string): Theme = newTheme(name)
+
+  test "colour formats":
+    check parseColor("#ff0000") == Color(r: 255, g: 0, b: 0, a: 255)
+    check parseColor("#00ff0080").g == 255
+    check parseColor("#00ff0080").a == 128          # alpha honoured
+    check parseColor("rgb(10,20,30)") == Color(r: 10, g: 20, b: 30, a: 255)
+    check parseColor("  #0000ff  ").b == 255        # whitespace tolerated
+
+  test "intent and state names":
+    check parseIntentName("danger") == Danger
+    check parseIntentName("Success") == Success
+    check parseStateName("hovered") == Hovered
+    check parseStateName("disabled") == Disabled
+
+  test "a JSON theme becomes a Theme":
+    let theme = parseTheme("""
+      {"name": "Test",
+       "base": {"default": {"backgroundColor": "#102030", "cornerRadius": 4.0}}}
+    """, tffJson, noExtends)
+    check theme.name == "Test"
+    check theme.base[Default].backgroundColor.get() ==
+          Color(r: 16, g: 32, b: 48, a: 255)
+    check theme.base[Default].cornerRadius.get() == 4.0
+
+  test "a YAML theme becomes the same Theme":
+    let theme = parseTheme("""
+name: Test
+base:
+  default:
+    backgroundColor: "#102030"
+    cornerRadius: 4.0
+""", tffYaml, noExtends)
+    check theme.name == "Test"
+    check theme.base[Default].backgroundColor.get() ==
+          Color(r: 16, g: 32, b: 48, a: 255)
+
+  test "states nest under their intent":
+    let theme = parseTheme("""
+      {"name": "S",
+       "states": {"danger": {"hovered": {"backgroundColor": "#ff0000"}}}}
+    """, tffJson, noExtends)
+    check theme.states[Danger][Hovered].backgroundColor.get().r == 255
+
+  test "extends goes through the resolver, whatever it is":
+    # No registry involved — the resolver is three lines of test code.
+    proc resolveBase(name: string): Theme =
+      result = newTheme(name)
+      result.base[Default] = ThemeProps(cornerRadius: some(9.0'f32))
+
+    let theme = parseTheme("""
+      {"name": "Child", "extends": "parent",
+       "base": {"default": {"backgroundColor": "#010203"}}}
+    """, tffJson, resolveBase)
+    check theme.name == "Child"
+    check theme.base[Default].cornerRadius.get() == 9.0    # inherited
+    check theme.base[Default].backgroundColor.get().b == 3 # own, merged in
+
+  test "formatFor picks the parser from the extension":
+    check formatFor("theme.json") == tffJson
+    check formatFor("theme.JSON") == tffJson
+    check formatFor("theme.yaml") == tffYaml
+    check formatFor("theme.yml") == tffYaml
+    check formatFor("theme") == tffYaml          # no extension: assume YAML
