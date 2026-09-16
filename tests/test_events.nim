@@ -171,3 +171,60 @@ suite "event routing":
     let l = newLabel(text = "inert", fontSize = 14.0)
     l.bounds = Rect(x: 0, y: 0, width: 50, height: 20)
     check not l.handleInput(mouseEvent(evMouseDown, 5, 5))
+
+suite "hover tracking":
+  ## `Widget.hovered` is the flag themes read (`elif widget.hovered: Hovered`)
+  ## and the one Tooltip hides itself on. It is distinct from the `isHovered`
+  ## state field some widgets keep for themselves.
+  ##
+  ## Until a tracker owned it, app.nim only ever set it true — so a widget that
+  ## had been hovered once stayed lit for the life of the process.
+
+  test "hovering a widget marks it":
+    let tracker = newHoverTracker()
+    let a = newButton(text = "a")
+    discard tracker.setHover(a)
+    check a.hovered
+    check tracker.hovered == Widget(a)
+
+  test "moving to another widget clears the previous one":
+    let tracker = newHoverTracker()
+    let a = newButton(text = "a")
+    let b = newButton(text = "b")
+    discard tracker.setHover(a)
+    discard tracker.setHover(b)
+    check b.hovered
+    check not a.hovered
+
+  test "moving off every widget clears hover entirely":
+    let tracker = newHoverTracker()
+    let a = newButton(text = "a")
+    discard tracker.setHover(a)
+    discard tracker.setHover(nil)
+    check not a.hovered
+    check tracker.hovered == nil
+
+  test "re-hovering the same widget is not a change":
+    let tracker = newHoverTracker()
+    let a = newButton(text = "a")
+    discard tracker.setHover(a)
+    a.isDirty = false
+    check not tracker.setHover(a)   # no transition, nothing to repaint
+    check a.hovered
+
+  test "a transition reports itself so the caller can repaint":
+    let tracker = newHoverTracker()
+    let a = newButton(text = "a")
+    let b = newButton(text = "b")
+    check tracker.setHover(a)       # nil -> a
+    check tracker.setHover(b)       # a -> b
+    check tracker.setHover(nil)     # b -> nil
+    check not tracker.setHover(nil) # nil -> nil
+
+  test "a widget removed while hovered does not leave a dangling mark":
+    let tracker = newHoverTracker()
+    let a = newButton(text = "a")
+    discard tracker.setHover(a)
+    tracker.widgetRemoved(a)
+    check tracker.hovered == nil
+    check not a.hovered

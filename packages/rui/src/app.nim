@@ -10,6 +10,7 @@ import rui_hittest
 export rui_core
 export event_manager_refactored   # Export for users to access eventManager
 export focus_manager              # Export focus manager
+export hover_tracker              # Export hover tracker
 export theme_sys_core # Export theme types
 export theme_manager  # Export theme manager
 export script_manager # Export script manager
@@ -31,6 +32,7 @@ type
     # Managers (exported for testing)
     eventManager*: EventManager
     focusManager*: FocusManager
+    hoverTracker*: HoverTracker
     scriptManager*: ScriptManager
     hitTestSystem*: HitTestSystem
 
@@ -101,6 +103,7 @@ proc newApp*(title = "RUI Application",
     ),
     eventManager: newEventManager(defaultBudget = initDuration(milliseconds = 8)),
     focusManager: newFocusManager(),
+    hoverTracker: newHoverTracker(),
     scriptManager: nil,  # Created when scripting is enabled
     hitTestSystem: newHitTestSystem(),
     themeManager: newThemeManager(),  # Registers built-in themes, sets light as default
@@ -392,13 +395,21 @@ proc handleEvent(app: App, event: GuiEvent) =
       app.tree.anyDirty = true
 
   of evMouseMove:
-    # Update hover state: clear old, set new
+    # Update hover state: clear old, set new.
+    #
+    # The clearing half used to be missing -- this only ever set `hovered = true`
+    # and nothing anywhere set it back, so every widget the pointer had ever
+    # touched stayed lit. hoverTracker owns the transition now, and reports
+    # whether one happened so a still pointer costs nothing.
     let widget = app.hitTestSystem.getWidgetAt(event.mousePos.x, event.mousePos.y)
+    let previous = app.hoverTracker.hovered
+    if app.hoverTracker.setHover(widget):
+      if previous != nil:
+        previous.markDirtyToRoot()   # the widget being left has to repaint too
+      if widget != nil:
+        widget.markDirtyToRoot()
+      app.tree.anyDirty = true
     if widget != nil:
-      if not widget.hovered:
-        widget.hovered = true
-        widget.markDirtyToRoot()   # hover visual changed
-        app.tree.anyDirty = true
       discard widget.dispatchBubbling(event)
 
   of evMouseWheel:
