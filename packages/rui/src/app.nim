@@ -159,23 +159,29 @@ proc enableScripting*(app: App, scriptDir: string) =
   app.tree.widgetsByStringId = initTable[string, Widget]()  # Ensure initialized
   app.scriptManager = newScriptManager(scriptDir, app.tree)
 
-  # Let scripts drive the keyboard. rui_scripting can address any widget by id
-  # but had no way to send a key, so focus order, key scoping and every widget's
-  # own key handling were unreachable from an end-to-end test -- the one layer
-  # that exercises the real event path.
+  # Key injection is a TEST-ONLY affordance, compiled in with -d:ruiTestKeys.
   #
-  # The key goes wherever focus is, which is why this lives here rather than on
-  # a widget: App owns the focus manager that decides that.
-  app.scriptManager.onKey = proc(keyName: string): bool =
-    var key: KeyboardKey
-    try:
-      key = parseEnum[KeyboardKey](keyName)
-    except ValueError:
-      return false
-    let event = GuiEvent(kind: evKeyDown, key: key, timestamp: getMonoTime())
-    result = app.focusManager.handleKeyboardEvent(event, app.tree.root)
-    if result:
-      app.tree.anyDirty = true
+  # The scripting subsystem is deliberately semantic: a script addresses a
+  # control by id and operates it directly -- `agree invoke`, `progress write
+  # value=40` -- rather than emulating the keyboard or the mouse. That is the
+  # whole point of it, and it is why a script does not care where focus happens
+  # to be or what a widget's key bindings are.
+  #
+  # Driving the focus machinery end-to-end is the one thing that genuinely needs
+  # a real key press, so the capability exists for tools/ui_test.sh and is
+  # absent from an ordinary build. Without the flag `onKey` stays nil and the
+  # `key` command reports that the host has not wired it up.
+  when defined(ruiTestKeys):
+    app.scriptManager.onKey = proc(keyName: string): bool =
+      var key: KeyboardKey
+      try:
+        key = parseEnum[KeyboardKey](keyName)
+      except ValueError:
+        return false
+      let event = GuiEvent(kind: evKeyDown, key: key, timestamp: getMonoTime())
+      result = app.focusManager.handleKeyboardEvent(event, app.tree.root)
+      if result:
+        app.tree.anyDirty = true
 
 proc setScriptPollInterval*(app: App, seconds: float64) =
   ## How often the app checks for a script command file. The 1s default is fine

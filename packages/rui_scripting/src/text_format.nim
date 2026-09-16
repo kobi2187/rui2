@@ -18,7 +18,10 @@ type
     ctWrite     # Write value to widget (e.g., set text)
     ctInvoke    # Invoke widget action (e.g., click button)
     ctCustom    # Widget-specific custom command (e.g., custom:inc)
-    ctKey       # Synthesise a key press (e.g., "1 * key Tab")
+    ctKey       # Test-only: synthesise a key press ("1 * key Tab").
+                # Scripting is otherwise semantic -- address a control and
+                # operate it, never emulate input. Only honoured by a host
+                # built with -d:ruiTestKeys; see ScriptManager.onKey.
 
   TextCommand* = object
     ## Parsed text command from commands.txt

@@ -30,13 +30,21 @@ type
     widgetTree*: WidgetTree        # Reference to app's widget tree
 
     onKey*: proc(keyName: string): bool
-      ## Synthesise a key press, for the `key` command. Set by the App, which
-      ## owns the focus manager that decides where a key goes.
+      ## Synthesise a key press, for the `key` command. **Test-only.**
+      ##
+      ## Scripting here is deliberately semantic: a script addresses a control
+      ## by id and operates it directly -- `agree invoke`, `progress write
+      ## value=40` -- rather than emulating input. A script should not have to
+      ## know where focus is or what a widget's key bindings are, and this
+      ## subsystem is not an input-emulation layer.
+      ##
+      ## The exception is driving the focus machinery itself, which cannot be
+      ## exercised any other way. `App.enableScripting` sets this only under
+      ## `-d:ruiTestKeys`, so an ordinary build leaves it nil and the `key`
+      ## command reports that the host has not wired it up.
       ##
       ## A closure rather than a direct reference, so rui_scripting does not
-      ## need to depend on rui_events to route a key it is only relaying.
-      ## Left nil when the host has not wired it up, and the command then
-      ## reports that rather than silently doing nothing.
+      ## need to depend on rui_events to relay a key.
 
     pollInterval*: float64         # Seconds between polls (default: 1.0)
     lastPoll*: float64             # Last poll timestamp
