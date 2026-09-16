@@ -248,3 +248,68 @@ suite "layout: widget identity":
     check root.treeDepth == 0
     check mid.treeDepth == 1
     check leaf.treeDepth == 2
+
+suite "what a bounds change invalidates":
+  ## A widget renders into its own texture with its origin at (0, 0), so the
+  ## texture's content depends on its SIZE, never on where it sits. Position
+  ## affects only the parent, which composites children at relative offsets.
+  ##
+  ## So the two cases are genuinely different:
+  ##   resized  -> the widget must re-render, and the parent must re-composite
+  ##   moved    -> the widget keeps its texture; only the parent re-composites
+  ##
+  ## The old rule was `bounds != oldBounds -> isDirty`, which re-rendered a
+  ## whole subtree that had merely slid sideways, and never told the parent.
+
+  proc fixedStack(spacing: float32): tuple[stack: Widget, a, b: Widget] =
+    let s = newVStack(spacing = spacing)
+    s.bounds = Rect(x: 0, y: 0, width: 200, height: 200)
+    let a = newLabel(text = "a", fontSize = 14.0)
+    let b = newLabel(text = "b", fontSize = 14.0)
+    s.addChild(a)
+    s.addChild(b)
+    s.layoutDirty = true
+    s.layoutPass()
+    (Widget(s), Widget(a), Widget(b))
+
+  test "moving a child re-composites the parent without re-rendering the child":
+    let (stack, a, b) = fixedStack(4.0)
+    stack.isDirty = false
+    a.isDirty = false
+    b.isDirty = false
+    let before = b.bounds.y
+
+    VStack(stack).spacing = 40.0
+    stack.layoutDirty = true
+    stack.layoutPass()
+
+    check b.bounds.y != before        # it moved
+    check not b.isDirty               # its texture is unchanged
+    check stack.isDirty               # the parent's composite is not
+
+  test "resizing a widget re-renders it and re-composites its parent":
+    let (stack, a, _) = fixedStack(4.0)
+    stack.isDirty = false
+    a.isDirty = false
+
+    # Font size, not text: the stack imposes the width, and one line stays one
+    # line, so a longer string would not actually change the label's size.
+    Label(a).fontSize = 40.0
+    a.layoutDirty = true
+    a.layoutPass()
+
+    check a.isDirty                   # its texture is a different size now
+    check stack.isDirty               # so the parent's composite changed too
+
+  test "a layout that changes nothing dirties nothing":
+    let (stack, a, b) = fixedStack(4.0)
+    stack.isDirty = false
+    a.isDirty = false
+    b.isDirty = false
+
+    stack.layoutDirty = true
+    stack.layoutPass()
+
+    check not stack.isDirty
+    check not a.isDirty
+    check not b.isDirty
