@@ -26,7 +26,12 @@ jobs:
             libxkbcommon-dev libwayland-bin
 
       - name: Install dependencies
-        run: nimble install -y naylib yaml
+        # Pinned to match the bounds in packages/*/*.nimble, so CI builds against
+        # the versions the library claims to support rather than whatever is
+        # newest on the day. naylib's version is date-based -- 25.42.0 is 2025
+        # week 42 -- so a bare `nimble install naylib` can pick up a release
+        # that moves raylib underneath the move-only GPU types.
+        run: nimble install -y "naylib@>=25.42.0" "yaml@>=2.2.0"
 
       - name: Type-check every package barrel
         run: |
