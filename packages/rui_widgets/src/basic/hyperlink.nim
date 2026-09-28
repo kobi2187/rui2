@@ -37,6 +37,7 @@ definePrimitive(Hyperlink):
 
   init:
     widget.focusable = true
+    widget.cursorShape = csPointer    # the hand every link shows
 
   events:
     on_mouse_down:

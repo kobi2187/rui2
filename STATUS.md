@@ -40,7 +40,8 @@ for usage.
 | Unicode text *input* (typed codepoints, UTF-8-safe caret) | ✅ Working — no IME composition yet |
 | Flex growth in stacks (`Widget.flexGrow`, `Spacer`) | ✅ Working |
 | Scripting selectors by type (`Button`, `form/Label`) | ✅ Working |
-| Clipboard, undo/redo, HiDPI scaling, accessibility | ❌ Not started — see [TODO.md](TODO.md) |
+| Clipboard, undo/redo, word editing, cursor shapes | ✅ Working |
+| HiDPI scaling, accessibility, IME composition | ❌ Not started — see [TODO.md](TODO.md) |
 | One text widget: TextArea, limited by properties into Label / TextInput | ✅ Working — `input/textarea.nim` over `text_content.nim` |
 | Hover-vs-focus preference owned by the theme | ✅ Working — `Theme.statePreference`, per control role |
 | License | ✅ MIT |
@@ -148,6 +149,9 @@ top-aligned (Column has alignment; the stacks do not).
 
 ## Recently completed
 
+- **Text editing.** Clipboard (through a seam tests can replace), undo/redo
+  with typing grouped by word, word movement and deletion, Ctrl+A,
+  double/triple-click selection, and the I-beam and link-hand cursors.
 - **Modifiers on the event.** `GuiEvent.mods`; Shift+Tab, Shift+arrow and
   Ctrl-click are driven by the event, so scripts and headless tests reach
   them. Key queues are drained per frame (fast typing used to drop keys).
@@ -196,8 +200,6 @@ Verified against the code. The prioritised plan is in [TODO.md](TODO.md).
 - **Tooltip never shows** — nothing generates the hover event it waits for,
   and as a sibling of its target the pointer is never over it. Needs an
   overlay layer (TODO.md #5).
-- **No clipboard** — Ctrl+C / Ctrl+V / Ctrl+X do nothing in any text widget.
-- **No undo/redo** in the text widgets.
 - **No IME composition** — typed codepoints arrive, but pre-edit text for
   CJK input methods is not shown.
 - **No HiDPI scaling** — nothing reads the monitor's scale factor.

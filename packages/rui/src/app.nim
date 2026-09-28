@@ -92,6 +92,7 @@ type
       ## another one does not show garbage on a compositor-less desktop.
     lastPresent: MonoTime
     indicatorShown: bool
+    cursorShown: CursorShape
 
 # Global app instance (for convenience - can also be passed explicitly)
 var app*: App
@@ -550,9 +551,35 @@ proc pollScriptCommands(app: App) =
 # Main Loop
 # ============================================================================
 
+proc systemClipboard(): Clipboard =
+  ## The OS clipboard, through raylib. Only valid once a window exists.
+  Clipboard(get: proc(): string = raylib.getClipboardText(),
+            put: proc(text: string) = raylib.setClipboardText(text))
+
+proc raylibCursor(shape: CursorShape): MouseCursor =
+  case shape
+  of csDefault, csArrow: MouseCursor.Arrow
+  of csText: MouseCursor.Ibeam
+  of csPointer: MouseCursor.PointingHand
+  of csCrosshair: MouseCursor.Crosshair
+  of csResizeH: MouseCursor.ResizeEw
+  of csResizeV: MouseCursor.ResizeNs
+  of csMove: MouseCursor.ResizeAll
+  of csNotAllowed: MouseCursor.NotAllowed
+
+proc applyCursor(app: App) =
+  ## Show the hovered widget's pointer shape. Only calls into the window when
+  ## the shape changes, which on most frames it does not.
+  let hovered = app.hoverTracker.hovered
+  let shape = if hovered == nil: csArrow else: hovered.effectiveCursor
+  if shape != app.cursorShown:
+    app.cursorShown = shape
+    setMouseCursor(raylibCursor(shape))
+
 proc openWindow(app: App) =
   initWindow(app.window.width.int32, app.window.height.int32, app.window.title)
   setTargetFPS(app.window.fps.int32)
+  useClipboard(systemClipboard())
   if not app.window.resizable:
     return
   setWindowState(flags(WindowResizable))
@@ -663,6 +690,7 @@ proc run*(app: App, maxFrames: int = -1) =
 
     let frameStart = getMonoTime()
     let painted = app.step()
+    app.applyCursor()
     if app.shouldPresent(painted, frameStart):
       app.renderFrame()       # 6. Composite to screen
       app.lastPresent = frameStart

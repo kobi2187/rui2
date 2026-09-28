@@ -12,3 +12,4 @@ import ui_tree;           export ui_tree
 import flex;              export flex
 import keys;              export keys
 import repaint_timers;    export repaint_timers
+import clipboard;         export clipboard

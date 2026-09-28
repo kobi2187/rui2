@@ -46,24 +46,28 @@ container looks assigned, so it never re-grows when content is added
 - [x] Key and character queues are drained each frame -- one of each used to
   be read, dropping keystrokes that shared a frame.
 
-### 3. Text-editing essentials *(medium; needs #2)*
-- [ ] **Clipboard.** Ctrl+C/X/V in TextInput/TextArea via naylib's
-  `getClipboardText`/`setClipboardText`, behind a `Clipboard` seam in
-  `rui_core` so tests can inject one.
-- [ ] **Undo/redo.** An edit history in `input/text_buffer.nim`: a stack of
-  (text, cursor, selection) snapshots, coalescing typing runs, and Ctrl+Z /
-  Ctrl+Shift+Z.
-- [ ] **Word navigation.** Ctrl+Left/Right and Ctrl+Backspace, plus
-  double-click to select a word and triple-click for a line. Use Pango's
-  `PangoLogAttr` word boundaries, not ASCII spaces.
+### 3. Text-editing essentials *(mostly done)*
+- [x] **Clipboard.** Ctrl+C/X/V through a seam (`rui_core/clipboard.nim`):
+  in-memory for tests, the system clipboard once a window opens. Pastes are
+  fitted, not refused: line breaks become spaces in a single-line field, and
+  `maxLength` / `maxLines` truncate.
+- [x] **Undo/redo.** `EditHistory` in `text_buffer.nim`; a typing run is one
+  step (undo takes back a word), Ctrl+Z / Ctrl+Shift+Z / Ctrl+Y, selection
+  restored with the text.
+- [x] **Word navigation.** Ctrl+Left/Right (Shift extends), Ctrl+Backspace /
+  Ctrl+Delete, Ctrl+Home/End, Ctrl+A; double-click selects a word and
+  triple-click the line. Ctrl+Enter submits a multi-line area.
+- [ ] Word boundaries from Pango's `PangoLogAttr` for scripts written without
+  spaces (Thai, CJK). Today a word is a run of letters/digits/underscores,
+  per rune -- right for alphabetic scripts, including Hebrew and accented Latin.
 - [ ] **Caret and scroll.** Horizontal scrolling in TextInput and vertical
   scrolling in TextArea, keeping the caret visible.
 - [ ] **Wrap while editing.** `wrap` and `markup` apply to display text only;
   an editable TextArea lays out one visual line per `\n`. Caret movement
   over soft-wrapped lines needs Pango's line iterator.
-- [ ] **Mouse cursor shapes.** A `cursor: MouseCursor` field on `Widget`,
-  applied by the hover tracker (I-beam over text, pointer over links, resize
-  arrows on splitters).
+- [x] **Mouse cursor shapes.** `Widget.cursorShape` (rui's own `CursorShape`,
+  inherited from ancestors), applied by the app when the hovered widget's
+  shape changes: I-beam over editable text, a hand over links.
 - **Done when:** a user can edit a paragraph in TextArea without reaching for
   another program.
 

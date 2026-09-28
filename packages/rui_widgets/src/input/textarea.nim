@@ -32,7 +32,8 @@ export text_buffer
 import ../text_content
 export text_content
 import rui_drawing
-import std/[strutils, options, math]
+import std/[strutils, options, math, monotimes]
+import std/times except getTime   # raylib's getTime is the clock here
 from std/unicode import `$`, runeLen
 # rui_core does not re-export KeyboardKey -- its Menu/Down/Up fields collide
 # with the Menu widget and with rui_drawing's ArrowDirection.
@@ -160,29 +161,107 @@ template indexAt*(widget: untyped, pos: Point): int =
                                 content.style.pangoFont, pos.x - inner.x, 0.0)
     clamp(start + hit.index + hit.trailing, 0, widget.text.len)
 
+template bufferOf(widget: untyped): TextBuffer =
+  initTextBuffer(widget.text, widget.cursorPos, widget.selectionStart,
+                 widget.selectionEnd)
+
+template writeBack(widget: untyped, buf: TextBuffer, beforeText: string) =
+  ## Store an edited buffer and raise whatever flags the change calls for.
+  widget.text = buf.text
+  widget.cursorPos = buf.cursor
+  widget.selectionStart = buf.selStart
+  widget.selectionEnd = buf.selEnd
+  widget.isDirty = true
+  if widget.text != beforeText:
+    # Only a change of text needs a re-measure or an onChange; moving the
+    # caret repaints and nothing more.
+    widget.layoutDirty = true
+    if widget.onChange != nil:
+      widget.onChange(widget.text)
+
 template edit*(widget: untyped, body: untyped) =
-  ## Run an editing operation against the widget's state as a TextBuffer, then
-  ## write it back and raise whatever flags the result calls for.
+  ## Run an editing operation against the widget's state as a TextBuffer,
+  ## record it for undo, and write it back.
   block:
-    var buf {.inject.} = initTextBuffer(widget.text, widget.cursorPos,
-                                        widget.selectionStart,
-                                        widget.selectionEnd)
-    let before = buf.text
+    var buf {.inject.} = widget.bufferOf
+    let before = buf.snapshot
     # Any edit or cursor move ends a run of Up/Down presses; the Up/Down
     # handler restores the goal column after its own edit.
     widget.goalColumn = -1
     body
-    widget.text = buf.text
-    widget.cursorPos = buf.cursor
-    widget.selectionStart = buf.selStart
-    widget.selectionEnd = buf.selEnd
-    widget.isDirty = true
-    if widget.text != before:
-      # Only a change of text needs a re-measure or an onChange; moving the
-      # caret repaints and nothing more.
-      widget.layoutDirty = true
-      if widget.onChange != nil:
-        widget.onChange(widget.text)
+    widget.history.record(before, buf.snapshot)
+    widget.writeBack(buf, before.text)
+
+template travel(widget: untyped, forward: bool): bool =
+  ## Undo (`forward = false`) or redo. Not an `edit`: it must not record
+  ## itself in the history it is walking.
+  block:
+    var buf = widget.bufferOf
+    let beforeText = buf.text
+    let moved = if forward: widget.history.redo(buf)
+                else: widget.history.undo(buf)
+    if moved:
+      widget.goalColumn = -1
+      widget.writeBack(buf, beforeText)
+    moved
+
+const MultiClickWindow = initDuration(milliseconds = 400)
+
+template countClick(widget: untyped, at: MonoTime): int =
+  ## 1, 2 or 3: a click, a double-click or a triple-click. A click within the
+  ## window of the last one continues the run; anything slower starts over.
+  block:
+    if widget.clickCount > 0 and at - widget.lastClickAt <= MultiClickWindow:
+      widget.clickCount = min(widget.clickCount + 1, 3)
+    else:
+      widget.clickCount = 1
+    widget.lastClickAt = at
+    widget.clickCount
+
+template ctrlKey(widget: untyped, event: GuiEvent): bool =
+  ## The Ctrl shortcuts. False for a Ctrl chord this widget does not use, so
+  ## the key still reaches focus navigation and the application.
+  block:
+    var handled = true
+    case event.key
+    of KeyboardKey.A:
+      widget.edit: buf.selectAll()
+    of KeyboardKey.C:
+      let b = widget.bufferOf
+      if b.hasSelection: setClipboardText(b.selectedText)
+    of KeyboardKey.X:
+      let b = widget.bufferOf
+      if b.hasSelection:
+        setClipboardText(b.selectedText)
+        widget.edit: discard buf.deleteSelection()
+    of KeyboardKey.V:
+      widget.edit: discard buf.paste(clipboardText(), widget.multiline,
+                                     widget.maxLength, widget.maxLines)
+    of KeyboardKey.Z:
+      discard widget.travel(forward = event.shift)
+    of KeyboardKey.Y:
+      discard widget.travel(forward = true)
+    of Left:
+      widget.edit: buf.moveCursor(prevWordStart(buf.text, buf.cursor),
+                                  extend = event.shift)
+    of Right:
+      widget.edit: buf.moveCursor(nextWordEnd(buf.text, buf.cursor),
+                                  extend = event.shift)
+    of Home:
+      widget.edit: buf.moveCursor(0, extend = event.shift)
+    of End:
+      widget.edit: buf.moveCursor(buf.text.len, extend = event.shift)
+    of Backspace:
+      widget.edit: discard buf.deleteWordBack()
+    of Delete:
+      widget.edit: discard buf.deleteWordForward()
+    of Enter, KpEnter:
+      # Ctrl+Enter submits even where Enter makes a new line.
+      if widget.onSubmit != nil: widget.onSubmit(widget.text)
+      else: handled = false
+    else:
+      handled = false
+    handled
 
 template takesInput(widget: untyped): bool =
   widget.editable and not widget.disabled
@@ -226,6 +305,9 @@ definePrimitive(TextArea):
     selectionEnd: int
     dragging: bool
     goalColumn: int              # Column Up/Down aim for; -1 outside a run
+    history: EditHistory         # Undo/redo; a script sees only the depths
+    clickCount: int              # 1..3 within a multi-click run, 0 before any
+    lastClickAt: MonoTime
     selfWidth: float32           # The width this widget last measured for itself
 
   actions:
@@ -247,8 +329,18 @@ definePrimitive(TextArea):
     on_mouse_down:
       if not widget.takesInput:
         return false
-      widget.edit: buf.placeCursor(widget.indexAt(event.mousePos))
-      widget.dragging = true
+      let at = widget.indexAt(event.mousePos)
+      case widget.countClick(event.timestamp)
+      of 2:
+        let word = wordAt(widget.text, at)
+        widget.edit: buf.selectRange(word.a, word.b)
+      of 3:
+        let line = lineOf(widget.text, at)
+        widget.edit: buf.selectRange(lineStarts(widget.text)[line],
+                                     lineEnd(widget.text, line))
+      else:
+        widget.edit: buf.placeCursor(at)
+        widget.dragging = true
       return true
 
     on_mouse_move:
@@ -276,6 +368,8 @@ definePrimitive(TextArea):
     on_key_down:
       if not widget.takesInput or not widget.focused:
         return false
+      if event.ctrl and widget.ctrlKey(event):
+        return true
       let shiftDown = event.shift
 
       case event.key
@@ -318,6 +412,7 @@ definePrimitive(TextArea):
         return false
 
   layout:
+    widget.cursorShape = if widget.takesInput: csText else: csDefault
     let content = widget.contentOf
     let pad = widget.inset * 2
     if not widget.editable:

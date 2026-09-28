@@ -17,7 +17,7 @@
 ## the caret takes goes through `prevBoundary` / `nextBoundary`, which never
 ## land inside a character. `maxLength` counts characters, not bytes.
 
-import std/unicode
+import std/[unicode, strutils, json]
 
 proc isContinuation(c: char): bool {.inline.} =
   (ord(c) and 0xC0) == 0x80
@@ -147,3 +147,202 @@ proc endDrag*(b: var TextBuffer) =
   ## A click without a drag leaves no selection behind.
   if b.selStart == b.selEnd:
     b.clearSelection()
+
+proc selectedText*(b: TextBuffer): string =
+  ## The selected span, or "" when nothing is selected.
+  if not b.hasSelection:
+    return ""
+  let (lo, hi) = b.selectionRange()
+  b.text[lo ..< hi]
+
+# ============================================================================
+# Words
+#
+# A word is a run of letters, digits and underscores; everything else --
+# spaces, punctuation -- separates words. Classified per rune, so "שלום" and
+# "naïve" are one word each. Pango's PangoLogAttr would add dictionary word
+# breaking for scripts without spaces (Thai, CJK); that is on TODO.md.
+# ============================================================================
+
+proc runeAt(text: string, i: int): Rune =
+  var r: Rune
+  fastRuneAt(text, i, r, doInc = false)
+  r
+
+proc isWordRune(r: Rune): bool =
+  r.isAlpha or (r.int32 < 128 and char(r.int32) in {'0'..'9', '_'})
+
+proc isWordAt(text: string, i: int): bool =
+  i >= 0 and i < text.len and text.runeAt(i).isWordRune
+
+proc prevWordStart*(text: string, i: int): int =
+  ## Ctrl+Left: back over any separators, then to the start of the word.
+  result = clamp(i, 0, text.len)
+  while result > 0 and not text.isWordAt(prevBoundary(text, result)):
+    result = prevBoundary(text, result)
+  while result > 0 and text.isWordAt(prevBoundary(text, result)):
+    result = prevBoundary(text, result)
+
+proc nextWordEnd*(text: string, i: int): int =
+  ## Ctrl+Right: over any separators, then to the end of the word.
+  result = clamp(i, 0, text.len)
+  while result < text.len and not text.isWordAt(result):
+    result = nextBoundary(text, result)
+  while result < text.len and text.isWordAt(result):
+    result = nextBoundary(text, result)
+
+proc wordAt*(text: string, i: int): tuple[a, b: int] =
+  ## The word around byte offset `i`, for a double-click. On a separator it is
+  ## just that one character, which is what a double-click on a space selects.
+  let at = clamp(i, 0, text.len)
+  if not text.isWordAt(at):
+    if at > 0 and text.isWordAt(prevBoundary(text, at)):
+      return (prevWordStart(text, at), at)          # clicked just past a word
+    return (at, nextBoundary(text, at))
+  var a = at
+  while a > 0 and text.isWordAt(prevBoundary(text, a)):
+    a = prevBoundary(text, a)
+  (a, nextWordEnd(text, at))
+
+proc selectRange*(b: var TextBuffer, a, z: int) =
+  ## Select a..z with the caret at z.
+  b.selStart = clamp(a, 0, b.text.len)
+  b.selEnd = clamp(z, 0, b.text.len)
+  b.cursor = b.selEnd
+
+proc deleteWordBack*(b: var TextBuffer): bool =
+  ## Ctrl+Backspace: the selection, or back to the start of the word.
+  if b.deleteSelection():
+    return true
+  let start = prevWordStart(b.text, b.cursor)
+  if start == b.cursor:
+    return false
+  b.text = b.text[0 ..< start] & b.text[b.cursor .. ^1]
+  b.cursor = start
+  true
+
+proc deleteWordForward*(b: var TextBuffer): bool =
+  ## Ctrl+Delete: the selection, or on to the end of the word.
+  if b.deleteSelection():
+    return true
+  let stop = nextWordEnd(b.text, b.cursor)
+  if stop == b.cursor:
+    return false
+  b.text = b.text[0 ..< b.cursor] & b.text[stop .. ^1]
+  true
+
+# ============================================================================
+# Pasting
+# ============================================================================
+
+proc fitPaste*(s: string, multiline: bool, room: int, breaks = -1): string =
+  ## What of a pasted string a field can take. A single-line field turns line
+  ## breaks into spaces rather than refusing the paste; `room` (characters,
+  ## -1 for unlimited) and `breaks` (new lines allowed, -1 for unlimited)
+  ## truncate rather than refuse, which is what desktop fields do with an
+  ## over-long paste.
+  result = s.replace("\r\n", "\n").replace('\r', '\n')
+  if not multiline:
+    result = result.replace('\n', ' ')
+  elif breaks >= 0:
+    var seen = 0
+    for i, c in result:
+      if c == '\n':
+        if seen == breaks:
+          result.setLen(i)
+          break
+        inc seen
+  if room >= 0 and result.runeLen > room:
+    result = result.runeSubStr(0, room)
+
+proc paste*(b: var TextBuffer, s: string, multiline: bool,
+            maxLength = -1, maxLines = -1): bool =
+  ## Replace the selection with as much of `s` as fits.
+  discard b.deleteSelection()
+  let room = if maxLength < 0: -1 else: max(0, maxLength - b.text.runeLen)
+  let breaks = if maxLines < 0: -1 else: max(0, maxLines - 1 - b.text.count('\n'))
+  let fitted = fitPaste(s, multiline, room, breaks)
+  if fitted.len == 0:
+    return false
+  b.insert(fitted)
+
+# ============================================================================
+# Undo
+#
+# Every edit records the state it replaced. A run of typing is one step: a
+# keystroke that inserts right where the previous one left the caret joins
+# that step instead of starting a new one, so Ctrl+Z takes back a word, not a
+# letter. Moving the caret, deleting, pasting, or typing a space ends the run.
+# ============================================================================
+
+type
+  Snapshot* = object
+    text*: string
+    cursor*, selStart*, selEnd*: int
+
+  EditHistory* = object
+    undoStack*: seq[Snapshot]
+    redoStack*: seq[Snapshot]
+    inRun: bool       ## the last recorded edit was typing
+    runEnd: int       ## where that run left the caret
+
+const HistoryLimit* = 200
+
+proc snapshot*(b: TextBuffer): Snapshot =
+  Snapshot(text: b.text, cursor: b.cursor, selStart: b.selStart, selEnd: b.selEnd)
+
+proc restore*(b: var TextBuffer, s: Snapshot) =
+  b.text = s.text
+  b.cursor = s.cursor
+  b.selStart = s.selStart
+  b.selEnd = s.selEnd
+
+proc isTyping(before, after: Snapshot): bool =
+  ## One or more characters inserted at the caret, none of them a separator,
+  ## with nothing selected beforehand.
+  let grew = after.text.len - before.text.len
+  if grew <= 0 or before.selStart >= 0 and before.selStart != before.selEnd:
+    return false
+  if after.cursor != before.cursor + grew:
+    return false
+  for r in after.text[before.cursor ..< after.cursor].runes:
+    if not r.isWordRune:
+      return false
+  true
+
+proc record*(h: var EditHistory, before, after: Snapshot) =
+  ## Note an edit. Call it for every operation, text-changing or not: a caret
+  ## move is what ends a typing run.
+  if after.text == before.text:
+    h.inRun = false
+    return
+  let typing = isTyping(before, after)
+  if typing and h.inRun and before.cursor == h.runEnd:
+    h.runEnd = after.cursor            # same step, extended
+    return
+  h.undoStack.add before
+  if h.undoStack.len > HistoryLimit:
+    h.undoStack.delete(0)
+  h.redoStack.setLen(0)
+  h.inRun = typing
+  h.runEnd = after.cursor
+
+proc undo*(h: var EditHistory, b: var TextBuffer): bool =
+  if h.undoStack.len == 0:
+    return false
+  h.redoStack.add b.snapshot
+  b.restore(h.undoStack.pop())
+  h.inRun = false
+  true
+
+proc redo*(h: var EditHistory, b: var TextBuffer): bool =
+  if h.redoStack.len == 0:
+    return false
+  h.undoStack.add b.snapshot
+  b.restore(h.redoStack.pop())
+  h.inRun = false
+  true
+
+proc `%`*(h: EditHistory): JsonNode =
+  ## What a script sees: how far back and forward it can go, not the text.
+  %*{"undo": h.undoStack.len, "redo": h.redoStack.len}

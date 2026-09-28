@@ -6,7 +6,7 @@
 
 import std/unittest
 import rui
-import std/[monotimes, unicode]
+import std/[monotimes, unicode, times]
 from raylib import KeyboardKey
 
 suite "finding the lines":
@@ -296,3 +296,122 @@ suite "one text widget, limited by properties":
     discard l.handleScriptAction("write", %*{"value": "after"})
     check l.text == "after"
     check l.getScriptableState()["type"].getStr() == "Label"
+
+suite "editing shortcuts":
+  ## Clipboard through the in-memory seam; modifiers on the event.
+
+  proc press(w: TextArea, k: KeyboardKey, mods: set[KeyMod] = {}): bool =
+    w.handleInput(GuiEvent(kind: evKeyDown, key: k, mods: mods,
+                           timestamp: getMonoTime()))
+
+  proc typeText(w: TextArea, s: string) =
+    for r in s.runes:
+      discard w.handleInput(GuiEvent(kind: evChar, rune: r,
+                                     timestamp: getMonoTime()))
+
+  setup:
+    useClipboard(memoryClipboard())
+
+  test "Ctrl+A, Ctrl+C, Ctrl+V":
+    let a = newTextInput(initialText = "copy me")
+    let b = newTextInput()
+    a.focused = true
+    b.focused = true
+    check a.press(KeyboardKey.A, {kmCtrl})
+    check a.press(KeyboardKey.C, {kmCtrl})
+    check clipboardText() == "copy me"
+    check b.press(KeyboardKey.V, {kmCtrl})
+    check b.text == "copy me"
+
+  test "Ctrl+X cuts":
+    let a = newTextArea(initialText = "cut this")
+    a.focused = true
+    discard a.press(KeyboardKey.A, {kmCtrl})
+    discard a.press(KeyboardKey.X, {kmCtrl})
+    check a.text == ""
+    check clipboardText() == "cut this"
+
+  test "pasting a paragraph into a TextInput keeps it on one line":
+    setClipboardText("line one\nline two")
+    let t = newTextInput()
+    t.focused = true
+    discard t.press(KeyboardKey.V, {kmCtrl})
+    check t.text == "line one line two"
+
+  test "Ctrl+Z undoes typing a word at a time; Ctrl+Shift+Z and Ctrl+Y redo":
+    let a = newTextArea()
+    a.focused = true
+    a.typeText("hello world")
+    check a.press(KeyboardKey.Z, {kmCtrl})
+    check a.text == "hello "
+    check a.press(KeyboardKey.Z, {kmShift, kmCtrl})
+    check a.text == "hello world"
+    discard a.press(KeyboardKey.Z, {kmCtrl})
+    discard a.press(KeyboardKey.Y, {kmCtrl})
+    check a.text == "hello world"
+
+  test "an undo fires onChange, since the text changed":
+    var seen = ""
+    let a = newTextArea(onChange = proc(t: string) = seen = t)
+    a.focused = true
+    a.typeText("abc")
+    discard a.press(KeyboardKey.Z, {kmCtrl})
+    check seen == ""
+
+  test "Ctrl+arrows move by word, Shift extends":
+    let a = newTextInput(initialText = "one two three")
+    a.focused = true
+    discard a.press(KeyboardKey.Right, {kmCtrl})
+    check a.cursorPos == 3
+    discard a.press(KeyboardKey.Right, {kmCtrl, kmShift})
+    check a.selectionStart == 3 and a.selectionEnd == 7
+
+  test "Ctrl+Backspace deletes a word":
+    let a = newTextInput(initialText = "one two")
+    a.focused = true
+    a.cursorPos = a.text.len
+    discard a.press(KeyboardKey.Backspace, {kmCtrl})
+    check a.text == "one "
+
+  test "Ctrl+Enter submits a multi-line area":
+    var got = ""
+    let a = newTextArea(onSubmit = proc(t: string) = got = t)
+    a.focused = true
+    a.typeText("done")
+    check a.press(KeyboardKey.Enter, {kmCtrl})
+    check got == "done"
+    check a.text == "done"                     # no newline added
+
+  test "an unused Ctrl chord is left for the application":
+    let a = newTextArea()
+    a.focused = true
+    check not a.press(KeyboardKey.Q, {kmCtrl})
+
+  test "a double-click selects a word, a triple-click the line":
+    let a = newTextArea(initialText = "first line\nsecond")
+    a.layout()
+    let t0 = getMonoTime()
+    proc click(dt: int) =
+      discard a.handleInput(GuiEvent(kind: evMouseDown,
+        mousePos: Point(x: a.bounds.x + a.padding + 2, y: a.bounds.y + a.padding + 2),
+        timestamp: t0 + initDuration(milliseconds = dt)))
+      discard a.handleInput(GuiEvent(kind: evMouseUp,
+        timestamp: t0 + initDuration(milliseconds = dt + 10)))
+    click(0)
+    click(100)
+    check a.selectionStart == 0 and a.selectionEnd == 5     # "first"
+    click(200)
+    check a.selectionEnd == "first line".len                # the whole line
+    click(2000)                                             # too slow: a click
+    check a.selectionStart == -1 or a.selectionStart == a.selectionEnd
+
+  test "editable text shows an I-beam; a label defers to its parent":
+    let t = newTextInput()
+    t.layout()
+    check t.cursorShape == csText
+    let l = newLabel(text = "x")
+    l.layout()
+    check l.cursorShape == csDefault
+    let b = newButton(text = "Go")
+    b.layout()
+    check b.children[1].effectiveCursor == csArrow

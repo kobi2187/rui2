@@ -108,6 +108,20 @@ type
 # ============================================================================
 
 type
+  CursorShape* = enum
+    ## The mouse cursor over a widget. rui's own names rather than raylib's
+    ## MouseCursor, whose `Default` would collide with ThemeIntent.Default.
+    csDefault    ## Inherit from the nearest ancestor that sets one; arrow at the root
+    csArrow
+    csText       ## I-beam, over editable text
+    csPointer    ## Pointing hand, over links
+    csCrosshair
+    csResizeH    ## Left-right, for splitters and column edges
+    csResizeV
+    csMove
+    csNotAllowed
+
+type
   Widget* = ref object of RootObj
     # Identity
     id*: WidgetId              # Internal numeric ID
@@ -150,6 +164,9 @@ type
       ## Orthogonal to `focusable`. A group is normally not a tab stop in its
       ## own right -- its members are.
 
+    cursorShape*: CursorShape
+      ## The pointer shape while hovering this widget. `csDefault` defers to
+      ## the parent, so a composite sets it once for all its parts.
     flexGrow*: float32
       ## Share of a stack's leftover main-axis space this widget takes, like
       ## CSS `flex-grow`. 0 (the default) keeps the widget at its own size.
@@ -431,6 +448,15 @@ proc noteStructureChanged*() =
 # ============================================================================
 # Base Widget Methods (to be overridden by specific widgets)
 # ============================================================================
+
+proc effectiveCursor*(widget: Widget): CursorShape =
+  ## The shape to show over `widget`: its own, or the nearest ancestor's.
+  var w = widget
+  while w != nil:
+    if w.cursorShape != csDefault:
+      return w.cursorShape
+    w = w.parent
+  csArrow
 
 proc typedRune*(e: GuiEvent): Rune =
   ## The codepoint an `evChar` carries: `rune` when the source set it,

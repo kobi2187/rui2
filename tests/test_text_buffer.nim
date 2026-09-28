@@ -216,3 +216,108 @@ suite "UTF-8: a character is not a byte":
     check isTypeable(Rune(ord('a')))
     check isTypeable(Rune(0x05E9))      # ש
     check isTypeable(Rune(0x1F600))     # 😀
+
+suite "words":
+
+  test "Ctrl+Left and Ctrl+Right stop at word edges":
+    const s = "hello, big world"
+    check nextWordEnd(s, 0) == 5          # end of "hello"
+    check nextWordEnd(s, 5) == 10         # over ", " to the end of "big"
+    check prevWordStart(s, s.len) == 11   # start of "world"
+    check prevWordStart(s, 11) == 7       # back over the space to "big"
+    check prevWordStart(s, 0) == 0
+
+  test "words are Unicode-aware":
+    const s = "naïve שלום"
+    check nextWordEnd(s, 0) == "naïve".len
+    check prevWordStart(s, s.len) == "naïve ".len
+
+  test "a double-click selects the word under it":
+    const s = "one two three"
+    check wordAt(s, 5) == (4, 7)
+    check wordAt(s, 3) == (0, 3)          # just past a word: that word
+    check wordAt(s, 0) == (0, 3)
+
+  test "Ctrl+Backspace deletes back to the word start":
+    var b = initTextBuffer("delete this word", cursor = 16)
+    check b.deleteWordBack()
+    check b.text == "delete this "
+    check b.deleteWordBack()
+    check b.text == "delete "
+
+suite "pasting":
+
+  test "a single-line field turns line breaks into spaces":
+    check fitPaste("a\r\nb\nc", multiline = false, room = -1) == "a b c"
+
+  test "maxLength truncates the paste instead of refusing it":
+    var b = initTextBuffer("ab", cursor = 2)
+    check b.paste("cdefg", multiline = false, maxLength = 4)
+    check b.text == "abcd"
+
+  test "maxLines keeps the paste within the line limit":
+    var b = initTextBuffer("x", cursor = 1)
+    check b.paste("1\n2\n3\n4", multiline = true, maxLines = 2)
+    check b.text == "x1\n2"
+
+  test "pasting replaces the selection":
+    var b = initTextBuffer("hello world", cursor = 11, selStart = 6, selEnd = 11)
+    check b.paste("there", multiline = false)
+    check b.text == "hello there"
+    check b.selectedText == ""
+
+suite "undo":
+
+  proc typeInto(h: var EditHistory, b: var TextBuffer, s: string) =
+    for r in s.runes:
+      let before = b.snapshot
+      discard b.insert($r)
+      h.record(before, b.snapshot)
+
+  test "a run of typing undoes as one step":
+    var b = initTextBuffer("")
+    var h: EditHistory
+    h.typeInto(b, "hello")
+    check h.undoStack.len == 1
+    check h.undo(b)
+    check b.text == ""
+
+  test "a space ends the run, so undo takes back a word at a time":
+    var b = initTextBuffer("")
+    var h: EditHistory
+    h.typeInto(b, "one two")
+    check h.undo(b)
+    check b.text == "one "
+    check h.undo(b)
+    check b.text == "one"
+
+  test "moving the caret ends the run":
+    var b = initTextBuffer("")
+    var h: EditHistory
+    h.typeInto(b, "ab")
+    let before = b.snapshot
+    b.moveCursor(0, extend = false)
+    h.record(before, b.snapshot)
+    h.typeInto(b, "x")
+    check h.undoStack.len == 2
+
+  test "redo reapplies, and a new edit clears it":
+    var b = initTextBuffer("")
+    var h: EditHistory
+    h.typeInto(b, "abc")
+    check h.undo(b)
+    check h.redo(b)
+    check b.text == "abc"
+    check h.undo(b)
+    h.typeInto(b, "z")
+    check not h.redo(b)
+
+  test "undo restores the selection too":
+    var b = initTextBuffer("hello world", cursor = 11, selStart = 6, selEnd = 11)
+    var h: EditHistory
+    let before = b.snapshot
+    discard b.deleteSelection()
+    h.record(before, b.snapshot)
+    check h.undo(b)
+    check b.text == "hello world"
+    check b.selectedText == "world"
