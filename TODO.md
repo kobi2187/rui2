@@ -56,6 +56,9 @@ container looks assigned, so it never re-grows when content is added
   `PangoLogAttr` word boundaries, not ASCII spaces.
 - [ ] **Caret and scroll.** Horizontal scrolling in TextInput and vertical
   scrolling in TextArea, keeping the caret visible.
+- [ ] **Wrap while editing.** `wrap` and `markup` apply to display text only;
+  an editable TextArea lays out one visual line per `\n`. Caret movement
+  over soft-wrapped lines needs Pango's line iterator.
 - [ ] **Mouse cursor shapes.** A `cursor: MouseCursor` field on `Widget`,
   applied by the hover tracker (I-beam over text, pointer over links, resize
   arrows on splitters).
@@ -172,7 +175,6 @@ No toolkit is "best" if a screen reader cannot use it.
 - [ ] A rich-text editor (styled runs over `text_content`) and a code editor
   with syntax highlighting.
 - [ ] Charts: line, bar and scatter, on the Canvas widget.
-- [ ] Decide #30: whether Label/TextInput/TextArea merge into one widget.
 
 ### 15. Code health
 - [ ] Bring rui_drawing (11), rui_hittest (5, of which interval-tree
@@ -184,12 +186,8 @@ No toolkit is "best" if a screen reader cannot use it.
   rui_drawing enums; `KeyboardKey.Menu` against the Menu widget).
 - [ ] The remaining drawing TODOs: the three-ring focus effect, and rounded and
   radial gradients via shaders (`rui_drawing/effects/rect_effects.nim`).
-- [ ] Close #21. The ladder and cache work is done; the only question left is
-  whether the two ladders should agree.
 
 ### 16. Packaging and release
-- [ ] Choose a license ([#26](https://github.com/kobi2187/rui2/issues/26)).
-  This blocks everything below.
 - [ ] CI on Windows and macOS. Pango on Windows means MSYS2 bundling, so
   document it or ship prebuilt DLLs.
 - [ ] Split into seven repos per SPLITTING.md
@@ -208,7 +206,7 @@ No toolkit is "best" if a screen reader cannot use it.
                     └─ #8 performance
 #4 idle ─────────────── #9 animation
 #6 bind (independent)     #7 HiDPI (independent)
-#16 license ─── split ─── publish ─── v0.2.0
+#16 split ─── publish ─── v0.2.0   (MIT chosen)
 #10 accessibility (after #1; needs stable roles and bounds)
 ```
 

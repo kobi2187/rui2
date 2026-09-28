@@ -15,8 +15,7 @@ optimization. See [STATUS.md](STATUS.md) for what works today.
 ## Phase 0 — Lock in the foundation *(small, do first)*
 - [x] **Compile-check CI** — done in `298fcfa`. Runs `nim check` on the 7 package
   barrels + examples.
-- [ ] **Choose a license** — fill the `# license` TODO in all 7 `.nimble` files.
-  ([#26](https://github.com/kobi2187/rui2/issues/26))
+- [x] **License** — MIT, with a `LICENSE` in the root and in each package.
 - [x] **Pin dependencies** — `naylib >= 25.42.0`, `yaml >= 2.2.0` in the
   `.nimble` files and CI (`25c2960`, `776181b`).
 
@@ -98,9 +97,10 @@ became plain nilable closures. The original plan:
   content.
 - [x] **The shared text engine** — `rui_widgets/text_content.nim`. Label,
   TextInput and TextArea all measure and draw through it, so what is drawn is
-  what was measured. **TextArea now exists.** The three surfaces stay separate
-  rather than collapsing into one flag-carrying type; the reasoning and the open
-  question are on ([#30](https://github.com/kobi2187/rui2/issues/30)).
+  what was measured.
+- [x] **One text widget** — TextArea, limited by properties: `editable = false`
+  is a Label, `multiline = false` a TextInput. `Label` and `TextInput` are
+  aliases with their own constructors; `getTypeName` reports the role.
 
 ## Phase 5 — Performance refinements *(partly done; the rest → TODO.md #8)*
 - [x] **Stop rebuilding children every layout pass** — composites like `Button` do
@@ -119,12 +119,10 @@ own bounds. Each has a runnable example under `examples/widgets/` and coverage i
 `tests/test_restored_widgets.nim`. See the widget table in
 [STATUS.md](STATUS.md).
 
-Two of the collapses this phase asked for are still open:
-
-- Fold `textinput` into the unified text widget
-  ([#30](https://github.com/kobi2187/rui2/issues/30)).
-- Turn the pure-container widgets into template blocks
-  ([#28](https://github.com/kobi2187/rui2/issues/28)).
+Both collapses this phase asked for are done: `textinput` folded into the one
+text widget ([#30](https://github.com/kobi2187/rui2/issues/30)), and container
+bodies written as blocks through the `ui:` macro
+([#28](https://github.com/kobi2187/rui2/issues/28)).
 
 <details><summary>Original parked-widget table (all now restored)</summary>
 
@@ -196,8 +194,8 @@ then binding) is the spine — it turns RUI2 from "compiles and draws static UIs
 into "reactive UIs that actually update." Phases 3–4 make it pleasant; 5–8 make
 it fast, complete, and shippable.
 
-**Where that leaves things (2026-09-28).** Phases 1, 3, 4, 6 and 6.5 are done, and
-0 is done bar the license; 2 and 5 are half done. The code-health spine from 2026-09-16 (the
+**Where that leaves things (2026-09-28).** Phases 0, 1, 3, 4, 6 and 6.5 are done;
+2 and 5 are half done. The code-health spine from 2026-09-16 (the
 dead text cache, the hover latch, the theme seam, the `app.nim` split, the
 raylib re-export) has been worked through. What is left is no longer cleanup:
 it is the feature work in [TODO.md](TODO.md), led by the measure/arrange

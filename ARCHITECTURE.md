@@ -355,12 +355,21 @@ else inherits.
 Widgets query the active theme during `layout`/`render`:
 
 ```nim
-let state = if widget.disabled: Disabled
-            elif widget.isPressed: Pressed
-            elif widget.isHovered: Hovered
-            elif widget.focused:   Focused
-            else: Normal
-let props = currentTheme.getThemeProps(widget.intent, state)
+let props = widget.themeProps(widget.intent, crText, disabled = widget.disabled)
+```
+
+`themeProps` (`rui_drawing/theme_state.nim`) derives the state from the
+widget's flags. Disabled beats Pressed, which beats the rest. When a control
+is both hovered and focused, the **theme** decides which shows: a widget
+declares its role -- `crText` (it has a caret) or `crPointer` (the pointer
+acts on it) -- and `Theme.statePreference` holds the choice per role. That
+choice is read from the in-memory `currentTheme` on every lookup; a theme file
+sets it once, at load:
+
+```yaml
+statePreference:
+  text: focus      # default: the caret matters more than the pointer
+  pointer: hover   # default: the pointer is about to act on this control
 ```
 
 ### Zero-cost switching
@@ -374,8 +383,9 @@ app.setTheme("dark")    # by name (registered in ThemeManager)
 app.setTheme(myTheme)   # by Theme object
 ```
 
-Both update `app.currentTheme`, the manager's current theme, and set
-`tree.anyDirty` so widgets pick up new values on the next frame. Built-in themes:
+Both set the manager's current theme -- which is what the global
+`currentTheme` widgets read -- and mark the whole tree dirty so the next frame
+repaints with it. Built-in themes:
 `light`, `dark`, `beos`, `joy`, `wide` (light is the default).
 
 ### Focus styling
@@ -484,8 +494,11 @@ This is a testing/automation facility, not a production feature.
 `measureText`, the three text widgets -- goes through Pango, so shaping, BiDi
 and font fallback are Pango's. Glyph runs are rendered by Cairo into raylib
 textures and cached with LRU eviction in `rui_drawing/pango_text.nim`.
-Label, TextInput and TextArea share one engine, `rui_widgets/text_content.nim`,
-so what is drawn is what was measured.
+There is one text widget, `TextArea` (`rui_widgets/input/textarea.nim`), over
+one engine (`text_content.nim`), so what is drawn is what was measured.
+Properties limit it into roles: `editable = false` is a Label, `multiline =
+false` a TextInput. `Label`/`TextInput` are aliases with their own
+constructors, and `getTypeName` reports the role.
 
 Input is Unicode too: `GuiEvent.rune` carries the typed codepoint, and
 `TextBuffer` steps over whole UTF-8 characters for the caret, Backspace and

@@ -2,7 +2,7 @@ version     = "0.2.0"
 author      = "RUI2 Contributors"
 description = "RUI2 drawing: primitives, effects, the theme system (state x intent), text cache, and theme-aware widget primitives."
 srcDir      = "src"
-# license   = "TODO: choose a license"
+license     = "MIT"
 
 requires "nim >= 2.0.0"
 # naylib's version is date-based (25.42.0 is 2025 week 42), so the upper bound

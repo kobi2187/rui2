@@ -136,7 +136,7 @@ definePrimitive(NumberInput):
       visualState(widget.disabled, pressed = false,
                   hovered = widget.hovered,
                   focused = widget.editing or widget.focused,
-                  ladder = slFocusFirst))
+                  ladder = currentTheme.ladderFor(crText)))
 
     let display =
       if widget.editing: widget.textValue

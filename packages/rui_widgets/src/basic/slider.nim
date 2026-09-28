@@ -147,7 +147,7 @@ definePrimitive(Slider):
       widget.bounds.width = 200.0f32 + taken
 
   render:
-    let props = widget.themeProps(widget.intent, slPointerFirst,
+    let props = widget.themeProps(widget.intent, crPointer,
                                   disabled = widget.disabled,
                                   pressed = widget.dragging)
 

@@ -97,7 +97,7 @@ definePrimitive(ScrollBar):
         widget.bounds.width = 100.0'f32
 
   render:
-    let props = widget.themeProps(widget.intent, slPointerFirst,
+    let props = widget.themeProps(widget.intent, crPointer,
                                   disabled = widget.disabled,
                                   pressed = widget.dragging)
 

@@ -41,7 +41,9 @@ for usage.
 | Flex growth in stacks (`Widget.flexGrow`, `Spacer`) | ✅ Working |
 | Scripting selectors by type (`Button`, `form/Label`) | ✅ Working |
 | Clipboard, undo/redo, HiDPI scaling, accessibility | ❌ Not started — see [TODO.md](TODO.md) |
-| Text engine shared by Label / TextInput / TextArea | ✅ Working — `text_content.nim`; TextArea now exists |
+| One text widget: TextArea, limited by properties into Label / TextInput | ✅ Working — `input/textarea.nim` over `text_content.nim` |
+| Hover-vs-focus preference owned by the theme | ✅ Working — `Theme.statePreference`, per control role |
+| License | ✅ MIT |
 | `ui:` block syntax for widget trees | ✅ Working — `VStack(spacing = 10.0): Label(...)` |
 | Handlers as bare closures (`btn.onClick = proc() = ...`) | ✅ Working — no `some(...)`, no `{.closure.}` |
 
@@ -146,6 +148,17 @@ top-aligned (Column has alignment; the stacks do not).
 
 ## Recently completed
 
+- **One text widget.** Label, TextInput and TextArea are one `TextArea`
+  limited by properties (`editable`, `multiline`, `maxLength`, `maxLines`,
+  `framed`, `disabled`). `Label`/`TextInput` are aliases with their own
+  constructors, and `getTypeName` reports the role, so selectors still work.
+  A non-editable one takes no input, so a Button's caption cannot eat clicks.
+- **The theme owns hover-vs-focus.** Widgets declare a role (`crText` /
+  `crPointer`); `Theme.statePreference` decides which state wins for each,
+  read from the in-memory `currentTheme` on every lookup. Theme files may set
+  `statePreference: {text: focus, pointer: hover}`. Checkbox and RadioButton
+  are now `crPointer` (hover shows over focus), which they are.
+- **MIT license**, in the root and in each package.
 - **Flex growth.** `Widget.flexGrow` (CSS `flex-grow` semantics) and a Spacer
   that finally does what it says: a VStack/HStack with a fixed size hands its
   leftover space to flex children by weight. `rui_core/flex.nim`.
@@ -187,13 +200,6 @@ Verified against the code. The prioritised plan is in [TODO.md](TODO.md).
 - **No accessibility** — no screen-reader bridge (AT-SPI / UIA / NSAccessibility).
 - **No animation system** — transitions are instant.
 - **No mouse-cursor shapes** — the I-beam over text, resize arrows, etc.
-- **Theme lookup** ([#21]) — the state ladder is now written once
-  (`theme_state.nim`) and the unused cache was measured and removed; only the
-  product question of whether the two ladders should agree is left.
-- **No license chosen yet** ([#26]) — `.nimble` files have a TODO placeholder.
-
-[#21]: https://github.com/kobi2187/rui2/issues/21
-[#26]: https://github.com/kobi2187/rui2/issues/26
 
 ---
 

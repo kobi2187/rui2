@@ -153,6 +153,11 @@ type
     assets*: BrandAssets                  # Logo, icons, patterns
     metadata*: ThemeMetadata              # Brand info
 
+    statePreference*: array[ControlRole, StatePreference]
+      ## Hover-or-focus-first, per control role. Read on every lookup from the
+      ## in-memory theme (`ladderFor`), never from the theme file: the file is
+      ## parsed once, into this.
+
 proc initThemeTables(theme: var Theme) =
   if theme.base.len == 0:
     theme.base = initTable[ThemeIntent, ThemeProps]()
@@ -171,6 +176,16 @@ proc newTheme*(name = ""): Theme =
   for intent in ThemeIntent:
     result.base[intent] = ThemeProps()
     result.states[intent] = initTable[ThemeState, ThemeProps]()
+
+proc ladderFor*(theme: Theme, role: ControlRole): StateLadder =
+  ## The ladder this theme uses for a role. A role left at `spRoleDefault`
+  ## keeps the library's convention: a caret matters more than the pointer for
+  ## text, and the pointer matters more for everything it acts on directly.
+  case theme.statePreference[role]
+  of spHoverFirst: slPointerFirst
+  of spFocusFirst: slFocusFirst
+  of spRoleDefault:
+    if role == crText: slFocusFirst else: slPointerFirst
 
 import typetraits, system, system/iterators
 

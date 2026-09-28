@@ -60,7 +60,7 @@ definePrimitive(IconButton):
       widget.bounds.height = widget.size
 
   render:
-    let props = widget.themeProps(widget.intent, slPointerFirst,
+    let props = widget.themeProps(widget.intent, crPointer,
                                   disabled = widget.disabled,
                                   pressed = widget.isPressed)
 

@@ -27,6 +27,7 @@ type WidgetSections = object
   renderBody: NimNode
   layoutBody: NimNode
   initBody: NimNode
+  typeNameBody: NimNode
 
 proc findSection(body: NimNode, name: string): NimNode =
   ## Find section by name in body
@@ -44,6 +45,7 @@ proc parseSections(body: NimNode): WidgetSections =
   result.renderBody = body.findSection("render")
   result.layoutBody = body.findSection("layout")
   result.initBody = body.findSection("init")
+  result.typeNameBody = body.findSection("typeName")
 
 # ============================================================================
 # Type Generation - Build Widget Type
@@ -244,14 +246,24 @@ proc buildEventHandler(name: NimNode, sections: WidgetSections): NimNode =
     caseStmt
   )
 
-proc buildGetTypeNameMethod(name: NimNode): NimNode =
-  ## Generate getTypeName method that returns the widget type name
+proc buildGetTypeNameMethod(name: NimNode, sections: WidgetSections): NimNode =
+  ## Generate getTypeName: the widget's own name, or -- when it declares a
+  ## `typeName:` section -- whatever that section computes.
+  ##
+  ## The section exists for a widget whose properties make it play different
+  ## roles. TextArea is Label, TextInput and TextArea by its `editable` and
+  ## `multiline` flags; reporting the role keeps a script's `Label` selector
+  ## meaning what it says. Built by hand so the section's `widget` binds to
+  ## the method's parameter.
   let typeName = makeWidgetTypeName(name)
-  let typeNameStr = $name  # Convert widget name to string
-
-  quote do:
-    method getTypeName*(widget: `typeName`): string =
-      `typeNameStr`
+  let body = if sections.typeNameBody.isEmpty: newStmtList(newLit($name))
+             else: sections.typeNameBody
+  nnkMethodDef.newTree(
+    nnkPostfix.newTree(ident("*"), ident("getTypeName")),
+    newEmptyNode(), newEmptyNode(),
+    nnkFormalParams.newTree(ident("string"),
+                            newIdentDefs(ident("widget"), typeName)),
+    newEmptyNode(), newEmptyNode(), body)
 
 # ============================================================================
 # Render Method Generation
@@ -314,7 +326,6 @@ proc buildScriptStateMethod(name: NimNode, sections: WidgetSections): NimNode =
   ## Generate getScriptableState: base widget fields plus every prop and state
   ## field that json can represent.
   let typeName = makeWidgetTypeName(name)
-  let typeNameStr = $name
 
   # Built with newCall, not `quote do`: quote gensyms the `result` it sees, so
   # a quoted `result[key] = ...` would assign into a fresh local rather than
@@ -324,7 +335,8 @@ proc buildScriptStateMethod(name: NimNode, sections: WidgetSections): NimNode =
   var body = newStmtList()
   body.add nnkAsgn.newTree(
     ident("result"),
-    newCall(ident("baseScriptableState"), ident("widget"), newLit(typeNameStr)))
+    newCall(ident("baseScriptableState"), ident("widget"),
+            newCall(ident("getTypeName"), ident("widget"))))
 
   var fieldNames: seq[string] = @[]
   for prop in sections.props:
@@ -472,7 +484,7 @@ macro definePrimitive*(name: untyped, body: untyped): untyped =
   result.add(buildUpdateLayoutMethod(name, sections))
   result.add(buildRenderMethod(name, sections))
   result.add(buildEventHandler(name, sections))
-  result.add(buildGetTypeNameMethod(name))  # Auto-generate type name
+  result.add(buildGetTypeNameMethod(name, sections))  # Auto-generate type name
   result.add(buildScriptStateMethod(name, sections))   # Scripting bridge
   result.add(buildScriptActionMethod(name, sections))  # Scripting bridge
 
@@ -497,7 +509,7 @@ macro defineWidget*(name: untyped, body: untyped): untyped =
   result.add(buildUpdateLayoutMethod(name, sections))  # Layout required for composites
   result.add(buildRenderMethod(name, sections))        # Render optional
   result.add(buildEventHandler(name, sections))
-  result.add(buildGetTypeNameMethod(name))              # Auto-generate type name
+  result.add(buildGetTypeNameMethod(name, sections))    # Auto-generate type name
   result.add(buildScriptStateMethod(name, sections))    # Scripting bridge
   result.add(buildScriptActionMethod(name, sections))   # Scripting bridge
 

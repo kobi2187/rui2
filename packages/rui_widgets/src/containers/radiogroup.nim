@@ -105,7 +105,7 @@ definePrimitive(RadioGroup):
         visualState(widget.disabled, pressed = false,
                     hovered = i == widget.hoverIndex,
                     focused = widget.focused and i == widget.selectedIndex,
-                    ladder = slPointerFirst))
+                    ladder = currentTheme.ladderFor(crPointer)))
 
       let rowY = widget.bounds.y + float32(i) * widget.spacing
       drawRadioButton(Rect(x: widget.bounds.x, y: rowY,

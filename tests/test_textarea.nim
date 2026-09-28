@@ -192,3 +192,107 @@ suite "typing beyond ASCII":
     check columnOf(text, 4) == 2                       # after "éé" (4 bytes)
     check indexAtLineColumn(text, 1, 2) == lineStarts(text)[1] + 2
     check verticalMove(text, 4, -1, down = true).index == lineStarts(text)[1] + 2
+
+suite "one text widget, limited by properties":
+  ## Label, TextInput and TextArea are one type. What differs is properties,
+  ## and getTypeName reports the role they give a widget.
+
+  proc key(w: TextArea, k: KeyboardKey): bool =
+    w.handleInput(GuiEvent(kind: evKeyDown, key: k, timestamp: getMonoTime()))
+
+  proc typeText(w: TextArea, s: string) =
+    for r in s.runes:
+      discard w.handleInput(GuiEvent(kind: evChar, rune: r,
+                                     timestamp: getMonoTime()))
+
+  test "Label and TextInput are TextArea":
+    check newLabel(text = "x") of TextArea
+    check newTextInput() of TextArea
+    check Label is TextArea
+    check TextInput is TextArea
+
+  test "the reported type follows the limiting properties":
+    check newLabel(text = "x").getTypeName() == "Label"
+    check newTextInput().getTypeName() == "TextInput"
+    check newTextArea().getTypeName() == "TextArea"
+    let w = newTextArea()
+    w.multiline = false
+    check w.getTypeName() == "TextInput"
+    w.editable = false
+    check w.getTypeName() == "Label"
+
+  test "a Label takes no input, so it cannot swallow a click":
+    let l = newLabel(text = "caption")
+    l.focused = true
+    check not l.focusable
+    check not l.handleInput(GuiEvent(kind: evMouseDown,
+                                     mousePos: Point(x: 1, y: 1)))
+    check not l.key(KeyboardKey.Backspace)
+    l.typeText("z")
+    check l.text == "caption"
+
+  test "a Button's caption does not take its clicks":
+    let b = newButton(text = "Go")
+    b.layout()
+    let caption = b.children[1]
+    check caption.getTypeName() == "Label"
+    check not caption.handleInput(GuiEvent(kind: evMouseDown,
+                                           mousePos: Point(x: 1, y: 1)))
+
+  test "a TextInput submits on Enter instead of adding a line":
+    var submitted = ""
+    let t = newTextInput(onSubmit = proc(s: string) = submitted = s)
+    t.focused = true
+    t.typeText("hi")
+    check t.key(KeyboardKey.Enter)
+    check t.text == "hi"
+    check submitted == "hi"
+
+  test "a TextInput leaves Up and Down to focus navigation":
+    let t = newTextInput(initialText = "one line")
+    t.focused = true
+    check not t.key(KeyboardKey.Up)
+    check not t.key(KeyboardKey.Down)
+
+  test "maxLines stops Enter at the limit":
+    let a = newTextArea(maxLines = 2)
+    a.focused = true
+    a.typeText("a")
+    discard a.key(KeyboardKey.Enter)
+    a.typeText("b")
+    discard a.key(KeyboardKey.Enter)      # would be a third line
+    check a.text == "a\nb"
+
+  test "maxLength limits every role that edits":
+    let t = newTextInput(maxLength = 3)
+    t.focused = true
+    t.typeText("abcdef")
+    check t.text == "abc"
+
+  test "a read-only TextArea keeps its frame but refuses edits":
+    let a = newTextArea(initialText = "fixed", editable = false)
+    a.focused = true
+    a.typeText("x")
+    check a.text == "fixed"
+    check a.framed
+
+  test "a Label sizes to its text with no padding; an input pads":
+    let l = newLabel(text = "same", fontSize = 14.0)
+    let t = newTextInput(initialText = "same", padding = 8.0)
+    l.layout()
+    t.layout()
+    check t.bounds.height == l.bounds.height + 16.0
+
+  test "a Label re-measures when its text changes":
+    let l = newLabel(text = "a", fontSize = 14.0)
+    l.layout()
+    let w1 = l.bounds.width
+    l.text = "a much longer caption"
+    l.layout()
+    check l.bounds.width > w1
+
+  test "a Label's text is what a script writes":
+    let l = newLabel(text = "before")
+    discard l.handleScriptAction("write", %*{"value": "after"})
+    check l.text == "after"
+    check l.getScriptableState()["type"].getStr() == "Label"

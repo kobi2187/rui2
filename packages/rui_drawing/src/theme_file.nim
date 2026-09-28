@@ -90,6 +90,8 @@ type
     version: Option[string]
     base: Option[Table[string, ThemePropsFile]]
     states: Option[Table[string, Table[string, ThemePropsFile]]]
+    statePreference: Option[Table[string, string]]
+      ## role ("text" / "pointer") -> "focus" / "hover"
 
 # ============================================================================
 # Color Parsing
@@ -142,6 +144,21 @@ proc parseStateName*(s: string): ThemeState =
   of "selected": Selected
   of "dragover": DragOver
   else: Normal
+
+proc parseRoleName*(s: string): ControlRole =
+  case s.toLowerAscii()
+  of "text": crText
+  of "pointer": crPointer
+  else: raise newException(ValueError, "Unknown control role: " & s &
+                           " (expected text or pointer)")
+
+proc parsePreference*(s: string): StatePreference =
+  case s.toLowerAscii()
+  of "focus": spFocusFirst
+  of "hover": spHoverFirst
+  of "default": spRoleDefault
+  else: raise newException(ValueError, "Unknown state preference: " & s &
+                           " (expected focus, hover or default)")
 
 proc toThemeProps*(fp: ThemePropsFile): ThemeProps =
   ## Convert file props (string colors) to runtime ThemeProps (Color objects)
@@ -234,6 +251,9 @@ proc toTheme*(tf: ThemeFile, resolver: proc(name: string): Theme): Theme =
         var merged = result.states[intent].getOrDefault(state, ThemeProps())
         merged.merge(props)
         result.states[intent][state] = merged
+  if tf.statePreference.isSome:
+    for role, pref in tf.statePreference.get():
+      result.statePreference[parseRoleName(role)] = parsePreference(pref)
 
 
 proc parseThemeFile*(content: string, format: ThemeFileFormat): ThemeFile =

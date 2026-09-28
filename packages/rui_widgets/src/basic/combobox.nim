@@ -107,7 +107,7 @@ definePrimitive(ComboBox):
       widget.bounds.width = widest + 40.0   # padding + arrow gutter
 
   render:
-    let props = widget.themeProps(widget.intent, slFocusFirst,
+    let props = widget.themeProps(widget.intent, crText,
                                   disabled = widget.disabled,
                                   pressed = widget.isOpen)
 

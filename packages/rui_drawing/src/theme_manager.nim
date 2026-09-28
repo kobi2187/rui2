@@ -168,6 +168,7 @@ proc derive*(tm: ThemeManager, baseName: string, newName: string = ""): Theme =
   result.animation = base.animation
   result.assets = base.assets
   result.metadata = base.metadata
+  result.statePreference = base.statePreference
 
 # ============================================================================
 # File Loading

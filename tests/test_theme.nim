@@ -348,9 +348,9 @@ suite "themeProps reads the widget's own flags":
   test "it uses hovered and focused from the base Widget fields":
     let w = newButton(text = "x")
     w.hovered = true
-    let hovered = w.themeProps(ThemeIntent.Default, slPointerFirst)
+    let hovered = w.themeProps(ThemeIntent.Default, crPointer)
     w.hovered = false
-    let normal = w.themeProps(ThemeIntent.Default, slPointerFirst)
+    let normal = w.themeProps(ThemeIntent.Default, crPointer)
     # The built-in light theme gives these different backgrounds; what matters
     # here is that the flag is being read at all.
     check hovered != normal
@@ -362,3 +362,62 @@ suite "themeProps reads the widget's own flags":
     let pressed = w.themeProps(ThemeIntent.Default, pressed = true)
     let disabled = w.themeProps(ThemeIntent.Default, disabled = true)
     check pressed != disabled
+
+suite "the theme owns the hover-or-focus preference":
+  ## A widget says what it is (crText / crPointer); which of hover and focus
+  ## wins is the theme's call, read from the in-memory currentTheme on every
+  ## lookup -- never re-read from the theme file.
+
+  proc noExtends(name: string): Theme = newTheme(name)
+
+  test "a fresh theme keeps the library's defaults":
+    let t = newTheme("t")
+    check t.ladderFor(crText) == slFocusFirst
+    check t.ladderFor(crPointer) == slPointerFirst
+
+  test "a zero-initialised theme gets the defaults too":
+    var t: Theme
+    check t.ladderFor(crText) == slFocusFirst
+    check t.ladderFor(crPointer) == slPointerFirst
+
+  test "a theme file can override either role":
+    let t = parseTheme("""
+name: prefs
+statePreference:
+  text: hover
+  pointer: focus
+""", tffYaml, noExtends)
+    check t.ladderFor(crText) == slPointerFirst
+    check t.ladderFor(crPointer) == slFocusFirst
+
+  test "an unknown role or preference is an error, not a silent default":
+    expect ValueError:
+      discard parseTheme("statePreference: {slider: focus}", tffYaml, noExtends)
+    expect ValueError:
+      discard parseTheme("statePreference: {text: sometimes}", tffYaml, noExtends)
+
+  test "themeProps follows the current theme's preference":
+    let saved = currentTheme
+    defer: currentTheme = saved
+    var t = newTheme("prefs")
+    t.states[ThemeIntent.Default][ThemeState.Hovered] =
+      ThemeProps(backgroundColor: some(Color(r: 1, g: 0, b: 0, a: 255)))
+    t.states[ThemeIntent.Default][ThemeState.Focused] =
+      ThemeProps(backgroundColor: some(Color(r: 0, g: 0, b: 1, a: 255)))
+    let w = newButton(text = "x")
+    w.hovered = true
+    w.focused = true
+
+    currentTheme = t
+    check w.themeProps(ThemeIntent.Default, crPointer).backgroundColor.get.r == 1
+
+    t.statePreference[crPointer] = spFocusFirst
+    currentTheme = t
+    check w.themeProps(ThemeIntent.Default, crPointer).backgroundColor.get.b == 1
+
+  test "derived themes inherit the preference":
+    let tm = newThemeManager()
+    var base = newTheme("base")
+    base.statePreference[crText] = spHoverFirst
+    tm.register("base", base)
+    check tm.derive("base").ladderFor(crText) == slPointerFirst
