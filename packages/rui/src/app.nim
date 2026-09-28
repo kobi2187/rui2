@@ -93,6 +93,7 @@ type
     lastPresent: MonoTime
     indicatorShown: bool
     cursorShown: CursorShape
+    overlaysSeen: int
 
 # Global app instance (for convenience - can also be passed explicitly)
 var app*: App
@@ -457,6 +458,8 @@ proc refreshLayout*(app: App) =
   let layoutWillRun = app.tree.root.layoutDirty or
                       app.tree.root.anyChildLayoutDirty()
   app.tree.root.layoutPass()
+  for overlay in overlays():
+    overlay.layoutPass()
 
   # Both of these walk the whole tree, and both only have anything to do when
   # bounds moved or a widget appeared -- so they are gated on layout having
@@ -479,6 +482,14 @@ proc updateLayoutAndRender(app: App): bool =
   app.refreshLayout()
   if app.tree.root.isDirty or app.tree.root.anyChildDirty():
     app.tree.root.renderPass()
+    result = true
+  for overlay in overlays():
+    if overlay.isDirty or overlay.anyChildDirty():
+      overlay.renderPass()
+      result = true
+  # Showing or hiding an overlay repaints no texture, but the screen changes.
+  if overlayVersion() != app.overlaysSeen:
+    app.overlaysSeen = overlayVersion()
     result = true
   app.tree.anyDirty = false
 
@@ -512,6 +523,11 @@ proc compositeRoot(app: App) =
   if app.tree.root != nil and app.tree.root.cachedTexture.isSome:
     drawRenderTexture(app.tree.root.cachedTexture.get(),
                       app.tree.root.bounds.x, app.tree.root.bounds.y)
+  # Then the overlay layer, in the order shown, above the whole tree.
+  for overlay in overlays():
+    if overlay.visible and overlay.cachedTexture.isSome:
+      drawRenderTexture(overlay.cachedTexture.get(),
+                        overlay.bounds.x, overlay.bounds.y)
 
 proc beingScripted(app: App): bool =
   app.scriptManager != nil and app.scriptManager.isBeingScripted()

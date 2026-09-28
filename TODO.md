@@ -106,13 +106,17 @@ The redesign, for min/max constraints and a cheaper second pass:
 - [ ] **SplitView** with a draggable divider.
 - [ ] Right-to-left layout mirroring, driven by the text direction Pango
   already reports.
-- [ ] **An overlay layer.** Popups draw inside their own widget's render
-  texture, so each one grows its bounds to fit (menus, ComboBox). Tooltip
-  cannot work that way at all: it sits beside the widget it describes, the
-  pointer is never over it, and nothing generates the `evMouseHover` its
-  handler waits for -- **it never shows**. An app-level overlay list,
-  composited after the root and hit-tested first, fixes all three; Tooltip
-  then wraps its target and uses a repaint timer for the delay.
+- [x] **An overlay layer** (`rui_core/overlays.nim`): widgets drawn above the
+  whole tree, laid out and rendered by the App and composited after the root.
+  Tooltip now wraps its target, waits on a repaint timer and floats its tip
+  there -- it could never show before (no hover-event producer, the pointer
+  was never over it, and `drawTooltip` drew outside its own texture).
+- [ ] Hit-test the overlay layer first, then move Menu, ContextMenu and the
+  ComboBox list onto it instead of growing their own bounds.
+- [ ] **ToolBar with captioned ToolButtons overlaps them** -- in
+  `examples/widgets/buttons_extra.nim` the captions collide and clip
+  ("Bold talic Inde"). Pre-existing; the ToolButton reports its icon width
+  and draws its caption wider.
 
 ### 6. Reactivity you can write declaratively *(medium)*
 - [ ] A `bind` word inside `ui:` — `TextInput(bind <-> store.name)` for two-way

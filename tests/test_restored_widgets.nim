@@ -112,14 +112,15 @@ suite "restored basic widgets":
     check labelled.bounds.height > bare.bounds.height
     bare.checkScriptable("ToolButton")
 
-  test "Tooltip follows the pointer":
-    let w = newTooltip(text = "hint", offsetX = 10.0, offsetY = 10.0)
-    w.mouseX = 100.0
-    w.mouseY = 50.0
+  test "Tooltip wraps its target and takes its size":
+    let target = newButton(text = "Save")
+    let w = newTooltip(text = "hint")
+    w.addChild(target)
     w.layout()
-    check w.bounds.x == 110.0
-    check w.bounds.y == 60.0
+    check w.bounds.width == target.bounds.width
+    check w.bounds.height == target.bounds.height
     check w.bounds.width > 0
+    check tipOrigin(Point(x: 100, y: 50), 12.0, 18.0) == Point(x: 112, y: 68)
     w.checkScriptable("Tooltip")
 
 suite "restored containers":

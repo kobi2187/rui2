@@ -289,42 +289,20 @@ proc drawBadge*(text: string, rect: Rect, color: raylib.Color,
 proc drawTooltip*(text: string, rect: Rect,
                   backgroundColor: raylib.Color, textColor: raylib.Color,
                   style: TextStyle) =
-  ## Draws a tooltip with arrow pointing to element
-  let padding = 6.0
-  let arrowSize = 5.0
-  let metrics = measureText(text, style)
-  let tooltipRect = Rect(
-    x: rect.x,
-    y: rect.y - metrics.height - padding * 2 - arrowSize,
-    width: metrics.width + padding * 2,
-    height: metrics.height + padding * 2
-  )
-
-  # Background
-  drawRoundedRect(tooltipRect, 4, backgroundColor)
-
-  # Arrow
-  let points = [
-    Vector2(x: rect.x + rect.width/2 - arrowSize,
-           y: tooltipRect.y + tooltipRect.height),
-    Vector2(x: rect.x + rect.width/2 + arrowSize,
-           y: tooltipRect.y + tooltipRect.height),
-    Vector2(x: rect.x + rect.width/2,
-           y: tooltipRect.y + tooltipRect.height + arrowSize)
-  ]
-  drawTriangle(points[0], points[1], points[2], backgroundColor)
-
-  # Text
-  drawText(
-    text,
-    Rect(
-      x: tooltipRect.x + padding,
-      y: tooltipRect.y + padding,
-      width: tooltipRect.width - padding * 2,
-      height: tooltipRect.height - padding * 2
-    ),
-    TextStyle(fontSize: style.fontSize, color: textColor)
-  )
+  ## A tooltip box filling `rect`, with the text inset by 6 px.
+  ##
+  ## Inside `rect`, not above it: this used to place the box at
+  ## `rect.y - height - arrow`, which is outside the widget's own render
+  ## texture -- so every tooltip was clipped away before it was ever seen.
+  let padding = 6.0'f32
+  drawRoundedRect(rect, 4, backgroundColor)
+  drawRoundedRectLines(rect, 4, 1, Color(r: 0, g: 0, b: 0, a: 60))
+  drawText(text,
+           Rect(x: rect.x + padding, y: rect.y + padding,
+                width: rect.width - padding * 2,
+                height: rect.height - padding * 2),
+           TextStyle(fontFamily: style.fontFamily, fontSize: style.fontSize,
+                     color: textColor))
 
 proc drawPlaceholder*(rect: Rect, text: string,
                      style: TextStyle, opacity = 0.5) =

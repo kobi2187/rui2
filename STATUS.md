@@ -148,6 +148,9 @@ VStack and HStack take `crossAlign` (Start/Center/End/Stretch) like Column.
 
 ## Recently completed
 
+- **Tooltips work.** An overlay layer floats widgets above the tree; Tooltip
+  wraps its target and shows its tip there after a timer-driven delay. It
+  could never appear before.
 - **Self-sized widgets re-measure.** A content-sized stack used to keep its
   first size forever, so a child added later overflowed. Fixed once, in the
   DSL's generated `layout`, for every widget.
@@ -193,9 +196,8 @@ VStack and HStack take `crossAlign` (Start/Center/End/Stretch) like Column.
 
 Verified against the code. The prioritised plan is in [TODO.md](TODO.md).
 
-- **Tooltip never shows** — nothing generates the hover event it waits for,
-  and as a sibling of its target the pointer is never over it. Needs an
-  overlay layer (TODO.md #5).
+- **ToolBar caption overlap** — captioned ToolButtons in a ToolBar collide
+  and clip their captions (TODO.md #5).
 - **No IME composition** — typed codepoints arrive, but pre-edit text for
   CJK input methods is not shown.
 - **No HiDPI scaling** — nothing reads the monitor's scale factor.

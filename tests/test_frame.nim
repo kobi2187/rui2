@@ -242,3 +242,48 @@ suite "repaint timers":
     check abs(caretPhaseRemaining(10.0) - 0.5) < 1e-9
     check abs(caretPhaseRemaining(10.2) - 0.3) < 1e-9
     check abs(caretPhaseRemaining(10.7) - 0.3) < 1e-9
+
+suite "tooltips, through the real router":
+  ## The old Tooltip could never show: nothing produced the hover event it
+  ## waited for, and as a sibling of its target the pointer was never over it.
+
+  setup:
+    clearOverlays()
+    clearRepaints()
+    let target = newButton(text = "Save")
+    let tip = newTooltip(text = "Saves the file", delay = 0.5)
+    tip.addChild(target)
+    let root = newVStack(padding = 0.0, spacing = 0.0)
+    root.bounds = Rect(x: 0, y: 0, width: 400, height: 300)
+    root.addChild(tip)
+    let (app, source) = headlessApp(root)
+    app.stepHeadless()
+    let inside = (target.bounds.x + 5, target.bounds.y + 5)
+
+  test "resting on the target shows the tip after the delay":
+    source.push(at(evMouseMove, inside[0], inside[1]))
+    app.stepHeadless()
+    check tip.hovering
+    check overlays().len == 0                  # not yet
+    tip.refreshTip(tip.hoverStart + initDuration(milliseconds = 200))
+    check overlays().len == 0                  # still waiting
+    tip.refreshTip(tip.hoverStart + initDuration(milliseconds = 500))
+    check overlays().len == 1
+    check tip.tip.bounds.x == inside[0] + tip.offsetX
+
+  test "the delay is a repaint timer, so it fires in an idle app":
+    source.push(at(evMouseMove, inside[0], inside[1]))
+    app.stepHeadless()
+    check nextRepaint().isSome
+
+  test "leaving the target hides the tip":
+    source.push(at(evMouseMove, inside[0], inside[1]))
+    app.stepHeadless()
+    tip.refreshTip(tip.hoverStart + initDuration(seconds = 1))
+    check overlays().len == 1
+    source.push(at(evMouseMove, 390.0, 290.0))  # empty space
+    app.stepHeadless()
+    check tip.isDirty                           # the hover change reached it
+    tip.refreshTip(getMonoTime())
+    check overlays().len == 0
+    check not tip.hovering
