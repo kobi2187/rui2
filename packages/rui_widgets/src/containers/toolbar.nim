@@ -2,7 +2,8 @@
 ##
 ## A horizontal strip of quick-access controls, normally docked under a MenuBar.
 ## Children keep their own width if they have one, otherwise they are squared off
-## to the toolbar's content height.
+## to the toolbar's content height. A toolbar with no height of its own grows
+## to fit its tallest child.
 ##
 ## A toolbar is a **focus group**: one Tab stop however many buttons it holds,
 ## with Left and Right moving between them once entered. A strip of twelve tool
@@ -25,7 +26,15 @@ defineWidget(ToolBar):
 
   layout:
     if widget.bounds.height <= 0:
-      widget.bounds.height = widget.barHeight
+      # Tall enough for the tallest child's natural height, and never less
+      # than barHeight. Forcing barHeight on captioned ToolButtons pushed
+      # their captions up onto their icons.
+      var tallest = 0.0'f32
+      for child in widget.children:
+        child.bounds.height = 0
+        child.layout()
+        tallest = max(tallest, child.bounds.height)
+      widget.bounds.height = max(widget.barHeight, tallest + widget.padding * 2)
 
     let itemHeight = max(0.0'f32, widget.bounds.height - widget.padding * 2)
     var x = widget.bounds.x + widget.padding

@@ -648,3 +648,20 @@ suite "restored widgets answer the scripting bridge":
       check w.visible
       check w.enabled
       check w.isDirty
+
+suite "ToolBar fits captioned ToolButtons":
+
+  test "a self-sized bar grows to its tallest child":
+    let bar = newToolBar()
+    let b = newToolButton(iconText = "B", text = "Bold", size = 28.0,
+                          showText = true)
+    bar.addChild(b)
+    bar.layout()
+    check bar.bounds.height >= 28.0 + 9.0 + 6.0 + bar.padding * 2
+    check b.bounds.height >= 28.0 + 9.0 + 6.0
+
+  test "and keeps barHeight when its children are small":
+    let bar = newToolBar(barHeight = 40.0)
+    bar.addChild(newToolButton(iconText = "+", size = 20.0))
+    bar.layout()
+    check bar.bounds.height == 40.0

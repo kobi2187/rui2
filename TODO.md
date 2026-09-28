@@ -113,10 +113,9 @@ The redesign, for min/max constraints and a cheaper second pass:
   was never over it, and `drawTooltip` drew outside its own texture).
 - [ ] Hit-test the overlay layer first, then move Menu, ContextMenu and the
   ComboBox list onto it instead of growing their own bounds.
-- [ ] **ToolBar with captioned ToolButtons overlaps them** -- in
-  `examples/widgets/buttons_extra.nim` the captions collide and clip
-  ("Bold talic Inde"). Pre-existing; the ToolButton reports its icon width
-  and draws its caption wider.
+- [x] **ToolBar with captioned ToolButtons overlapped them** -- captions
+  were measured at 9 px and drawn at the theme's ~14 px, and the bar forced
+  its 32 px height on 43 px buttons. Both fixed.
 
 ### 6. Reactivity you can write declaratively *(medium)*
 - [ ] A `bind` word inside `ui:` — `TextInput(bind <-> store.name)` for two-way

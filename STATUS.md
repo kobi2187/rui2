@@ -196,8 +196,6 @@ VStack and HStack take `crossAlign` (Start/Center/End/Stretch) like Column.
 
 Verified against the code. The prioritised plan is in [TODO.md](TODO.md).
 
-- **ToolBar caption overlap** — captioned ToolButtons in a ToolBar collide
-  and clip their captions (TODO.md #5).
 - **No IME composition** — typed codepoints arrive, but pre-edit text for
   CJK input methods is not shown.
 - **No HiDPI scaling** — nothing reads the monitor's scale factor.

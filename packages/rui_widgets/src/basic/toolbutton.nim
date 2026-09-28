@@ -93,7 +93,14 @@ definePrimitive(ToolButton):
         width: widget.bounds.width,
         height: LabelSize
       )
-      drawThemedCenteredText(widget.text, labelRect, props)
+      # At LabelSize, the size layout measured it at. It used to go through
+      # drawThemedCenteredText, which uses the theme's font size -- about 14 px
+      # against the 9 px measured -- so every caption was wider than its button
+      # and ran into the next one.
+      drawText(widget.text, labelRect,
+               TextStyle(fontFamily: "", fontSize: LabelSize,
+                         color: props.foregroundColor.get(BLACK)),
+               TextAlign.Center)
 
     if widget.disabled:
       drawDisabledOverlay(widget.bounds)
