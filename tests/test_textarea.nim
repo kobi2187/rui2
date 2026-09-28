@@ -415,3 +415,21 @@ suite "editing shortcuts":
     let b = newButton(text = "Go")
     b.layout()
     check b.children[1].effectiveCursor == csArrow
+
+suite "keeping the caret in view":
+
+  test "a caret inside the view does not scroll":
+    check scrollToShow(0.0, 50.0, 1.0, 100.0, 300.0) == 0.0
+
+  test "past the right edge scrolls just far enough":
+    check scrollToShow(0.0, 150.0, 1.0, 100.0, 300.0) == 51.0
+
+  test "before the left edge scrolls back to it":
+    check scrollToShow(80.0, 20.0, 1.0, 100.0, 300.0) == 20.0
+
+  test "never scrolls into blank space past the content":
+    # The text shrank: the old offset would show nothing but padding.
+    check scrollToShow(200.0, 10.0, 1.0, 100.0, 50.0) == 0.0
+
+  test "short content never scrolls":
+    check scrollToShow(0.0, 40.0, 1.0, 100.0, 60.0) == 0.0

@@ -22,9 +22,10 @@
 ## caption sit on top of it without swallowing the click.
 ##
 ## Up and Down remember the column they started from (`goalColumn`), so passing
-## through a short line does not drag the caret left. Not yet: horizontal or
-## vertical scrolling, and wrapping while editing (wrap and markup apply to
-## display text only).
+## through a short line does not drag the caret left. The text scrolls to keep
+## the caret in view (`scrollX` / `scrollY`), clipped to the frame. Not yet:
+## wheel scrolling and a scrollbar, and wrapping while editing (wrap and
+## markup apply to display text only).
 
 import rui_core
 import text_buffer
@@ -153,12 +154,13 @@ template indexAt*(widget: untyped, pos: Point): int =
     let content = widget.contentOf
     let inner = widget.lineRect(content.lineHeight)
     let starts = lineStarts(widget.text)
-    let row = clamp(int((pos.y - inner.y) / content.lineHeight),
+    let row = clamp(int((pos.y - inner.y + widget.scrollY) / content.lineHeight),
                     0, starts.len - 1)
     let start = starts[row]
     let stop = lineEnd(widget.text, row)
     let hit = indexFromPosition(widget.text[start ..< stop],
-                                content.style.pangoFont, pos.x - inner.x, 0.0)
+                                content.style.pangoFont,
+                                pos.x - inner.x + widget.scrollX, 0.0)
     clamp(start + hit.index + hit.trailing, 0, widget.text.len)
 
 template bufferOf(widget: untyped): TextBuffer =
@@ -266,6 +268,17 @@ template ctrlKey(widget: untyped, event: GuiEvent): bool =
 template takesInput(widget: untyped): bool =
   widget.editable and not widget.disabled
 
+proc scrollToShow*(scroll, pos, size, view, content: float32): float32 =
+  ## The scroll offset that keeps `pos .. pos + size` inside a `view`-long
+  ## window, moving as little as possible, and never past the content: a
+  ## field is not scrolled into blank space after its text has shrunk.
+  result = scroll
+  if pos < result:
+    result = pos
+  elif pos + size > result + view:
+    result = pos + size - view
+  result = clamp(result, 0.0'f32, max(0.0'f32, content - view))
+
 proc caretPhaseRemaining*(now: float): float =
   ## Seconds until the caret next turns on or off. It blinks on half-second
   ## boundaries of the clock, so this is the time to the next one.
@@ -274,6 +287,77 @@ proc caretPhaseRemaining*(now: float): float =
 proc roomForLine*(text: string, maxLines: int): bool =
   ## Whether Enter may add a line under a `maxLines` limit (-1: no limit).
   maxLines < 0 or lineStarts(text).len < maxLines
+
+template keepCaretInView(widget: untyped, content: TextContent, inner: Rect) =
+  ## Scroll so the caret is inside `inner`. Runs while painting, which is when
+  ## the caret's pixel position is known; indexAt reads the result.
+  block:
+    let lineH = content.lineHeight
+    let starts = lineStarts(widget.text)
+    let line = lineOf(widget.text, widget.cursorPos)
+    let lineText = widget.text[starts[line] ..< lineEnd(widget.text, line)]
+    let caret = cursorPosition(lineText, content.style.pangoFont,
+                               widget.cursorPos - starts[line])
+    let lineW = measureText(lineText, content.style).width
+    widget.scrollX = scrollToShow(widget.scrollX, caret.x, 1.0, inner.width,
+                                  lineW + 1.0)
+    widget.scrollY = if widget.multiline:
+                       scrollToShow(widget.scrollY, float32(line) * lineH, lineH,
+                                    inner.height, float32(starts.len) * lineH)
+                     else: 0.0'f32
+
+template paintEditable(widget: untyped, content: TextContent, inner: Rect) =
+  ## Selection, text and caret for editable text, line by line, scrolled and
+  ## clipped to `inner`.
+  block:
+    if widget.focused:
+      widget.keepCaretInView(content, inner)
+    let lineH = content.lineHeight
+    let font = content.style.pangoFont
+    let ox = inner.x - widget.scrollX
+    let oy = inner.y - widget.scrollY
+    let starts = lineStarts(widget.text)
+
+    # Selection under the glyphs, one band per line. Both edges from Pango's
+    # caret positions, so it lines up with the glyphs in any script.
+    if widget.selectionStart >= 0 and widget.selectionStart != widget.selectionEnd:
+      let lo = min(widget.selectionStart, widget.selectionEnd)
+      let hi = max(widget.selectionStart, widget.selectionEnd)
+      for i, start in starts:
+        let stop = lineEnd(widget.text, i)
+        if hi < start or lo > stop or (hi == start and lo < start):
+          continue
+        let lineText = widget.text[start ..< stop]
+        let x0 = cursorPosition(lineText, font, max(lo, start) - start).x
+        let x1 = cursorPosition(lineText, font, min(hi, stop) - start).x
+        let band = intersect(Rect(x: ox + x0, y: oy + float32(i) * lineH,
+                                  width: x1 - x0, height: lineH), inner)
+        if band.width > 0 and band.height > 0:
+          drawRect(band, SelectionColor)
+
+    for i, start in starts:
+      let y = oy + float32(i) * lineH
+      if y + lineH < inner.y or y > inner.y + inner.height:
+        continue
+      drawTextPangoClipped(widget.text[start ..< lineEnd(widget.text, i)],
+                           ox, y, font, content.style.color,
+                           Rectangle(x: inner.x, y: inner.y,
+                                     width: inner.width, height: inner.height))
+
+    if widget.focused and widget.takesInput:
+      let line = lineOf(widget.text, widget.cursorPos)
+      let start = starts[line]
+      let caret = cursorPosition(widget.text[start ..< lineEnd(widget.text, line)],
+                                 font, widget.cursorPos - start)
+      let now = getTime()
+      let x = ox + caret.x
+      let y = oy + float32(line) * lineH
+      if int(now * 2.0) mod 2 == 0 and x >= inner.x and x <= inner.x + inner.width:
+        drawLine(x, max(y, inner.y), x, min(y + lineH, inner.y + inner.height),
+                 widget.textColor)
+      # Nothing else repaints an idle field, so ask for the next blink phase --
+      # without this the caret froze in whichever phase the last edit left it.
+      widget.repaintAfter(caretPhaseRemaining(now))
 
 definePrimitive(TextArea):
   props:
@@ -308,6 +392,8 @@ definePrimitive(TextArea):
     history: EditHistory         # Undo/redo; a script sees only the depths
     clickCount: int              # 1..3 within a multi-click run, 0 before any
     lastClickAt: MonoTime
+    scrollX: float32             # How far the text is scrolled, so the caret
+    scrollY: float32             # stays in view
     selfWidth: float32           # The width this widget last measured for itself
 
   actions:
@@ -450,50 +536,9 @@ definePrimitive(TextArea):
     if not widget.editable or showPlaceholder:
       # Display text: one paint, with alignment, wrapping and markup.
       content.paint(inner)
-    else:
-      let lineH = content.lineHeight
-      let starts = lineStarts(widget.text)
-
-      # Selection paints under the glyphs, a line at a time --
-      # drawTextSelection measures a single run, so a span crossing a newline
-      # has to be split.
-      if widget.selectionStart >= 0 and
-         widget.selectionStart != widget.selectionEnd:
-        let lo = min(widget.selectionStart, widget.selectionEnd)
-        let hi = max(widget.selectionStart, widget.selectionEnd)
-        for i, start in starts:
-          let stop = lineEnd(widget.text, i)
-          if hi <= start or lo >= stop:
-            continue
-          let lineRect = Rect(x: inner.x, y: inner.y + float32(i) * lineH,
-                              width: inner.width, height: lineH)
-          drawTextSelection(lineRect, max(lo, start) - start,
-                            min(hi, stop) - start,
-                            widget.text[start ..< stop], content.style,
-                            SelectionColor)
-
-      for i, start in starts:
-        var line = content
-        line.text = widget.text[start ..< lineEnd(widget.text, i)]
-        line.paint(Rect(x: inner.x, y: inner.y + float32(i) * lineH,
-                        width: inner.width, height: lineH))
-
-    if widget.focused and widget.takesInput:
-      let lineH = content.lineHeight
-      let line = lineOf(widget.text, widget.cursorPos)
-      let start = lineStarts(widget.text)[line]
-      let stop = lineEnd(widget.text, line)
-      let caret = cursorPosition(widget.text[start ..< stop],
-                                 content.style.pangoFont,
-                                 widget.cursorPos - start)
-      let now = getTime()
-      if int(now * 2.0) mod 2 == 0:
-        let y = inner.y + float32(line) * lineH
-        drawLine(inner.x + caret.x, y, inner.x + caret.x, y + lineH,
-                 widget.textColor)
-      # Nothing else repaints an idle field, so ask for the next blink phase --
-      # without this the caret froze in whichever phase the last edit left it.
-      widget.repaintAfter(caretPhaseRemaining(now))
+    if widget.editable and (not showPlaceholder or widget.focused):
+      # Over a placeholder this draws only the caret: the text is empty.
+      widget.paintEditable(widget.contentOf, inner)
 
     if widget.disabled:
       drawDisabledOverlay(widget.bounds)

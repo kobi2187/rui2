@@ -60,8 +60,10 @@ container looks assigned, so it never re-grows when content is added
 - [ ] Word boundaries from Pango's `PangoLogAttr` for scripts written without
   spaces (Thai, CJK). Today a word is a run of letters/digits/underscores,
   per rune -- right for alphabetic scripts, including Hebrew and accented Latin.
-- [ ] **Caret and scroll.** Horizontal scrolling in TextInput and vertical
-  scrolling in TextArea, keeping the caret visible.
+- [x] **Caret and scroll.** Text scrolls to keep the caret in view --
+  sideways in a TextInput, both ways in a TextArea -- clipped to the frame by
+  source rectangle (`drawTextPangoClipped`). No scrollbar or wheel scrolling
+  on a TextArea yet; it scrolls by caret.
 - [ ] **Wrap while editing.** `wrap` and `markup` apply to display text only;
   an editable TextArea lays out one visual line per `\n`. Caret movement
   over soft-wrapped lines needs Pango's line iterator.

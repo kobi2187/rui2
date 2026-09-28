@@ -383,6 +383,31 @@ proc drawTextPango*(text: string, x, y: float32, font: string,
   let g = getGlyphs(text, font, wrapWidth, markup = false)
   drawTexture(g.texture, Vector2(x: round(x), y: round(y)), color)
 
+proc drawTextPangoClipped*(text: string, x, y: float32, font: string,
+                           color: Color, clip: Rectangle) =
+  ## `drawTextPango`, showing only the part that falls inside `clip`.
+  ##
+  ## For scrolled text. Clipping is done by source rectangle rather than
+  ## scissor, for the reason drawRenderTexturePart gives: raylib's scissor
+  ## computes its rectangle from the *screen* height, which is wrong inside a
+  ## widget's render texture.
+  if text.len == 0:
+    return
+  let g = getGlyphs(text, font, -1'i32, markup = false)
+  let dx = round(x)
+  let dy = round(y)
+  let left = max(dx, clip.x)
+  let top = max(dy, clip.y)
+  let right = min(dx + g.width, clip.x + clip.width)
+  let bottom = min(dy + g.height, clip.y + clip.height)
+  if right <= left or bottom <= top:
+    return
+  drawTexture(g.texture,
+              Rectangle(x: left - dx, y: top - dy,
+                        width: right - left, height: bottom - top),
+              Rectangle(x: left, y: top, width: right - left, height: bottom - top),
+              Vector2(x: 0, y: 0), 0.0, color)
+
 proc drawMarkupPango*(markup: string, x, y: float32, font: string,
                       wrapWidth: int32 = -1) =
   ## Draw Pango markup — per-run colours, weights and sizes inside one string,
