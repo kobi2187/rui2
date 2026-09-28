@@ -302,6 +302,18 @@ proc buildUpdateLayoutMethod(name: NimNode, sections: WidgetSections): NimNode =
   let widgetParam = newIdentDefs(ident("widget"), typeName)
   let formalParams = nnkFormalParams.newTree(newEmptyNode(), widgetParam)
 
+  # Every layout is bracketed by begin/endSelfSizing, so a size the widget
+  # computed for itself is re-measured next time instead of passing for one
+  # its parent assigned. `defer` so an early `return` in the body still
+  # records it. Built by hand: a quoted `widget` would be gensymmed.
+  let sizing = genSym(nskLet, "sizing")
+  let body = newStmtList(
+    nnkLetSection.newTree(newIdentDefs(sizing, newEmptyNode(),
+      newCall(ident("beginSelfSizing"), ident("widget")))),
+    nnkDefer.newTree(newStmtList(
+      newCall(ident("endSelfSizing"), ident("widget"), sizing))),
+    sections.layoutBody)
+
   nnkMethodDef.newTree(
     nnkPostfix.newTree(ident("*"), ident("layout")),
     newEmptyNode(),
@@ -309,7 +321,7 @@ proc buildUpdateLayoutMethod(name: NimNode, sections: WidgetSections): NimNode =
     formalParams,
     newEmptyNode(),  # No pragma needed
     newEmptyNode(),
-    sections.layoutBody
+    body
   )
 
 # ============================================================================

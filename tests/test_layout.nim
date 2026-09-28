@@ -457,3 +457,57 @@ suite "flex: stacks share leftover space":
 
     check gap.bounds.height == 12.0
     check root.bounds.height == label.bounds.height + 12.0
+
+suite "self-sized widgets re-measure":
+  ## `bounds.width <= 0` meant "measure yourself" only the first time: after
+  ## that a self-computed size looked like one the parent had assigned.
+
+  test "a content-sized stack grows when a child is added":
+    let root = newVStack(spacing = 0.0)
+    root.addChild(newLabel(text = "one", fontSize = 14.0))
+    root.layout()
+    let h1 = root.bounds.height
+    root.addChild(newLabel(text = "two", fontSize = 14.0))
+    root.layout()
+    check root.bounds.height > h1
+
+  test "and shrinks when one is removed":
+    let root = newVStack(spacing = 0.0)
+    for t in ["a", "b", "c"]:
+      root.addChild(newLabel(text = t, fontSize = 14.0))
+    root.layout()
+    let h3 = root.bounds.height
+    root.children.setLen(1)
+    root.layout()
+    check root.bounds.height < h3
+
+  test "a content-sized row widens with longer text":
+    let row = newHStack(spacing = 4.0)
+    let l = newLabel(text = "short", fontSize = 14.0)
+    row.addChild(l)
+    row.layout()
+    let w1 = row.bounds.width
+    l.text = "a good deal longer than it was"
+    row.layout()
+    check row.bounds.width > w1
+
+  test "a size the parent assigned is kept":
+    let root = newVStack(spacing = 0.0)
+    root.bounds = Rect(x: 0, y: 0, width: 300, height: 200)
+    root.addChild(newLabel(text = "x", fontSize = 14.0))
+    root.layout()
+    root.layout()
+    check root.bounds.width == 300.0
+    check root.bounds.height == 200.0
+
+  test "a nested content-sized stack follows its content too":
+    let outer = newVStack(spacing = 0.0)
+    outer.bounds = Rect(x: 0, y: 0, width: 300, height: 400)
+    let inner = newVStack(spacing = 0.0)
+    inner.addChild(newLabel(text = "1", fontSize = 14.0))
+    outer.addChild(inner)
+    outer.layout()
+    let h1 = inner.bounds.height
+    inner.addChild(newLabel(text = "2", fontSize = 14.0))
+    outer.layout()
+    check inner.bounds.height > h1

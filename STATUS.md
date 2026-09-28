@@ -149,6 +149,9 @@ top-aligned (Column has alignment; the stacks do not).
 
 ## Recently completed
 
+- **Self-sized widgets re-measure.** A content-sized stack used to keep its
+  first size forever, so a child added later overflowed. Fixed once, in the
+  DSL's generated `layout`, for every widget.
 - **Text editing.** Clipboard (through a seam tests can replace), undo/redo
   with typing grouped by word, word movement and deletion, Ctrl+A,
   double/triple-click selection, and the I-beam and link-hand cursors.
@@ -191,12 +194,6 @@ top-aligned (Column has alignment; the stacks do not).
 
 Verified against the code. The prioritised plan is in [TODO.md](TODO.md).
 
-- **A content-sized container never re-grows.** `bounds` is both "the size my
-  parent gave me" and "the size I computed last frame", and every widget tells
-  them apart with `if bounds.width <= 0`. After its first layout a VStack that
-  sized itself looks assigned, so adding a child later leaves it at the old
-  height and the child overflows. The fix is a measure/arrange split (the
-  unused `measure(Constraints)` method is where it starts) — TODO.md P0.
 - **Tooltip never shows** — nothing generates the hover event it waits for,
   and as a sibling of its target the pointer is never over it. Needs an
   overlay layer (TODO.md #5).

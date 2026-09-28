@@ -18,11 +18,18 @@ Legend: **P0** blocks real apps · **P1** expected of any modern toolkit ·
 
 ## P0 — Blocks real applications
 
-### 1. Measure/arrange layout *(large — the root of several defects)*
+### 1. Measure/arrange layout *(defect fixed; the redesign is P1 now)*
 `bounds` is both "the size my parent assigned" and "the size I computed last
 frame", told apart by `if bounds.width <= 0`. After one layout a self-sized
-container looks assigned, so it never re-grows when content is added
-(verified: a VStack keeps 23 px after a second label is added).
+container looked assigned, so it never re-grew when content was added.
+- [x] **The defect.** Every DSL `layout` is bracketed by `beginSelfSizing` /
+  `endSelfSizing` (`rui_core/types.nim`): a dimension still equal to what the
+  widget gave itself last time is reset to 0 and re-measured. Stacks now grow
+  and shrink with their children; 8 examples render pixel-identical to
+  before. Residual risk: a parent assigning *exactly* the child's previous
+  self-size reads as self-sized -- the redesign below removes the guess.
+
+The redesign, for min/max constraints and a cheaper second pass:
 - [ ] Add `measure(widget, Constraints): Size` as the first pass. The method
   already exists in `rui_core/types.nim` and nothing calls it. Leaves measure
   content; containers measure children and sum.
@@ -34,8 +41,8 @@ container looks assigned, so it never re-grows when content is added
   `bounds.x <= 0` idiom out of all widgets (`grep -rn "bounds.width <= 0"`).
 - [ ] Cache measurements per (widget, constraints) and invalidate on
   `layoutDirty`, so the extra pass costs nothing when nothing changed.
-- **Done when:** a content-sized stack grows and shrinks with its children
-  across frames, and `test_layout` pins it.
+- **Done when:** no widget infers "assigned?" from a zero, and min/max
+  constraints are honoured by every container.
 
 ### 2. Modifier keys on the event ✅
 - [x] `GuiEvent.mods: set[KeyMod]`, stamped once per poll by the event source.

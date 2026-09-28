@@ -394,7 +394,6 @@ definePrimitive(TextArea):
     lastClickAt: MonoTime
     scrollX: float32             # How far the text is scrolled, so the caret
     scrollY: float32             # stays in view
-    selfWidth: float32           # The width this widget last measured for itself
 
   actions:
     onChange(newText: string)
@@ -502,14 +501,11 @@ definePrimitive(TextArea):
     let content = widget.contentOf
     let pad = widget.inset * 2
     if not widget.editable:
-      # Display text sizes to its content. Keep a width the *parent* assigned,
-      # but re-measure one this widget set for itself -- otherwise it could
-      # never grow again once it had a non-zero width.
-      let parentAssigned = widget.bounds.width > 0 and
-                           widget.bounds.width != widget.selfWidth
-      if not parentAssigned:
+      # Display text sizes to its content, unless the parent assigned a width.
+      # A width it gave itself last time reads as 0 here (beginSelfSizing),
+      # so changed text is re-measured.
+      if widget.bounds.width <= 0:
         widget.bounds.width = content.measure().width + pad
-        widget.selfWidth = widget.bounds.width
       # Measured after the width is settled, so wrapped text gets its height.
       widget.bounds.height = widget.contentOf.measure().height + pad
     else:

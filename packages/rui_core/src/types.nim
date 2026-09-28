@@ -164,6 +164,9 @@ type
       ## Orthogonal to `focusable`. A group is normally not a tab stop in its
       ## own right -- its members are.
 
+    ownWidth*, ownHeight*: float32
+      ## The size this widget gave *itself* at its last layout, or -1 for a
+      ## dimension its parent assigned. See `beginSelfSizing`.
     cursorShape*: CursorShape
       ## The pointer shape while hovering this widget. `csDefault` defers to
       ## the parent, so a composite sets it once for all its parts.
@@ -424,6 +427,8 @@ proc initWidgetBase*(widget: Widget) =
   widget.isDirty = true
   widget.layoutDirty = true
   widget.children = @[]
+  widget.ownWidth = -1
+  widget.ownHeight = -1
 
 # Structural change counter.
 #
@@ -448,6 +453,31 @@ proc noteStructureChanged*() =
 # ============================================================================
 # Base Widget Methods (to be overridden by specific widgets)
 # ============================================================================
+
+type SelfSizing* = tuple[width, height: bool]
+
+proc beginSelfSizing*(widget: Widget): SelfSizing =
+  ## Run before a widget's `layout`: forget any size it gave itself last time.
+  ##
+  ## Widgets tell "my parent assigned this size" from "I have to measure" by
+  ## `bounds.width <= 0`. That only works once: after the first layout a
+  ## self-computed size is non-zero and looks assigned, so a VStack that sized
+  ## itself to two children stayed that height when a third arrived. A
+  ## dimension still equal to what the widget set itself is reset to 0 here,
+  ## so it is measured afresh; one the parent has since changed is left alone.
+  ##
+  ## Returns which dimensions start at zero, i.e. which the widget will be
+  ## sizing itself this time.
+  if widget.ownWidth >= 0 and widget.bounds.width == widget.ownWidth:
+    widget.bounds.width = 0
+  if widget.ownHeight >= 0 and widget.bounds.height == widget.ownHeight:
+    widget.bounds.height = 0
+  (widget.bounds.width <= 0, widget.bounds.height <= 0)
+
+proc endSelfSizing*(widget: Widget, sizing: SelfSizing) =
+  ## Run after `layout`: remember what the widget gave itself.
+  widget.ownWidth = if sizing.width: widget.bounds.width else: -1.0'f32
+  widget.ownHeight = if sizing.height: widget.bounds.height else: -1.0'f32
 
 proc effectiveCursor*(widget: Widget): CursorShape =
   ## The shape to show over `widget`: its own, or the nearest ancestor's.
