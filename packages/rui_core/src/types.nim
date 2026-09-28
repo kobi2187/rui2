@@ -270,6 +270,10 @@ type
     epNormal    # Regular updates
     epLow       # Background operations
 
+  KeyMod* = enum
+    ## A modifier held while an event happened.
+    kmShift, kmCtrl, kmAlt, kmSuper
+
   GuiEvent* = object
     kind*: EventKind
     priority*: EventPriority
@@ -286,6 +290,10 @@ type
     rune*: Rune
       ## The typed codepoint for an `evChar`. `char` alone is one byte and
       ## cannot hold "é" or "ש" -- this can.
+    mods*: set[KeyMod]
+      ## Modifiers held when the event happened, on every event kind -- so a
+      ## Ctrl-click and a Shift+arrow are both answered from the event itself,
+      ## not from live keyboard state that a test or a script cannot set.
     windowSize*: Size
     wheelDelta*: float32  # Mouse wheel movement (positive = up, negative = down)
 

@@ -95,11 +95,8 @@ definePrimitive(ListView):
       if idx < 0:
         return false
 
-      # GuiEvent carries no modifier state, so ctrl is read straight from the
-      # keyboard. Fine here: it is an input query, not render-time polling.
       # A single-select list ignores ctrl rather than quietly multi-selecting.
-      let additive = widget.multiSelect and
-                     (isKeyDown(LeftControl) or isKeyDown(RightControl))
+      let additive = widget.multiSelect and event.ctrl
       updateSelection(widget.selection, idx, additive)
 
       widget.isDirty = true

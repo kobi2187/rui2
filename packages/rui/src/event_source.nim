@@ -17,7 +17,7 @@
 
 import rui_core
 import rui_events
-import std/[monotimes, unicode]
+import std/[monotimes, unicode, options]
 
 import raylib
 
@@ -108,7 +108,19 @@ proc windowEvents(dest: var seq[GuiEvent]) =
                       windowSize: Size(width: float32(getScreenWidth()),
                                        height: float32(getScreenHeight()))))
 
+proc heldMods(): set[KeyMod] =
+  ## The modifiers down right now, read once per poll.
+  for key in [LeftShift, RightShift, LeftControl, RightControl,
+              LeftAlt, RightAlt, LeftSuper, RightSuper]:
+    if isKeyDown(key):
+      result.incl modOf(key).get
+
 method poll*(source: RaylibEventSource): seq[GuiEvent] =
   pointerEvents(result)
   keyboardEvents(result)
   windowEvents(result)
+  # Stamped here, once, rather than by each producer: every event in a poll
+  # happened under the same modifiers, and a widget then asks the event.
+  let mods = heldMods()
+  for e in result.mitems:
+    e.mods = mods

@@ -88,7 +88,7 @@ template selectRowAt*(widget: untyped, viewIdx: int): bool =
              "rowAt must not return an index past the filtered view"
       let rowIdx = widget.filteredIndices[viewIdx]
       updateSelection(widget.selected, rowIdx,
-                      isKeyDown(LeftControl) or isKeyDown(RightControl))
+                      event.ctrl)
       widget.isDirty = true
       if widget.onSelect != nil:
         widget.onSelect(widget.selected)

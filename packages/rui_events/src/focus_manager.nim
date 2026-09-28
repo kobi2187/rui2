@@ -340,17 +340,22 @@ proc handleGroupKeys(fm: FocusManager, key: KeyboardKey): bool =
     return fm.moveWithinGroup(delta)
   key in fm.exitGroupKeys and fm.exitGroup()
 
-proc anyModifierDown(fm: FocusManager): bool =
+proc anyModifierDown(fm: FocusManager, mods: set[KeyMod]): bool =
+  ## Whether the event was made under one of the "go backwards" modifiers.
+  ## Asked of the event, not of the live keyboard, so Shift+Tab can be
+  ## scripted and tested.
   for modifier in fm.prevFocusModifiers:
-    if isKeyDown(modifier):
+    let m = modOf(modifier)
+    if m.isSome and m.get in mods:
       return true
   false
 
-proc handleNavigationKeys(fm: FocusManager, key: KeyboardKey,
+proc handleNavigationKeys(fm: FocusManager, event: GuiEvent,
                           rootWidget: Widget): bool =
   ## The outer level: Tab and Shift+Tab between entries.
+  let key = event.key
   if key in fm.nextFocusKeys:
-    if fm.anyModifierDown(): fm.prevFocus(rootWidget)
+    if fm.anyModifierDown(event.mods): fm.prevFocus(rootWidget)
     else: fm.nextFocus(rootWidget)
     return true
   if key in fm.prevFocusKeys:
@@ -381,7 +386,7 @@ proc handleKeyboardEvent*(fm: FocusManager, event: GuiEvent,
     return false
 
   fm.handleGroupKeys(event.key) or
-    fm.handleNavigationKeys(event.key, rootWidget)
+    fm.handleNavigationKeys(event, rootWidget)
 
 # ============================================================================
 # Focus Request from Click

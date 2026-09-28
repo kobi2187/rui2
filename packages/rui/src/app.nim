@@ -169,12 +169,12 @@ proc setRootWidget*(app: App, root: Widget) =
 proc injectKey(app: App, keyName: string): bool =
   ## Synthesise a key press at whatever currently has focus. **Test-only** --
   ## reached from `enableScripting` under -d:ruiTestKeys and nowhere else.
-  var key: KeyboardKey
-  try:
-    key = parseEnum[KeyboardKey](keyName)
-  except ValueError:
+  ## Takes a chord as well as a bare key: "Tab", "Shift+Tab", "Ctrl+Z".
+  let chord = parseKeyChord(keyName)
+  if chord.isNone:
     return false
-  let event = GuiEvent(kind: evKeyDown, key: key, timestamp: getMonoTime())
+  let event = GuiEvent(kind: evKeyDown, key: chord.get.key,
+                       mods: chord.get.mods, timestamp: getMonoTime())
   result = app.focusManager.handleKeyboardEvent(event, app.tree.root)
   if result:
     app.tree.anyDirty = true

@@ -36,7 +36,7 @@ import std/[strutils, options]
 from std/unicode import `$`, runeLen
 # rui_core does not re-export KeyboardKey -- its Menu/Down/Up fields collide
 # with the Menu widget and with rui_drawing's ArrowDirection.
-from raylib import KeyboardKey, getTime, isKeyDown
+from raylib import KeyboardKey, getTime
 
 proc lineStarts*(text: string): seq[int] =
   ## Byte offset of the first character of each line. Always at least one entry,
@@ -271,7 +271,7 @@ definePrimitive(TextArea):
     on_key_down:
       if not widget.takesInput or not widget.focused:
         return false
-      let shiftDown = isKeyDown(LeftShift) or isKeyDown(RightShift)
+      let shiftDown = event.shift
 
       case event.key
       of Backspace:

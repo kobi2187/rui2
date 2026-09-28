@@ -85,8 +85,7 @@ definePrimitive(FilePicker):
         return true
 
       # A single-select picker ignores ctrl rather than quietly multi-selecting.
-      let additive = widget.multiSelect and
-                     (isKeyDown(LeftControl) or isKeyDown(RightControl))
+      let additive = widget.multiSelect and event.ctrl
       updateSelection(widget.selectedFiles, widget.currentPath / entry, additive)
 
       widget.isDirty = true
