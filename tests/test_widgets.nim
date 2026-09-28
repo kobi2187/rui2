@@ -454,3 +454,37 @@ suite "attaching a handler":
     let res = b.handleScriptAction("click", newJObject())
     check res["success"].getBool()
     check res["note"].getStr() == "no handler attached"
+
+suite "Slider captions sit inside the bounds":
+  ## They used to be drawn past the right edge -- outside the widget's own
+  ## render texture -- so neither the value nor textLeft/textRight ever showed.
+
+  test "no captions: the track is the whole bounds":
+    let b = Rect(x: 10, y: 5, width: 300, height: 24)
+    check trackRect(b, 0.0, 0.0) == b
+
+  test "captions and their gaps come off either side":
+    let t = trackRect(Rect(x: 10, y: 5, width: 300, height: 24), 50.0, 30.0)
+    check t.x == 10.0 + 50.0 + 8.0
+    check t.x + t.width == 10.0 + 300.0 - 30.0 - 8.0
+    check t.y == 5.0 and t.height == 24.0
+
+  test "a slider too small for its captions has an empty track, not a negative one":
+    check trackRect(Rect(width: 20, height: 24), 50.0, 30.0).width == 0.0
+
+  test "a self-sized slider leaves 200 for the track after its captions":
+    let s = newSlider(textLeft = "Volume", initialValue = 40.0)
+    s.layout()
+    let plain = newSlider(showValue = false)
+    plain.layout()
+    check plain.bounds.width == 200.0
+    check s.bounds.width > 200.0
+
+  test "the pointer maps across the track, not the whole bounds":
+    let s = newSlider(textLeft = "Volume", minValue = 0.0, maxValue = 100.0)
+    s.bounds = Rect(x: 0, y: 0, width: 400, height: 24)
+    let t = trackRect(s.bounds, 60.0, 0.0)   # any left caption shifts the start
+    check t.x > s.bounds.x
+    discard s.handleInput(GuiEvent(kind: evMouseDown,
+                                   mousePos: Point(x: s.bounds.x + 1, y: 10)))
+    check s.value == 0.0'f32                 # left of the track pins to min

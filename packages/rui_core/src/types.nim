@@ -2,7 +2,7 @@
 ##
 ## This file contains the fundamental types used throughout the framework.
 
-import std/[tables, sets, hashes, options, times, monotimes, json]
+import std/[tables, sets, hashes, options, times, monotimes, json, unicode]
 export sets, tables, options, json  # Export for use in other modules
 
 # Raylib types that are genuinely part of rui_core's interface.
@@ -150,6 +150,15 @@ type
       ## Orthogonal to `focusable`. A group is normally not a tab stop in its
       ## own right -- its members are.
 
+    flexGrow*: float32
+      ## Share of a stack's leftover main-axis space this widget takes, like
+      ## CSS `flex-grow`. 0 (the default) keeps the widget at its own size.
+      ##
+      ## Only a stack with a fixed main-axis size has leftover space to hand
+      ## out; one that sizes to its content has none. A flex child is measured
+      ## at its natural size on every pass before it grows, so it shrinks back
+      ## when the stack does. See `rui_core/flex.nim`.
+
     # Dirty flags
     isDirty*: bool             # Needs re-render
     layoutDirty*: bool         # Needs layout calculation
@@ -271,6 +280,12 @@ type
     mousePos*: Point
     key*: KeyboardKey
     char*: char
+      ## The typed character when it is ASCII, otherwise '\0'. Kept for
+      ## callers that only care about ASCII (NumberInput's digits); anything
+      ## that inserts text should use `typedRune`.
+    rune*: Rune
+      ## The typed codepoint for an `evChar`. `char` alone is one byte and
+      ## cannot hold "é" or "ש" -- this can.
     windowSize*: Size
     wheelDelta*: float32  # Mouse wheel movement (positive = up, negative = down)
 
@@ -408,6 +423,12 @@ proc noteStructureChanged*() =
 # ============================================================================
 # Base Widget Methods (to be overridden by specific widgets)
 # ============================================================================
+
+proc typedRune*(e: GuiEvent): Rune =
+  ## The codepoint an `evChar` carries: `rune` when the source set it,
+  ## otherwise the ASCII `char`, so an event built with only `char:` still
+  ## types what it says.
+  if e.rune.int32 > 0: e.rune else: Rune(ord(e.char))
 
 method render*(widget: Widget) {.base.} =
   ## Render this widget. Override in derived types.

@@ -12,9 +12,39 @@
 ## mouse-up. The operations return `true` when they changed the text, so the
 ## caller knows whether to fire onChange -- moving the caret is not a change.
 ##
-## Indices are byte offsets, matching Pango's indexFromPosition. That is fine
-## for the ASCII range the widget currently accepts on input, and is the
-## representation to keep when it accepts more: Pango speaks bytes.
+## Indices are byte offsets, matching Pango's indexFromPosition -- Pango speaks
+## bytes. The text is UTF-8, so a character can be several bytes; every step
+## the caret takes goes through `prevBoundary` / `nextBoundary`, which never
+## land inside a character. `maxLength` counts characters, not bytes.
+
+import std/unicode
+
+proc isContinuation(c: char): bool {.inline.} =
+  (ord(c) and 0xC0) == 0x80
+
+proc prevBoundary*(text: string, i: int): int =
+  ## The start of the character before byte offset `i`.
+  result = clamp(i, 0, text.len)
+  if result == 0:
+    return
+  dec result
+  while result > 0 and text[result].isContinuation:
+    dec result
+
+proc nextBoundary*(text: string, i: int): int =
+  ## The start of the character after the one at byte offset `i`.
+  result = clamp(i, 0, text.len)
+  if result == text.len:
+    return
+  inc result
+  while result < text.len and text[result].isContinuation:
+    inc result
+
+proc isTypeable*(r: Rune): bool =
+  ## Whether a typed codepoint is text rather than a control character.
+  ## C0 controls, DEL and the C1 block are not; everything else is.
+  let c = r.int32
+  c >= 0x20 and c != 0x7F and not (c >= 0x80 and c <= 0x9F)
 
 type
   TextBuffer* = object
@@ -56,7 +86,7 @@ proc insert*(b: var TextBuffer, s: string, maxLength = -1): bool =
   ## limit is checked after the selection is removed -- replacing ten selected
   ## characters with one must work in a full field.
   discard b.deleteSelection()
-  if maxLength >= 0 and b.text.len + s.len > maxLength:
+  if maxLength >= 0 and b.text.runeLen + s.runeLen > maxLength:
     return false
   b.text.insert(s, b.cursor)
   b.cursor += s.len
@@ -68,8 +98,9 @@ proc backspace*(b: var TextBuffer): bool =
     return true
   if b.cursor <= 0:
     return false
-  b.text = b.text[0 ..< b.cursor - 1] & b.text[b.cursor .. ^1]
-  b.cursor -= 1
+  let start = prevBoundary(b.text, b.cursor)
+  b.text = b.text[0 ..< start] & b.text[b.cursor .. ^1]
+  b.cursor = start
   true
 
 proc deleteForward*(b: var TextBuffer): bool =
@@ -78,7 +109,7 @@ proc deleteForward*(b: var TextBuffer): bool =
     return true
   if b.cursor >= b.text.len:
     return false
-  b.text = b.text[0 ..< b.cursor] & b.text[b.cursor + 1 .. ^1]
+  b.text = b.text[0 ..< b.cursor] & b.text[nextBoundary(b.text, b.cursor) .. ^1]
   true
 
 proc moveCursor*(b: var TextBuffer, to: int, extend: bool) =

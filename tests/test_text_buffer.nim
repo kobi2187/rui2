@@ -5,7 +5,7 @@
 ## window and type. Three of those branches spelled out the same
 ## "replace the selected range" arithmetic.
 
-import std/unittest
+import std/[unittest, unicode]
 import input/text_buffer
 
 suite "selection":
@@ -165,3 +165,54 @@ suite "caret movement":
     check b.selectionRange() == (0, 5)
     check b.cursor == 5
     check b.hasSelection
+
+suite "UTF-8: a character is not a byte":
+  ## Typing used to be printable ASCII only, because `GuiEvent.char` was one
+  ## byte. With codepoints coming in, every caret step has to skip whole
+  ## characters or it splits them and leaves invalid UTF-8 behind.
+
+  test "boundaries step over multi-byte characters":
+    const s = "aéש€😀b"            # 1, 2, 2, 3, 4, 1 bytes
+    check nextBoundary(s, 0) == 1
+    check nextBoundary(s, 1) == 3
+    check nextBoundary(s, 3) == 5
+    check nextBoundary(s, 5) == 8
+    check nextBoundary(s, 8) == 12
+    check nextBoundary(s, 12) == 13
+    check nextBoundary(s, 13) == 13   # clamped at the end
+    check prevBoundary(s, 13) == 12
+    check prevBoundary(s, 12) == 8
+    check prevBoundary(s, 8) == 5
+    check prevBoundary(s, 1) == 0
+    check prevBoundary(s, 0) == 0     # clamped at the start
+
+  test "backspace takes a whole character":
+    var b = initTextBuffer("héllo", cursor = 3)   # after "hé"
+    check b.backspace()
+    check b.text == "hllo"
+    check b.cursor == 1
+
+  test "delete takes a whole character":
+    var b = initTextBuffer("a😀b", cursor = 1)
+    check b.deleteForward()
+    check b.text == "ab"
+
+  test "inserting a codepoint advances past all its bytes":
+    var b = initTextBuffer("ab", cursor = 1)
+    check b.insert("€")
+    check b.text == "a€b"
+    check b.cursor == 4
+
+  test "maxLength counts characters, not bytes":
+    var b = initTextBuffer("שלו", cursor = 6)     # 3 characters, 6 bytes
+    check b.insert("ם", maxLength = 4)
+    check b.text == "שלום"
+    check not b.insert("!", maxLength = 4)
+
+  test "control characters are not typeable":
+    check not isTypeable(Rune(0x08))    # backspace
+    check not isTypeable(Rune(0x7F))    # DEL
+    check not isTypeable(Rune(0x85))    # C1 next-line
+    check isTypeable(Rune(ord('a')))
+    check isTypeable(Rune(0x05E9))      # ש
+    check isTypeable(Rune(0x1F600))     # 😀

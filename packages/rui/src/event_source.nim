@@ -17,7 +17,7 @@
 
 import rui_core
 import rui_events
-import std/monotimes
+import std/[monotimes, unicode]
 
 import raylib
 
@@ -92,10 +92,14 @@ proc keyboardEvents(dest: var seq[GuiEvent]) =
     dest.add(GuiEvent(kind: evKeyDown, priority: epHigh,
                       timestamp: getMonoTime(), key: key))
 
-  let charPressed = getCharPressed()
-  if charPressed.int32 > 0:
+  # A codepoint, not a byte: `char(charPressed)` used to truncate anything
+  # past Latin-1 into a different character entirely.
+  let charPressed = getCharPressed().int32
+  if charPressed > 0:
     dest.add(GuiEvent(kind: evChar, priority: epHigh,
-                      timestamp: getMonoTime(), char: char(charPressed)))
+                      timestamp: getMonoTime(),
+                      rune: Rune(charPressed),
+                      char: (if charPressed < 128: char(charPressed) else: '\0')))
 
 proc windowEvents(dest: var seq[GuiEvent]) =
   if isWindowResized():

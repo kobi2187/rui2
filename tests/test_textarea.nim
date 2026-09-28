@@ -6,6 +6,8 @@
 
 import std/unittest
 import rui
+import std/[monotimes, unicode]
+from raylib import KeyboardKey
 
 suite "finding the lines":
 
@@ -77,6 +79,32 @@ suite "moving between lines":
     check lineOf(text, target) == 1
     check columnOf(text, target) == 0
 
+suite "a run of Up/Down keeps its column":
+
+  test "passing through a short line does not drift left":
+    const text = "long line here\nab\nanother line"
+    # Caret at column 10 of line 0.
+    let first = verticalMove(text, 10, -1, down = true)
+    check lineOf(text, first.index) == 1
+    check first.index == lineEnd(text, 1)          # clamped on the short line
+    check first.goalColumn == 10                   # ...but still aiming for 10
+    let second = verticalMove(text, first.index, first.goalColumn, down = true)
+    check lineOf(text, second.index) == 2
+    check columnOf(text, second.index) == 10       # back at the column it left
+
+  test "without a run the caret's own column is the goal":
+    const text = "abcdef\nabcdef"
+    let move = verticalMove(text, 3, -1, down = true)
+    check move.goalColumn == 3
+    check columnOf(text, move.index) == 3
+
+  test "moving up works the same way":
+    const text = "first line\nx\nthird line"
+    let start = lineStarts(text)[2] + 7
+    let up1 = verticalMove(text, start, -1, down = false)
+    let up2 = verticalMove(text, up1.index, up1.goalColumn, down = false)
+    check columnOf(text, up2.index) == 7
+
 suite "the widget":
 
   test "it constructs and seeds from initialText":
@@ -108,3 +136,59 @@ suite "the widget":
     let res = ta.handleScriptAction("write", %*{"value": "typed"})
     check res["success"].getBool()
     check ta.text == "typed"
+
+  test "Down, Down through a short line comes back to the column":
+    let ta = newTextArea(initialText = "long line here\nab\nanother line")
+    ta.focused = true
+    ta.cursorPos = 10
+    proc press(k: KeyboardKey) =
+      discard ta.handleInput(GuiEvent(kind: evKeyDown, key: k,
+                                      timestamp: getMonoTime()))
+    press(KeyboardKey.Down)
+    check lineOf(ta.text, ta.cursorPos) == 1
+    press(KeyboardKey.Down)
+    check columnOf(ta.text, ta.cursorPos) == 10
+
+  test "a sideways move starts a new run":
+    let ta = newTextArea(initialText = "long line here\nab\nanother line")
+    ta.focused = true
+    ta.cursorPos = 10
+    proc press(k: KeyboardKey) =
+      discard ta.handleInput(GuiEvent(kind: evKeyDown, key: k,
+                                      timestamp: getMonoTime()))
+    press(KeyboardKey.Down)                    # clamped to column 2
+    press(KeyboardKey.Left)                    # column 1, run over
+    press(KeyboardKey.Down)
+    check columnOf(ta.text, ta.cursorPos) == 1
+
+suite "typing beyond ASCII":
+
+  test "a typed codepoint is inserted whole":
+    let ta = newTextArea()
+    ta.focused = true
+    for r in "שלום é".runes:
+      discard ta.handleInput(GuiEvent(kind: evChar, rune: r,
+                                      timestamp: getMonoTime()))
+    check ta.text == "שלום é"
+    check ta.cursorPos == ta.text.len
+
+  test "an event built with only char still types it":
+    let ta = newTextArea()
+    ta.focused = true
+    discard ta.handleInput(GuiEvent(kind: evChar, char: 'x',
+                                    timestamp: getMonoTime()))
+    check ta.text == "x"
+
+  test "Left steps back over a whole character":
+    let ta = newTextArea(initialText = "a€")
+    ta.focused = true
+    ta.cursorPos = ta.text.len
+    discard ta.handleInput(GuiEvent(kind: evKeyDown, key: KeyboardKey.Left,
+                                    timestamp: getMonoTime()))
+    check ta.cursorPos == 1
+
+  test "columns count characters, so Up/Down line them up":
+    const text = "éé|\nab|"
+    check columnOf(text, 4) == 2                       # after "éé" (4 bytes)
+    check indexAtLineColumn(text, 1, 2) == lineStarts(text)[1] + 2
+    check verticalMove(text, 4, -1, down = true).index == lineStarts(text)[1] + 2

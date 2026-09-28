@@ -24,7 +24,9 @@ defineWidget(HStack):
     # and the stack takes the tallest.
     var x = widget.bounds.x + widget.padding
     let hasHeight = widget.bounds.height > 0
+    let hasWidth = widget.bounds.width > 0
     var maxChildHeight = 0.0'f32
+    resetFlexChildren(widget.children, faHorizontal)
 
     for child in widget.children:
       child.bounds.x = x
@@ -42,7 +44,11 @@ defineWidget(HStack):
     let contentRight = if widget.children.len > 0: x - widget.spacing
                        else: widget.bounds.x + widget.padding
 
-    if widget.bounds.width <= 0:
+    if hasWidth:
+      # Leftover width goes to the children with flexGrow (Spacer, ...)
+      let used = (contentRight - widget.bounds.x) + widget.padding
+      applyFlex(widget.children, widget.bounds.width - used, faHorizontal)
+    else:
       widget.bounds.width = (contentRight - widget.bounds.x) + widget.padding
     if not hasHeight:
       widget.bounds.height = maxChildHeight + widget.padding * 2

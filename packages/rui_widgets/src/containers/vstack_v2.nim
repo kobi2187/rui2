@@ -17,6 +17,10 @@
 ## Children are laid out but never rendered here: main_loop's renderPass and
 ## layoutPass both already recurse over `children`, so a container that drew its
 ## own children would draw them twice.
+##
+## A stack with a height of its own hands any height its children leave unused
+## to the ones with `flexGrow > 0` -- that is what makes a Spacer push the
+## children after it to the bottom. See rui_core/flex.nim.
 
 import rui_core
 
@@ -29,6 +33,8 @@ defineWidget(VStack):
     # Arrange children top to bottom, then size to content.
     var y = widget.bounds.y + widget.padding
     let hasWidth = widget.bounds.width > 0
+    let hasHeight = widget.bounds.height > 0
+    resetFlexChildren(widget.children, faVertical)
     var maxChildWidth = 0.0'f32
 
     for child in widget.children:
@@ -45,6 +51,11 @@ defineWidget(VStack):
 
     let contentBottom = if widget.children.len > 0: y - widget.spacing
                         else: widget.bounds.y + widget.padding
+
+    if hasHeight:
+      # Leftover height goes to the children with flexGrow (Spacer, ...)
+      let used = (contentBottom - widget.bounds.y) + widget.padding
+      applyFlex(widget.children, widget.bounds.height - used, faVertical)
 
     if not hasWidth:
       widget.bounds.width = maxChildWidth + widget.padding * 2

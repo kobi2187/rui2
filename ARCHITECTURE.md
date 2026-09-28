@@ -308,12 +308,12 @@ Cost is O(n) in the number of widgets bound to *that* link, not O(total widgets)
 Because RUI2 is immediate-mode, the widget then simply reads the new value during
 its next `layout`/`render` — there is no separate value-push step.
 
-**Caveat (roadmap):** the `bind` DSL operator that would auto-register a widget
-in a link's `dependentWidgets` is **not yet wired**. Today widgets read store
-values at build/layout time, and a re-layout happens when the surrounding tree is
-marked dirty. `addDependent` exists and can be called manually. Wiring `bind` so
-a widget rebinds and auto-marks dirty on every relevant change is a roadmap item
-(see STATUS.md).
+**Binding today.** `link.bindTo(widget, proc(v: T) = ...)` registers the widget
+as a dependent and installs a refresh hook that re-applies the value before the
+next layout, once per change. That is one-way binding, and it is what every
+example uses. Two-way binding is written by hand: the input widget's `onChange`
+calls `link.set`. A declarative `bind` word inside `ui:` that does both is a
+roadmap item (see TODO.md).
 
 ---
 
@@ -480,18 +480,16 @@ This is a testing/automation facility, not a production feature.
 
 ## Text rendering
 
-**Current:** text is drawn with raylib/naylib's basic `drawText` via the drawing
-primitives and a text cache (`drawing_primitives/primitives/text_cache.nim`,
-keyed on text + style with bounded entries / LRU eviction). The `Label` primitive
-builds a `TextStyle` (family, size, colour, bold/italic/underline) and calls
-`drawText` with an alignment.
+**Pango/Cairo, wired throughout.** Every text path -- `drawText`,
+`measureText`, the three text widgets -- goes through Pango, so shaping, BiDi
+and font fallback are Pango's. Glyph runs are rendered by Cairo into raylib
+textures and cached with LRU eviction in `rui_drawing/pango_text.nim`.
+Label, TextInput and TextArea share one engine, `rui_widgets/text_content.nim`,
+so what is drawn is what was measured.
 
-**Roadmap — Pango/Cairo.** Professional text (full Unicode, BiDi for
-Hebrew/Arabic, complex-script shaping, wrapping) via Pango+Cairo rendered to
-raylib textures is a long-standing aspiration and is **not wired**. The `Label`
-source still carries a `TODO: Integrate Pango`. The drawing API is intended to be
-a drop-in target for a future Pango backend, and text caching is already designed
-for the 2–5 ms-first/~0.1 ms-cached profile such a backend needs. See STATUS.md.
+Input is Unicode too: `GuiEvent.rune` carries the typed codepoint, and
+`TextBuffer` steps over whole UTF-8 characters for the caret, Backspace and
+Delete. There is no IME composition yet (see TODO.md).
 
 ---
 

@@ -11,9 +11,10 @@
 ## - The caret has a line as well as a column, so Up and Down move by line
 ##   rather than being left for focus navigation.
 ##
-## Caret geometry goes through Pango, like TextInput's. What it does *not* do
-## yet: horizontal scrolling, and a caret that remembers its column across
-## short lines. Both are noted where they bite.
+## Caret geometry goes through Pango, like TextInput's. Up and Down remember
+## the column they started from (`goalColumn`), so passing through a short line
+## does not drag the caret left. What it does *not* do yet: horizontal
+## scrolling.
 
 import rui_core
 import text_buffer
@@ -21,6 +22,7 @@ export text_buffer
 import ../text_content
 import rui_drawing
 import std/[strutils, options]
+from std/unicode import `$`, runeLen
 # rui_core does not re-export KeyboardKey -- its Menu/Down/Up fields collide
 # with the Menu widget and with rui_drawing's ArrowDirection.
 from raylib import KeyboardKey, getTime, isKeyDown
@@ -48,8 +50,10 @@ proc lineOf*(text: string, index: int): int =
       break
 
 proc columnOf*(text: string, index: int): int =
-  ## How far into its line a byte offset is.
-  index - lineStarts(text)[lineOf(text, index)]
+  ## How many characters into its line a byte offset is. Characters, not
+  ## bytes, so Up/Down line an "é" up with the "e" above it.
+  let start = lineStarts(text)[lineOf(text, index)]
+  text[start ..< index].runeLen
 
 proc lineEnd*(text: string, line: int): int =
   ## Byte offset just past the last character of a line, not counting the
@@ -60,16 +64,30 @@ proc lineEnd*(text: string, line: int): int =
   text.len
 
 proc indexAtLineColumn*(text: string, line, column: int): int =
-  ## The offset `column` characters into `line`, clamped to that line's end --
+  ## The byte offset `column` characters into `line`, clamped to that line's end --
   ## so moving down from a long line onto a short one lands at the short line's
   ## end rather than overshooting into the line after it.
-  ##
-  ## TODO: a real editor remembers the column you came from and restores it on
-  ## the next long line. This forgets, so down-down through a short line drifts
-  ## left. Worth fixing when someone edits prose in it.
   let starts = lineStarts(text)
   let l = clamp(line, 0, starts.len - 1)
-  min(starts[l] + column, lineEnd(text, l))
+  let stop = lineEnd(text, l)
+  result = starts[l]
+  for _ in 0 ..< column:
+    if result >= stop:
+      break
+    result = nextBoundary(text, result)
+
+proc verticalMove*(text: string, cursor, goalColumn: int,
+                   down: bool): tuple[index, goalColumn: int] =
+  ## Where Up (`down = false`) or Down puts the caret, and the column to aim
+  ## for on the move after it.
+  ##
+  ## The goal column is what a run of Up/Down presses keeps: the column the
+  ## first press started from, not wherever a short line clamped the caret to.
+  ## `goalColumn < 0` means there is no run yet, so the caret's own column is
+  ## the goal.
+  let goal = if goalColumn >= 0: goalColumn else: columnOf(text, cursor)
+  let line = lineOf(text, cursor) + (if down: 1 else: -1)
+  (indexAtLineColumn(text, line, goal), goal)
 
 template contentOf*(widget: untyped): TextContent =
   ## This area's text as a TextContent. A template, not a proc: the TextArea
@@ -114,6 +132,9 @@ template edit*(widget: untyped, body: untyped) =
                                         widget.selectionStart,
                                         widget.selectionEnd)
     let before = buf.text
+    # Any edit or cursor move ends a run of Up/Down presses; the Up/Down
+    # handler restores the goal column after its own edit.
+    widget.goalColumn = -1
     body
     widget.text = buf.text
     widget.cursorPos = buf.cursor
@@ -142,6 +163,7 @@ definePrimitive(TextArea):
     selectionStart: int          # -1 when there is no selection
     selectionEnd: int
     dragging: bool
+    goalColumn: int              # Column Up/Down aim for; -1 outside a run
 
   actions:
     onChange(newText: string)
@@ -150,6 +172,7 @@ definePrimitive(TextArea):
     widget.focusable = true
     widget.selectionStart = -1
     widget.selectionEnd = -1
+    widget.goalColumn = -1
 
   events:
     on_mouse_down:
@@ -175,9 +198,10 @@ definePrimitive(TextArea):
     on_char:
       if widget.disabled or not widget.focused:
         return false
-      if event.char < ' ' or event.char > '~':
+      let r = event.typedRune
+      if not r.isTypeable:
         return false
-      widget.edit: discard buf.insert($event.char, widget.maxLength)
+      widget.edit: discard buf.insert($r, widget.maxLength)
       return true
 
     on_key_down:
@@ -200,19 +224,17 @@ definePrimitive(TextArea):
         return true
 
       of Up, Down:
-        let line = lineOf(widget.text, widget.cursorPos)
-        let column = columnOf(widget.text, widget.cursorPos)
-        let target = indexAtLineColumn(widget.text,
-                                       if event.key == Up: line - 1 else: line + 1,
-                                       column)
-        widget.edit: buf.moveCursor(target, extend = shiftDown)
+        let move = verticalMove(widget.text, widget.cursorPos,
+                                widget.goalColumn, down = event.key == Down)
+        widget.edit: buf.moveCursor(move.index, extend = shiftDown)
+        widget.goalColumn = move.goalColumn
         return true
 
       of Left, Right, Home, End:
         let line = lineOf(widget.text, widget.cursorPos)
         let target = case event.key
-                     of Left: widget.cursorPos - 1
-                     of Right: widget.cursorPos + 1
+                     of Left: prevBoundary(widget.text, widget.cursorPos)
+                     of Right: nextBoundary(widget.text, widget.cursorPos)
                      of Home: lineStarts(widget.text)[line]
                      else: lineEnd(widget.text, line)
         widget.edit: buf.moveCursor(target, extend = shiftDown)

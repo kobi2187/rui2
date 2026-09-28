@@ -1,0 +1,217 @@
+# RUI2 — TODO roadmap
+
+What it takes to go from "a solid alpha" to **the GUI toolkit people pick**.
+Ordered by priority, and within a priority by dependency. Every item names the
+files it starts in and how to know it is done. [STATUS.md](STATUS.md) says what
+works today; [ROADMAP.md](ROADMAP.md) is the phase history.
+
+**Where RUI2 is already strong:** retained widgets with per-widget texture
+caching, push-based `Link[T]` reactivity with O(1) invalidation, Pango text
+(Unicode, BiDi, shaping), 48 widgets, keyboard focus groups, a scripting
+protocol plus headless frames for testing, and a codebase under a complexity
+gate. The gaps below are what stands between that and Qt/Flutter-level trust.
+
+Legend: **P0** blocks real apps · **P1** expected of any modern toolkit ·
+**P2** differentiators · **P3** breadth and ecosystem.
+
+---
+
+## P0 — Blocks real applications
+
+### 1. Measure/arrange layout *(large — the root of several defects)*
+`bounds` is both "the size my parent assigned" and "the size I computed last
+frame", told apart by `if bounds.width <= 0`. After one layout a self-sized
+container looks assigned, so it never re-grows when content is added
+(verified: a VStack keeps 23 px after a second label is added).
+- [ ] Add `measure(widget, Constraints): Size` as the first pass. The method
+  already exists in `rui_core/types.nim` and nothing calls it. Leaves measure
+  content; containers measure children and sum.
+- [ ] Make `layout` the arrange pass: it receives a final rect and never infers
+  "was I assigned?" from a zero.
+- [ ] Put explicit sizing on `Widget`: `width`/`height: Option[float32]`,
+  `minSize`/`maxSize`. Fixed size becomes a declaration, not a side effect.
+- [ ] Port the stacks, Column and ScrollView first, then sweep the
+  `bounds.x <= 0` idiom out of all widgets (`grep -rn "bounds.width <= 0"`).
+- [ ] Cache measurements per (widget, constraints) and invalidate on
+  `layoutDirty`, so the extra pass costs nothing when nothing changed.
+- **Done when:** a content-sized stack grows and shrinks with its children
+  across frames, and `test_layout` pins it.
+
+### 2. Modifier keys on the event *(small)*
+- [ ] Add `mods: set[KeyMod]` (Shift, Ctrl, Alt, Super) to `GuiEvent`
+  (`rui_core/types.nim`), filled in `rui/event_source.nim`.
+- [ ] Replace the 7 `isKeyDown(LeftShift)`-style reads in `rui_widgets` with
+  `event.mods`.
+- **Done when:** Shift+Right selects text in a headless `test_frame` test.
+
+### 3. Text-editing essentials *(medium; needs #2)*
+- [ ] **Clipboard.** Ctrl+C/X/V in TextInput/TextArea via naylib's
+  `getClipboardText`/`setClipboardText`, behind a `Clipboard` seam in
+  `rui_core` so tests can inject one.
+- [ ] **Undo/redo.** An edit history in `input/text_buffer.nim`: a stack of
+  (text, cursor, selection) snapshots, coalescing typing runs, and Ctrl+Z /
+  Ctrl+Shift+Z.
+- [ ] **Word navigation.** Ctrl+Left/Right and Ctrl+Backspace, plus
+  double-click to select a word and triple-click for a line. Use Pango's
+  `PangoLogAttr` word boundaries, not ASCII spaces.
+- [ ] **Caret and scroll.** Horizontal scrolling in TextInput and vertical
+  scrolling in TextArea, keeping the caret visible.
+- [ ] **Mouse cursor shapes.** A `cursor: MouseCursor` field on `Widget`,
+  applied by the hover tracker (I-beam over text, pointer over links, resize
+  arrows on splitters).
+- **Done when:** a user can edit a paragraph in TextArea without reaching for
+  another program.
+
+### 4. Idle efficiency *(small)*
+- [ ] When the tree is clean and no animation or timer is pending, block on
+  input (`enableEventWaiting` or `waitTime`) instead of rendering at the target
+  FPS. Wake on Link sets from other threads through a posted event.
+- **Done when:** an idle window uses ~0% CPU.
+
+---
+
+## P1 — Expected of any modern toolkit
+
+### 5. Layout completeness *(medium; after #1)*
+- [ ] Cross-axis alignment for VStack/HStack. Move `CrossAxisAlignment` from
+  `containers/column.nim` into `rui_core` so the stacks can use it. Today a
+  label beside a taller input sits top-aligned.
+- [ ] `flexShrink` to complement the new `flexGrow` (`rui_core/flex.nim`).
+- [ ] A **Grid** container: rows/columns with fixed, auto and star sizes, plus
+  spans.
+- [ ] A **Wrap/Flow** container for chips and toolbars that reflow.
+- [ ] **SplitView** with a draggable divider.
+- [ ] Right-to-left layout mirroring, driven by the text direction Pango
+  already reports.
+
+### 6. Reactivity you can write declaratively *(medium)*
+- [ ] A `bind` word inside `ui:` — `TextInput(bind <-> store.name)` for two-way
+  and `Label(bind store.count)` for one-way — lowering to `bindTo` plus the
+  `onChange` write-back that apps write by hand today (`rui_core/ui_tree.nim`).
+- [ ] Derived links: `let total = derive(a, b, proc(x, y): int = x + y)`,
+  recomputed lazily and dirtying only their own dependents.
+- [ ] A `LinkSeq[T]` with insert/remove/move notifications, so ListView,
+  DataTable and TreeView update rows incrementally instead of rebuilding.
+- [ ] Batched sets: `transaction: a.set(1); b.set(2)` should cost one relayout.
+
+### 7. HiDPI *(medium)*
+- [ ] Read `getWindowScaleDPI()` and keep layout in logical pixels. Render
+  textures at physical size and give Pango the DPI (`pango_cairo_context_set_resolution`).
+- [ ] Re-rasterize the glyph cache on scale change (moving between monitors).
+- **Done when:** text is sharp on a 2× display and sizes match 1×.
+
+### 8. Performance you can prove *(medium)*
+- [ ] A benchmark app: 1k/10k widgets, reporting frame time for layout,
+  hit-test and render, with numbers recorded in CI so regressions show.
+- [ ] Incremental hit-testing. `HitTestSystem.updateWidget` exists, but
+  `app.rebuildHitTestTree` still clears and rebuilds every frame.
+- [ ] A texture-memory budget. Every widget owns a `RenderTexture2D`, so large
+  trees exhaust VRAM. Cache only containers and expensive leaves, and draw
+  cheap leaves directly into their parent.
+- [ ] Clip and cull children outside the viewport before layout and render,
+  not only at composite time.
+
+### 9. Animation *(medium; needs #4)*
+- [ ] `Animated[T]`: a Link that tweens toward its target with easing curves,
+  keeping the loop awake only while it runs.
+- [ ] Theme-level transitions for hover/press/focus colour changes, so state
+  changes fade rather than snap.
+- [ ] Animated layout changes (expand/collapse, list insertions) driven by the
+  measure pass from #1.
+
+---
+
+## P2 — What would make RUI2 stand out
+
+### 10. Accessibility *(large)*
+No toolkit is "best" if a screen reader cannot use it.
+- [ ] Integrate [AccessKit](https://github.com/AccessKit/accesskit) through its
+  C API: map the widget tree to AccessKit nodes (role, name, value, bounds,
+  actions) and route its action requests back as events. It speaks AT-SPI,
+  UIA and NSAccessibility.
+- [ ] Add `accessibleName` / `accessibleRole` to `Widget`, defaulting from the
+  type and text. The scripting bridge's `getScriptableState` already holds
+  most of the data.
+- [ ] High-contrast themes and a minimum focus-ring contrast check in
+  `test_theme`.
+
+### 11. Input methods and international text *(medium; needs #3)*
+- [ ] IME pre-edit (composition) display for CJK input. This needs platform
+  text-input events that GLFW does not surface, so it probably means SDL3 as
+  the backend or a GLFW patch.
+- [ ] Grapheme-cluster caret movement (emoji ZWJ sequences, combining marks),
+  using Pango's cursor-position attributes instead of UTF-8 boundaries.
+- [ ] BiDi caret movement: visual rather than logical order for Left/Right in
+  mixed Hebrew/English text.
+
+### 12. Developer experience *(medium)*
+- [ ] An in-app inspector overlay (F12): the widget tree, bounds, dirty flags
+  and theme props, built on the `-d:ruiInspect` verbs that already exist.
+- [ ] Theme hot-reload: watch the YAML theme files and re-apply on save.
+- [ ] A widget **gallery** app with every widget and every state, doubling as
+  the visual regression target (screenshot diffs in CI).
+- [ ] API docs generated by `nim doc` and published to GitHub Pages, plus a
+  tutorial: counter → form → data app.
+- [ ] A `nimble init`-style app template.
+
+### 13. Platform integration *(medium)*
+- [ ] Native file dialogs through xdg-desktop-portal / Win32 / Cocoa, keeping
+  the drawn FileDialog as the fallback.
+- [ ] OS drag-and-drop in (`isFileDropped`) wired into `DragDropArea`.
+- [ ] Follow the system dark/light preference and accent colour.
+- [ ] Multiple windows. raylib owns a single window, so this is a backend
+  decision; decide it together with #11.
+
+---
+
+## P3 — Breadth and ecosystem
+
+### 14. Widgets
+- [ ] DataTable: edit filters from the UI (the strip only displays them).
+- [ ] Date/time picker, colour picker, toasts/notifications, a docking layout.
+- [ ] A rich-text editor (styled runs over `text_content`) and a code editor
+  with syntax highlighting.
+- [ ] Charts: line, bar and scatter, on the Canvas widget.
+- [ ] Decide #30: whether Label/TextInput/TextArea merge into one widget.
+
+### 15. Code health
+- [ ] Bring rui_drawing (11), rui_hittest (5, of which interval-tree
+  rebalancing is essential) and rui_scripting (10) under `nimtools cyc --gate 5`.
+- [ ] Drop the `_v2` / `_refactored` file suffixes (`button_v2.nim`,
+  `vstack_v2.nim`, `event_manager_refactored.nim`, …). The old versions are
+  gone, so the suffix only confuses readers.
+- [ ] Rename the enum values that collide (`Info`/`Warning` exist in two
+  rui_drawing enums; `KeyboardKey.Menu` against the Menu widget).
+- [ ] The remaining drawing TODOs: the three-ring focus effect, and rounded and
+  radial gradients via shaders (`rui_drawing/effects/rect_effects.nim`).
+- [ ] Close #21. The ladder and cache work is done; the only question left is
+  whether the two ladders should agree.
+
+### 16. Packaging and release
+- [ ] Choose a license ([#26](https://github.com/kobi2187/rui2/issues/26)).
+  This blocks everything below.
+- [ ] CI on Windows and macOS. Pango on Windows means MSYS2 bundling, so
+  document it or ship prebuilt DLLs.
+- [ ] Split into seven repos per SPLITTING.md
+  ([#35](https://github.com/kobi2187/rui2/issues/35)) and publish to Nimble
+  ([#36](https://github.com/kobi2187/rui2/issues/36)).
+- [ ] A CHANGELOG, a semver policy, and a tagged `v0.2.0`.
+
+---
+
+## Suggested order
+
+```
+#2 mods ─┬─ #3 text editing ─── #11 IME/graphemes
+         │
+#1 measure/arrange ─┬─ #5 layout ─── #9 animation
+                    └─ #8 performance
+#4 idle ─────────────── #9 animation
+#6 bind (independent)     #7 HiDPI (independent)
+#16 license ─── split ─── publish ─── v0.2.0
+#10 accessibility (after #1; needs stable roles and bounds)
+```
+
+#2 and #4 are small and unblock the most. #1 is the one architectural change
+left, and it is cheaper now than after more widgets are written against the
+`<= 0` idiom.

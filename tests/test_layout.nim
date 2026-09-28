@@ -378,3 +378,82 @@ suite "adding a widget marks the parent for layout":
     root.layoutPass()
 
     check late.bounds.height > 0      # it was laid out, not left at zero
+
+suite "flex: stacks share leftover space":
+
+  test "flexShares splits by weight and ignores non-positive weights":
+    check flexShares([0.0'f32, 1.0, 3.0], 100.0) == @[0.0'f32, 25.0, 75.0]
+    check flexShares([1.0'f32, 1.0], 0.0) == @[0.0'f32, 0.0]
+    check flexShares([1.0'f32, 1.0], -10.0) == @[0.0'f32, 0.0]
+    check flexShares([0.0'f32, -1.0], 50.0) == @[0.0'f32, 0.0]
+
+  test "a Spacer pushes the children after it to the bottom of a VStack":
+    let root = newVStack(spacing = 0.0, padding = 10.0)
+    root.bounds = Rect(x: 0, y: 0, width: 200, height: 400)
+    let top = newLabel(text = "top", fontSize = 14.0)
+    let gap = newSpacer()
+    let bottom = newLabel(text = "bottom", fontSize = 14.0)
+    for w in [Widget(top), Widget(gap), Widget(bottom)]:
+      root.addChild(w)
+
+    root.layout()
+
+    check top.bounds.y == 10.0
+    check bottom.bounds.y + bottom.bounds.height == 390.0   # flush with padding
+    check gap.bounds.y == top.bounds.y + top.bounds.height
+    check gap.bounds.height == bottom.bounds.y - gap.bounds.y
+    check root.bounds.height == 400.0                       # the stack kept its size
+
+  test "two spacers split the room by their weights":
+    let root = newVStack(spacing = 0.0)
+    root.bounds = Rect(x: 0, y: 0, width: 100, height: 300)
+    let a = newSpacer(grow = 1.0)
+    let b = newSpacer(grow = 2.0)
+    root.addChild(a)
+    root.addChild(b)
+
+    root.layout()
+
+    check a.bounds.height == 100.0
+    check b.bounds.height == 200.0
+    check b.bounds.y == 100.0
+
+  test "a grown Spacer shrinks back when the stack does":
+    let root = newVStack(spacing = 0.0)
+    root.bounds = Rect(x: 0, y: 0, width: 100, height: 300)
+    let gap = newSpacer(minHeight = 5.0)
+    root.addChild(gap)
+    root.layout()
+    check gap.bounds.height == 300.0
+
+    root.bounds.height = 120
+    root.layout()
+    check gap.bounds.height == 120.0
+
+  test "any widget can flex, not only Spacer":
+    let row = newHStack(spacing = 0.0)
+    row.bounds = Rect(x: 0, y: 0, width: 500, height: 30)
+    let left = newLabel(text = "left", fontSize = 14.0)
+    let fill = newLabel(text = "fill", fontSize = 14.0)
+    fill.flexGrow = 1.0
+    let right = newLabel(text = "right", fontSize = 14.0)
+    for w in [Widget(left), Widget(fill), Widget(right)]:
+      row.addChild(w)
+
+    row.layout()
+
+    check right.bounds.x + right.bounds.width == 500.0
+    check fill.bounds.x == left.bounds.x + left.bounds.width
+    check fill.bounds.width > left.bounds.width
+
+  test "a stack that sizes to its content has nothing to hand out":
+    let root = newVStack(spacing = 0.0)        # no height of its own
+    let label = newLabel(text = "only", fontSize = 14.0)
+    let gap = newSpacer(minHeight = 12.0)
+    root.addChild(label)
+    root.addChild(gap)
+
+    root.layout()
+
+    check gap.bounds.height == 12.0
+    check root.bounds.height == label.bounds.height + 12.0

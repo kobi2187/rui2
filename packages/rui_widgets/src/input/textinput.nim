@@ -23,6 +23,7 @@ import ../text_content
 export text_content
 import rui_drawing
 import std/options
+from std/unicode import `$`
 
 import raylib
 
@@ -114,12 +115,10 @@ definePrimitive(TextInput):
     on_char:
       if widget.disabled or not widget.focused:
         return false
-      # Printable ASCII only for now: `char` is one byte, so anything above
-      # this would be half a codepoint. TextBuffer indexes in bytes and is
-      # ready for more; the event type is what is not.
-      if event.char < ' ' or event.char > '~':
+      let r = event.typedRune
+      if not r.isTypeable:
         return false
-      widget.edit: discard buf.insert($event.char, widget.maxLength)
+      widget.edit: discard buf.insert($r, widget.maxLength)
       return true
 
     on_key_down:
@@ -138,8 +137,8 @@ definePrimitive(TextInput):
 
       of Left, Right, Home, End:
         let target = case event.key
-                     of Left: widget.cursorPos - 1
-                     of Right: widget.cursorPos + 1
+                     of Left: prevBoundary(widget.text, widget.cursorPos)
+                     of Right: nextBoundary(widget.text, widget.cursorPos)
                      of Home: 0
                      else: widget.text.len
         widget.edit: buf.moveCursor(target, extend = shiftDown)
