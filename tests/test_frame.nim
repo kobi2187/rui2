@@ -9,7 +9,7 @@
 ## hands it whatever events the test wants.
 
 import std/unittest
-import std/[options, monotimes, os]
+import std/[options, monotimes, os, times]
 import rui
 # rui_core does not re-export KeyboardKey -- its Menu/Down/Up fields collide
 # with the Menu widget and with rui_drawing's ArrowDirection.
@@ -207,3 +207,38 @@ suite "routing, without an app at all":
     discard inner.dispatchBubbling(at(evMouseDown, 10.0, 10.0))
     discard inner.dispatchBubbling(at(evMouseUp, 10.0, 10.0))
     check fired == 1
+
+suite "repaint timers":
+  ## An idle app paints nothing, so anything that changes with time alone has
+  ## to ask for its next frame.
+
+  setup:
+    clearRepaints()
+
+  test "a timer marks its widget dirty once it is due, not before":
+    let root = newVStack()
+    let leaf = newLabel(text = "x")
+    root.addChild(leaf)
+    root.isDirty = false
+    leaf.isDirty = false
+    let t0 = getMonoTime()
+    leaf.repaintAt(t0 + initDuration(milliseconds = 500))
+    check not fireDueRepaints(t0)
+    check not leaf.isDirty
+    check fireDueRepaints(t0 + initDuration(milliseconds = 500))
+    check leaf.isDirty
+    check root.isDirty                    # up to the root, so it composites
+    check not fireDueRepaints(t0 + initDuration(seconds = 5))   # fired once
+
+  test "asking twice keeps the earlier time":
+    let w = newLabel(text = "x")
+    let t0 = getMonoTime()
+    w.repaintAt(t0 + initDuration(seconds = 2))
+    w.repaintAt(t0 + initDuration(seconds = 1))
+    w.repaintAt(t0 + initDuration(seconds = 3))
+    check nextRepaint().get == t0 + initDuration(seconds = 1)
+
+  test "the caret asks for the next half-second boundary":
+    check abs(caretPhaseRemaining(10.0) - 0.5) < 1e-9
+    check abs(caretPhaseRemaining(10.2) - 0.3) < 1e-9
+    check abs(caretPhaseRemaining(10.7) - 0.3) < 1e-9

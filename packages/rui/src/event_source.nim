@@ -87,19 +87,25 @@ proc pointerEvents(dest: var seq[GuiEvent]) =
 
 proc keyboardEvents(dest: var seq[GuiEvent]) =
   ## epHigh and never coalesced: dropping or reordering a keystroke loses text.
-  let key = getKeyPressed()
-  if key != KeyboardKey(0):
+  ##
+  ## Both are queues, drained to empty. Reading one of each per frame -- as
+  ## this used to -- dropped keystrokes whenever two landed in the same frame,
+  ## which fast typing and input methods both do.
+  var key = getKeyPressed()
+  while key != KeyboardKey(0):
     dest.add(GuiEvent(kind: evKeyDown, priority: epHigh,
                       timestamp: getMonoTime(), key: key))
+    key = getKeyPressed()
 
   # A codepoint, not a byte: `char(charPressed)` used to truncate anything
   # past Latin-1 into a different character entirely.
-  let charPressed = getCharPressed().int32
-  if charPressed > 0:
+  var charPressed = getCharPressed().int32
+  while charPressed > 0:
     dest.add(GuiEvent(kind: evChar, priority: epHigh,
                       timestamp: getMonoTime(),
                       rune: Rune(charPressed),
                       char: (if charPressed < 128: char(charPressed) else: '\0')))
+    charPressed = getCharPressed().int32
 
 proc windowEvents(dest: var seq[GuiEvent]) =
   if isWindowResized():

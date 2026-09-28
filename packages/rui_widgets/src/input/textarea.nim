@@ -32,7 +32,7 @@ export text_buffer
 import ../text_content
 export text_content
 import rui_drawing
-import std/[strutils, options]
+import std/[strutils, options, math]
 from std/unicode import `$`, runeLen
 # rui_core does not re-export KeyboardKey -- its Menu/Down/Up fields collide
 # with the Menu widget and with rui_drawing's ArrowDirection.
@@ -186,6 +186,11 @@ template edit*(widget: untyped, body: untyped) =
 
 template takesInput(widget: untyped): bool =
   widget.editable and not widget.disabled
+
+proc caretPhaseRemaining*(now: float): float =
+  ## Seconds until the caret next turns on or off. It blinks on half-second
+  ## boundaries of the clock, so this is the time to the next one.
+  (floor(now * 2.0) + 1.0) / 2.0 - now
 
 proc roomForLine*(text: string, maxLines: int): bool =
   ## Whether Enter may add a line under a `maxLines` limit (-1: no limit).
@@ -386,10 +391,14 @@ definePrimitive(TextArea):
       let caret = cursorPosition(widget.text[start ..< stop],
                                  content.style.pangoFont,
                                  widget.cursorPos - start)
-      if int(getTime() * 2.0) mod 2 == 0:
+      let now = getTime()
+      if int(now * 2.0) mod 2 == 0:
         let y = inner.y + float32(line) * lineH
         drawLine(inner.x + caret.x, y, inner.x + caret.x, y + lineH,
                  widget.textColor)
+      # Nothing else repaints an idle field, so ask for the next blink phase --
+      # without this the caret froze in whichever phase the last edit left it.
+      widget.repaintAfter(caretPhaseRemaining(now))
 
     if widget.disabled:
       drawDisabledOverlay(widget.bounds)

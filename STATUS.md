@@ -148,6 +148,12 @@ top-aligned (Column has alignment; the stacks do not).
 
 ## Recently completed
 
+- **Modifiers on the event.** `GuiEvent.mods`; Shift+Tab, Shift+arrow and
+  Ctrl-click are driven by the event, so scripts and headless tests reach
+  them. Key queues are drained per frame (fast typing used to drop keys).
+- **Idle.** An unchanged window is not redrawn: ~31% of a core → ~1%.
+  Repaint timers let time-driven widgets ask for a frame; the caret blinks
+  again.
 - **One text widget.** Label, TextInput and TextArea are one `TextArea`
   limited by properties (`editable`, `multiline`, `maxLength`, `maxLines`,
   `framed`, `disabled`). `Label`/`TextInput` are aliases with their own
@@ -187,11 +193,9 @@ Verified against the code. The prioritised plan is in [TODO.md](TODO.md).
   sized itself looks assigned, so adding a child later leaves it at the old
   height and the child overflows. The fix is a measure/arrange split (the
   unused `measure(Constraints)` method is where it starts) — TODO.md P0.
-- **The loop never idles** — it renders at the target FPS even when nothing is
-  dirty; there is no event waiting, so an idle app still burns CPU.
-- **Widgets read modifier keys from raylib directly** (`isKeyDown(LeftShift)`
-  in 7 places) instead of from the event, so Shift+arrow cannot be scripted or
-  driven headlessly.
+- **Tooltip never shows** — nothing generates the hover event it waits for,
+  and as a sibling of its target the pointer is never over it. Needs an
+  overlay layer (TODO.md #5).
 - **No clipboard** — Ctrl+C / Ctrl+V / Ctrl+X do nothing in any text widget.
 - **No undo/redo** in the text widgets.
 - **No IME composition** — typed codepoints arrive, but pre-edit text for

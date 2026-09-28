@@ -37,12 +37,14 @@ container looks assigned, so it never re-grows when content is added
 - **Done when:** a content-sized stack grows and shrinks with its children
   across frames, and `test_layout` pins it.
 
-### 2. Modifier keys on the event *(small)*
-- [ ] Add `mods: set[KeyMod]` (Shift, Ctrl, Alt, Super) to `GuiEvent`
-  (`rui_core/types.nim`), filled in `rui/event_source.nim`.
-- [ ] Replace the 7 `isKeyDown(LeftShift)`-style reads in `rui_widgets` with
-  `event.mods`.
-- **Done when:** Shift+Right selects text in a headless `test_frame` test.
+### 2. Modifier keys on the event ✅
+- [x] `GuiEvent.mods: set[KeyMod]`, stamped once per poll by the event source.
+- [x] The 7 live-keyboard reads (Shift+arrow, Ctrl-click in five widgets, the
+  focus manager's Shift+Tab) ask the event instead.
+- [x] `parseKeyChord("Ctrl+Shift+Z")`; the test-key injector takes chords, and
+  the scripted UI run checks Shift+Tab through a real window.
+- [x] Key and character queues are drained each frame -- one of each used to
+  be read, dropping keystrokes that shared a frame.
 
 ### 3. Text-editing essentials *(medium; needs #2)*
 - [ ] **Clipboard.** Ctrl+C/X/V in TextInput/TextArea via naylib's
@@ -65,11 +67,15 @@ container looks assigned, so it never re-grows when content is added
 - **Done when:** a user can edit a paragraph in TextArea without reaching for
   another program.
 
-### 4. Idle efficiency *(small)*
-- [ ] When the tree is clean and no animation or timer is pending, block on
-  input (`enableEventWaiting` or `waitTime`) instead of rendering at the target
-  FPS. Wake on Link sets from other threads through a posted event.
-- **Done when:** an idle window uses ~0% CPU.
+### 4. Idle efficiency ✅ *(one follow-up)*
+- [x] A frame that paints nothing is not presented: no draw, no swap, input
+  polled and the rest of the frame slept. Measured on a 42-widget window:
+  31% of a core → about 1% (`App.idleWhenClean`, default on).
+- [x] Repaint timers (`rui_core/repaint_timers.nim`): a widget asks to be
+  drawn again later. The caret uses it -- it used to freeze in whichever
+  blink phase the last edit left it.
+- [ ] Block instead of sleeping per frame (GLFW `waitEventsTimeout` until the
+  next timer), and wake on Link sets from other threads with a posted event.
 
 ---
 
@@ -86,6 +92,13 @@ container looks assigned, so it never re-grows when content is added
 - [ ] **SplitView** with a draggable divider.
 - [ ] Right-to-left layout mirroring, driven by the text direction Pango
   already reports.
+- [ ] **An overlay layer.** Popups draw inside their own widget's render
+  texture, so each one grows its bounds to fit (menus, ComboBox). Tooltip
+  cannot work that way at all: it sits beside the widget it describes, the
+  pointer is never over it, and nothing generates the `evMouseHover` its
+  handler waits for -- **it never shows**. An app-level overlay list,
+  composited after the root and hit-tested first, fixes all three; Tooltip
+  then wraps its target and uses a repaint timer for the delay.
 
 ### 6. Reactivity you can write declaratively *(medium)*
 - [ ] A `bind` word inside `ui:` — `TextInput(bind <-> store.name)` for two-way
