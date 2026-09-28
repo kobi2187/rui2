@@ -111,8 +111,7 @@ runnable example under `examples/widgets/`. Covered by
 
 Known gaps within the working set: `DataTable`'s filter strip *displays* the
 active filter but cannot be edited through the UI (set `filters` from code);
-HStack has no cross-axis alignment, so a Label beside a taller TextInput sits
-top-aligned (Column has alignment; the stacks do not).
+VStack and HStack take `crossAlign` (Start/Center/End/Stretch) like Column.
 
 ### Reactivity
 - `Link[T]`: `get`/`set`/`value`, direct-widget-reference dependency tracking,

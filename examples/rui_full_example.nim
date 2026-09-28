@@ -36,7 +36,7 @@ proc main() =
   let root = ui:
     VStack(spacing = 14.0, padding = 24.0):
       Label(text = "Settings", fontSize = 26.0, bold = true)
-      HStack(spacing = 10.0):
+      HStack(spacing = 10.0, crossAlign = CrossCenter):
         Label(text = "Your name:", fontSize = 15.0)
         nameInput = TextInput(placeholder = "type a name")
       greeting = Label(text = "", fontSize = 15.0)

@@ -14,6 +14,9 @@ defineWidget(HStack):
   props:
     spacing: float = 8.0
     padding: float = 0.0
+    # Stretch (the default) gives every child the row's height, when it has
+    # one. CrossCenter is the usual choice for a label beside an input.
+    crossAlign: CrossAxisAlignment = CrossStretch
 
   layout:
     # Arrange children left to right, then size to content.
@@ -31,7 +34,7 @@ defineWidget(HStack):
     for child in widget.children:
       child.bounds.x = x
       child.bounds.y = widget.bounds.y + widget.padding
-      if hasHeight:
+      if hasHeight and widget.crossAlign == CrossStretch:
         child.bounds.height = max(0.0, widget.bounds.height - (widget.padding * 2))
       # else: leave it at 0 so the child's own layout measures itself
 
@@ -43,6 +46,11 @@ defineWidget(HStack):
     # Trailing spacing is not part of the content extent
     let contentRight = if widget.children.len > 0: x - widget.spacing
                        else: widget.bounds.x + widget.padding
+
+    if widget.crossAlign != CrossStretch:
+      let cross = if hasHeight: widget.bounds.height - widget.padding * 2
+                  else: maxChildHeight
+      alignCross(widget.children, faHorizontal, widget.crossAlign, cross)
 
     if hasWidth:
       # Leftover width goes to the children with flexGrow (Spacer, ...)

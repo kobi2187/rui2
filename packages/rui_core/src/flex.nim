@@ -11,9 +11,18 @@
 
 import types
 
-type FlexAxis* = enum
-  faVertical    ## VStack: grow heights, shift `y`
-  faHorizontal  ## HStack: grow widths, shift `x`
+type
+  FlexAxis* = enum
+    faVertical    ## VStack: grow heights, shift `y`
+    faHorizontal  ## HStack: grow widths, shift `x`
+
+  CrossAxisAlignment* = enum
+    ## Where children sit across a container's main axis -- horizontally in a
+    ## VStack or Column, vertically in an HStack.
+    CrossStart       ## Left / top
+    CrossCenter
+    CrossEnd         ## Right / bottom
+    CrossStretch     ## Fill the container's cross size, when it has one
 
 proc flexShares*(weights: openArray[float32], leftover: float32): seq[float32] =
   ## How much of `leftover` each weight gets. All zeros when there is nothing
@@ -45,6 +54,27 @@ proc growChild(child: Widget, share, offset: float32, axis: FlexAxis) =
   else:
     child.bounds.x += offset
     child.bounds.width += share
+
+proc crossOffset*(align: CrossAxisAlignment, crossSize, childSize: float32): float32 =
+  ## How far along the cross axis a child of `childSize` sits in `crossSize`.
+  case align
+  of CrossStart, CrossStretch: 0.0'f32
+  of CrossCenter: (crossSize - childSize) / 2
+  of CrossEnd: crossSize - childSize
+
+proc alignCross*(children: seq[Widget], axis: FlexAxis,
+                 align: CrossAxisAlignment, crossSize: float32) =
+  ## Shift each child across the main axis to its aligned place, laying out
+  ## again any that moved so their own children follow. `axis` is the main
+  ## axis: a vertical stack aligns x.
+  for child in children:
+    let size = if axis == faVertical: child.bounds.width else: child.bounds.height
+    let offset = crossOffset(align, crossSize, size)
+    if offset == 0:
+      continue
+    if axis == faVertical: child.bounds.x += offset
+    else: child.bounds.y += offset
+    child.layout()
 
 proc applyFlex*(children: seq[Widget], leftover: float32, axis: FlexAxis) =
   ## Grow the flex children into `leftover` and shift their followers. Every

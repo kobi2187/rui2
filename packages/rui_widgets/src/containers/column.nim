@@ -25,11 +25,7 @@ type
     SpaceAround      # Space around children
     SpaceEvenly      # Even space
 
-  CrossAxisAlignment* = enum
-    CrossStart       # Align to start (left)
-    CrossCenter      # Center children
-    CrossEnd         # Align to end (right)
-    CrossStretch     # Stretch to fill width
+  # CrossAxisAlignment lives in rui_core/flex.nim, shared with the stacks.
 
 defineWidget(Column):
   props:

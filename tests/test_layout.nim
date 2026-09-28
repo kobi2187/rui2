@@ -511,3 +511,44 @@ suite "self-sized widgets re-measure":
     inner.addChild(newLabel(text = "2", fontSize = 14.0))
     outer.layout()
     check inner.bounds.height > h1
+
+suite "cross-axis alignment in stacks":
+
+  test "stretch is the default and keeps today's behaviour":
+    let col = newVStack(spacing = 0.0)
+    col.bounds = Rect(x: 0, y: 0, width: 200, height: 100)
+    let l = newLabel(text = "x", fontSize = 14.0)
+    col.addChild(l)
+    col.layout()
+    check l.bounds.width == 200.0
+
+  test "a centred row lines a label up with a taller input":
+    let row = newHStack(spacing = 8.0, crossAlign = CrossCenter)
+    let l = newLabel(text = "Name:", fontSize = 14.0)
+    let t = newTextInput()
+    row.addChild(l)
+    row.addChild(t)
+    row.layout()
+    check t.bounds.height > l.bounds.height
+    let lMid = l.bounds.y + l.bounds.height / 2
+    let tMid = t.bounds.y + t.bounds.height / 2
+    check abs(lMid - tMid) < 0.5
+
+  test "end alignment in a VStack with a width puts children on the right":
+    let col = newVStack(spacing = 0.0, crossAlign = CrossEnd)
+    col.bounds = Rect(x: 10, y: 0, width: 200, height: 100)
+    let l = newLabel(text = "right", fontSize = 14.0)
+    col.addChild(l)
+    col.layout()
+    check l.bounds.x + l.bounds.width == 210.0
+    check l.bounds.width < 200.0
+
+  test "an aligned child's own children move with it":
+    let row = newHStack(spacing = 0.0, crossAlign = CrossEnd)
+    row.bounds = Rect(x: 0, y: 0, width: 300, height: 100)
+    let inner = newVStack(spacing = 0.0)
+    let leaf = newLabel(text = "deep", fontSize = 14.0)
+    inner.addChild(leaf)
+    row.addChild(inner)
+    row.layout()
+    check leaf.bounds.y + leaf.bounds.height == 100.0

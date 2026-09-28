@@ -95,9 +95,10 @@ The redesign, for min/max constraints and a cheaper second pass:
 ## P1 — Expected of any modern toolkit
 
 ### 5. Layout completeness *(medium; after #1)*
-- [ ] Cross-axis alignment for VStack/HStack. Move `CrossAxisAlignment` from
-  `containers/column.nim` into `rui_core` so the stacks can use it. Today a
-  label beside a taller input sits top-aligned.
+- [x] Cross-axis alignment for VStack/HStack (`crossAlign`), sharing
+  `CrossAxisAlignment` with Column from `rui_core/flex.nim`. The default,
+  Stretch, keeps the old behaviour; `CrossCenter` lines a label up with an
+  input.
 - [ ] `flexShrink` to complement the new `flexGrow` (`rui_core/flex.nim`).
 - [ ] A **Grid** container: rows/columns with fixed, auto and star sizes, plus
   spans.

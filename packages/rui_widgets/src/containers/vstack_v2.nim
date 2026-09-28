@@ -28,6 +28,9 @@ defineWidget(VStack):
   props:
     spacing: float = 8.0
     padding: float = 0.0
+    # Stretch (the default) gives every child the stack's width, when it has
+    # one. The others let children keep their own width and place them.
+    crossAlign: CrossAxisAlignment = CrossStretch
 
   layout:
     # Arrange children top to bottom, then size to content.
@@ -40,7 +43,7 @@ defineWidget(VStack):
     for child in widget.children:
       child.bounds.x = widget.bounds.x + widget.padding
       child.bounds.y = y
-      if hasWidth:
+      if hasWidth and widget.crossAlign == CrossStretch:
         child.bounds.width = max(0.0, widget.bounds.width - (widget.padding * 2))
       # else: leave it at 0 so the child's own layout measures itself
 
@@ -56,6 +59,11 @@ defineWidget(VStack):
       # Leftover height goes to the children with flexGrow (Spacer, ...)
       let used = (contentBottom - widget.bounds.y) + widget.padding
       applyFlex(widget.children, widget.bounds.height - used, faVertical)
+
+    if widget.crossAlign != CrossStretch:
+      let cross = if hasWidth: widget.bounds.width - widget.padding * 2
+                  else: maxChildWidth
+      alignCross(widget.children, faVertical, widget.crossAlign, cross)
 
     if not hasWidth:
       widget.bounds.width = maxChildWidth + widget.padding * 2
