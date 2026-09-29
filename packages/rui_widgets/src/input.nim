@@ -2,14 +2,11 @@
 ##
 ## Text entry and other editable controls.
 ##
-## TextInput and TextArea are the same editing model -- TextBuffer for the
-## caret and selection, text_content for measuring and drawing -- differing in
-## whether Enter submits or inserts a newline, and whether Up and Down move by
-## line or fall through to focus navigation.
+## One text widget, TextArea, whose properties limit it into the three roles:
+## Label (`editable = false`), TextInput (`multiline = false`) and TextArea.
+## TextBuffer holds the caret and selection; text_content measures and draws.
 
 import input/text_buffer
 export text_buffer
-import input/textinput
-export textinput
 import input/textarea
 export textarea

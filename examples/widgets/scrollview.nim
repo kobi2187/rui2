@@ -19,8 +19,7 @@ let root = newVStack(spacing = 12.0, padding = 20.0).named("root")
 
 root.addChild(newLabel(text = "Scrollable list below:", fontSize = 16.0).named("title"))
 
-let sv = newScrollView().named("scroll")
-sv.bounds = Rect(x: 0, y: 0, width: 400, height: 260)
+let sv = newScrollView().named("scroll").frame(width = 400, height = 260)
 
 let inner = newVStack(spacing = 6.0, padding = 6.0).named("inner")
 for i in 1 .. 30:

@@ -30,6 +30,7 @@
 import rui_core
 import std/[options, tables]
 import image_fit
+import rui_drawing
 export image_fit
 
 import raylib
@@ -37,13 +38,22 @@ import raylib
 # Cache for loaded textures to avoid reloading
 var textureCache {.global.}: Table[string, Texture2D]
 
+
+template drawNotice(widget: untyped, message: string, tint: Color) =
+  ## A short message centred in the image's box, in the real font. These used
+  ## raylib's bitmap drawText at a guessed offset, which clipped in any box
+  ## narrower than the guess ("Load Faile").
+  drawText(message, widget.bounds,
+           TextStyle(fontFamily: "", fontSize: 12.0, color: tint),
+           TextAlign.Center)
+
 definePrimitive(ImageWidget):
   props:
     imagePath: string = ""       # Path to image file
     width: float = 100.0          # Widget width
     height: float = 100.0         # Widget height
     fitMode: ImageFit = ImageFit.Contain
-    tintColor: Color = Color()   # Default color (white/no tint when graphics enabled)
+    tintColor: Color = WHITE     # Multiplies the image; white leaves it as it is
     disabled: bool = false
 
   state:
@@ -83,9 +93,7 @@ definePrimitive(ImageWidget):
         widget.bounds.height.int32,
         Color(r: 200, g: 200, b: 200, a: 255)
       )
-      let centerX = widget.bounds.x + widget.bounds.width / 2 - 20
-      let centerY = widget.bounds.y + widget.bounds.height / 2 - 10
-      drawText("No Image", centerX.int32, centerY.int32, 20'i32, GRAY)
+      widget.drawNotice("No image", GRAY)
       return
 
     # Try to load texture if not already loaded
@@ -149,6 +157,4 @@ definePrimitive(ImageWidget):
         widget.bounds.height.int32,
         Color(r: 200, g: 100, b: 100, a: 255)
       )
-      let centerX = widget.bounds.x + widget.bounds.width / 2 - 30
-      let centerY = widget.bounds.y + widget.bounds.height / 2 - 10
-      drawText("Load Failed", centerX.int32, centerY.int32, 16, RED)
+      widget.drawNotice("Load failed", RED)

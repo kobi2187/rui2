@@ -10,8 +10,9 @@
 ## - Cached Texture2D is reused when widget is clean
 
 import types
-import std/algorithm
+import std/[algorithm, math]
 import raylib
+from rlgl import setBlendFactorsSeparate, BlendFactor, BlendFuncOrEq
 
 
 # ============================================================================
@@ -32,6 +33,34 @@ proc freeWidgetTexture*(widget: Widget) =
   if widget.cachedTexture.isSome:
     widget.cachedTexture = none(RenderTexture2D)
 
+# ----------------------------------------------------------------------------
+# Blending
+#
+# Widget textures start transparent and are composited onto their parent. With
+# ordinary alpha blending that is wrong twice over: drawing a 35%-opaque shape
+# into a transparent texture stores alpha 0.35 * 0.35, and compositing then
+# multiplies the colour by alpha again. Anything translucent on a widget with no
+# opaque background of its own came out a fraction of its intended strength --
+# a standalone ScrollBar's thumb was all but invisible.
+#
+# So textures hold premultiplied colour. Drawing into one blends colour as
+# usual but alpha additively-over (`paintingIntoTexture`); drawing one onto
+# anything uses raylib's premultiplied mode (`compositingTextures`). Opaque
+# content comes out exactly as before.
+# ----------------------------------------------------------------------------
+
+template paintingIntoTexture*(body: untyped) =
+  setBlendFactorsSeparate(SrcAlpha, OneMinusSrcAlpha, One, OneMinusSrcAlpha,
+                          FuncAdd, FuncAdd)
+  beginBlendMode(BlendMode.CustomSeparate)
+  body
+  endBlendMode()
+
+template compositingTextures*(body: untyped) =
+  beginBlendMode(BlendMode.AlphaPremultiply)
+  body
+  endBlendMode()
+
 proc drawRenderTexture*(tex: RenderTexture2D, x, y: float32) =
   ## Blit a cached render target with its top-left corner at (x, y).
   ##
@@ -41,11 +70,15 @@ proc drawRenderTexture*(tex: RenderTexture2D, x, y: float32) =
   ## glyphs looked upright (two flips cancel) but every widget appeared mirrored
   ## about the window's vertical centre, so a top-aligned stack rendered from the
   ## bottom up in reverse order.
+  ##
+  ## The position is snapped to whole pixels: layout can leave a widget on a
+  ## half pixel (a centred child, say), and a texture blitted there is
+  ## resampled, which smears its text into a doubled ghost.
   let w = tex.texture.width.float32
   let h = tex.texture.height.float32
   drawTexture(tex.texture,
               Rectangle(x: 0, y: 0, width: w, height: -h),
-              Vector2(x: x, y: y),
+              Vector2(x: round(x), y: round(y)),
               White)
 
 proc intersect*(a, b: Rect): Rect =
@@ -70,6 +103,17 @@ proc drawRenderTexturePart*(tex: RenderTexture2D, dest: Rect, clip: Rect) =
   ## widget's own render texture -- it clips the wrong region unless the texture
   ## happens to be screen-sized. Clipping by source rectangle is arithmetic, not
   ## GL state, and is correct at any texture size.
+  ##
+  ## Like drawRenderTexture, the texture lands on whole pixels, and so does the
+  ## clip, so the source rectangle is whole texels and nothing is resampled.
+  let dest = Rect(x: round(dest.x), y: round(dest.y),
+                  width: tex.texture.width.float32,
+                  height: tex.texture.height.float32)
+  let clipL = round(clip.x)
+  let clipT = round(clip.y)
+  let clip = Rect(x: clipL, y: clipT,
+                  width: round(clip.x + clip.width) - clipL,
+                  height: round(clip.y + clip.height) - clipT)
   let visible = intersect(dest, clip)
   if visible.width <= 0 or visible.height <= 0:
     return
@@ -264,11 +308,13 @@ proc renderToTexture(widget: Widget) =
   let originalY = widget.bounds.y
   widget.bounds.x = 0
   widget.bounds.y = 0
-  widget.render()
+  paintingIntoTexture:
+    widget.render()
   widget.bounds.x = originalX
   widget.bounds.y = originalY
 
-  compositeChildren(widget, originalX, originalY)
+  compositingTextures:
+    compositeChildren(widget, originalX, originalY)
 
   endTextureMode()
   widget.cachedTexture = some(renderTex)
@@ -290,7 +336,7 @@ proc renderPass*(widget: Widget) =
 # Main Frame Function
 # ============================================================================
 
-proc frame*(rootWidget: Widget) =
+proc runFrame*(rootWidget: Widget) =
   ## Execute one frame:
   ## 1. Layout pass (if needed)
   ## 2. Render pass (if needed)
@@ -321,7 +367,7 @@ when false:
         rootWidget.handleInput(event.get())
 
       # 2. Update layout & render (two passes)
-      rootWidget.frame()
+      rootWidget.runFrame()
 
       # 3. Composite to screen
       # (For now, render() draws directly. Later, composite cached textures)

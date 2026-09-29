@@ -88,7 +88,7 @@ template selectRowAt*(widget: untyped, viewIdx: int): bool =
       assert viewIdx < widget.order.len,
              "rowAt must not return an index past the display order"
       updateSelection(widget.selected, widget.order[viewIdx],
-                      isKeyDown(LeftControl) or isKeyDown(RightControl))
+                      event.ctrl)
       widget.isDirty = true
       if widget.onSelect != nil:
         widget.onSelect(widget.selected)

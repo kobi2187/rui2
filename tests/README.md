@@ -23,6 +23,15 @@
 | `test_events.nim` | hit-test ordering, event bubbling, per-widget input handling |
 | `test_widgets.nim` | every shipped widget: construction, `initialX` seeding, sizing, scripting |
 | `test_text.nim` | Pango metrics, wrapping, cursor/hit-test, markup, caches |
+| `test_text_buffer.nim` | caret, selection and editing model; UTF-8 character boundaries |
+| `test_textarea.nim` | line/column arithmetic, goal column across short lines, Unicode typing |
+| `test_selectors.nim` | scripting selectors: ids, paths, `*` / `**`, type names |
+| `test_keyboard_nav.nim`, `test_focus_groups.nim` | tab stops, chain rebuilds, key scoping, focus groups |
+| `test_frame.nim` | a whole frame without a window (`stepHeadless` + `ListEventSource`) |
+| `test_ui_tree.nim` | the `ui:` block syntax |
+| `test_clip.nim`, `test_scroll_geometry.nim`, `test_virtual_rows.nim` | clipping, ScrollView geometry, row virtualisation |
+| `test_restored_widgets.nim`, `test_map.nim`, `test_image_fit.nim` | the 35 restored widgets and their extracted models |
+| `test_inspect.nim` | the `-d:ruiInspect` structure/geometry verbs |
 
 ## Why these tests exist
 

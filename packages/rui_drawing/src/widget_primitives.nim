@@ -25,6 +25,13 @@ proc drawText*(text: string, x, y: float32, fontSize: float32,
                 color: raylib.Color, centered = false) =
   ## Simple text drawing with x, y coordinates.
   ##
+  ## `y` is the top of a `fontSize`-high line -- which is what every caller
+  ## assumes when it centres text with `(height - fontSize) / 2`. Pango's line
+  ## box is taller than the font size (ascent + descent + leading), so drawing
+  ## the glyph texture straight at `y` put every such caption a few pixels low:
+  ## progress-bar percentages, checkbox and radio labels, tree rows. The line
+  ## box is centred on the caller's box instead.
+  ##
   ## Routed through the Pango-backed text primitive, like every other text path.
   ## It used to call raylib.drawText directly, which is why checkbox labels and
   ## progress-bar captions still rendered in the built-in bitmap font while the
@@ -33,7 +40,8 @@ proc drawText*(text: string, x, y: float32, fontSize: float32,
                         bold: false, italic: false, underline: false)
   let m = text.measureText(style)
   let xPos = if centered: x - m.width / 2 else: x
-  drawTextPango(text, xPos, y, style.pangoFont, color)
+  let yPos = y - (m.height - fontSize) / 2
+  drawTextPango(text, xPos, yPos, style.pangoFont, color)
 
 proc getPaddingLeft*(props: ThemeProps, default: float32): float32 =
   props.padding.get(EdgeInsets(left: default, top: default, right: default, bottom: default)).left
@@ -203,13 +211,18 @@ proc drawProgressBar*(rect: Rect, progress: float32, props: ThemeProps) =
 
 proc drawScrollbar*(rect: Rect, contentSize, viewSize, offset: float32,
                    props: ThemeProps, hovered = false) =
-  ## Scrollbar = reuse existing primitive with theme colors
+  ## Scrollbar = reuse existing primitive with theme colors.
+  ##
+  ## The primitive draws translucent tints of this colour, so the fallback --
+  ## for a theme that sets no foreground, which the built-in light theme does
+  ## not -- is a dark neutral. It was a light grey, and a 35% tint of light grey
+  ## on a light background is invisible.
   drawScrollbar(
     rect,
     contentSize,
     viewSize,
     offset,
-    props.foregroundColor.get(Color(r: 160, g: 160, b: 160, a: 255)),
+    props.foregroundColor.get(Color(r: 40, g: 40, b: 40, a: 255)),
     hovered
   )
 

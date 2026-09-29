@@ -10,7 +10,7 @@
 import rui
 import std/[options, os]
 
-let app = newApp("RUI2 - Panels and tabs", 620, 560)
+let app = newApp("RUI2 - Panels and tabs", 620, 600)
 
 proc named[T](x: T, id: string): T =
   x.stringId = id
@@ -21,8 +21,7 @@ let summary = newLabel(text = "tab 1", fontSize = 15.0).named("summary")
 root.addChild(summary)
 
 # Panel: a frame that insets whatever it holds.
-let panel = newPanel(padding = 10.0, cornerRadius = 6.0).named("panel")
-panel.bounds = Rect(x: 0, y: 0, width: 560, height: 60)
+let panel = newPanel(padding = 10.0, cornerRadius = 6.0).named("panel").frame(width = 560, height = 60)
 panel.addChild(newLabel(text = "Inside a Panel", fontSize = 14.0).named("panelText"))
 root.addChild(panel)
 
@@ -38,11 +37,10 @@ radios.onSelect = proc(index: int) =
 group.addChild(radios)
 root.addChild(group)
 
-# Column with cross-axis alignment, which VStack does not offer.
-root.addChild(newLabel(text = "Column, CrossCenter:", fontSize = 14.0).named("t1"))
-let column = newColumn(spacing = 6.0, mainAxisAlignment = MainStart,
-                       crossAxisAlignment = CrossCenter).named("column")
-column.bounds = Rect(x: 0, y: 0, width: 560, height: 90)
+# Column centres its children across; VStack stretches them.
+root.addChild(newLabel(text = "Column, centred:", fontSize = 14.0).named("t1"))
+let column = newColumn(spacing = 6.0, mainAxisAlignment = MainAxisAlignment.start,
+                       crossAxisAlignment = CrossAxisAlignment.center).named("column").frame(width = 560, height = 90)
 for (caption, id) in [("short", "colA"), ("a longer line", "colB"),
                       ("mid", "colC")]:
   column.addChild(newLabel(text = caption, fontSize = 14.0).named(id))
@@ -51,8 +49,7 @@ root.addChild(column)
 # TabControl: one child per tab, the inactive ones hidden rather than skipped.
 root.addChild(newLabel(text = "TabControl:", fontSize = 14.0).named("t2"))
 let tabs = newTabControl(tabs = @["First", "Second", "Third"],
-                         initialActiveTab = 0, tabBarHeight = 28.0).named("tabs")
-tabs.bounds = Rect(x: 0, y: 0, width: 560, height: 120)
+                         initialActiveTab = 0, tabBarHeight = 28.0).named("tabs").frame(width = 560, height = 120)
 for i, caption in ["Content of tab one", "Content of tab two",
                    "Content of tab three"]:
   let page = newVStack(spacing = 4.0, padding = 8.0).named("page" & $i)
@@ -68,8 +65,7 @@ root.addChild(tabs)
 
 # StatusBar: left message, right-aligned detail.
 let status = newStatusBar(text = "Ready", rightText = "Ln 1, Col 1",
-                          barHeight = 24.0).named("status")
-status.bounds = Rect(x: 0, y: 0, width: 560, height: 24)
+                          barHeight = 24.0).named("status").frame(width = 560, height = 24)
 root.addChild(status)
 
 app.setRootWidget(root)

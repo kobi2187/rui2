@@ -106,29 +106,34 @@ proc drawFocusRing*(rect: Rect, color: raylib.Color) =
 # Scrollbars and Handles
 # ============================================================================
 
+proc scrollThumb*(track: Rect, contentSize, viewSize, offset: float32,
+                  minThumb = 24.0'f32): Rect =
+  ## The thumb inside `track`, along its long side: its length is the visible
+  ## share of the content, its position the scrolled share of what is left.
+  ## Content that fits fills the track, and nothing divides by zero.
+  let vertical = track.height >= track.width
+  let length = if vertical: track.height else: track.width
+  let ratio = if contentSize <= 0: 1.0'f32 else: clamp(viewSize / contentSize, 0.0, 1.0)
+  let thumb = min(length, max(length * ratio, minThumb))
+  let slack = contentSize - viewSize
+  let t = if slack <= 0: 0.0'f32 else: clamp(offset / slack, 0.0, 1.0)
+  let along = (length - thumb) * t
+  if vertical:
+    Rect(x: track.x, y: track.y + along, width: track.width, height: thumb)
+  else:
+    Rect(x: track.x + along, y: track.y, width: thumb, height: track.height)
+
 proc drawScrollbar*(rect: Rect, contentSize, viewSize, offset: float32,
                    color: raylib.Color, hovered = false) =
-  ## Draws a scrollbar with thumb
-  # Track
-  drawRect(rect, color.dimColor(0.3))
-
-  # Calculate thumb size and position
-  let ratio = viewSize / contentSize
-  let thumbSize = max(rect.height * ratio, 40.0)
-  let maxOffset = contentSize - viewSize
-  let thumbOffset = (rect.height - thumbSize) * (offset / maxOffset)
-
-  # Thumb
-  drawRoundedRect(
-    Rect(
-      x: rect.x,
-      y: rect.y + thumbOffset,
-      width: rect.width,
-      height: thumbSize
-    ),
-    rect.width / 2,
-    if hovered: color else: color.dimColor(0.8)
-  )
+  ## A scrollbar across `rect`, vertical or horizontal by its shape.
+  ##
+  ## Track and thumb are translucent tints of `color`, which is normally the
+  ## theme's text colour. They used to be `color` itself and a dimmed copy --
+  ## on a light theme, whose text is black, that meant a solid black thumb.
+  drawRect(rect, color.withAlpha(0.08))
+  let thumb = scrollThumb(rect, contentSize, viewSize, offset)
+  let radius = min(thumb.width, thumb.height) / 2
+  drawRoundedRect(thumb, radius, color.withAlpha(if hovered: 0.55 else: 0.35))
 
 proc drawResizeHandle*(rect: Rect, color: raylib.Color) =
   ## Draws a resize handle in the corner
@@ -258,7 +263,7 @@ proc drawArrow*(rect: Rect, direction: ArrowDirection,
       Vector2(x: center.x - size, y: center.y + size)
     ]
 
-  drawTriangle(points[0], points[1], points[2], color)
+  drawTriangleAnyWinding(points[0], points[1], points[2], color)
 
 proc drawBadge*(text: string, rect: Rect, color: raylib.Color,
                 textColor: raylib.Color, style: TextStyle) =
@@ -289,42 +294,20 @@ proc drawBadge*(text: string, rect: Rect, color: raylib.Color,
 proc drawTooltip*(text: string, rect: Rect,
                   backgroundColor: raylib.Color, textColor: raylib.Color,
                   style: TextStyle) =
-  ## Draws a tooltip with arrow pointing to element
-  let padding = 6.0
-  let arrowSize = 5.0
-  let metrics = measureText(text, style)
-  let tooltipRect = Rect(
-    x: rect.x,
-    y: rect.y - metrics.height - padding * 2 - arrowSize,
-    width: metrics.width + padding * 2,
-    height: metrics.height + padding * 2
-  )
-
-  # Background
-  drawRoundedRect(tooltipRect, 4, backgroundColor)
-
-  # Arrow
-  let points = [
-    Vector2(x: rect.x + rect.width/2 - arrowSize,
-           y: tooltipRect.y + tooltipRect.height),
-    Vector2(x: rect.x + rect.width/2 + arrowSize,
-           y: tooltipRect.y + tooltipRect.height),
-    Vector2(x: rect.x + rect.width/2,
-           y: tooltipRect.y + tooltipRect.height + arrowSize)
-  ]
-  drawTriangle(points[0], points[1], points[2], backgroundColor)
-
-  # Text
-  drawText(
-    text,
-    Rect(
-      x: tooltipRect.x + padding,
-      y: tooltipRect.y + padding,
-      width: tooltipRect.width - padding * 2,
-      height: tooltipRect.height - padding * 2
-    ),
-    TextStyle(fontSize: style.fontSize, color: textColor)
-  )
+  ## A tooltip box filling `rect`, with the text inset by 6 px.
+  ##
+  ## Inside `rect`, not above it: this used to place the box at
+  ## `rect.y - height - arrow`, which is outside the widget's own render
+  ## texture -- so every tooltip was clipped away before it was ever seen.
+  let padding = 6.0'f32
+  drawRoundedRect(rect, 4, backgroundColor)
+  drawRoundedRectLines(rect, 4, 1, Color(r: 0, g: 0, b: 0, a: 60))
+  drawText(text,
+           Rect(x: rect.x + padding, y: rect.y + padding,
+                width: rect.width - padding * 2,
+                height: rect.height - padding * 2),
+           TextStyle(fontFamily: style.fontFamily, fontSize: style.fontSize,
+                     color: textColor))
 
 proc drawPlaceholder*(rect: Rect, text: string,
                      style: TextStyle, opacity = 0.5) =

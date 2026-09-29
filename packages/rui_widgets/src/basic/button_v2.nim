@@ -25,7 +25,8 @@
 
 import rui_core
 import rui_drawing
-import ../primitives/[rectangle, label]
+import ../primitives/rectangle
+import ../input/textarea   # the caption is a Label, i.e. a non-editable TextArea
 import raylib
 import std/[options, json]
 
@@ -101,7 +102,7 @@ defineWidget(Button):
     let props = currentTheme.getThemeProps(widget.intent,
       visualState(widget.disabled, widget.isPressed,
                   hovered = widget.isHovered, focused = widget.focused,
-                  ladder = slPointerFirst))
+                  ladder = currentTheme.ladderFor(crPointer)))
 
     let buttonColor = props.backgroundColor.get(GRAY)
     let textColor = props.foregroundColor.get(WHITE)

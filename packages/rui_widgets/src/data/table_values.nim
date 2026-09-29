@@ -4,7 +4,7 @@
 ## filtering, sorting, cell formatting, and two superseded copies of the
 ## scrolling arithmetic in one 329-line module.
 ##
-## A TableRow's values are JsonNode, so every other module here needs the same
+## A DataRow's values are JsonNode, so every other module here needs the same
 ## question answered first -- is this thing text or a number, and what does it
 ## say? The accessors are deliberately lenient: getStringValue renders a number
 ## as text rather than failing, because a filter typed into a search box has no
@@ -13,20 +13,24 @@
 import std/[json, strutils, tables]
 
 type
-  TableRow* = object
+  DataRow* = object
     id*: string
     values*: Table[string, JsonNode]
 
-proc hasColumn*(row: TableRow, colId: string): bool =
+proc hasColumn*(row: DataRow, colId: string): bool =
   colId in row.values
 
 
 proc getStringValue*(value: JsonNode): string =
-  ## Get string from JSON value
-  if value.kind == JString:
-    value.getStr()
-  else:
-    ""
+  ## The value as display text: a string as itself, a number or bool as it
+  ## reads, null as "". It returned "" for everything but strings -- contrary
+  ## to the module note above -- so a DataGrid's numeric columns drew blank.
+  case value.kind
+  of JString: value.getStr()
+  of JInt: $value.getInt()
+  of JFloat: $value.getFloat()
+  of JBool: $value.getBool()
+  else: ""
 
 proc getNumericValue*(value: JsonNode): float =
   ## Get numeric value from JSON
@@ -64,7 +68,7 @@ proc formatCellValue*(value: JsonNode, formatFunc: proc(v: JsonNode): string = n
   else:
     $value
 
-proc getCellText*(row: TableRow, colId: string, formatFunc: proc(v: JsonNode): string = nil): string =
+proc getCellText*(row: DataRow, colId: string, formatFunc: proc(v: JsonNode): string = nil): string =
   ## Get formatted text for cell
   if not hasColumn(row, colId):
     return ""

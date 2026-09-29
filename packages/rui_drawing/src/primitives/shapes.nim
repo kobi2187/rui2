@@ -24,6 +24,17 @@ type
 # Basic Shapes
 # ============================================================================
 
+proc drawTriangleAnyWinding*(a, b, c: Vector2, color: raylib.Color) =
+  ## raylib's drawTriangle only draws counter-clockwise triangles and silently
+  ## culls the rest. That hid the down and left arrows (Spinner and
+  ## NumberInput showed only their up arrow) and any arc drawn with increasing
+  ## angles. This orders the points so it draws whichever way they arrive.
+  let cross = (b.x - a.x) * (c.y - a.y) - (b.y - a.y) * (c.x - a.x)
+  if cross > 0:
+    drawTriangle(a, c, b, color)
+  else:
+    drawTriangle(a, b, c, color)
+
 proc drawRect*(rect: Rect, color: raylib.Color, filled = true) =
   ## Draws a rectangle with optional fill
   if filled:
@@ -128,7 +139,7 @@ proc drawPie*(centerX, centerY, radius: float32,
     )
 
   for i in 0..<points.high-1:
-    drawTriangle(points[0], points[i + 1], points[i + 2], color)
+    drawTriangleAnyWinding(points[0], points[i + 1], points[i + 2], color)
 
 proc drawBezier*(x1, y1, cp1x, cp1y, cp2x, cp2y, x2, y2: float32,
                  color: raylib.Color, thickness = 2.0f32) =

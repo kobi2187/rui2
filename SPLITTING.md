@@ -56,5 +56,5 @@ Tag each package **before** splitting the package that depends on it.
   (`requires "https://github.com/kobi2187/rui_core >= 0.2.0"`) to the bare
   registry form (`requires "rui_core >= 0.2.0"`) once the packages are added to
   the Nimble package directory.
-- Choose and add a license to each package before publishing (the `.nimble`
-  files currently carry a `# license` TODO).
+- Each package is MIT, with a `LICENSE` file in its own directory, so the
+  subtree split carries it along.

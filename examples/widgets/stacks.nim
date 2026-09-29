@@ -34,8 +34,7 @@ for col in 0 .. 1:
 root.addChild(outer)
 
 root.addChild(newLabel(text = "ZStack (layered):", fontSize = 15.0).named("t3"))
-let z = newZStack().named("z")
-z.bounds = Rect(x: 0, y: 0, width: 200, height: 60)
+let z = newZStack().named("z").frame(width = 200, height = 60)
 let back = newRectangle(color = Color(r: 90, g: 140, b: 220, a: 255),
                         cornerRadius = 8.0, filled = true).named("zBack")
 back.zIndex = 0

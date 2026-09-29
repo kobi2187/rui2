@@ -95,8 +95,7 @@ definePrimitive(ListBox):
         return false
 
       # A single-select list ignores ctrl rather than quietly multi-selecting.
-      let additive = widget.multiSelect and
-                     (isKeyDown(LeftControl) or isKeyDown(RightControl))
+      let additive = widget.multiSelect and event.ctrl
       updateSelection(widget.selection, idx, additive)
       widget.focusIndex = idx
       widget.isDirty = true

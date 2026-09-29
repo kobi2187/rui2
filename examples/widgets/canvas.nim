@@ -31,8 +31,7 @@ proc report(text: string) =
 let canvas = newCanvas(enableDrawing = true, drawingMode = dmFreehand,
                        defaultColor = Color(r: 30, g: 80, b: 160, a: 255),
                        defaultThickness = 2.0, showGrid = true,
-                       gridSize = 20.0).named("canvas")
-canvas.bounds = Rect(x: 0, y: 0, width: 580, height: 260)
+                       gridSize = 20.0).named("canvas").frame(width = 580, height = 260)
 canvas.onDrawComplete = proc(commands: seq[DrawCommand]) =
   report("canvas: " & $commands.len & " commands")
 
@@ -70,8 +69,7 @@ root.addChild(newLabel(text = "Drop .nim files below:",
 let drop = newDragDropArea(mode = dmFiles, acceptedExtensions = @[".nim"],
                            promptText = "Drag .nim files here",
                            hoverText = "Release to drop",
-                           multiple = true).named("drop")
-drop.bounds = Rect(x: 0, y: 0, width: 580, height: 110)
+                           multiple = true).named("drop").frame(width = 580, height = 110)
 drop.onFilesDropped = proc(files: seq[DroppedItem]) =
   var names: seq[string] = @[]
   for f in files:

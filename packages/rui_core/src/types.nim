@@ -2,7 +2,7 @@
 ##
 ## This file contains the fundamental types used throughout the framework.
 
-import std/[tables, sets, hashes, options, times, monotimes, json]
+import std/[tables, sets, hashes, options, times, monotimes, json, unicode]
 export sets, tables, options, json  # Export for use in other modules
 
 # Raylib types that are genuinely part of rui_core's interface.
@@ -108,6 +108,20 @@ type
 # ============================================================================
 
 type
+  CursorShape* = enum
+    ## The mouse cursor over a widget. rui's own names rather than raylib's
+    ## MouseCursor, whose `Default` would collide with ThemeIntent.Default.
+    csDefault    ## Inherit from the nearest ancestor that sets one; arrow at the root
+    csArrow
+    csText       ## I-beam, over editable text
+    csPointer    ## Pointing hand, over links
+    csCrosshair
+    csResizeH    ## Left-right, for splitters and column edges
+    csResizeV
+    csMove
+    csNotAllowed
+
+type
   Widget* = ref object of RootObj
     # Identity
     id*: WidgetId              # Internal numeric ID
@@ -149,6 +163,30 @@ type
       ##
       ## Orthogonal to `focusable`. A group is normally not a tab stop in its
       ## own right -- its members are.
+
+    sizeRequest*: Size
+      ## The size this widget asks for, per dimension; 0 is "no request". It
+      ## wins over what a parent assigns -- an explicit width beats stretch,
+      ## as in CSS -- and is set with `frame(width = ..., height = ...)`
+      ## rather than by writing `bounds`, which layout owns.
+    sizeMin*, sizeMax*: Size
+      ## Limits applied after layout; 0 in `sizeMax` is "unbounded".
+    ownWidth*, ownHeight*: float32
+      ## The size this widget gave *itself* at its last layout, or -1 for a
+      ## dimension its parent assigned. See `beginSelfSizing`.
+    cursorShape*: CursorShape
+      ## The pointer shape while hovering this widget. `csDefault` defers to
+      ## the parent, so a composite sets it once for all its parts.
+    flexLoose*: bool
+      ## Flexible's `FlexFit.loose`: take at most the flex share, not exactly it.
+    flexGrow*: float32
+      ## Share of a stack's leftover main-axis space this widget takes, like
+      ## CSS `flex-grow`. 0 (the default) keeps the widget at its own size.
+      ##
+      ## Only a stack with a fixed main-axis size has leftover space to hand
+      ## out; one that sizes to its content has none. A flex child is measured
+      ## at its natural size on every pass before it grows, so it shrinks back
+      ## when the stack does. See `rui_core/flex.nim`.
 
     # Dirty flags
     isDirty*: bool             # Needs re-render
@@ -261,6 +299,10 @@ type
     epNormal    # Regular updates
     epLow       # Background operations
 
+  KeyMod* = enum
+    ## A modifier held while an event happened.
+    kmShift, kmCtrl, kmAlt, kmSuper
+
   GuiEvent* = object
     kind*: EventKind
     priority*: EventPriority
@@ -271,6 +313,16 @@ type
     mousePos*: Point
     key*: KeyboardKey
     char*: char
+      ## The typed character when it is ASCII, otherwise '\0'. Kept for
+      ## callers that only care about ASCII (NumberInput's digits); anything
+      ## that inserts text should use `typedRune`.
+    rune*: Rune
+      ## The typed codepoint for an `evChar`. `char` alone is one byte and
+      ## cannot hold "é" or "ש" -- this can.
+    mods*: set[KeyMod]
+      ## Modifiers held when the event happened, on every event kind -- so a
+      ## Ctrl-click and a Shift+arrow are both answered from the event itself,
+      ## not from live keyboard state that a test or a script cannot set.
     windowSize*: Size
     wheelDelta*: float32  # Mouse wheel movement (positive = up, negative = down)
 
@@ -384,6 +436,8 @@ proc initWidgetBase*(widget: Widget) =
   widget.isDirty = true
   widget.layoutDirty = true
   widget.children = @[]
+  widget.ownWidth = -1
+  widget.ownHeight = -1
 
 # Structural change counter.
 #
@@ -408,6 +462,73 @@ proc noteStructureChanged*() =
 # ============================================================================
 # Base Widget Methods (to be overridden by specific widgets)
 # ============================================================================
+
+type SelfSizing* = tuple[width, height: bool]
+
+proc clampDimension*(value, lo, hi: float32): float32 =
+  ## `value` within [lo, hi], where a `hi` of 0 means no upper limit.
+  result = max(value, lo)
+  if hi > 0:
+    result = min(result, hi)
+
+proc beginSelfSizing*(widget: Widget): SelfSizing =
+  ## Run before a widget's `layout`: forget any size it gave itself last time.
+  ##
+  ## Widgets tell "my parent assigned this size" from "I have to measure" by
+  ## `bounds.width <= 0`. That only works once: after the first layout a
+  ## self-computed size is non-zero and looks assigned, so a VStack that sized
+  ## itself to two children stayed that height when a third arrived. A
+  ## dimension still equal to what the widget set itself is reset to 0 here,
+  ## so it is measured afresh; one the parent has since changed is left alone.
+  ##
+  ## Returns which dimensions start at zero, i.e. which the widget will be
+  ## sizing itself this time.
+  if widget.ownWidth >= 0 and widget.bounds.width == widget.ownWidth:
+    widget.bounds.width = 0
+  if widget.ownHeight >= 0 and widget.bounds.height == widget.ownHeight:
+    widget.bounds.height = 0
+  # A requested size is an assignment the widget makes on its own behalf, and
+  # it overrides the parent's -- so it is applied before the body runs and
+  # the children lay out inside it.
+  if widget.sizeRequest.width > 0:
+    widget.bounds.width = widget.sizeRequest.width
+  if widget.sizeRequest.height > 0:
+    widget.bounds.height = widget.sizeRequest.height
+  result = (widget.bounds.width <= 0, widget.bounds.height <= 0)
+  # An assigned size is clamped now, before the children see it; a self-
+  # computed one after the body has measured it (endSelfSizing).
+  if not result.width:
+    widget.bounds.width = clampDimension(widget.bounds.width,
+                                         widget.sizeMin.width, widget.sizeMax.width)
+  if not result.height:
+    widget.bounds.height = clampDimension(widget.bounds.height,
+                                          widget.sizeMin.height, widget.sizeMax.height)
+
+proc endSelfSizing*(widget: Widget, sizing: SelfSizing) =
+  ## Run after `layout`: clamp what the widget gave itself, and remember it.
+  if sizing.width:
+    widget.bounds.width = clampDimension(widget.bounds.width,
+                                         widget.sizeMin.width, widget.sizeMax.width)
+  if sizing.height:
+    widget.bounds.height = clampDimension(widget.bounds.height,
+                                          widget.sizeMin.height, widget.sizeMax.height)
+  widget.ownWidth = if sizing.width: widget.bounds.width else: -1.0'f32
+  widget.ownHeight = if sizing.height: widget.bounds.height else: -1.0'f32
+
+proc effectiveCursor*(widget: Widget): CursorShape =
+  ## The shape to show over `widget`: its own, or the nearest ancestor's.
+  var w = widget
+  while w != nil:
+    if w.cursorShape != csDefault:
+      return w.cursorShape
+    w = w.parent
+  csArrow
+
+proc typedRune*(e: GuiEvent): Rune =
+  ## The codepoint an `evChar` carries: `rune` when the source set it,
+  ## otherwise the ASCII `char`, so an event built with only `char:` still
+  ## types what it says.
+  if e.rune.int32 > 0: e.rune else: Rune(ord(e.char))
 
 method render*(widget: Widget) {.base.} =
   ## Render this widget. Override in derived types.

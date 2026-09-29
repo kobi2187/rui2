@@ -6,6 +6,8 @@
 
 import std/unittest
 import rui
+import std/[monotimes, unicode, times]
+from raylib import KeyboardKey
 
 suite "finding the lines":
 
@@ -77,6 +79,32 @@ suite "moving between lines":
     check lineOf(text, target) == 1
     check columnOf(text, target) == 0
 
+suite "a run of Up/Down keeps its column":
+
+  test "passing through a short line does not drift left":
+    const text = "long line here\nab\nanother line"
+    # Caret at column 10 of line 0.
+    let first = verticalMove(text, 10, -1, down = true)
+    check lineOf(text, first.index) == 1
+    check first.index == lineEnd(text, 1)          # clamped on the short line
+    check first.goalColumn == 10                   # ...but still aiming for 10
+    let second = verticalMove(text, first.index, first.goalColumn, down = true)
+    check lineOf(text, second.index) == 2
+    check columnOf(text, second.index) == 10       # back at the column it left
+
+  test "without a run the caret's own column is the goal":
+    const text = "abcdef\nabcdef"
+    let move = verticalMove(text, 3, -1, down = true)
+    check move.goalColumn == 3
+    check columnOf(text, move.index) == 3
+
+  test "moving up works the same way":
+    const text = "first line\nx\nthird line"
+    let start = lineStarts(text)[2] + 7
+    let up1 = verticalMove(text, start, -1, down = false)
+    let up2 = verticalMove(text, up1.index, up1.goalColumn, down = false)
+    check columnOf(text, up2.index) == 7
+
 suite "the widget":
 
   test "it constructs and seeds from initialText":
@@ -108,3 +136,300 @@ suite "the widget":
     let res = ta.handleScriptAction("write", %*{"value": "typed"})
     check res["success"].getBool()
     check ta.text == "typed"
+
+  test "Down, Down through a short line comes back to the column":
+    let ta = newTextArea(initialText = "long line here\nab\nanother line")
+    ta.focused = true
+    ta.cursorPos = 10
+    proc press(k: KeyboardKey) =
+      discard ta.handleInput(GuiEvent(kind: evKeyDown, key: k,
+                                      timestamp: getMonoTime()))
+    press(KeyboardKey.Down)
+    check lineOf(ta.text, ta.cursorPos) == 1
+    press(KeyboardKey.Down)
+    check columnOf(ta.text, ta.cursorPos) == 10
+
+  test "a sideways move starts a new run":
+    let ta = newTextArea(initialText = "long line here\nab\nanother line")
+    ta.focused = true
+    ta.cursorPos = 10
+    proc press(k: KeyboardKey) =
+      discard ta.handleInput(GuiEvent(kind: evKeyDown, key: k,
+                                      timestamp: getMonoTime()))
+    press(KeyboardKey.Down)                    # clamped to column 2
+    press(KeyboardKey.Left)                    # column 1, run over
+    press(KeyboardKey.Down)
+    check columnOf(ta.text, ta.cursorPos) == 1
+
+suite "typing beyond ASCII":
+
+  test "a typed codepoint is inserted whole":
+    let ta = newTextArea()
+    ta.focused = true
+    for r in "שלום é".runes:
+      discard ta.handleInput(GuiEvent(kind: evChar, rune: r,
+                                      timestamp: getMonoTime()))
+    check ta.text == "שלום é"
+    check ta.cursorPos == ta.text.len
+
+  test "an event built with only char still types it":
+    let ta = newTextArea()
+    ta.focused = true
+    discard ta.handleInput(GuiEvent(kind: evChar, char: 'x',
+                                    timestamp: getMonoTime()))
+    check ta.text == "x"
+
+  test "Left steps back over a whole character":
+    let ta = newTextArea(initialText = "a€")
+    ta.focused = true
+    ta.cursorPos = ta.text.len
+    discard ta.handleInput(GuiEvent(kind: evKeyDown, key: KeyboardKey.Left,
+                                    timestamp: getMonoTime()))
+    check ta.cursorPos == 1
+
+  test "columns count characters, so Up/Down line them up":
+    const text = "éé|\nab|"
+    check columnOf(text, 4) == 2                       # after "éé" (4 bytes)
+    check indexAtLineColumn(text, 1, 2) == lineStarts(text)[1] + 2
+    check verticalMove(text, 4, -1, down = true).index == lineStarts(text)[1] + 2
+
+suite "one text widget, limited by properties":
+  ## Label, TextInput and TextArea are one type. What differs is properties,
+  ## and getTypeName reports the role they give a widget.
+
+  proc key(w: TextArea, k: KeyboardKey): bool =
+    w.handleInput(GuiEvent(kind: evKeyDown, key: k, timestamp: getMonoTime()))
+
+  proc typeText(w: TextArea, s: string) =
+    for r in s.runes:
+      discard w.handleInput(GuiEvent(kind: evChar, rune: r,
+                                     timestamp: getMonoTime()))
+
+  test "Label and TextInput are TextArea":
+    check newLabel(text = "x") of TextArea
+    check newTextInput() of TextArea
+    check Label is TextArea
+    check TextInput is TextArea
+
+  test "the reported type follows the limiting properties":
+    check newLabel(text = "x").getTypeName() == "Label"
+    check newTextInput().getTypeName() == "TextInput"
+    check newTextArea().getTypeName() == "TextArea"
+    let w = newTextArea()
+    w.multiline = false
+    check w.getTypeName() == "TextInput"
+    w.editable = false
+    check w.getTypeName() == "Label"
+
+  test "a Label takes no input, so it cannot swallow a click":
+    let l = newLabel(text = "caption")
+    l.focused = true
+    check not l.focusable
+    check not l.handleInput(GuiEvent(kind: evMouseDown,
+                                     mousePos: Point(x: 1, y: 1)))
+    check not l.key(KeyboardKey.Backspace)
+    l.typeText("z")
+    check l.text == "caption"
+
+  test "a Button's caption does not take its clicks":
+    let b = newButton(text = "Go")
+    b.layout()
+    let caption = b.children[1]
+    check caption.getTypeName() == "Label"
+    check not caption.handleInput(GuiEvent(kind: evMouseDown,
+                                           mousePos: Point(x: 1, y: 1)))
+
+  test "a TextInput submits on Enter instead of adding a line":
+    var submitted = ""
+    let t = newTextInput(onSubmit = proc(s: string) = submitted = s)
+    t.focused = true
+    t.typeText("hi")
+    check t.key(KeyboardKey.Enter)
+    check t.text == "hi"
+    check submitted == "hi"
+
+  test "a TextInput leaves Up and Down to focus navigation":
+    let t = newTextInput(initialText = "one line")
+    t.focused = true
+    check not t.key(KeyboardKey.Up)
+    check not t.key(KeyboardKey.Down)
+
+  test "maxLines stops Enter at the limit":
+    let a = newTextArea(maxLines = 2)
+    a.focused = true
+    a.typeText("a")
+    discard a.key(KeyboardKey.Enter)
+    a.typeText("b")
+    discard a.key(KeyboardKey.Enter)      # would be a third line
+    check a.text == "a\nb"
+
+  test "maxLength limits every role that edits":
+    let t = newTextInput(maxLength = 3)
+    t.focused = true
+    t.typeText("abcdef")
+    check t.text == "abc"
+
+  test "a read-only TextArea keeps its frame but refuses edits":
+    let a = newTextArea(initialText = "fixed", editable = false)
+    a.focused = true
+    a.typeText("x")
+    check a.text == "fixed"
+    check a.framed
+
+  test "a Label sizes to its text with no padding; an input pads":
+    let l = newLabel(text = "same", fontSize = 14.0)
+    let t = newTextInput(initialText = "same", padding = 8.0)
+    l.layout()
+    t.layout()
+    check t.bounds.height == l.bounds.height + 16.0
+
+  test "a Label re-measures when its text changes":
+    let l = newLabel(text = "a", fontSize = 14.0)
+    l.layout()
+    let w1 = l.bounds.width
+    l.text = "a much longer caption"
+    l.layout()
+    check l.bounds.width > w1
+
+  test "a Label's text is what a script writes":
+    let l = newLabel(text = "before")
+    discard l.handleScriptAction("write", %*{"value": "after"})
+    check l.text == "after"
+    check l.getScriptableState()["type"].getStr() == "Label"
+
+suite "editing shortcuts":
+  ## Clipboard through the in-memory seam; modifiers on the event.
+
+  proc press(w: TextArea, k: KeyboardKey, mods: set[KeyMod] = {}): bool =
+    w.handleInput(GuiEvent(kind: evKeyDown, key: k, mods: mods,
+                           timestamp: getMonoTime()))
+
+  proc typeText(w: TextArea, s: string) =
+    for r in s.runes:
+      discard w.handleInput(GuiEvent(kind: evChar, rune: r,
+                                     timestamp: getMonoTime()))
+
+  setup:
+    useClipboard(memoryClipboard())
+
+  test "Ctrl+A, Ctrl+C, Ctrl+V":
+    let a = newTextInput(initialText = "copy me")
+    let b = newTextInput()
+    a.focused = true
+    b.focused = true
+    check a.press(KeyboardKey.A, {kmCtrl})
+    check a.press(KeyboardKey.C, {kmCtrl})
+    check clipboardText() == "copy me"
+    check b.press(KeyboardKey.V, {kmCtrl})
+    check b.text == "copy me"
+
+  test "Ctrl+X cuts":
+    let a = newTextArea(initialText = "cut this")
+    a.focused = true
+    discard a.press(KeyboardKey.A, {kmCtrl})
+    discard a.press(KeyboardKey.X, {kmCtrl})
+    check a.text == ""
+    check clipboardText() == "cut this"
+
+  test "pasting a paragraph into a TextInput keeps it on one line":
+    setClipboardText("line one\nline two")
+    let t = newTextInput()
+    t.focused = true
+    discard t.press(KeyboardKey.V, {kmCtrl})
+    check t.text == "line one line two"
+
+  test "Ctrl+Z undoes typing a word at a time; Ctrl+Shift+Z and Ctrl+Y redo":
+    let a = newTextArea()
+    a.focused = true
+    a.typeText("hello world")
+    check a.press(KeyboardKey.Z, {kmCtrl})
+    check a.text == "hello "
+    check a.press(KeyboardKey.Z, {kmShift, kmCtrl})
+    check a.text == "hello world"
+    discard a.press(KeyboardKey.Z, {kmCtrl})
+    discard a.press(KeyboardKey.Y, {kmCtrl})
+    check a.text == "hello world"
+
+  test "an undo fires onChange, since the text changed":
+    var seen = ""
+    let a = newTextArea(onChange = proc(t: string) = seen = t)
+    a.focused = true
+    a.typeText("abc")
+    discard a.press(KeyboardKey.Z, {kmCtrl})
+    check seen == ""
+
+  test "Ctrl+arrows move by word, Shift extends":
+    let a = newTextInput(initialText = "one two three")
+    a.focused = true
+    discard a.press(KeyboardKey.Right, {kmCtrl})
+    check a.cursorPos == 3
+    discard a.press(KeyboardKey.Right, {kmCtrl, kmShift})
+    check a.selectionStart == 3 and a.selectionEnd == 7
+
+  test "Ctrl+Backspace deletes a word":
+    let a = newTextInput(initialText = "one two")
+    a.focused = true
+    a.cursorPos = a.text.len
+    discard a.press(KeyboardKey.Backspace, {kmCtrl})
+    check a.text == "one "
+
+  test "Ctrl+Enter submits a multi-line area":
+    var got = ""
+    let a = newTextArea(onSubmit = proc(t: string) = got = t)
+    a.focused = true
+    a.typeText("done")
+    check a.press(KeyboardKey.Enter, {kmCtrl})
+    check got == "done"
+    check a.text == "done"                     # no newline added
+
+  test "an unused Ctrl chord is left for the application":
+    let a = newTextArea()
+    a.focused = true
+    check not a.press(KeyboardKey.Q, {kmCtrl})
+
+  test "a double-click selects a word, a triple-click the line":
+    let a = newTextArea(initialText = "first line\nsecond")
+    a.layout()
+    let t0 = getMonoTime()
+    proc click(dt: int) =
+      discard a.handleInput(GuiEvent(kind: evMouseDown,
+        mousePos: Point(x: a.bounds.x + a.padding + 2, y: a.bounds.y + a.padding + 2),
+        timestamp: t0 + initDuration(milliseconds = dt)))
+      discard a.handleInput(GuiEvent(kind: evMouseUp,
+        timestamp: t0 + initDuration(milliseconds = dt + 10)))
+    click(0)
+    click(100)
+    check a.selectionStart == 0 and a.selectionEnd == 5     # "first"
+    click(200)
+    check a.selectionEnd == "first line".len                # the whole line
+    click(2000)                                             # too slow: a click
+    check a.selectionStart == -1 or a.selectionStart == a.selectionEnd
+
+  test "editable text shows an I-beam; a label defers to its parent":
+    let t = newTextInput()
+    t.layout()
+    check t.cursorShape == csText
+    let l = newLabel(text = "x")
+    l.layout()
+    check l.cursorShape == csDefault
+    let b = newButton(text = "Go")
+    b.layout()
+    check b.children[1].effectiveCursor == csArrow
+
+suite "keeping the caret in view":
+
+  test "a caret inside the view does not scroll":
+    check scrollToShow(0.0, 50.0, 1.0, 100.0, 300.0) == 0.0
+
+  test "past the right edge scrolls just far enough":
+    check scrollToShow(0.0, 150.0, 1.0, 100.0, 300.0) == 51.0
+
+  test "before the left edge scrolls back to it":
+    check scrollToShow(80.0, 20.0, 1.0, 100.0, 300.0) == 20.0
+
+  test "never scrolls into blank space past the content":
+    # The text shrank: the old offset would show nothing but padding.
+    check scrollToShow(200.0, 10.0, 1.0, 100.0, 50.0) == 0.0
+
+  test "short content never scrolls":
+    check scrollToShow(0.0, 40.0, 1.0, 100.0, 60.0) == 0.0

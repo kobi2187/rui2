@@ -83,6 +83,18 @@ type
     # Control
     shouldClose*: bool
 
+    # Idling
+    idleWhenClean*: bool
+      ## Skip drawing and presenting frames in which nothing was painted, and
+      ## sleep instead. On by default; off gives the old always-present loop.
+    idleRefresh*: Duration
+      ## Present at least this often even when idle, so a window uncovered by
+      ## another one does not show garbage on a compositor-less desktop.
+    lastPresent: MonoTime
+    indicatorShown: bool
+    cursorShown: CursorShape
+    overlaysSeen: int
+
 # Global app instance (for convenience - can also be passed explicitly)
 var app*: App
 
@@ -129,6 +141,8 @@ proc newApp*(title = "RUI Application",
     scriptDir: "",
     lastScriptPoll: getMonoTime(),
     shouldClose: false,
+    idleWhenClean: true,
+    idleRefresh: initDuration(seconds = 1),
 
     eventSource: newRaylibEventSource()
   )
@@ -169,12 +183,12 @@ proc setRootWidget*(app: App, root: Widget) =
 proc injectKey(app: App, keyName: string): bool =
   ## Synthesise a key press at whatever currently has focus. **Test-only** --
   ## reached from `enableScripting` under -d:ruiTestKeys and nowhere else.
-  var key: KeyboardKey
-  try:
-    key = parseEnum[KeyboardKey](keyName)
-  except ValueError:
+  ## Takes a chord as well as a bare key: "Tab", "Shift+Tab", "Ctrl+Z".
+  let chord = parseKeyChord(keyName)
+  if chord.isNone:
     return false
-  let event = GuiEvent(kind: evKeyDown, key: key, timestamp: getMonoTime())
+  let event = GuiEvent(kind: evKeyDown, key: chord.get.key,
+                       mods: chord.get.mods, timestamp: getMonoTime())
   result = app.focusManager.handleKeyboardEvent(event, app.tree.root)
   if result:
     app.tree.anyDirty = true
@@ -444,6 +458,8 @@ proc refreshLayout*(app: App) =
   let layoutWillRun = app.tree.root.layoutDirty or
                       app.tree.root.anyChildLayoutDirty()
   app.tree.root.layoutPass()
+  for overlay in overlays():
+    overlay.layoutPass()
 
   # Both of these walk the whole tree, and both only have anything to do when
   # bounds moved or a widget appeared -- so they are gated on layout having
@@ -457,13 +473,24 @@ proc refreshLayout*(app: App) =
   # to follow layout because a widget can be added during it.
   app.tree.registerWidgetRecursive(app.tree.root)
 
-proc updateLayoutAndRender(app: App) =
-  ## Lay out, then paint whatever is dirty into the widget textures.
+proc updateLayoutAndRender(app: App): bool =
+  ## Lay out, then paint whatever is dirty into the widget textures. Returns
+  ## whether anything was painted -- which is what decides if the frame needs
+  ## presenting at all.
   if app.tree.root == nil:
-    return
+    return false
   app.refreshLayout()
   if app.tree.root.isDirty or app.tree.root.anyChildDirty():
     app.tree.root.renderPass()
+    result = true
+  for overlay in overlays():
+    if overlay.isDirty or overlay.anyChildDirty():
+      overlay.renderPass()
+      result = true
+  # Showing or hiding an overlay repaints no texture, but the screen changes.
+  if overlayVersion() != app.overlaysSeen:
+    app.overlaysSeen = overlayVersion()
+    result = true
   app.tree.anyDirty = false
 
 # ============================================================================
@@ -493,9 +520,17 @@ proc drawScriptingIndicator() =
   drawText(indicatorText, textX, 5'i32, 14'i32, scriptColor)
 
 proc compositeRoot(app: App) =
-  if app.tree.root != nil and app.tree.root.cachedTexture.isSome:
-    drawRenderTexture(app.tree.root.cachedTexture.get(),
-                      app.tree.root.bounds.x, app.tree.root.bounds.y)
+  ## Widget textures hold premultiplied colour (see main_loop), so they reach
+  ## the screen through the premultiplied blend too.
+  compositingTextures:
+    if app.tree.root != nil and app.tree.root.cachedTexture.isSome:
+      drawRenderTexture(app.tree.root.cachedTexture.get(),
+                        app.tree.root.bounds.x, app.tree.root.bounds.y)
+    # Then the overlay layer, in the order shown, above the whole tree.
+    for overlay in overlays():
+      if overlay.visible and overlay.cachedTexture.isSome:
+        drawRenderTexture(overlay.cachedTexture.get(),
+                          overlay.bounds.x, overlay.bounds.y)
 
 proc beingScripted(app: App): bool =
   app.scriptManager != nil and app.scriptManager.isBeingScripted()
@@ -535,9 +570,35 @@ proc pollScriptCommands(app: App) =
 # Main Loop
 # ============================================================================
 
+proc systemClipboard(): Clipboard =
+  ## The OS clipboard, through raylib. Only valid once a window exists.
+  Clipboard(get: proc(): string = raylib.getClipboardText(),
+            put: proc(text: string) = raylib.setClipboardText(text))
+
+proc raylibCursor(shape: CursorShape): MouseCursor =
+  case shape
+  of csDefault, csArrow: MouseCursor.Arrow
+  of csText: MouseCursor.Ibeam
+  of csPointer: MouseCursor.PointingHand
+  of csCrosshair: MouseCursor.Crosshair
+  of csResizeH: MouseCursor.ResizeEw
+  of csResizeV: MouseCursor.ResizeNs
+  of csMove: MouseCursor.ResizeAll
+  of csNotAllowed: MouseCursor.NotAllowed
+
+proc applyCursor(app: App) =
+  ## Show the hovered widget's pointer shape. Only calls into the window when
+  ## the shape changes, which on most frames it does not.
+  let hovered = app.hoverTracker.hovered
+  let shape = if hovered == nil: csArrow else: hovered.effectiveCursor
+  if shape != app.cursorShown:
+    app.cursorShown = shape
+    setMouseCursor(raylibCursor(shape))
+
 proc openWindow(app: App) =
   initWindow(app.window.width.int32, app.window.height.int32, app.window.title)
   setTargetFPS(app.window.fps.int32)
+  useClipboard(systemClipboard())
   if not app.window.resizable:
     return
   setWindowState(flags(WindowResizable))
@@ -587,10 +648,13 @@ proc stepHeadless*(app: App) =
   app.pumpEvents()
   app.refreshLayout()
 
-proc step*(app: App) =
+proc step*(app: App): bool {.discardable.} =
   ## One frame of the pipeline, without the window or the loop around it.
-  ## Needs a GL context, because it paints.
+  ## Needs a GL context, because it paints. Returns whether anything was
+  ## painted.
   app.pumpEvents()
+  if fireDueRepaints():
+    app.tree.anyDirty = true
   app.updateLayoutAndRender()
 
 proc countFrame(app: App) =
@@ -602,6 +666,29 @@ proc countFrame(app: App) =
     app.currentFPS = float(app.frameCount)
     app.frameCount = 0
     app.fpsUpdateTime = now
+
+proc shouldPresent(app: App, painted: bool, now: MonoTime): bool =
+  ## Whether this frame has to reach the screen. Painting is the usual reason;
+  ## the others are the scripting indicator appearing or going, and the idle
+  ## refresh.
+  if painted or not app.idleWhenClean:
+    return true
+  let indicator = app.beingScripted
+  if indicator != app.indicatorShown:
+    app.indicatorShown = indicator
+    return true
+  now - app.lastPresent >= app.idleRefresh
+
+proc idleUntilNextFrame(app: App, frameStart: MonoTime) =
+  ## An idle frame: no drawing and no buffer swap, just input polling and a
+  ## sleep for the rest of the frame period. endDrawing normally does both --
+  ## polls input, then waits out the frame, partly by busy-waiting -- which is
+  ## why an unchanged window used to cost a steady slice of a core.
+  pollInputEvents()
+  let period = initDuration(nanoseconds = 1_000_000_000 div max(1, app.window.fps))
+  let remaining = period - (getMonoTime() - frameStart)
+  if remaining > DurationZero:
+    sleep(max(1, remaining.inMilliseconds.int))
 
 proc run*(app: App, maxFrames: int = -1) =
   ## Run the main application loop.
@@ -621,9 +708,14 @@ proc run*(app: App, maxFrames: int = -1) =
     inc framesRun
 
     let frameStart = getMonoTime()
-    app.step()
-    app.renderFrame()       # 6. Composite to screen
-    app.countFrame()
+    let painted = app.step()
+    app.applyCursor()
+    if app.shouldPresent(painted, frameStart):
+      app.renderFrame()       # 6. Composite to screen
+      app.lastPresent = frameStart
+      app.countFrame()
+    else:
+      app.idleUntilNextFrame(frameStart)
     app.lastFrameTime = frameStart
 
 # ============================================================================

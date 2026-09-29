@@ -117,6 +117,11 @@ expect "clearing the previous"          '"focused":false'  "27 clickButton read"
 send "28 * key Tab" >/dev/null
 expect "Tab reaches the checkbox"       '"focused":true'   "29 agree read"
 expect "a static label is never a stop" '"focused":false'  "30 title read"
+# A chord: the modifier travels on the event, so Shift+Tab can be driven from
+# a script at all. It used to be read from the live keyboard.
+send "31 * key Shift+Tab" >/dev/null
+expect "Shift+Tab goes back"            '"focused":true'   "32 quitButton read"
+expect "leaving the checkbox"           '"focused":false'  "33 agree read"
 
 # ---------------------------------------------------------------------------
 # Inspection: what a screenshot answers badly.

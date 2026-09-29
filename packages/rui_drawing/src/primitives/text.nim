@@ -5,6 +5,7 @@
 
 import raylib
 import strutils
+import std/math
 import rui_core
 import shapes      # For drawLine (underline support)
 import ../pango_text  # Real font rasterisation and metrics
@@ -39,9 +40,16 @@ type
 # Text Measurement
 # ============================================================================
 
+var themeFontFamily* = ""
+  ## The family a style with no family of its own uses: the current theme's
+  ## typography, set by setCurrentTheme. "" is the system sans.
+
 proc pangoFont*(style: TextStyle): string {.inline.} =
-  ## Translate a TextStyle into a Pango font description.
-  fontDescString(style.fontFamily, style.fontSize, style.bold, style.italic)
+  ## Translate a TextStyle into a Pango font description. A style that names
+  ## no family gets the theme's, so a branded theme's typography reaches every
+  ## caption without each widget asking for it.
+  let family = if style.fontFamily.len > 0: style.fontFamily else: themeFontFamily
+  fontDescString(family, style.fontSize, style.bold, style.italic)
 
 proc measureText*(text: string, style: TextStyle): TextMetrics =
   ## Measure text with the real font.
@@ -93,14 +101,16 @@ proc drawText*(text: string, rect: Rect, style: TextStyle,
   let y = rect.y + (rect.height - metrics.height) / 2
   drawTextPango(text, x, y, style.pangoFont, style.color)
 
-  # Underline if needed
+  # Underline just under the baseline, where type puts it -- not at the bottom
+  # of the line box, which sits below the descenders and reads as a rule
+  # under the whole row rather than under the word.
   if style.underline:
-    let underlineY = rect.y + (rect.height + metrics.height) / 2
+    let underlineY = round(y + metrics.baseline + max(1.0'f32, style.fontSize * 0.1))
     drawLine(
       x, underlineY,
       x + metrics.width, underlineY,
       style.color,
-      style.fontSize * 0.05
+      max(1.0'f32, style.fontSize * 0.07)   # thinner than a pixel does not draw
     )
 
 # ============================================================================

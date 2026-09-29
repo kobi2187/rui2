@@ -12,7 +12,7 @@
 
 import std/unittest
 import rui
-import std/json
+import std/[json, tables, strutils, options]
 
 suite "theme: registry and switching":
 
@@ -348,9 +348,9 @@ suite "themeProps reads the widget's own flags":
   test "it uses hovered and focused from the base Widget fields":
     let w = newButton(text = "x")
     w.hovered = true
-    let hovered = w.themeProps(ThemeIntent.Default, slPointerFirst)
+    let hovered = w.themeProps(ThemeIntent.Default, crPointer)
     w.hovered = false
-    let normal = w.themeProps(ThemeIntent.Default, slPointerFirst)
+    let normal = w.themeProps(ThemeIntent.Default, crPointer)
     # The built-in light theme gives these different backgrounds; what matters
     # here is that the flag is being read at all.
     check hovered != normal
@@ -362,3 +362,116 @@ suite "themeProps reads the widget's own flags":
     let pressed = w.themeProps(ThemeIntent.Default, pressed = true)
     let disabled = w.themeProps(ThemeIntent.Default, disabled = true)
     check pressed != disabled
+
+suite "the theme owns the hover-or-focus preference":
+  ## A widget says what it is (crText / crPointer); which of hover and focus
+  ## wins is the theme's call, read from the in-memory currentTheme on every
+  ## lookup -- never re-read from the theme file.
+
+  proc noExtends(name: string): Theme = newTheme(name)
+
+  test "a fresh theme keeps the library's defaults":
+    let t = newTheme("t")
+    check t.ladderFor(crText) == slFocusFirst
+    check t.ladderFor(crPointer) == slPointerFirst
+
+  test "a zero-initialised theme gets the defaults too":
+    var t: Theme
+    check t.ladderFor(crText) == slFocusFirst
+    check t.ladderFor(crPointer) == slPointerFirst
+
+  test "a theme file can override either role":
+    let t = parseTheme("""
+name: prefs
+statePreference:
+  text: hover
+  pointer: focus
+""", tffYaml, noExtends)
+    check t.ladderFor(crText) == slPointerFirst
+    check t.ladderFor(crPointer) == slFocusFirst
+
+  test "an unknown role or preference is an error, not a silent default":
+    expect ValueError:
+      discard parseTheme("statePreference: {slider: focus}", tffYaml, noExtends)
+    expect ValueError:
+      discard parseTheme("statePreference: {text: sometimes}", tffYaml, noExtends)
+
+  test "themeProps follows the current theme's preference":
+    let saved = currentTheme
+    defer: currentTheme = saved
+    var t = newTheme("prefs")
+    t.states[ThemeIntent.Default][ThemeState.Hovered] =
+      ThemeProps(backgroundColor: some(Color(r: 1, g: 0, b: 0, a: 255)))
+    t.states[ThemeIntent.Default][ThemeState.Focused] =
+      ThemeProps(backgroundColor: some(Color(r: 0, g: 0, b: 1, a: 255)))
+    let w = newButton(text = "x")
+    w.hovered = true
+    w.focused = true
+
+    currentTheme = t
+    check w.themeProps(ThemeIntent.Default, crPointer).backgroundColor.get.r == 1
+
+    t.statePreference[crPointer] = spFocusFirst
+    currentTheme = t
+    check w.themeProps(ThemeIntent.Default, crPointer).backgroundColor.get.b == 1
+
+  test "derived themes inherit the preference":
+    let tm = newThemeManager()
+    var base = newTheme("base")
+    base.statePreference[crText] = spHoverFirst
+    tm.register("base", base)
+    check tm.derive("base").ladderFor(crText) == slPointerFirst
+
+suite "branded themes":
+
+  test "hex and mix":
+    check hex"#4F46E5" == Color(r: 0x4F, g: 0x46, b: 0xE5, a: 255)
+    check hex"#11223380".a == 0x80
+    let mid = mix(Color(r: 0, g: 0, b: 0, a: 255), Color(r: 200, g: 100, b: 50, a: 255), 0.5)
+    check mid == Color(r: 100, g: 50, b: 25, a: 255)
+
+  test "a brand theme is complete: every intent has its colours":
+    let t = brandTheme(daylightSpec())
+    for intent in ThemeIntent:
+      let p = t.getThemeProps(intent, ThemeState.Normal)
+      check p.backgroundColor.isSome
+      check p.foregroundColor.isSome
+      check p.activeColor.isSome
+    for state in [Hovered, Pressed, Focused, Disabled]:
+      check t.states[ThemeIntent.Default].hasKey(state)
+
+  test "the accent reaches the parts that used to fall back to one blue":
+    let spec = auroraSpec()
+    let p = brandTheme(spec).getThemeProps(ThemeIntent.Default, ThemeState.Normal)
+    check p.activeColor.get == spec.accent
+    check p.focusColor.get == spec.accent
+
+  test "the primary action is solid accent":
+    let spec = oceanSpec()
+    let p = brandTheme(spec).getThemeProps(ThemeIntent.Info, ThemeState.Normal)
+    check p.backgroundColor.get == spec.accent
+    check p.foregroundColor.get == Color(r: 255, g: 255, b: 255, a: 255)
+
+  test "hovering leans toward the accent; disabling fades":
+    let spec = daylightSpec()
+    let t = brandTheme(spec)
+    let normal = t.getThemeProps(ThemeIntent.Default, ThemeState.Normal).backgroundColor.get
+    let hovered = t.getThemeProps(ThemeIntent.Default, ThemeState.Hovered).backgroundColor.get
+    check hovered != normal
+    let disabledFg = t.getThemeProps(ThemeIntent.Default, ThemeState.Disabled).foregroundColor.get
+    check disabledFg != spec.text
+
+  test "every shipped brand is registered":
+    let tm = newThemeManager()
+    for key in ["daylight", "midnight", "aurora", "ocean", "forest",
+                "rose", "ember", "graphite", "light", "dark"]:
+      check key in tm.listThemes()
+
+  test "a theme's typography becomes the default font family":
+    let saved = currentTheme
+    defer: setCurrentTheme(saved)
+    setCurrentTheme(brandTheme(forestSpec()))
+    check themeFontFamily == "Serif"
+    check TextStyle(fontSize: 14.0).pangoFont.startsWith("Serif")
+    setCurrentTheme(brandTheme(daylightSpec()))
+    check themeFontFamily == ""

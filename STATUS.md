@@ -31,13 +31,20 @@ for usage.
 | naylib port, graphics-only build | ✅ Done — `nim check` clean |
 | 7-package split under `packages/` | ✅ Done |
 | Widget library (48 widgets) | ✅ Working — see the table below |
-| Unit test suite (18 suites) + 32 compiled examples | ✅ Working — 51 green |
+| Unit test suite (20 suites) + 32 compiled examples | ✅ Working — see "Testing strategy" |
 | Scripted UI tests under Xvfb | ✅ Running, in CI too — 24 assertions |
 | Frame pipeline testable headlessly (`app.stepHeadless`) | ✅ Working — event-source seam |
 | Cyclomatic complexity | ⚠️ 4 of 7 packages pass `nimtools cyc --gate 5`; 26 routines over in the other 3 |
 | Text rendering | ✅ Pango-backed — real font metrics, glyph cache |
 | Pango/Cairo text (Unicode/BiDi/shaping) | ✅ Working — wired into every text widget and draw path |
-| Text engine shared by Label / TextInput / TextArea | ✅ Working — `text_content.nim`; TextArea now exists |
+| Unicode text *input* (typed codepoints, UTF-8-safe caret) | ✅ Working — no IME composition yet |
+| Flex growth in stacks (`Widget.flexGrow`, `Spacer`) | ✅ Working |
+| Scripting selectors by type (`Button`, `form/Label`) | ✅ Working |
+| Clipboard, undo/redo, word editing, cursor shapes | ✅ Working |
+| HiDPI scaling, accessibility, IME composition | ❌ Not started — see [TODO.md](TODO.md) |
+| One text widget: TextArea, limited by properties into Label / TextInput | ✅ Working — `input/textarea.nim` over `text_content.nim` |
+| Hover-vs-focus preference owned by the theme | ✅ Working — `Theme.statePreference`, per control role |
+| License | ✅ MIT |
 | `ui:` block syntax for widget trees | ✅ Working — `VStack(spacing = 10.0): Label(...)` |
 | Handlers as bare closures (`btn.onClick = proc() = ...`) | ✅ Working — no `some(...)`, no `{.closure.}` |
 
@@ -104,12 +111,16 @@ runnable example under `examples/widgets/`. Covered by
 
 Known gaps within the working set: `DataTable`'s filter strip *displays* the
 active filter but cannot be edited through the UI (set `filters` from code);
-`Tooltip` cannot hide until the hover defect below is fixed; `Spacer.flexGrow`
-is inert because the stacks do not distribute leftover space yet.
+layout uses Flutter's model and names (Row/Column/Flex, Expanded, Padding,
+SizedBox, Align, Container, Stack/Positioned, Wrap, Table, GridView).
 
 ### Reactivity
 - `Link[T]`: `get`/`set`/`value`, direct-widget-reference dependency tracking,
   O(1) dirty-marking on change, optional `onChange`.
+- `link.bindTo(widget, apply)` — one-way binding; `apply` re-runs once per
+  change, before the next layout. Several links can drive one widget. Two-way
+  binding is written by hand (`onChange = proc(v) = link.set(v)`); a `bind`
+  word in `ui:` is on the roadmap.
 
 ### Theme system
 - State × intent lookup with cascading resolution, `Option` props, focus-ring and
@@ -121,8 +132,11 @@ is inert because the stacks do not distribute leftover space yet.
   epDebounced / epThrottled / epBatched / epOrdered` coalescing.
 - Focus manager: focus state, keyboard routing, `onFocus`/`onBlur`, Tab/Shift+Tab
   cycling with wrap, configurable navigation keys (`setNavigationKeys` accepts
-  Tab, arrows, vim-style — any key set). Covered by `tests/test_keyboard_nav.nim`.
-  **Three known defects**, see "Known defects" below.
+  Tab, arrows, vim-style — any key set). Opt-in tab stops (`focusable`), the
+  chain rebuilt when the tree changes, and focus groups: Tab between groups,
+  arrows within, Escape out. Covered by `test_keyboard_nav` / `test_focus_groups`.
+- Hover tracking: `hovered` is set on enter and cleared on leave
+  (`rui_events/hover_tracker.nim`), so hover styles and Tooltip un-latch.
 - Hit-testing: interval-tree spatial queries, rebuilt after each layout pass.
 
 ### Scripting
@@ -133,101 +147,92 @@ is inert because the stacks do not distribute leftover space yet.
 
 ---
 
-## Roadmap (designed, not wired)
-
-### Reactive `bind` operator
-`Link[T]` has the machinery (`addDependent` + O(1) dirty-marking), but the `bind`
-DSL sugar that auto-registers a widget as a dependent and re-reads on change is
-**not implemented**. Today widgets read store values at build/layout time;
-`addDependent` can be called manually.
-
-### One unified text widget
-Label, TextInput and TextArea should be the same widget with variants by
-property (`editable`, `multiline`, `disabled`). Today the first two are separate
-modules and TextArea does not exist. See [#30].
-
-The Pango backend this depends on is **done** — see below.
-
-[#30]: https://github.com/kobi2187/rui2/issues/30
-
----
-
 ## Recently completed
 
-### Pango/Cairo text rendering ✅
-Wired throughout, not just into `Label`. `measureText` uses real font metrics via
-`measureTextPango`, which is what lets containers size to content and fixed the
-approximate label centring. `TextInput` uses `cursorPosition` for caret geometry
-and `indexFromPosition` for click-to-caret, replacing a loop that measured every
-prefix of the string against raylib's 10-pixel bitmap font. Glyph textures are
-cached with LRU eviction in `pango_text`, leaning on naylib's RAII rather than
-the abandoned manual GPU-cache experiment.
-
-### Ancestor dirty propagation ✅
-A content change now marks `isDirty` up the direct ancestor line
-(`markDirtyToRoot`, called from `link.nim` and the event handlers), so a
-same-size child change recomposites into the parent texture correctly.
-
-### The 35 restored widgets ✅
-See the widget table above.
+- **Layout owns positioning.** Widgets ask for size with `frame(...)` /
+  `flex(...)` (usable in `ui:`) and containers place them; no example writes
+  `bounds` any more. The layout set follows Flutter's model and names --
+  Row/Column/Flex, Expanded/Flexible/Spacer, Padding, SizedBox,
+  ConstrainedBox, Align/Center, Container, Stack/Positioned, Wrap, Table,
+  GridView -- restored from the original `modules/layout` design, plus Dock.
+- **Branded themes.** `brandTheme(BrandSpec)` turns a handful of brand
+  choices into a complete theme; eight ship (daylight, midnight, aurora,
+  ocean, forest, rose, ember, graphite). The accent now reaches fills,
+  focus and the primary action, labels follow the theme's text colour, and
+  the theme's typography is the default font.
+- **Example sweep.** Every widget example screenshotted and reviewed; fixed:
+  widget textures now composite with premultiplied alpha (translucent
+  drawing on transparent widgets came out a fraction of its strength -- all
+  label text was thin and washed out, a ScrollBar thumb invisible);
+  `drawText(x, y)` centred text low by 2-3 px everywhere; down and left
+  arrows (and increasing-angle arcs) were culled by triangle winding;
+  ImageWidget drew every loaded image with a transparent tint; the image
+  example wrote a BMP raylib cannot load; hyperlinks underlined through the
+  letters; DataTable/DataGrid headers were white on white; DataGrid numeric
+  cells were blank; scrollbars drew a solid black thumb.
+- **Tooltips work.** An overlay layer floats widgets above the tree; Tooltip
+  wraps its target and shows its tip there after a timer-driven delay. It
+  could never appear before.
+- **Self-sized widgets re-measure.** A content-sized stack used to keep its
+  first size forever, so a child added later overflowed. Fixed once, in the
+  DSL's generated `layout`, for every widget.
+- **Text editing.** Clipboard (through a seam tests can replace), undo/redo
+  with typing grouped by word, word movement and deletion, Ctrl+A,
+  double/triple-click selection, and the I-beam and link-hand cursors.
+- **Modifiers on the event.** `GuiEvent.mods`; Shift+Tab, Shift+arrow and
+  Ctrl-click are driven by the event, so scripts and headless tests reach
+  them. Key queues are drained per frame (fast typing used to drop keys).
+- **Idle.** An unchanged window is not redrawn: ~31% of a core → ~1%.
+  Repaint timers let time-driven widgets ask for a frame; the caret blinks
+  again.
+- **One text widget.** Label, TextInput and TextArea are one `TextArea`
+  limited by properties (`editable`, `multiline`, `maxLength`, `maxLines`,
+  `framed`, `disabled`). `Label`/`TextInput` are aliases with their own
+  constructors, and `getTypeName` reports the role, so selectors still work.
+  A non-editable one takes no input, so a Button's caption cannot eat clicks.
+- **The theme owns hover-vs-focus.** Widgets declare a role (`crText` /
+  `crPointer`); `Theme.statePreference` decides which state wins for each,
+  read from the in-memory `currentTheme` on every lookup. Theme files may set
+  `statePreference: {text: focus, pointer: hover}`. Checkbox and RadioButton
+  are now `crPointer` (hover shows over focus), which they are.
+- **MIT license**, in the root and in each package.
+- **Flex growth.** `Widget.flexGrow` (CSS `flex-grow` semantics) and a Spacer
+  that finally does what it says: a VStack/HStack with a fixed size hands its
+  leftover space to flex children by weight. `rui_core/flex.nim`.
+- **Unicode input.** `GuiEvent.rune` carries the typed codepoint (it was
+  truncated to one byte), and TextBuffer's caret, Backspace and Delete step over
+  whole UTF-8 characters. `maxLength` counts characters.
+- **TextArea goal column.** Up/Down through a short line comes back to the
+  column it started from.
+- **Slider captions.** `textLeft`/`textRight` were never drawn and the value
+  was drawn outside the widget's texture; both now sit inside the bounds.
+- **Type selectors.** `Button`, `form/Label`, `form/**/Button` in scripting
+  paths — type segments parsed but always matched nothing.
+- Earlier: Pango everywhere, ancestor dirty propagation, the 35 restored
+  widgets, hover un-latching, opt-in tab stops, focus groups, `ui:` syntax,
+  plain-closure handlers, the `app.nim` split and headless frames.
 
 ---
 
-## Known defects
+## Known gaps
 
-Verified, with a failing case or a grep behind each. Tracked as GitHub issues.
+Verified against the code. The prioritised plan is in [TODO.md](TODO.md).
 
-- **`hovered` is never cleared** ([#14]) — `app.nim:391` is the only write to the
-  flag anywhere and it only ever sets `true`. Hover highlights latch on, and
-  `Tooltip` can never hide once shown.
-- **Every widget is a tab stop** ([#16]) — `collectFocusableWidgets` adds every
-  visible+enabled widget, carrying its own `TODO: Add isFocusable field`. Tab
-  lands on containers and static labels.
-- **The focus chain is built once and never rebuilt** ([#17]) —
-  `FocusManager.markDirty` and `widgetRemoved` exist and are called from nowhere.
-  Widgets added after the first Tab are unreachable by keyboard.
-- **No key scoping** ([#18]) — a container and its children cannot both use the
-  arrow keys, which blocks two-level keyboard navigation.
-- **`primitives/text_cache.nim` is dead** ([#15]) — 428 lines, zero callers, and
-  `app.clearTextCache` / `getTextCacheStats` report on it rather than on the real
-  glyph cache in `pango_text`.
-- **Theme lookup has no seam** ([#21]) — 35 widget files hand-copy the same
-  state ladder, `ThemeManager.getProps` has zero callers so the theme cache is
-  never on the path, and `App.currentTheme` is written four times and read never.
-
-## Caveats
-
-- **Composite widgets rebuild children each layout pass** ([#31]) — `children.setLen(0)`
-  and recreate every layout, so widget identity and per-child caches are lost.
-- **Hit-test tree is fully rebuilt** after every layout pass ([#32]);
-  `previousBounds` exists for incremental updates and is still unused.
-- **Some enum names still need qualifying** ([#23]) — `rui_core` now exports a
-  named list of raylib types rather than the whole module, but exporting an enum
-  exposes its fields unqualified, so `KeyboardKey.Menu` still collides with the
-  Menu widget and `KeyboardKey.Down`/`Up` with `ArrowDirection`. Separately,
-  `Info` and `Warning` each appear in two of rui_drawing's own enums. Both need
-  renames, not import changes.
-- **No license chosen yet** ([#26]) — `.nimble` files have a TODO placeholder.
-
-[#14]: https://github.com/kobi2187/rui2/issues/14
-[#15]: https://github.com/kobi2187/rui2/issues/15
-[#16]: https://github.com/kobi2187/rui2/issues/16
-[#17]: https://github.com/kobi2187/rui2/issues/17
-[#18]: https://github.com/kobi2187/rui2/issues/18
-[#21]: https://github.com/kobi2187/rui2/issues/21
-[#23]: https://github.com/kobi2187/rui2/issues/23
-[#26]: https://github.com/kobi2187/rui2/issues/26
-[#31]: https://github.com/kobi2187/rui2/issues/31
-[#32]: https://github.com/kobi2187/rui2/issues/32
+- **No IME composition** — typed codepoints arrive, but pre-edit text for
+  CJK input methods is not shown.
+- **No HiDPI scaling** — nothing reads the monitor's scale factor.
+- **No accessibility** — no screen-reader bridge (AT-SPI / UIA / NSAccessibility).
+  Deliberately low priority for now (TODO.md #17).
+- **No animation system** — transitions are instant.
+- **No mouse-cursor shapes** — the I-beam over text, resize arrows, etc.
 
 ---
 
 ## Testing strategy
 
-There is no headless mode (it was an experiment, deferred as a future feature).
 `./tools/run_tests.sh` does three things:
 
-1. **Unit tests** — `tests/test_*.nim`, 18 suites, no GL context required.
+1. **Unit tests** — `tests/test_*.nim`, 20 suites, no GL context required.
    Layout, binding, theming, hit-testing, text metrics, keyboard navigation,
    focus groups, the widget library, and — since the event-source seam — the
    frame pipeline itself.
@@ -237,7 +242,7 @@ There is no headless mode (it was an experiment, deferred as a future feature).
 3. **Scripted UI tests** — drives a real window on Xvfb through the file-based
    scripting protocol, 32 assertions. Runs locally and in CI.
 
-51 green as of this writing.
+53 green as of this writing (20 unit suites, 32 example builds, the scripted UI run).
 
 ### Inspection: text for structure, pixels for appearance
 
@@ -300,15 +305,7 @@ all, which is most of why `rui_widgets` is 79 files rather than 47.
 
 ## Next steps
 
-Tracked as [GitHub milestones](https://github.com/kobi2187/rui2/milestones).
-
-1. **Architecture & code health** — delete the dead text cache, fix the hover
-   latch, give theme lookup a seam, collapse the cc=43 scripting bridge.
-2. **Keyboard navigation** — `isFocusable`, chain invalidation, key scoping,
-   then focus groups for navigation between and within containers.
-3. **Phase 3, DSL ergonomics** — containers as template blocks, callbacks that
-   accept a bare closure.
-4. **Phase 4, Text** — fold Label, TextInput and TextArea into one widget with
-   variants by property. The Pango backend they need is already wired.
-5. **Phase 8, Packaging** — choose a license, pin dependency versions, then
-   `git subtree split` the seven packages (see SPLITTING.md).
+The prioritised, step-by-step plan is [TODO.md](TODO.md); the phase history is
+[ROADMAP.md](ROADMAP.md). In short: text-editing essentials (clipboard, undo,
+IME), then layout completeness (alignment, grid, min/max), then platform
+polish (HiDPI, cursors, accessibility), then packaging and a 0.2 release.

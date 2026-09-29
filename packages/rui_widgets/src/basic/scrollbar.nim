@@ -9,7 +9,6 @@ import std/options
 
 const
   Thickness = 12.0'f32
-  MinThumb = 20.0'f32
 
 definePrimitive(ScrollBar):
   props:
@@ -97,7 +96,7 @@ definePrimitive(ScrollBar):
         widget.bounds.width = 100.0'f32
 
   render:
-    let props = widget.themeProps(widget.intent, slPointerFirst,
+    let props = widget.themeProps(widget.intent, crPointer,
                                   disabled = widget.disabled,
                                   pressed = widget.dragging)
 
@@ -105,18 +104,7 @@ definePrimitive(ScrollBar):
     let contentSize = range + widget.pageSize
     let offset = widget.value - widget.minValue
 
-    if widget.vertical:
-      drawScrollbar(widget.bounds, contentSize, widget.pageSize, offset,
-                    props, widget.hovered)
-    else:
-      # The shared primitive measures the thumb off rect.height, so it only
-      # works vertically. Horizontal gets its own two rects.
-      let color = props.foregroundColor.get(Color(r: 160, g: 160, b: 160, a: 255))
-      let trackColor = color.withAlpha(0.3)
-      drawRect(widget.bounds, trackColor)
-      let ratio = widget.pageSize / contentSize
-      let thumbW = max(widget.bounds.width * ratio, MinThumb)
-      let thumbX = widget.bounds.x +
-                   (widget.bounds.width - thumbW) * (offset / range)
-      drawRect(Rect(x: thumbX, y: widget.bounds.y,
-                    width: thumbW, height: widget.bounds.height), color)
+    # The shared primitive handles both orientations now (by the track's
+    # shape), so there is no separate horizontal drawing here any more.
+    drawScrollbar(widget.bounds, contentSize, widget.pageSize, offset,
+                  props, widget.hovered)

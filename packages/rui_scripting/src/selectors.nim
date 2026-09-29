@@ -7,6 +7,12 @@
 ##   "form/*"                - All direct children
 ##   "form/**"               - All descendants
 ##   "*/buttonId"            - Any parent with this child
+##   "Button"                - Every widget of a type (anywhere in the tree)
+##   "form/Label"            - Direct children of a type
+##
+## A segment that starts with an uppercase letter is a type name, matched
+## against `getTypeName`; anything else is a `stringId`. An exact `stringId`
+## still wins at the top level, so a widget named "Save" is found by "Save".
 
 import std/[strutils, sequtils, options]
 import rui_core
@@ -20,7 +26,7 @@ type
     skId          # Specific ID: "loginButton"
     skWildcard    # Single level wildcard: "*"
     skDeepWildcard  # Multi-level wildcard: "**"
-    skType        # Type name: "Button" (future)
+    skType        # Type name: "Button"
 
   PathSegment* = object
     kind*: SegmentKind
@@ -40,7 +46,7 @@ proc parsePathSegment(s: string): PathSegment =
   elif s == "**":
     return PathSegment(kind: skDeepWildcard, value: "")
   elif s.len > 0 and s[0].isUpperAscii():
-    # Starts with uppercase - treat as type name (future feature)
+    # Starts with uppercase - treat as type name
     return PathSegment(kind: skType, value: s)
   else:
     # Regular ID
@@ -76,9 +82,7 @@ proc matchesSegment(widget: Widget, segment: PathSegment): bool =
   of skId:
     return widget.stringId == segment.value
   of skType:
-    # TODO: Implement type matching
-    # For now, just return false
-    return false
+    return widget.getTypeName() == segment.value
 
 proc findChildrenMatching(widget: Widget, segment: PathSegment): seq[Widget] =
   ## Find all direct children matching segment
@@ -115,8 +119,8 @@ proc resolvePathFrom(widget: Widget, segments: seq[PathSegment],
   let segment = segments[startIdx]
 
   case segment.kind
-  of skId:
-    # Look for child with specific ID
+  of skId, skType:
+    # Look for children with this ID / of this type
     let matches = widget.findChildrenMatching(segment)
     if matches.len == 0:
       return @[]
@@ -144,10 +148,6 @@ proc resolvePathFrom(widget: Widget, segments: seq[PathSegment],
       # Try continuing from this child (with ** still active)
       result.add(resolvePathFrom(child, segments, startIdx))
 
-  of skType:
-    # TODO: Implement type matching
-    result = @[]
-
 proc resolvePath*(root: Widget, path: string): seq[Widget] =
   ## Resolve a path from root widget
   ## Returns all widgets matching the path
@@ -157,21 +157,20 @@ proc resolvePath*(root: Widget, path: string): seq[Widget] =
   if parsed.segments.len == 0:
     return @[]
 
-  # Special case: if first segment is not a wildcard, try direct ID lookup first
-  if parsed.segments[0].kind == skId and parsed.segments.len == 1:
-    # Simple ID lookup
-    if root.stringId == parsed.segments[0].value:
-      return @[root]
-
-    # Search children recursively for single ID
-    return root.findDescendantsMatching(parsed.segments[0])
+  # A single ID or type segment searches the whole tree, root included
+  if parsed.segments[0].kind in {skId, skType} and parsed.segments.len == 1:
+    result = if root.matchesSegment(parsed.segments[0]): @[root] else: @[]
+    if result.len > 0 and parsed.segments[0].kind == skId:
+      return
+    result.add(root.findDescendantsMatching(parsed.segments[0]))
+    return
 
   # If the first segment names the root itself, consume it here.
   # resolvePathFrom() matches a segment against a widget's *children*, so
   # without this a path like "root/*" looked for a child of the root called
   # "root" and always came back empty.
-  if parsed.segments[0].kind == skId and
-     root.stringId == parsed.segments[0].value:
+  if parsed.segments[0].kind in {skId, skType} and
+     root.matchesSegment(parsed.segments[0]):
     return resolvePathFrom(root, parsed.segments, 1)
 
   # Full path resolution
