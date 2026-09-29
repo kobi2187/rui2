@@ -321,7 +321,7 @@ proc renderPass*(widget: Widget) =
 # Main Frame Function
 # ============================================================================
 
-proc frame*(rootWidget: Widget) =
+proc runFrame*(rootWidget: Widget) =
   ## Execute one frame:
   ## 1. Layout pass (if needed)
   ## 2. Render pass (if needed)
@@ -352,7 +352,7 @@ when false:
         rootWidget.handleInput(event.get())
 
       # 2. Update layout & render (two passes)
-      rootWidget.frame()
+      rootWidget.runFrame()
 
       # 3. Composite to screen
       # (For now, render() draws directly. Later, composite cached textures)

@@ -164,6 +164,13 @@ type
       ## Orthogonal to `focusable`. A group is normally not a tab stop in its
       ## own right -- its members are.
 
+    sizeRequest*: Size
+      ## The size this widget asks for, per dimension; 0 is "no request". It
+      ## wins over what a parent assigns -- an explicit width beats stretch,
+      ## as in CSS -- and is set with `frame(width = ..., height = ...)`
+      ## rather than by writing `bounds`, which layout owns.
+    sizeMin*, sizeMax*: Size
+      ## Limits applied after layout; 0 in `sizeMax` is "unbounded".
     ownWidth*, ownHeight*: float32
       ## The size this widget gave *itself* at its last layout, or -1 for a
       ## dimension its parent assigned. See `beginSelfSizing`.
@@ -456,6 +463,12 @@ proc noteStructureChanged*() =
 
 type SelfSizing* = tuple[width, height: bool]
 
+proc clampDimension*(value, lo, hi: float32): float32 =
+  ## `value` within [lo, hi], where a `hi` of 0 means no upper limit.
+  result = max(value, lo)
+  if hi > 0:
+    result = min(result, hi)
+
 proc beginSelfSizing*(widget: Widget): SelfSizing =
   ## Run before a widget's `layout`: forget any size it gave itself last time.
   ##
@@ -472,10 +485,31 @@ proc beginSelfSizing*(widget: Widget): SelfSizing =
     widget.bounds.width = 0
   if widget.ownHeight >= 0 and widget.bounds.height == widget.ownHeight:
     widget.bounds.height = 0
-  (widget.bounds.width <= 0, widget.bounds.height <= 0)
+  # A requested size is an assignment the widget makes on its own behalf, and
+  # it overrides the parent's -- so it is applied before the body runs and
+  # the children lay out inside it.
+  if widget.sizeRequest.width > 0:
+    widget.bounds.width = widget.sizeRequest.width
+  if widget.sizeRequest.height > 0:
+    widget.bounds.height = widget.sizeRequest.height
+  result = (widget.bounds.width <= 0, widget.bounds.height <= 0)
+  # An assigned size is clamped now, before the children see it; a self-
+  # computed one after the body has measured it (endSelfSizing).
+  if not result.width:
+    widget.bounds.width = clampDimension(widget.bounds.width,
+                                         widget.sizeMin.width, widget.sizeMax.width)
+  if not result.height:
+    widget.bounds.height = clampDimension(widget.bounds.height,
+                                          widget.sizeMin.height, widget.sizeMax.height)
 
 proc endSelfSizing*(widget: Widget, sizing: SelfSizing) =
-  ## Run after `layout`: remember what the widget gave itself.
+  ## Run after `layout`: clamp what the widget gave itself, and remember it.
+  if sizing.width:
+    widget.bounds.width = clampDimension(widget.bounds.width,
+                                         widget.sizeMin.width, widget.sizeMax.width)
+  if sizing.height:
+    widget.bounds.height = clampDimension(widget.bounds.height,
+                                          widget.sizeMin.height, widget.sizeMax.height)
   widget.ownWidth = if sizing.width: widget.bounds.width else: -1.0'f32
   widget.ownHeight = if sizing.height: widget.bounds.height else: -1.0'f32
 

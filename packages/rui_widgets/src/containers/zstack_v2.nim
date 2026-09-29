@@ -4,10 +4,8 @@
 ## bounds less padding, so they overlap rather than tile. Paint order is child
 ## order -- last added is on top.
 ##
-## Unlike VStack and HStack this one does not size itself to its content and
-## cannot: with every child in the same cell there is no direction to grow in,
-## and a child asked to fill a zero-sized parent would measure zero. A ZStack
-## needs bounds from its own parent or from the caller.
+## With no size of its own a ZStack takes its largest child's natural size,
+## then lays every child over that.
 
 import rui_core
 
@@ -16,6 +14,18 @@ defineWidget(ZStack):
     padding: float = 0.0
 
   layout:
+    # Size to the largest child when nothing assigned a size.
+    if widget.bounds.width <= 0 or widget.bounds.height <= 0:
+      var widest, tallest = 0.0'f32
+      for child in widget.children:
+        child.bounds.width = 0
+        child.bounds.height = 0
+        child.layout()
+        widest = max(widest, child.bounds.width)
+        tallest = max(tallest, child.bounds.height)
+      if widget.bounds.width <= 0: widget.bounds.width = widest + widget.padding * 2
+      if widget.bounds.height <= 0: widget.bounds.height = tallest + widget.padding * 2
+
     # All children occupy the same space (layered)
     for child in widget.children:
       # Each child fills the container (minus padding)

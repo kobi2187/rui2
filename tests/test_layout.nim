@@ -552,3 +552,167 @@ suite "cross-axis alignment in stacks":
     row.addChild(inner)
     row.layout()
     check leaf.bounds.y + leaf.bounds.height == 100.0
+
+suite "size requests are honoured by layout":
+
+  test "a requested size wins over stretch":
+    let col = newVStack(spacing = 0.0)
+    col.bounds = Rect(x: 0, y: 0, width: 300, height: 200)
+    let l = newLabel(text = "x", fontSize = 14.0).frame(width = 120)
+    col.addChild(l)
+    col.layout()
+    check l.bounds.width == 120.0
+
+  test "a requested height on a leaf with no layout of its own":
+    let r = newRectangle().frame(width = 90, height = 60)
+    let row = newHStack(spacing = 0.0)
+    row.addChild(r)
+    row.layout()
+    check r.bounds.width == 90.0 and r.bounds.height == 60.0
+    check row.bounds.height == 60.0              # the row sized around it
+
+  test "min and max clamp a content-sized widget":
+    let short = newLabel(text = "hi", fontSize = 14.0).frame(minWidth = 100)
+    short.layout()
+    check short.bounds.width == 100.0
+    let long = newLabel(text = "a rather long caption indeed",
+                        fontSize = 14.0).frame(maxWidth = 50)
+    long.layout()
+    check long.bounds.width == 50.0
+
+  test "a stretched child is still clamped by its max":
+    let col = newVStack(spacing = 0.0)
+    col.bounds = Rect(x: 0, y: 0, width: 400, height: 100)
+    let l = newLabel(text = "x", fontSize = 14.0).frame(maxWidth = 150)
+    col.addChild(l)
+    col.layout()
+    check l.bounds.width == 150.0
+
+  test "unframe goes back to content size":
+    let l = newLabel(text = "x", fontSize = 14.0).frame(width = 200)
+    l.layout()
+    check l.bounds.width == 200.0
+    discard l.unframe()
+    l.layout()
+    check l.bounds.width < 200.0
+
+  test "a requested size survives relayout":
+    let r = newRectangle().frame(width = 50, height = 20)
+    r.layout()
+    r.layout()
+    check r.bounds.width == 50.0 and r.bounds.height == 20.0
+
+suite "stack justification":
+
+  test "mainOffsets spends the spare room as asked":
+    check mainOffsets(MainStart, 90.0, 3) == (0.0'f32, 0.0'f32)
+    check mainOffsets(MainCenter, 90.0, 3) == (45.0'f32, 0.0'f32)
+    check mainOffsets(MainEnd, 90.0, 3) == (90.0'f32, 0.0'f32)
+    check mainOffsets(SpaceBetween, 90.0, 3) == (0.0'f32, 45.0'f32)
+    check mainOffsets(SpaceAround, 90.0, 3) == (15.0'f32, 30.0'f32)
+    check mainOffsets(SpaceEvenly, 80.0, 3) == (20.0'f32, 20.0'f32)
+
+  test "a row pushed to the end":
+    let row = newHStack(spacing = 0.0, mainAlign = MainEnd)
+    row.bounds = Rect(x: 0, y: 0, width: 300, height: 40)
+    let b = newRectangle().frame(width = 50, height = 20)
+    row.addChild(b)
+    row.layout()
+    check b.bounds.x == 250.0
+
+  test "space between puts the ends on the edges":
+    let row = newHStack(spacing = 0.0, mainAlign = SpaceBetween)
+    row.bounds = Rect(x: 0, y: 0, width: 300, height: 40)
+    let a = newRectangle().frame(width = 50, height = 20)
+    let b = newRectangle().frame(width = 50, height = 20)
+    row.addChild(a)
+    row.addChild(b)
+    row.layout()
+    check a.bounds.x == 0.0
+    check b.bounds.x + b.bounds.width == 300.0
+
+  test "a flex child takes the room first; justification has none left":
+    let row = newHStack(spacing = 0.0, mainAlign = MainEnd)
+    row.bounds = Rect(x: 0, y: 0, width: 300, height: 40)
+    let a = newRectangle().frame(width = 50, height = 20)
+    let f = newSpacer()
+    row.addChild(a)
+    row.addChild(f)
+    row.layout()
+    check a.bounds.x == 0.0
+
+suite "Grid":
+
+  test "tracks: fixed, fit and star":
+    let w = resolveTracks([px(100.0), fit(), star(1.0), star(3.0)],
+                          [0.0'f32, 40.0, 10.0, 10.0], 540.0)
+    check w == @[100.0'f32, 40.0, 100.0, 300.0]
+
+  test "with no width, star columns size like fit":
+    check resolveTracks([star(), star()], [30.0'f32, 70.0], 0.0) == @[30.0'f32, 70.0]
+
+  test "a form: labels in a fit column, inputs filling the rest":
+    let g = newGrid(columns = @[fit(), star()], colSpacing = 10.0, rowSpacing = 6.0)
+    g.bounds = Rect(x: 0, y: 0, width: 400, height: 0)
+    let name = newLabel(text = "Name", fontSize = 14.0)
+    let nameIn = newTextInput()
+    let email = newLabel(text = "Email address", fontSize = 14.0)
+    let emailIn = newTextInput()
+    for w in [Widget(name), nameIn, email, emailIn]:
+      g.addChild(w)
+    g.layout()
+    check nameIn.bounds.x == emailIn.bounds.x           # one column
+    check nameIn.bounds.x == email.bounds.width + 10.0  # after the widest label
+    check nameIn.bounds.x + nameIn.bounds.width == 400.0
+    check emailIn.bounds.y == nameIn.bounds.y + nameIn.bounds.height + 6.0
+    check g.bounds.height == emailIn.bounds.y + emailIn.bounds.height
+
+suite "Wrap":
+
+  test "lineBreaks starts a line when the next child would cross the edge":
+    check lineBreaks([40.0'f32, 40, 40, 40], 100.0, 10.0) == @[0, 2]
+    check lineBreaks([40.0'f32, 40, 40], 0.0, 10.0) == @[0]      # no edge
+    check lineBreaks([150.0'f32, 20], 100.0, 10.0) == @[0, 1]    # too wide: alone
+
+  test "chips flow onto a second line":
+    let w = newWrap(spacing = 4.0, lineSpacing = 4.0)
+    w.bounds = Rect(x: 0, y: 0, width: 100, height: 0)
+    var chips: seq[Widget]
+    for i in 0 ..< 4:
+      let c = newRectangle().frame(width = 40, height = 20)
+      chips.add c
+      w.addChild(c)
+    w.layout()
+    check chips[1].bounds.y == chips[0].bounds.y
+    check chips[2].bounds.y == 24.0
+    check chips[2].bounds.x == 0.0
+    check w.bounds.height == 44.0
+
+suite "Align and Center":
+
+  test "Center puts its child in the middle":
+    let c = newCenter().frame(width = 200, height = 100)
+    let r = newRectangle().frame(width = 50, height = 20)
+    c.addChild(r)
+    c.layout()
+    check r.bounds.x == 75.0 and r.bounds.y == 40.0
+
+  test "an Align with no size wraps its content plus padding":
+    let a = newAlign(padding = 10.0)
+    a.addChild(newRectangle().frame(width = 50, height = 20))
+    a.layout()
+    check a.bounds.width == 70.0 and a.bounds.height == 40.0
+
+  test "bottom-right":
+    let a = newAlign(horizontal = CrossEnd, vertical = CrossEnd).frame(width = 100, height = 100)
+    let r = newRectangle().frame(width = 10, height = 10)
+    a.addChild(r)
+    a.layout()
+    check r.bounds.x == 90.0 and r.bounds.y == 90.0
+
+  test "a ZStack with no size takes its largest child's":
+    let z = newZStack()
+    z.addChild(newRectangle().frame(width = 80, height = 30))
+    z.addChild(newLabel(text = "on top", fontSize = 14.0))
+    z.layout()
+    check z.bounds.width == 80.0 and z.bounds.height == 30.0

@@ -294,8 +294,11 @@ proc buildUpdateLayoutMethod(name: NimNode, sections: WidgetSections): NimNode =
   ## NOTE: this used to emit a method named `updateLayout`, which nothing ever
   ## called -- main_loop.layoutPass() dispatches on `layout`. The result was
   ## that no container ever positioned its children.
-  if sections.layoutBody.isEmpty:
-    return newEmptyNode()
+  # Generated even with no `layout:` section: the self-sizing bracket is what
+  # applies a widget's size requests (`frame`), and a Rectangle has as much
+  # right to a requested size as a stack does.
+  let layoutBody = if sections.layoutBody.isEmpty: newStmtList(nnkDiscardStmt.newTree(newEmptyNode()))
+                   else: sections.layoutBody
 
   # Build method manually to avoid premature symbol resolution
   let typeName = makeWidgetTypeName(name)
@@ -312,7 +315,7 @@ proc buildUpdateLayoutMethod(name: NimNode, sections: WidgetSections): NimNode =
       newCall(ident("beginSelfSizing"), ident("widget")))),
     nnkDefer.newTree(newStmtList(
       newCall(ident("endSelfSizing"), ident("widget"), sizing))),
-    sections.layoutBody)
+    layoutBody)
 
   nnkMethodDef.newTree(
     nnkPostfix.newTree(ident("*"), ident("layout")),

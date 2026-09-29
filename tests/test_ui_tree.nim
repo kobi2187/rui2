@@ -174,3 +174,33 @@ suite "statements that are not widgets":
 
     check log == @["building"]
     check root.children.len == 1
+
+suite "modifiers in a tree":
+
+  test "a modifier chain is still a widget, and is applied":
+    let root = ui:
+      VStack():
+        Label(text = "x", fontSize = 14.0).frame(width = 120, height = 30)
+        TextArea().flex
+    check root.children.len == 2
+    check root.children[0].sizeRequest == Size(width: 120, height: 30)
+    check root.children[1].flexGrow == 1.0
+
+  test "a child block after a chain belongs to the widget at its bottom":
+    let root = ui:
+      VStack():
+        HStack(spacing = 2.0).frame(height = 40):
+          Label(text = "a", fontSize = 14.0)
+          Label(text = "b", fontSize = 14.0)
+    let row = root.children[0]
+    check row.getTypeName() == "HStack"
+    check row.children.len == 2
+    check row.sizeRequest.height == 40.0
+
+  test "a named widget can carry modifiers too":
+    var fill: TextArea
+    let root = ui:
+      VStack():
+        fill = TextArea().flex(2.0)
+    check root.children[0] == Widget(fill)
+    check fill.flexGrow == 2.0

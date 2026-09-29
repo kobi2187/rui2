@@ -16,16 +16,8 @@
 
 import rui_core
 
-type
-  MainAxisAlignment* = enum
-    MainStart        # Children at start
-    MainCenter       # Children centered
-    MainEnd          # Children at end
-    SpaceBetween     # Space between children
-    SpaceAround      # Space around children
-    SpaceEvenly      # Even space
-
-  # CrossAxisAlignment lives in rui_core/flex.nim, shared with the stacks.
+# MainAxisAlignment and CrossAxisAlignment live in rui_core/flex.nim, shared
+# with the stacks.
 
 defineWidget(Column):
   props:

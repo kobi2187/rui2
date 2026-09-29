@@ -31,6 +31,8 @@ defineWidget(VStack):
     # Stretch (the default) gives every child the stack's width, when it has
     # one. The others let children keep their own width and place them.
     crossAlign: CrossAxisAlignment = CrossStretch
+    # How spare main-axis room is spent when no child flexes into it.
+    mainAlign: MainAxisAlignment = MainStart
 
   layout:
     # Arrange children top to bottom, then size to content.
@@ -58,7 +60,14 @@ defineWidget(VStack):
     if hasHeight:
       # Leftover height goes to the children with flexGrow (Spacer, ...)
       let used = (contentBottom - widget.bounds.y) + widget.padding
-      applyFlex(widget.children, widget.bounds.height - used, faVertical)
+      let leftover = widget.bounds.height - used
+      var flexing = false
+      for child in widget.children:
+        flexing = flexing or child.flexGrow > 0
+      if flexing:
+        applyFlex(widget.children, leftover, faVertical)
+      else:
+        justify(widget.children, faVertical, widget.mainAlign, leftover)
 
     if widget.crossAlign != CrossStretch:
       let cross = if hasWidth: widget.bounds.width - widget.padding * 2

@@ -16,6 +16,15 @@ type
     faVertical    ## VStack: grow heights, shift `y`
     faHorizontal  ## HStack: grow widths, shift `x`
 
+  MainAxisAlignment* = enum
+    ## How spare room along the main axis is used when nothing flexes into it.
+    MainStart        ## Children packed at the start
+    MainCenter       ## Packed in the middle
+    MainEnd          ## Packed at the end
+    SpaceBetween     ## Spare room between children, none at the ends
+    SpaceAround      ## Half a share at each end, a full share between
+    SpaceEvenly      ## Equal shares at the ends and between
+
   CrossAxisAlignment* = enum
     ## Where children sit across a container's main axis -- horizontally in a
     ## VStack or Column, vertically in an HStack.
@@ -54,6 +63,35 @@ proc growChild(child: Widget, share, offset: float32, axis: FlexAxis) =
   else:
     child.bounds.x += offset
     child.bounds.width += share
+
+proc mainOffsets*(align: MainAxisAlignment, leftover: float32,
+                  count: int): tuple[start, between: float32] =
+  ## Where the first child starts, and how much extra goes between each pair,
+  ## to spend `leftover` main-axis room on `count` children.
+  if leftover <= 0 or count == 0:
+    return (0.0'f32, 0.0'f32)
+  let n = float32(count)
+  case align
+  of MainStart: (0.0'f32, 0.0'f32)
+  of MainCenter: (leftover / 2, 0.0'f32)
+  of MainEnd: (leftover, 0.0'f32)
+  of SpaceBetween:
+    if count == 1: (0.0'f32, 0.0'f32) else: (0.0'f32, leftover / (n - 1))
+  of SpaceAround: (leftover / n / 2, leftover / n)
+  of SpaceEvenly: (leftover / (n + 1), leftover / (n + 1))
+
+proc justify*(children: seq[Widget], axis: FlexAxis,
+              align: MainAxisAlignment, leftover: float32) =
+  ## Shift children along the main axis to spend `leftover` as `align` says,
+  ## laying out again any that moved.
+  let (start, between) = mainOffsets(align, leftover, children.len)
+  for i, child in children:
+    let offset = start + between * float32(i)
+    if offset == 0:
+      continue
+    if axis == faVertical: child.bounds.y += offset
+    else: child.bounds.x += offset
+    child.layout()
 
 proc crossOffset*(align: CrossAxisAlignment, crossSize, childSize: float32): float32 =
   ## How far along the cross axis a child of `childSize` sits in `crossSize`.
