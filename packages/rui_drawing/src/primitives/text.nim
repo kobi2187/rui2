@@ -5,6 +5,7 @@
 
 import raylib
 import strutils
+import std/math
 import rui_core
 import shapes      # For drawLine (underline support)
 import ../pango_text  # Real font rasterisation and metrics
@@ -93,14 +94,16 @@ proc drawText*(text: string, rect: Rect, style: TextStyle,
   let y = rect.y + (rect.height - metrics.height) / 2
   drawTextPango(text, x, y, style.pangoFont, style.color)
 
-  # Underline if needed
+  # Underline just under the baseline, where type puts it -- not at the bottom
+  # of the line box, which sits below the descenders and reads as a rule
+  # under the whole row rather than under the word.
   if style.underline:
-    let underlineY = rect.y + (rect.height + metrics.height) / 2
+    let underlineY = round(y + metrics.baseline + max(1.0'f32, style.fontSize * 0.1))
     drawLine(
       x, underlineY,
       x + metrics.width, underlineY,
       style.color,
-      style.fontSize * 0.05
+      max(1.0'f32, style.fontSize * 0.07)   # thinner than a pixel does not draw
     )
 
 # ============================================================================

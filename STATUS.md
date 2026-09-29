@@ -148,6 +148,16 @@ VStack and HStack take `crossAlign` (Start/Center/End/Stretch) like Column.
 
 ## Recently completed
 
+- **Example sweep.** Every widget example screenshotted and reviewed; fixed:
+  widget textures now composite with premultiplied alpha (translucent
+  drawing on transparent widgets came out a fraction of its strength -- all
+  label text was thin and washed out, a ScrollBar thumb invisible);
+  `drawText(x, y)` centred text low by 2-3 px everywhere; down and left
+  arrows (and increasing-angle arcs) were culled by triangle winding;
+  ImageWidget drew every loaded image with a transparent tint; the image
+  example wrote a BMP raylib cannot load; hyperlinks underlined through the
+  letters; DataTable/DataGrid headers were white on white; DataGrid numeric
+  cells were blank; scrollbars drew a solid black thumb.
 - **Tooltips work.** An overlay layer floats widgets above the tree; Tooltip
   wraps its target and shows its tip there after a timer-driven delay. It
   could never appear before.

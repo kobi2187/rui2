@@ -12,6 +12,7 @@
 import types
 import std/algorithm
 import raylib
+from rlgl import setBlendFactorsSeparate, BlendFactor, BlendFuncOrEq
 
 
 # ============================================================================
@@ -31,6 +32,34 @@ proc freeWidgetTexture*(widget: Widget) =
   ## Resetting the Option destroys the held RenderTexture (naylib RAII).
   if widget.cachedTexture.isSome:
     widget.cachedTexture = none(RenderTexture2D)
+
+# ----------------------------------------------------------------------------
+# Blending
+#
+# Widget textures start transparent and are composited onto their parent. With
+# ordinary alpha blending that is wrong twice over: drawing a 35%-opaque shape
+# into a transparent texture stores alpha 0.35 * 0.35, and compositing then
+# multiplies the colour by alpha again. Anything translucent on a widget with no
+# opaque background of its own came out a fraction of its intended strength --
+# a standalone ScrollBar's thumb was all but invisible.
+#
+# So textures hold premultiplied colour. Drawing into one blends colour as
+# usual but alpha additively-over (`paintingIntoTexture`); drawing one onto
+# anything uses raylib's premultiplied mode (`compositingTextures`). Opaque
+# content comes out exactly as before.
+# ----------------------------------------------------------------------------
+
+template paintingIntoTexture*(body: untyped) =
+  setBlendFactorsSeparate(SrcAlpha, OneMinusSrcAlpha, One, OneMinusSrcAlpha,
+                          FuncAdd, FuncAdd)
+  beginBlendMode(BlendMode.CustomSeparate)
+  body
+  endBlendMode()
+
+template compositingTextures*(body: untyped) =
+  beginBlendMode(BlendMode.AlphaPremultiply)
+  body
+  endBlendMode()
 
 proc drawRenderTexture*(tex: RenderTexture2D, x, y: float32) =
   ## Blit a cached render target with its top-left corner at (x, y).
@@ -264,11 +293,13 @@ proc renderToTexture(widget: Widget) =
   let originalY = widget.bounds.y
   widget.bounds.x = 0
   widget.bounds.y = 0
-  widget.render()
+  paintingIntoTexture:
+    widget.render()
   widget.bounds.x = originalX
   widget.bounds.y = originalY
 
-  compositeChildren(widget, originalX, originalY)
+  compositingTextures:
+    compositeChildren(widget, originalX, originalY)
 
   endTextureMode()
   widget.cachedTexture = some(renderTex)

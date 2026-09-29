@@ -18,6 +18,7 @@ const
   DefaultInkColor* = Color(r: 40, g: 40, b: 40, a: 255)
   PlaceholderColor* = Color(r: 150, g: 150, b: 150, a: 255)
   CellFontSize* = 12.0'f32
+  HeaderShade = Color(r: 0, g: 0, b: 0, a: 14)   # sets the header row apart
   CellPadX* = 4.0'f32
 
 proc cellBaseline*(rowY, rowHeight: float32): float32 =
@@ -37,8 +38,11 @@ proc drawColumnHeaders*[C](columns: openArray[C], originX, top, height: float32,
   for i, col in columns:
     let cell = Rect(x: x, y: top, width: col.width, height: height)
     drawThemedBackground(cell, props)
+    drawRect(cell, HeaderShade)
     let indicator = if i == sortedIndex: sortIndicatorFor(order) else: ""
-    drawThemedPaddedText(col.title & indicator, cell, props, selected = true)
+    # Ordinary text colour. This passed `selected = true`, which is white --
+    # on a light header background, so the column titles were never legible.
+    drawThemedPaddedText(col.title & indicator, cell, props)
     if showGrid:
       drawLine(x + col.width, cell.y, x + col.width, cell.y + height, gridColor)
     x += col.width

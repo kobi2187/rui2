@@ -520,14 +520,17 @@ proc drawScriptingIndicator() =
   drawText(indicatorText, textX, 5'i32, 14'i32, scriptColor)
 
 proc compositeRoot(app: App) =
-  if app.tree.root != nil and app.tree.root.cachedTexture.isSome:
-    drawRenderTexture(app.tree.root.cachedTexture.get(),
-                      app.tree.root.bounds.x, app.tree.root.bounds.y)
-  # Then the overlay layer, in the order shown, above the whole tree.
-  for overlay in overlays():
-    if overlay.visible and overlay.cachedTexture.isSome:
-      drawRenderTexture(overlay.cachedTexture.get(),
-                        overlay.bounds.x, overlay.bounds.y)
+  ## Widget textures hold premultiplied colour (see main_loop), so they reach
+  ## the screen through the premultiplied blend too.
+  compositingTextures:
+    if app.tree.root != nil and app.tree.root.cachedTexture.isSome:
+      drawRenderTexture(app.tree.root.cachedTexture.get(),
+                        app.tree.root.bounds.x, app.tree.root.bounds.y)
+    # Then the overlay layer, in the order shown, above the whole tree.
+    for overlay in overlays():
+      if overlay.visible and overlay.cachedTexture.isSome:
+        drawRenderTexture(overlay.cachedTexture.get(),
+                          overlay.bounds.x, overlay.bounds.y)
 
 proc beingScripted(app: App): bool =
   app.scriptManager != nil and app.scriptManager.isBeingScripted()

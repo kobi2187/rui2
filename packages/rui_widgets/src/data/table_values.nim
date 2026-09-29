@@ -22,11 +22,15 @@ proc hasColumn*(row: TableRow, colId: string): bool =
 
 
 proc getStringValue*(value: JsonNode): string =
-  ## Get string from JSON value
-  if value.kind == JString:
-    value.getStr()
-  else:
-    ""
+  ## The value as display text: a string as itself, a number or bool as it
+  ## reads, null as "". It returned "" for everything but strings -- contrary
+  ## to the module note above -- so a DataGrid's numeric columns drew blank.
+  case value.kind
+  of JString: value.getStr()
+  of JInt: $value.getInt()
+  of JFloat: $value.getFloat()
+  of JBool: $value.getBool()
+  else: ""
 
 proc getNumericValue*(value: JsonNode): float =
   ## Get numeric value from JSON

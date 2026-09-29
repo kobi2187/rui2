@@ -9,9 +9,8 @@
 ## for the other two. `visited` latches on click regardless, so the colour
 ## changes even for an app that ignores the url.
 ##
-## The underline is drawn rather than asked for: it is a line under the
-## measured text, not TextStyle.underline, so its width comes from the same
-## Pango metrics the layout used and the two cannot drift.
+## The underline is TextStyle.underline, drawn by drawText just under the
+## baseline, from the same Pango metrics the layout measured.
 
 import rui_core
 import rui_drawing
@@ -68,22 +67,11 @@ definePrimitive(Hyperlink):
                 else:
                   widget.colorUnvisited
 
-    let textY = widget.bounds.y + (widget.bounds.height - 14) / 2
-    drawText(widget.text, widget.bounds.x + widget.bounds.width / 2, textY, 14.0, color, centered = true)
-
-    if widget.underline:
-      # Pango metrics, matching `layout` and matching what drawText actually
-      # rendered. This used to call raylib's bitmap-font measureText, which
-      # measures a different font from the one on screen, so the rule was the
-      # wrong length for anything but plain ASCII at exactly 14px.
-      let style = TextStyle(fontFamily: "", fontSize: 14.0, color: color,
-                            bold: false, italic: false, underline: false)
-      let textWidth = measureText(widget.text, style).width
-      shapes.drawLine(
-        widget.bounds.x + (widget.bounds.width - textWidth) / 2,
-        widget.bounds.y + widget.bounds.height - 3,
-        widget.bounds.x + (widget.bounds.width + textWidth) / 2,
-        widget.bounds.y + widget.bounds.height - 3,
-        color,
-        1.0f32
-      )
+    # One call, which centres the text and puts the underline under the
+    # baseline. This used to offset the text by (height - 14) / 2 on top of a
+    # full-line-height glyph texture, then draw its own rule at height - 3 --
+    # which landed through the lower half of the letters.
+    drawText(widget.text, widget.bounds,
+             TextStyle(fontFamily: "", fontSize: 14.0, color: color,
+                       bold: false, italic: false, underline: widget.underline),
+             TextAlign.Center)

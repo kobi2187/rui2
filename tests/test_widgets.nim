@@ -488,3 +488,25 @@ suite "Slider captions sit inside the bounds":
     discard s.handleInput(GuiEvent(kind: evMouseDown,
                                    mousePos: Point(x: s.bounds.x + 1, y: 10)))
     check s.value == 0.0'f32                 # left of the track pins to min
+
+suite "defects found in the example sweep":
+
+  test "a scrollbar thumb runs along the track's long side":
+    let v = scrollThumb(Rect(x: 0, y: 0, width: 10, height: 200), 400.0, 100.0, 0.0)
+    check v.height == 50.0 and v.width == 10.0 and v.y == 0.0
+    let h = scrollThumb(Rect(x: 0, y: 0, width: 200, height: 10), 400.0, 100.0, 300.0)
+    check h.width == 50.0 and h.x == 150.0          # scrolled to the end
+
+  test "content that fits fills the track, and nothing divides by zero":
+    let t = scrollThumb(Rect(x: 0, y: 0, width: 10, height: 80), 50.0, 100.0, 0.0)
+    check t.height == 80.0
+    let z = scrollThumb(Rect(x: 0, y: 0, width: 10, height: 80), 0.0, 0.0, 0.0)
+    check z.height == 80.0
+
+  test "a numeric cell has display text":
+    # getStringValue returned "" for numbers, so DataGrid's numeric columns
+    # drew blank.
+    check getStringValue(%42) == "42"
+    check getStringValue(%"x") == "x"
+    check getStringValue(%true) == "true"
+    check getStringValue(newJNull()) == ""
