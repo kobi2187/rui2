@@ -10,7 +10,7 @@
 import rui
 import std/[options, os]
 
-let app = newApp("RUI2 - Panels and tabs", 620, 560)
+let app = newApp("RUI2 - Panels and tabs", 620, 600)
 
 proc named[T](x: T, id: string): T =
   x.stringId = id
@@ -37,10 +37,10 @@ radios.onSelect = proc(index: int) =
 group.addChild(radios)
 root.addChild(group)
 
-# Column with cross-axis alignment, which VStack does not offer.
-root.addChild(newLabel(text = "Column, CrossCenter:", fontSize = 14.0).named("t1"))
-let column = newColumn(spacing = 6.0, mainAxisAlignment = MainStart,
-                       crossAxisAlignment = CrossCenter).named("column").frame(width = 560, height = 90)
+# Column centres its children across; VStack stretches them.
+root.addChild(newLabel(text = "Column, centred:", fontSize = 14.0).named("t1"))
+let column = newColumn(spacing = 6.0, mainAxisAlignment = MainAxisAlignment.start,
+                       crossAxisAlignment = CrossAxisAlignment.center).named("column").frame(width = 560, height = 90)
 for (caption, id) in [("short", "colA"), ("a longer line", "colB"),
                       ("mid", "colC")]:
   column.addChild(newLabel(text = caption, fontSize = 14.0).named(id))

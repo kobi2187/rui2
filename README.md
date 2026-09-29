@@ -20,13 +20,14 @@ var shown: Label
 var minus, plus: Button
 
 let root = ui:
-  VStack(spacing = 12.0, padding = 24.0):
-    shown = Label(text = "", fontSize = 28.0, bold = true)
-    HStack(spacing = 8.0):
-      minus = Button(text = "-").frame(minWidth = 48)
-      plus = Button(text = "+", intent = ThemeIntent.Info).frame(minWidth = 48)
-    Spacer()                                  # pushes the footer down
-    Label(text = "Built with RUI2", fontSize = 12.0)
+  Padding(padding = EdgeInsets.all(24.0)):
+    Column(spacing = 12.0):
+      shown = Label(text = "", fontSize = 28.0, bold = true)
+      Row(spacing = 8.0, mainAxisSize = MainAxisSize.min):
+        minus = Button(text = "-").frame(minWidth = 48)
+        plus = Button(text = "+", intent = ThemeIntent.Info).frame(minWidth = 48)
+      Spacer()                                # pushes the footer down
+      Label(text = "Built with RUI2", fontSize = 12.0)
 
 count.bindTo(shown, proc(v: int) = shown.text = "Count: " & $v)
 minus.onClick = proc() = count.set(count.get() - 1)
@@ -47,17 +48,21 @@ code generation step.
 
 - **Trees** -- `ui:` builds a tree from its shape; a capitalised call is a
   widget and an indented block is its children. It is sugar over the
-  constructors (`newVStack(...)`, `addChild`), which you can use directly.
+  constructors (`newColumn(...)`, `addChild`), which you can use directly.
 - **State** -- `newLink(value)`, `link.get()` / `link.set(v)`.
   `link.bindTo(widget, proc(v: T) = ...)` keeps a widget in step, repainting
   only the widgets bound to that link.
 - **Handlers** -- plain closures: `button.onClick = proc() = ...`.
-- **Layout** -- containers place their children; a widget never writes its
-  own position. VStack/HStack (with `crossAlign`, `mainAlign`, `spacing`,
-  `padding`), Grid (`px` / `fit` / `star` columns), Wrap (flowing lines),
-  Align/Center, ZStack, ScrollView, Spacer. A widget *asks* for size with
-  modifiers: `.frame(width = 300, minHeight = 40)`, `.flex(2)` for a share
-  of the spare room.
+- **Layout** -- Flutter's model and names, so a Flutter developer is at
+  home: `Row` / `Column` / `Flex` with `mainAxisAlignment`,
+  `crossAxisAlignment`, `mainAxisSize`; `Expanded`, `Flexible`, `Spacer`;
+  `Padding`, `SizedBox`, `ConstrainedBox`, `Align`, `Center`, `Container`
+  (with a `BoxDecoration`); `Stack` + `Positioned`; `Wrap`; `Table` with
+  `FixedColumnWidth` / `IntrinsicColumnWidth` / `FlexColumnWidth`;
+  `GridView`. Plus `Dock` for app windows and `ScrollView`. A widget never
+  writes its own position; it can *ask* for size with
+  `.frame(width = 300, minHeight = 40)`. `VStack`/`HStack`/`ZStack` remain
+  as stretch-by-default shorthands.
 - **Themes** -- `app.setTheme("daylight")`: daylight, midnight, aurora,
   ocean, forest, rose, ember, graphite. Your own brand is one call:
   `brandTheme(BrandSpec(name: "Acme", accent: hex"#E4572E", ...))`. See
@@ -83,7 +88,7 @@ definePrimitive(Label):
     drawText(widget.text, widget.bounds, ...)
 
 # A composite that arranges/creates children
-defineWidget(VStack):
+defineWidget(SimpleColumn):
   props:
     spacing: float = 8.0
     padding: float = 0.0
@@ -103,8 +108,11 @@ See [ARCHITECTURE.md](ARCHITECTURE.md) for the full `definePrimitive` vs
 ## What works today
 
 Widgets that compile and run: **Label, Rectangle, Circle, Button, Checkbox,
-RadioButton, Slider, ProgressBar, Hyperlink, Image, VStack, HStack, ZStack,
-ScrollView**. See STATUS.md for the authoritative list.
+RadioButton, Slider, ProgressBar, Hyperlink, Image, TextInput/TextArea,
+ComboBox, lists, trees, tables, dialogs** and the Flutter layout set
+(**Row, Column, Flex, Expanded, Flexible, Spacer, Padding, SizedBox,
+ConstrainedBox, Align, Center, Container, Stack, Positioned, Wrap, Table,
+GridView, Dock, ScrollView**). See STATUS.md for the authoritative list.
 
 ## Installation
 

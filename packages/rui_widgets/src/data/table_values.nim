@@ -4,7 +4,7 @@
 ## filtering, sorting, cell formatting, and two superseded copies of the
 ## scrolling arithmetic in one 329-line module.
 ##
-## A TableRow's values are JsonNode, so every other module here needs the same
+## A DataRow's values are JsonNode, so every other module here needs the same
 ## question answered first -- is this thing text or a number, and what does it
 ## say? The accessors are deliberately lenient: getStringValue renders a number
 ## as text rather than failing, because a filter typed into a search box has no
@@ -13,11 +13,11 @@
 import std/[json, strutils, tables]
 
 type
-  TableRow* = object
+  DataRow* = object
     id*: string
     values*: Table[string, JsonNode]
 
-proc hasColumn*(row: TableRow, colId: string): bool =
+proc hasColumn*(row: DataRow, colId: string): bool =
   colId in row.values
 
 
@@ -68,7 +68,7 @@ proc formatCellValue*(value: JsonNode, formatFunc: proc(v: JsonNode): string = n
   else:
     $value
 
-proc getCellText*(row: TableRow, colId: string, formatFunc: proc(v: JsonNode): string = nil): string =
+proc getCellText*(row: DataRow, colId: string, formatFunc: proc(v: JsonNode): string = nil): string =
   ## Get formatted text for cell
   if not hasColumn(row, colId):
     return ""

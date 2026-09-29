@@ -27,32 +27,37 @@ var meter: ProgressBar
 let root = ui:
   VStack(spacing = 16.0, padding = 24.0):
     title = Label(text = "", fontSize = 24.0, bold = true)
-    switcher = Wrap(spacing = 6.0, lineSpacing = 6.0)
+    switcher = Wrap(spacing = 6.0, runSpacing = 6.0)
 
     # A form: labels in a column as wide as the widest, inputs taking the rest.
-    Grid(columns = @[fit(), star()], colSpacing = 12.0, rowSpacing = 10.0):
-      Label(text = "Name")
-      TextInput(placeholder = "Ada Lovelace")
-      Label(text = "Email")
-      TextInput(placeholder = "ada@example.com")
-      Label(text = "Plan")
-      ComboBox(items = @["Starter", "Team", "Enterprise"], initialSelectedIndex = 1)
+    Table(columnWidths = @[IntrinsicColumnWidth(), FlexColumnWidth()],
+          columnSpacing = 12.0, rowSpacing = 10.0):
+      TableRow():
+        Label(text = "Name")
+        TextInput(placeholder = "Ada Lovelace")
+      TableRow():
+        Label(text = "Email")
+        TextInput(placeholder = "ada@example.com")
+      TableRow():
+        Label(text = "Plan")
+        ComboBox(items = @["Starter", "Team", "Enterprise"], initialSelectedIndex = 1)
 
     Separator()
 
-    HStack(spacing = 24.0, crossAlign = CrossStart):
+    Row(spacing = 24.0, crossAxisAlignment = CrossAxisAlignment.start):
       VStack(spacing = 10.0):
         Checkbox(text = "Email me updates", initialChecked = true)
         Checkbox(text = "Remember this device")
         Checkbox(text = "Disabled option", disabled = true)
       RadioGroup(options = @["Monthly", "Yearly", "Lifetime"],
                  initialSelectedIndex = 1)
-      VStack(spacing = 10.0).flex:
-        volume = Slider(initialValue = 65.0, textLeft = "Volume")
-        meter = ProgressBar(initialValue = 65.0)
+      Expanded():
+        Column(spacing = 10.0, crossAxisAlignment = CrossAxisAlignment.stretch):
+          volume = Slider(initialValue = 65.0, textLeft = "Volume")
+          meter = ProgressBar(initialValue = 65.0)
 
     # Every intent, flowing onto as many lines as the window needs.
-    Wrap(spacing = 8.0, lineSpacing = 8.0):
+    Wrap(spacing = 8.0, runSpacing = 8.0):
       Button(text = "Default")
       Button(text = "Primary", intent = ThemeIntent.Info)
       Button(text = "Success", intent = ThemeIntent.Success)
@@ -61,7 +66,7 @@ let root = ui:
       Button(text = "Disabled", disabled = true)
 
     Spacer()
-    HStack(mainAlign = MainEnd, spacing = 8.0):
+    Row(mainAxisAlignment = MainAxisAlignment.end, spacing = 8.0):
       Button(text = "Cancel")
       Button(text = "Save changes", intent = ThemeIntent.Info)
 

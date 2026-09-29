@@ -111,7 +111,8 @@ runnable example under `examples/widgets/`. Covered by
 
 Known gaps within the working set: `DataTable`'s filter strip *displays* the
 active filter but cannot be edited through the UI (set `filters` from code);
-VStack and HStack take `crossAlign` (Start/Center/End/Stretch) like Column.
+layout uses Flutter's model and names (Row/Column/Flex, Expanded, Padding,
+SizedBox, Align, Container, Stack/Positioned, Wrap, Table, GridView).
 
 ### Reactivity
 - `Link[T]`: `get`/`set`/`value`, direct-widget-reference dependency tracking,
@@ -150,9 +151,10 @@ VStack and HStack take `crossAlign` (Start/Center/End/Stretch) like Column.
 
 - **Layout owns positioning.** Widgets ask for size with `frame(...)` /
   `flex(...)` (usable in `ui:`) and containers place them; no example writes
-  `bounds` any more. New primitives: Grid (`px`/`fit`/`star` tracks), Wrap,
-  Align/Center, `mainAlign` justification, flex shrinking, and a ZStack that
-  sizes to content.
+  `bounds` any more. The layout set follows Flutter's model and names --
+  Row/Column/Flex, Expanded/Flexible/Spacer, Padding, SizedBox,
+  ConstrainedBox, Align/Center, Container, Stack/Positioned, Wrap, Table,
+  GridView -- restored from the original `modules/layout` design, plus Dock.
 - **Branded themes.** `brandTheme(BrandSpec)` turns a handful of brand
   choices into a complete theme; eight ship (daylight, midnight, aurora,
   ocean, forest, rose, ember, graphite). The accent now reaches fills,

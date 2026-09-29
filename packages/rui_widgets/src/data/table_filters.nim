@@ -37,7 +37,7 @@ proc isNoneFilter*(filter: Filter): bool =
   ## Check if filter is disabled
   filter.kind == fkNone
 
-proc hasColumn*(row: TableRow, colId: string): bool =
+proc hasColumn*(row: DataRow, colId: string): bool =
   ## Check if row has value for column
   colId in row.values
 
@@ -105,7 +105,7 @@ proc matchesFilter*(value: JsonNode, filter: Filter): bool =
   of fkNone:
     true
 
-proc matchesColumnFilter*(row: TableRow, colId: string, filter: Filter): bool =
+proc matchesColumnFilter*(row: DataRow, colId: string, filter: Filter): bool =
   ## Check if row value matches filter for column
   if isNoneFilter(filter):
     return true
@@ -116,7 +116,7 @@ proc matchesColumnFilter*(row: TableRow, colId: string, filter: Filter): bool =
   let value = row.values[colId]
   matchesFilter(value, filter)
 
-proc matchesAllFilters*(row: TableRow, filters: Table[string, Filter]): bool =
+proc matchesAllFilters*(row: DataRow, filters: Table[string, Filter]): bool =
   ## Check if row matches all active filters
   for colId, filter in filters:
     if not matchesColumnFilter(row, colId, filter):
@@ -127,7 +127,7 @@ proc matchesAllFilters*(row: TableRow, filters: Table[string, Filter]): bool =
 # Filtering - Build Filtered Index
 # ============================================================================
 
-proc buildFilteredIndices*(data: seq[TableRow], filters: Table[string, Filter]): seq[int] =
+proc buildFilteredIndices*(data: seq[DataRow], filters: Table[string, Filter]): seq[int] =
   ## Build list of row indices that pass filters
   result = @[]
   for i, row in data:

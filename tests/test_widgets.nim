@@ -147,7 +147,7 @@ suite "containers":
   test "VStack":
     let w = newVStack(spacing = 6.0, padding = 3.0)
     check w.spacing == 6.0
-    check w.padding == 3.0
+    check w.padding == EdgeInsets.all(3.0)
     w.addChild(newLabel(text = "a", fontSize = 14.0))
     w.checkSizes()
     w.checkScriptable("VStack")

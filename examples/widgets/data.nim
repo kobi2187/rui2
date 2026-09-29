@@ -51,20 +51,20 @@ root.addChild(treeView)
 # DataTable ----------------------------------------------------------------
 root.addChild(newLabel(text = "DataTable (click a header to sort):",
                        fontSize = 14.0).named("t2"))
-var tableRows: seq[TableRow] = @[]
+var tableRows: seq[DataRow] = @[]
 for (name, role) in [("ada", "engineer"), ("grace", "admiral"),
                      ("alan", "engineer"), ("edsger", "professor"),
                      ("barbara", "engineer")]:
   var values = initTable[string, JsonNode]()
   values["name"] = %name
   values["role"] = %role
-  tableRows.add(TableRow(id: name, values: values))
+  tableRows.add(DataRow(id: name, values: values))
 
 let table = newDataTable(
   columns = @[
-    ColumnDef(id: "name", title: "Name", width: 160.0,
+    DataColumn(id: "name", title: "Name", width: 160.0,
               sortable: true, filterable: true),
-    ColumnDef(id: "role", title: "Role", width: 200.0,
+    DataColumn(id: "role", title: "Role", width: 200.0,
               sortable: true, filterable: true),
   ],
   data = tableRows, rowHeight = 22.0, visibleRows = 5).named("table").frame(width = 360)

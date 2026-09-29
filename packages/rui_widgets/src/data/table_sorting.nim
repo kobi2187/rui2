@@ -39,7 +39,7 @@ proc compareValues*(a, b: JsonNode, ascending: bool): int =
   else:
     0
 
-proc compareRows*(a, b: TableRow, colId: string, ascending: bool): int =
+proc compareRows*(a, b: DataRow, colId: string, ascending: bool): int =
   ## Compare two rows by column value
   if not hasColumn(a, colId) or not hasColumn(b, colId):
     return 0

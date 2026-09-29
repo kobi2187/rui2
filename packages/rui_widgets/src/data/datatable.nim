@@ -7,7 +7,7 @@
 ## `filteredIndices`. The pre-split version rebuilt the filtered index list from
 ## scratch inside `render`, on every single frame, over the whole dataset.
 ##
-## FilterKind / Filter / TableRow / SortOrder come from datatable_helpers, which also owns
+## FilterKind / Filter / DataRow / SortOrder come from datatable_helpers, which also owns
 ## the matching and comparison logic. They used to be declared a second time in
 ## this file, with a second, subtly different implementation of the matcher:
 ## the local copy guarded every string test with `value.kind == JString`, so a
@@ -32,7 +32,7 @@ import tabular_render
 export datatable_helpers, tabular, tabular_render
 
 type
-  ColumnDef* = object
+  DataColumn* = object
     id*: string
     title*: string
     width*: float32
@@ -96,8 +96,8 @@ template selectRowAt*(widget: untyped, viewIdx: int): bool =
 
 definePrimitive(DataTable):
   props:
-    columns: seq[ColumnDef] = @[]
-    data: seq[TableRow] = @[]    # The whole dataset; can be large
+    columns: seq[DataColumn] = @[]
+    data: seq[DataRow] = @[]    # The whole dataset; can be large
     rowHeight: float32 = 24.0
     headerHeight: float32 = 28.0
     filterHeight: float32 = 26.0

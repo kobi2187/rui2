@@ -177,6 +177,8 @@ type
     cursorShape*: CursorShape
       ## The pointer shape while hovering this widget. `csDefault` defers to
       ## the parent, so a composite sets it once for all its parts.
+    flexLoose*: bool
+      ## Flexible's `FlexFit.loose`: take at most the flex share, not exactly it.
     flexGrow*: float32
       ## Share of a stack's leftover main-axis space this widget takes, like
       ## CSS `flex-grow`. 0 (the default) keeps the widget at its own size.

@@ -100,20 +100,19 @@ the containers place them. No example writes `bounds` any more.
 - [x] **Size requests** -- `frame(width, height, minWidth, ..., maxHeight)`,
   `unframe`, `flex(weight)`, chaining and usable inside `ui:`. A request
   beats stretch, min/max clamp either way (`Widget.sizeRequest/sizeMin/sizeMax`).
-- [x] **Grid** -- `px`, `fit` and `star` column tracks, rows centred on
-  their tallest cell (`rowAlign`).
-- [x] **Wrap** -- flow layout that breaks lines at the available width.
-- [x] **Align / Center** -- place content in a box; pads when unsized.
-- [x] **Justification** -- `mainAlign` on VStack/HStack (start, center, end,
-  space-between/around/evenly).
-- [x] **flexShrink** -- an overflowing stack takes the excess back from its
-  flex children, by weight, instead of spilling past the edge.
-- [x] ZStack sizes to its largest child.
-- [x] Cross-axis alignment for VStack/HStack (`crossAlign`), sharing
-  `CrossAxisAlignment` with Column from `rui_core/flex.nim`. The default,
-  Stretch, keeps the old behaviour; `CrossCenter` lines a label up with an
-  input.
-- [ ] Grid cells spanning several columns or rows.
+- [x] **Flutter's layout model and names**, restoring the original
+  `modules/layout` design and its arithmetic (`rui_core/layout.nim`):
+  `Row` / `Column` / `Flex` (`mainAxisAlignment`, `crossAxisAlignment`,
+  `mainAxisSize`), `Expanded` / `Flexible` / `Spacer`, `Padding`,
+  `SizedBox`, `ConstrainedBox` (`BoxConstraints`), `Align` / `Center`
+  (`Alignment.topLeft` ...), `Container` + `BoxDecoration`, `Stack` +
+  `Positioned`, `Wrap` (`runSpacing`), `Table` (`Fixed`/`Intrinsic`/
+  `FlexColumnWidth`), `GridView`, `EdgeInsets.all/symmetric/only`, and
+  `Dock` from the old design. VStack/HStack/ZStack stay as shorthands.
+  Covered by `tests/test_flutter_layout.nim`.
+- [x] Cached widget textures composite on whole pixels, so centred
+  content is not resampled into blurry, doubled text.
+- [ ] Table cells spanning several columns or rows.
 - [ ] **SplitView** with a draggable divider.
 - [ ] Right-to-left layout mirroring, driven by the text direction Pango
   already reports.

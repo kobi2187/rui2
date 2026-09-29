@@ -507,7 +507,10 @@ definePrimitive(TextArea):
       if widget.bounds.width <= 0:
         widget.bounds.width = content.measure().width + pad
       # Measured after the width is settled, so wrapped text gets its height.
-      widget.bounds.height = widget.contentOf.measure().height + pad
+      # A height the parent assigned is kept -- a Label in a SizedBox(height)
+      # takes that height, its text centred in it, as a Flutter Text would.
+      if widget.bounds.height <= 0:
+        widget.bounds.height = widget.contentOf.measure().height + pad
     else:
       let lines = if widget.multiline: max(1, widget.visibleLines) else: 1
       if widget.bounds.height <= 0:
