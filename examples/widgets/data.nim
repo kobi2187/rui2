@@ -43,8 +43,7 @@ let tree = TreeNode(id: "root", text: "project", expanded: true, children: @[
   TreeNode(id: "readme", text: "README.md"),
 ])
 let treeView = newTreeView(rootNode = tree, nodeHeight = 22.0,
-                           visibleRows = 6).named("tree")
-treeView.bounds = Rect(x: 0, y: 0, width: 300, height: 132)
+                           visibleRows = 6).named("tree").frame(width = 300, height = 132)
 treeView.onSelect = proc(nodeId: string) =
   report("tree -> " & nodeId)
 root.addChild(treeView)
@@ -68,8 +67,7 @@ let table = newDataTable(
     ColumnDef(id: "role", title: "Role", width: 200.0,
               sortable: true, filterable: true),
   ],
-  data = tableRows, rowHeight = 22.0, visibleRows = 5).named("table")
-table.bounds = Rect(x: 0, y: 0, width: 360, height: 0)
+  data = tableRows, rowHeight = 22.0, visibleRows = 5).named("table").frame(width = 360)
 
 # Filters are set from code; the strip shows what is active.
 table.filters["role"] = Filter(column: "role", kind: fkContains, text: "engineer")

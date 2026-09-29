@@ -36,8 +36,7 @@ for (mode, id) in [(ImageFit.Contain, "contain"),
                    (ImageFit.Fill, "fill"),
                    (ImageFit.Cover, "cover")]:
   let img = newImageWidget(imagePath = samplePath, width = 96.0,
-                           height = 96.0, fitMode = mode).named(id)
-  img.bounds = Rect(x: 0, y: 0, width: 96, height: 96)
+                           height = 96.0, fitMode = mode).named(id).frame(width = 96, height = 96)
   row.addChild(img)
 root.addChild(row)
 

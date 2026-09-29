@@ -72,6 +72,9 @@ defineWidget(Grid):
     colSpacing: float32 = 8.0
     rowSpacing: float32 = 8.0
     padding: float32 = 0.0
+    # Where a cell sits within a taller row -- centred, so a label lines up
+    # with the input beside it.
+    rowAlign: CrossAxisAlignment = CrossCenter
 
   layout:
     let tracks = effectiveTracks(widget.columns, widget.cols)
@@ -96,8 +99,8 @@ defineWidget(Grid):
     while i < widget.children.len:
       var x = widget.bounds.x + pad
       var rowHeight = 0.0'f32
-      for c in 0 ..< n:
-        if i + c >= widget.children.len: break
+      let last = min(i + n, widget.children.len) - 1
+      for c in 0 .. last - i:
         let child = widget.children[i + c]
         child.bounds.x = x
         child.bounds.y = y
@@ -105,6 +108,8 @@ defineWidget(Grid):
         child.layout()
         rowHeight = max(rowHeight, child.bounds.height)
         x += widths[c] + widget.colSpacing
+      alignCross(widget.children[i .. last], faHorizontal, widget.rowAlign,
+                 rowHeight)
       y += rowHeight + widget.rowSpacing
       i += n
 

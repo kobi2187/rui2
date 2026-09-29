@@ -23,8 +23,7 @@ let echoLabel = newLabel(text = "(nothing typed)", fontSize = 15.0).named("echo"
 let submitted = newLabel(text = "", fontSize = 14.0).named("submitted")
 
 let input = newTextInput(initialText = "", placeholder = "Type something...",
-                         fontSize = 16.0, maxLength = 40).named("input")
-input.bounds = Rect(x: 0, y: 0, width: 440, height: 36)
+                         fontSize = 16.0, maxLength = 40).named("input").frame(width = 440, height = 36)
 
 input.onChange = proc(newText: string) =
   echoLabel.text = if newText.len > 0: newText else: "(nothing typed)"
@@ -43,8 +42,7 @@ root.addChild(echoLabel)
 root.addChild(submitted)
 
 let capped = newTextInput(initialText = "max 8 chars", maxLength = 8,
-                          fontSize = 14.0).named("capped")
-capped.bounds = Rect(x: 0, y: 0, width: 200, height: 30)
+                          fontSize = 14.0).named("capped").frame(width = 200, height = 30)
 root.addChild(newLabel(text = "maxLength = 8:", fontSize = 14.0).named("t2"))
 root.addChild(capped)
 

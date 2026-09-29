@@ -30,8 +30,7 @@ let map = newMapWidget(initialCenter = MapCoord(lat: 20.0, lon: 0.0),
                        initialZoom = 2.0, minZoom = 1.0, maxZoom = 12.0,
                        projection = mpMercator, markerShape = msPin,
                        showCoordinates = true, showZoomControls = true,
-                       gridLines = true).named("map")
-map.bounds = Rect(x: 0, y: 0, width: 680, height: 400)
+                       gridLines = true).named("map").frame(width = 680, height = 400)
 
 for (id, title, lat, lon) in [("lon", "London", 51.5074, -0.1278),
                               ("nyc", "New York", 40.7128, -74.0060),

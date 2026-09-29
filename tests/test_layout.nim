@@ -384,7 +384,7 @@ suite "flex: stacks share leftover space":
   test "flexShares splits by weight and ignores non-positive weights":
     check flexShares([0.0'f32, 1.0, 3.0], 100.0) == @[0.0'f32, 25.0, 75.0]
     check flexShares([1.0'f32, 1.0], 0.0) == @[0.0'f32, 0.0]
-    check flexShares([1.0'f32, 1.0], -10.0) == @[0.0'f32, 0.0]
+    check flexShares([1.0'f32, 1.0], -10.0) == @[-5.0'f32, -5.0]   # shrink
     check flexShares([0.0'f32, -1.0], 50.0) == @[0.0'f32, 0.0]
 
   test "a Spacer pushes the children after it to the bottom of a VStack":
@@ -716,3 +716,29 @@ suite "Align and Center":
     z.addChild(newLabel(text = "on top", fontSize = 14.0))
     z.layout()
     check z.bounds.width == 80.0 and z.bounds.height == 30.0
+
+  test "an overflowing row shrinks its flex child instead of spilling":
+    let row = newHStack(spacing = 0.0)
+    row.bounds = Rect(x: 0, y: 0, width: 300, height: 40)
+    let fixed = newRectangle().frame(width = 200, height = 20)
+    let col = newVStack(spacing = 0.0).flex
+    col.addChild(newRectangle().frame(width = 180, height = 20))   # wants 180
+    col.addChild(newLabel(text = "stretches", fontSize = 14.0))
+    row.addChild(fixed)
+    row.addChild(col)
+    row.layout()
+    check col.bounds.x + col.bounds.width == 300.0     # stops at the edge
+    check fixed.bounds.width == 200.0                  # fixed never shrinks
+    check col.children[1].bounds.width == col.bounds.width  # stretched to it
+
+suite "Grid rows":
+
+  test "a short cell is centred in a tall row":
+    let g = newGrid(columns = @[fit(), star()], colSpacing = 0.0)
+    g.bounds = Rect(x: 0, y: 0, width: 300, height: 0)
+    let lbl = newRectangle().frame(width = 40, height = 10)
+    let tall = newRectangle().frame(height = 30)
+    g.addChild(lbl)
+    g.addChild(tall)
+    g.layout()
+    check lbl.bounds.y == 10.0

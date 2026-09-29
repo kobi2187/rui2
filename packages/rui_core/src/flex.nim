@@ -6,8 +6,10 @@
 ## to their weights -- the same rule as CSS `flex-grow`. Everything after a
 ## grown child moves along by what that child took.
 ##
-## Nothing here shrinks: when the children overflow the stack there is no
-## leftover and they keep their natural sizes.
+## When the children overflow instead, the flex children give the excess back
+## the same way, by weight, down to zero -- so a flexible column in a row that
+## is too narrow narrows rather than pushing everything past the edge. Fixed
+## children are never shrunk.
 
 import types
 
@@ -34,10 +36,11 @@ type
     CrossStretch     ## Fill the container's cross size, when it has one
 
 proc flexShares*(weights: openArray[float32], leftover: float32): seq[float32] =
-  ## How much of `leftover` each weight gets. All zeros when there is nothing
-  ## to hand out or nobody wants it.
+  ## How much of `leftover` each weight gets -- negative when the children
+  ## overflow and have to give room back. All zeros when there is nothing to
+  ## share or nobody flexes.
   result = newSeq[float32](weights.len)
-  if leftover <= 0:
+  if leftover == 0:
     return
   var total = 0.0'f32
   for w in weights:
@@ -123,8 +126,11 @@ proc applyFlex*(children: seq[Widget], leftover: float32, axis: FlexAxis) =
   let shares = flexShares(weights, leftover)
   var offset = 0.0'f32
   for i, child in children:
-    if shares[i] <= 0 and offset <= 0:
+    if shares[i] == 0 and offset == 0:
       continue
-    child.growChild(shares[i], offset, axis)
-    offset += shares[i]
+    # Shrinking stops at zero; whatever a child cannot give back stays over.
+    let size = if axis == faVertical: child.bounds.height else: child.bounds.width
+    let share = max(shares[i], -size)
+    child.growChild(share, offset, axis)
+    offset += share
     child.layout()

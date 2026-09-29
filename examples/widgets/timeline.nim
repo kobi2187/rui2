@@ -51,8 +51,7 @@ let track = newTimeline(events = events,
                         scale = tsHour, pixelsPerUnit = 70.0,
                         eventHeight = 32.0, eventSpacing = 6.0,
                         showGrid = true, showTimeLabels = true,
-                        showNowMarker = true).named("track")
-track.bounds = Rect(x: 0, y: 0, width: 680, height: 260)
+                        showNowMarker = true).named("track").frame(width = 680, height = 260)
 track.onEventClick = proc(evt: TimelineEvent) =
   summary.text = evt.title & " (" & evt.startTime.format("HH:mm") & ")"
   summary.isDirty = true
