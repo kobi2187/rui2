@@ -307,8 +307,9 @@ proc canvasColor*(theme: Theme): Color =
   Color(r: 245, g: 245, b: 245, a: 255)
 
 proc setCurrentTheme*(theme: Theme) =
-  ## Set the global current theme
+  ## Set the global current theme, and its typography as the default family.
   currentTheme = theme
+  themeFontFamily = theme.typography.primaryFont.get("")
 
 proc makeColor*(r, g, b: int, a: int = 255): Color =
   Color(

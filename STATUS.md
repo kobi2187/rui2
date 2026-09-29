@@ -148,6 +148,16 @@ VStack and HStack take `crossAlign` (Start/Center/End/Stretch) like Column.
 
 ## Recently completed
 
+- **Layout owns positioning.** Widgets ask for size with `frame(...)` /
+  `flex(...)` (usable in `ui:`) and containers place them; no example writes
+  `bounds` any more. New primitives: Grid (`px`/`fit`/`star` tracks), Wrap,
+  Align/Center, `mainAlign` justification, flex shrinking, and a ZStack that
+  sizes to content.
+- **Branded themes.** `brandTheme(BrandSpec)` turns a handful of brand
+  choices into a complete theme; eight ship (daylight, midnight, aurora,
+  ocean, forest, rose, ember, graphite). The accent now reaches fills,
+  focus and the primary action, labels follow the theme's text colour, and
+  the theme's typography is the default font.
 - **Example sweep.** Every widget example screenshotted and reviewed; fixed:
   widget textures now composite with premultiplied alpha (translucent
   drawing on transparent widgets came out a fraction of its strength -- all
@@ -210,6 +220,7 @@ Verified against the code. The prioritised plan is in [TODO.md](TODO.md).
   CJK input methods is not shown.
 - **No HiDPI scaling** — nothing reads the monitor's scale factor.
 - **No accessibility** — no screen-reader bridge (AT-SPI / UIA / NSAccessibility).
+  Deliberately low priority for now (TODO.md #17).
 - **No animation system** — transitions are instant.
 - **No mouse-cursor shapes** — the I-beam over text, resize arrows, etc.
 

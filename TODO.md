@@ -94,15 +94,26 @@ The redesign, for min/max constraints and a cheaper second pass:
 
 ## P1 — Expected of any modern toolkit
 
-### 5. Layout completeness *(medium; after #1)*
+### 5. Layout completeness *(mostly done)*
+Positioning belongs to the layout primitives: widgets *ask* for a size and
+the containers place them. No example writes `bounds` any more.
+- [x] **Size requests** -- `frame(width, height, minWidth, ..., maxHeight)`,
+  `unframe`, `flex(weight)`, chaining and usable inside `ui:`. A request
+  beats stretch, min/max clamp either way (`Widget.sizeRequest/sizeMin/sizeMax`).
+- [x] **Grid** -- `px`, `fit` and `star` column tracks, rows centred on
+  their tallest cell (`rowAlign`).
+- [x] **Wrap** -- flow layout that breaks lines at the available width.
+- [x] **Align / Center** -- place content in a box; pads when unsized.
+- [x] **Justification** -- `mainAlign` on VStack/HStack (start, center, end,
+  space-between/around/evenly).
+- [x] **flexShrink** -- an overflowing stack takes the excess back from its
+  flex children, by weight, instead of spilling past the edge.
+- [x] ZStack sizes to its largest child.
 - [x] Cross-axis alignment for VStack/HStack (`crossAlign`), sharing
   `CrossAxisAlignment` with Column from `rui_core/flex.nim`. The default,
   Stretch, keeps the old behaviour; `CrossCenter` lines a label up with an
   input.
-- [ ] `flexShrink` to complement the new `flexGrow` (`rui_core/flex.nim`).
-- [ ] A **Grid** container: rows/columns with fixed, auto and star sizes, plus
-  spans.
-- [ ] A **Wrap/Flow** container for chips and toolbars that reflow.
+- [ ] Grid cells spanning several columns or rows.
 - [ ] **SplitView** with a draggable divider.
 - [ ] Right-to-left layout mirroring, driven by the text direction Pango
   already reports.
@@ -116,6 +127,18 @@ The redesign, for min/max constraints and a cheaper second pass:
 - [x] **ToolBar with captioned ToolButtons overlapped them** -- captions
   were measured at 9 px and drawn at the theme's ~14 px, and the bar forced
   its 32 px height on 43 px buttons. Both fixed.
+
+### 5b. Branded themes ✅ *(follow-ups open)*
+- [x] `brandTheme(BrandSpec)` (`rui_drawing/brand_themes.nim`): accent,
+  canvas, surface, text, border, radius, font in; a complete theme out --
+  every intent and state, hovers and presses leaning toward the accent, a
+  solid primary (Info) action, and the typography as the default family.
+- [x] Eight shipped brands: daylight (the new `light`), midnight (the new
+  `dark`), aurora, ocean, forest (serif), rose, ember, graphite. See
+  `examples/widgets/theme_gallery.nim`.
+- [ ] Load a `BrandSpec` from YAML beside the existing theme files.
+- [ ] Theme transitions (fade between palettes) once animation exists (#9).
+- [ ] A per-brand elevation/shadow token for cards and popups.
 
 ### 6. Reactivity you can write declaratively *(medium)*
 - [ ] A `bind` word inside `ui:` — `TextInput(bind <-> store.name)` for two-way
@@ -155,18 +178,6 @@ The redesign, for min/max constraints and a cheaper second pass:
 ---
 
 ## P2 — What would make RUI2 stand out
-
-### 10. Accessibility *(large)*
-No toolkit is "best" if a screen reader cannot use it.
-- [ ] Integrate [AccessKit](https://github.com/AccessKit/accesskit) through its
-  C API: map the widget tree to AccessKit nodes (role, name, value, bounds,
-  actions) and route its action requests back as events. It speaks AT-SPI,
-  UIA and NSAccessibility.
-- [ ] Add `accessibleName` / `accessibleRole` to `Widget`, defaulting from the
-  type and text. The scripting bridge's `getScriptableState` already holds
-  most of the data.
-- [ ] High-contrast themes and a minimum focus-ring contrast check in
-  `test_theme`.
 
 ### 11. Input methods and international text *(medium; needs #3)*
 - [ ] IME pre-edit (composition) display for CJK input. This needs platform
@@ -227,6 +238,20 @@ No toolkit is "best" if a screen reader cannot use it.
 
 ---
 
+### 17. Accessibility *(large -- low priority for now)*
+Deferred by the project owner: important eventually, not now.
+- [ ] Integrate [AccessKit](https://github.com/AccessKit/accesskit) through its
+  C API: map the widget tree to AccessKit nodes (role, name, value, bounds,
+  actions) and route its action requests back as events. It speaks AT-SPI,
+  UIA and NSAccessibility.
+- [ ] Add `accessibleName` / `accessibleRole` to `Widget`, defaulting from the
+  type and text. The scripting bridge's `getScriptableState` already holds
+  most of the data.
+- [ ] High-contrast themes and a minimum focus-ring contrast check in
+  `test_theme`.
+
+---
+
 ## Suggested order
 
 ```
@@ -237,7 +262,7 @@ No toolkit is "best" if a screen reader cannot use it.
 #4 idle ─────────────── #9 animation
 #6 bind (independent)     #7 HiDPI (independent)
 #16 split ─── publish ─── v0.2.0   (MIT chosen)
-#10 accessibility (after #1; needs stable roles and bounds)
+#17 accessibility -- low priority, later
 ```
 
 #2 and #4 are small and unblock the most. #1 is the one architectural change

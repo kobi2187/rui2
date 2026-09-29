@@ -549,11 +549,11 @@ type
   TextInput* = TextArea
     ## A TextArea with `multiline = false`: one line, Enter submits.
 
-proc newLabel*(text = "", fontSize: float32 = 14.0, color: Color = BLACK,
+proc newLabel*(text = "", fontSize: float32 = 14.0, color: Color = ThemeColor,
                fontFamily = "", bold = false, italic = false, underline = false,
                align = TextAlign.Left, wrap = false, markup = false): Label =
-  ## Display text. Black unless told otherwise, as Label always was; pass
-  ## `color = ThemeColor` to follow the theme instead.
+  ## Display text, in the theme's text colour unless given one. It was black
+  ## by default, which vanished on every dark theme.
   newTextArea(initialText = text, placeholder = "", fontSize = fontSize,
               color = color, fontFamily = fontFamily, bold = bold,
               italic = italic, underline = underline, align = align,

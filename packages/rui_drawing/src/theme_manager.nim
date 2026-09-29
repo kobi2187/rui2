@@ -89,6 +89,8 @@ proc newThemeManager*(): ThemeManager =
   result.registry["beos"] = createBeosTheme()
   result.registry["joy"] = createJoyTheme()
   result.registry["wide"] = createWideTheme()
+  for (key, theme) in brandThemes():
+    result.registry[key] = theme
   result.current = result.registry["light"]
   setCurrentTheme(result.current)
 

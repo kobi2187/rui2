@@ -12,7 +12,7 @@
 
 import std/unittest
 import rui
-import std/json
+import std/[json, tables, strutils, options]
 
 suite "theme: registry and switching":
 
@@ -421,3 +421,57 @@ statePreference:
     base.statePreference[crText] = spHoverFirst
     tm.register("base", base)
     check tm.derive("base").ladderFor(crText) == slPointerFirst
+
+suite "branded themes":
+
+  test "hex and mix":
+    check hex"#4F46E5" == Color(r: 0x4F, g: 0x46, b: 0xE5, a: 255)
+    check hex"#11223380".a == 0x80
+    let mid = mix(Color(r: 0, g: 0, b: 0, a: 255), Color(r: 200, g: 100, b: 50, a: 255), 0.5)
+    check mid == Color(r: 100, g: 50, b: 25, a: 255)
+
+  test "a brand theme is complete: every intent has its colours":
+    let t = brandTheme(daylightSpec())
+    for intent in ThemeIntent:
+      let p = t.getThemeProps(intent, ThemeState.Normal)
+      check p.backgroundColor.isSome
+      check p.foregroundColor.isSome
+      check p.activeColor.isSome
+    for state in [Hovered, Pressed, Focused, Disabled]:
+      check t.states[ThemeIntent.Default].hasKey(state)
+
+  test "the accent reaches the parts that used to fall back to one blue":
+    let spec = auroraSpec()
+    let p = brandTheme(spec).getThemeProps(ThemeIntent.Default, ThemeState.Normal)
+    check p.activeColor.get == spec.accent
+    check p.focusColor.get == spec.accent
+
+  test "the primary action is solid accent":
+    let spec = oceanSpec()
+    let p = brandTheme(spec).getThemeProps(ThemeIntent.Info, ThemeState.Normal)
+    check p.backgroundColor.get == spec.accent
+    check p.foregroundColor.get == Color(r: 255, g: 255, b: 255, a: 255)
+
+  test "hovering leans toward the accent; disabling fades":
+    let spec = daylightSpec()
+    let t = brandTheme(spec)
+    let normal = t.getThemeProps(ThemeIntent.Default, ThemeState.Normal).backgroundColor.get
+    let hovered = t.getThemeProps(ThemeIntent.Default, ThemeState.Hovered).backgroundColor.get
+    check hovered != normal
+    let disabledFg = t.getThemeProps(ThemeIntent.Default, ThemeState.Disabled).foregroundColor.get
+    check disabledFg != spec.text
+
+  test "every shipped brand is registered":
+    let tm = newThemeManager()
+    for key in ["daylight", "midnight", "aurora", "ocean", "forest",
+                "rose", "ember", "graphite", "light", "dark"]:
+      check key in tm.listThemes()
+
+  test "a theme's typography becomes the default font family":
+    let saved = currentTheme
+    defer: setCurrentTheme(saved)
+    setCurrentTheme(brandTheme(forestSpec()))
+    check themeFontFamily == "Serif"
+    check TextStyle(fontSize: 14.0).pangoFont.startsWith("Serif")
+    setCurrentTheme(brandTheme(daylightSpec()))
+    check themeFontFamily == ""

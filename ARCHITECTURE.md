@@ -386,7 +386,11 @@ app.setTheme(myTheme)   # by Theme object
 Both set the manager's current theme -- which is what the global
 `currentTheme` widgets read -- and mark the whole tree dirty so the next frame
 repaints with it. Built-in themes:
-`light`, `dark`, `beos`, `joy`, `wide` (light is the default).
+the branded set from `brand_themes.nim` -- `daylight` (also `light`, the
+default), `midnight` (also `dark`), `aurora`, `ocean`, `forest`, `rose`,
+`ember`, `graphite` -- plus `beos`, `joy` and `wide`. A branded theme is
+generated from a `BrandSpec` (accent, canvas, surface, text, border, radius,
+font), which fills every intent and state consistently.
 
 ### Focus styling
 

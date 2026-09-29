@@ -40,9 +40,16 @@ type
 # Text Measurement
 # ============================================================================
 
+var themeFontFamily* = ""
+  ## The family a style with no family of its own uses: the current theme's
+  ## typography, set by setCurrentTheme. "" is the system sans.
+
 proc pangoFont*(style: TextStyle): string {.inline.} =
-  ## Translate a TextStyle into a Pango font description.
-  fontDescString(style.fontFamily, style.fontSize, style.bold, style.italic)
+  ## Translate a TextStyle into a Pango font description. A style that names
+  ## no family gets the theme's, so a branded theme's typography reaches every
+  ## caption without each widget asking for it.
+  let family = if style.fontFamily.len > 0: style.fontFamily else: themeFontFamily
+  fontDescString(family, style.fontSize, style.bold, style.italic)
 
 proc measureText*(text: string, style: TextStyle): TextMetrics =
   ## Measure text with the real font.

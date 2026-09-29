@@ -7,65 +7,64 @@
 > [STATUS.md](STATUS.md) for an honest, feature-by-feature breakdown before you
 > rely on anything.
 
-RUI2 builds UIs from plain Nim — you describe a widget tree with ordinary
-constructor calls, hold mutable state in `Link[T]`, and run a two-pass
-layout/render loop that caches each widget to a texture and only redraws what
-changed.
+RUI2 builds UIs from plain Nim: describe the widget tree with `ui:`, hold
+state in `Link[T]`, let layout primitives place everything, and pick a branded
+theme. A two-pass layout/render loop caches each widget to a texture, redraws
+only what changed, and sleeps when nothing did.
 
 ```nim
 import rui
 
-# 1. Reactive state lives in Link[T]
-type CounterStore = object
-  count: Link[int]
+let count = newLink(0)
+var shown: Label
+var minus, plus: Button
 
-var store = CounterStore(count: newLink(0))
+let root = ui:
+  VStack(spacing = 12.0, padding = 24.0):
+    shown = Label(text = "", fontSize = 28.0, bold = true)
+    HStack(spacing = 8.0):
+      minus = Button(text = "-").frame(minWidth = 48)
+      plus = Button(text = "+", intent = ThemeIntent.Info).frame(minWidth = 48)
+    Spacer()                                  # pushes the footer down
+    Label(text = "Built with RUI2", fontSize = 12.0)
 
-# 2. The widget tree is just a proc that returns a Widget
-proc buildUI(): Widget =
-  let root = newVStack(spacing = 12, padding = 16)
-  root.addChild(newLabel(text = "Count: " & $store.count.get(), fontSize = 24))
+count.bindTo(shown, proc(v: int) = shown.text = "Count: " & $v)
+minus.onClick = proc() = count.set(count.get() - 1)
+plus.onClick = proc() = count.set(count.get() + 1)
 
-  let row = newHStack(spacing = 8)
-  row.addChild(newButton(text = "-", onClick = some(proc() {.closure.} =
-    store.count.set(store.count.get() - 1))))
-  row.addChild(newButton(text = "+", onClick = some(proc() {.closure.} =
-    store.count.set(store.count.get() + 1))))
-  root.addChild(row)
-  result = root
-
-# 3. Create the app, set the root widget, run
 let app = newApp("Counter", 400, 300)
-app.setRootWidget(buildUI())
-app.run()   # `app.start()` is an alias
+app.setTheme("aurora")
+app.setRootWidget(root)
+app.run()
 ```
+
+![The eight shipped brand themes over the same screen](docs/themes.png)
 
 ## The actual API
 
-RUI2 has **no magic and no hidden globals**. Everything is regular Nim:
+Everything is regular Nim -- no hidden globals you have to know about, no
+code generation step.
 
-- **State** — `newLink(value)`, then `link.get()` / `link.set(v)` (or `link.value`).
-  A `Link[T]` keeps direct references to the widgets that depend on it for O(1)
-  dirty-marking.
-- **Widget tree** — construct widgets with `newX(...)` and assemble with `addChild`:
-  ```nim
-  let box = newVStack(spacing = 10)
-  box.addChild(newLabel(text = "Hello"))
-  box.addChild(newButton(text = "OK", onClick = some(handleOk)))
-  ```
-  A tree builder is an ordinary `proc(): Widget`, so you can compose, inspect, and
-  reuse it freely. (An ergonomic block-children DSL is a roadmap item.)
-- **Callbacks** — widget actions are `Option[proc]`, so wrap handlers in `some(...)`.
-  Capturing handlers become closures automatically; a non-capturing handler needs
-  `proc() {.closure.} = ...` to match the closure type.
-- **App lifecycle** — `newApp(title, width, height, fps = 60, resizable = true,
-  minWidth = 320, minHeight = 240)`, then `app.setRootWidget(root)`,
-  optionally `app.setStore(store)` / `app.setTheme("dark")`, then `app.run()`.
-
-> **Note:** RUI2 does **not** use a YAML-style `buildUI:` block or a `bind <-`
-> reactive operator. Earlier design notes described that syntax; it is not
-> implemented. Widgets read their values when their `layout`/`render` runs.
-> Automatic `bind` rebinding is a roadmap item (see [STATUS.md](STATUS.md)).
+- **Trees** -- `ui:` builds a tree from its shape; a capitalised call is a
+  widget and an indented block is its children. It is sugar over the
+  constructors (`newVStack(...)`, `addChild`), which you can use directly.
+- **State** -- `newLink(value)`, `link.get()` / `link.set(v)`.
+  `link.bindTo(widget, proc(v: T) = ...)` keeps a widget in step, repainting
+  only the widgets bound to that link.
+- **Handlers** -- plain closures: `button.onClick = proc() = ...`.
+- **Layout** -- containers place their children; a widget never writes its
+  own position. VStack/HStack (with `crossAlign`, `mainAlign`, `spacing`,
+  `padding`), Grid (`px` / `fit` / `star` columns), Wrap (flowing lines),
+  Align/Center, ZStack, ScrollView, Spacer. A widget *asks* for size with
+  modifiers: `.frame(width = 300, minHeight = 40)`, `.flex(2)` for a share
+  of the spare room.
+- **Themes** -- `app.setTheme("daylight")`: daylight, midnight, aurora,
+  ocean, forest, rose, ember, graphite. Your own brand is one call:
+  `brandTheme(BrandSpec(name: "Acme", accent: hex"#E4572E", ...))`. See
+  `examples/widgets/theme_gallery.nim`.
+- **App lifecycle** -- `newApp(title, width, height, fps = 60, resizable = true,
+  minWidth = 320, minHeight = 240)`, then `app.setRootWidget(root)` and
+  `app.run()`.
 
 ## Defining your own widgets
 
