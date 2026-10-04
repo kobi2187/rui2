@@ -153,11 +153,14 @@ the containers place them. No example writes `bounds` any more.
 - [ ] A `bind` word inside `ui:` — `TextInput(bind <-> store.name)` for two-way
   and `Label(bind store.count)` for one-way — lowering to `bindTo` plus the
   `onChange` write-back that apps write by hand today (`rui_core/ui_tree.nim`).
-- [ ] Derived links: `let total = derive(a, b, proc(x, y): int = x + y)`,
-  recomputed lazily and dirtying only their own dependents.
+- [x] Derived links: `derive(a, b, proc(x, y): int = x + y)` (one to three
+  sources, chainable), recomputed eagerly when a source changes and dirtying
+  only their own dependents, and only on a real change.
 - [ ] A `LinkSeq[T]` with insert/remove/move notifications, so ListView,
   DataTable and TreeView update rows incrementally instead of rebuilding.
-- [ ] Batched sets: `transaction: a.set(1); b.set(2)` should cost one relayout.
+- [x] Batched sets: `transaction: a.set(1); b.set(2)` announces each changed
+  link once, after the block; nests; derived links recompute from the final
+  values.
 
 ### 7. HiDPI *(medium)*
 - [ ] Read `getWindowScaleDPI()` and keep layout in logical pixels. Render
