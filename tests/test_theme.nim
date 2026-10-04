@@ -12,7 +12,7 @@
 
 import std/unittest
 import rui
-import std/[json, tables, strutils, options]
+import std/[json, tables, strutils, options, os]
 
 suite "theme: registry and switching":
 
@@ -667,3 +667,73 @@ brand: {name: Daylight, accent: "#4F46E5", canvas: "#F3F4F7", surface: "#FFFFFF"
     let inCode = brandTheme(daylightSpec())
     for intent in ThemeIntent:
       check fromFile.getThemeProps(intent) == inCode.getThemeProps(intent)
+
+suite "theme: files are validated, inheritance is checked":
+
+  proc noExtends(name: string): Theme = newTheme(name)
+
+  test "a mistyped key is an error that says what was meant":
+    var msg = ""
+    try:
+      discard parseTheme("base:\n  default:\n    corner_radius: 8\n", tffYaml, noExtends)
+    except ValueError as e: msg = e.msg
+    check "unknown key 'corner_radius' in base.default" in msg
+    check "did you mean 'cornerRadius'" in msg
+
+  test "unknown keys are caught at every level, in JSON too":
+    expect ValueError:
+      discard parseTheme("""{"nmae": "x"}""", tffJson, noExtends)
+    expect ValueError:
+      discard parseTheme("""{"base": {"default": {"padding": {"al": 3}}}}""", tffJson, noExtends)
+    expect ValueError:
+      discard parseTheme("""{"brand": {"acent": "#fff"}}""", tffJson, noExtends)
+    expect ValueError:
+      discard parseTheme("""{"metrics": {"rowheight": 3}}""", tffJson, noExtends)
+
+  test "an unknown intent or state is an error, not Default or Normal":
+    expect ValueError:
+      discard parseTheme("""{"base": {"dangerous": {}}}""", tffJson, noExtends)
+    expect ValueError:
+      discard parseTheme("""{"states": {"default": {"hover": {}}}}""", tffJson, noExtends)
+    # ...but the names stay case-insensitive.
+    discard parseTheme("""{"base": {"Danger": {}}, "states": {"default": {"Hovered": {}}}}""",
+                       tffJson, noExtends)
+
+  test "every example theme file still loads":
+    for f in ["examples/themes/light.yaml", "examples/themes/dark.yaml"]:
+      let tm = newThemeManager()
+      discard tm.loadFromFile(f)
+
+  test "derive keeps everything, metrics included":
+    let tm = newThemeManager()
+    tm.register("punch", brandTheme(punchSpec()))
+    let d = tm.derive("punch", "Mine")
+    check d.name == "Mine"
+    check d.controlHeight == 46.0
+    check d.getThemeProps().borderWidth.get == 3.0
+    check d.getThemeProps().isBold
+
+  test "extends through files: chains work, cycles and unknown names are errors":
+    let dir = getTempDir() / "rui_theme_test"
+    createDir(dir)
+    defer: removeDir(dir)
+    writeFile(dir / "a.yaml", "name: a\nextends: b\n")
+    writeFile(dir / "b.yaml", "name: b\nextends: a\n")
+    writeFile(dir / "c.yaml", "name: c\nextends: nowhere\n")
+    writeFile(dir / "leaf.yaml", "name: leaf\nextends: mid\nbase:\n  default:\n    cornerRadius: 1\n")
+    writeFile(dir / "mid.yaml", "name: mid\nextends: daylight\nbase:\n  default:\n    borderWidth: 5\n")
+    let tm = newThemeManager()
+    for (n, t) in brandThemes(): tm.register(n, t)
+    var msg = ""
+    try: discard tm.loadFromFile(dir / "a.yaml")
+    except ValueError as e: msg = e.msg
+    check "theme extends itself: a -> b -> a" in msg
+    check "a.yaml" in msg                       # names the file
+    msg = ""
+    try: discard tm.loadFromFile(dir / "c.yaml")
+    except ValueError as e: msg = e.msg
+    check "extends 'nowhere'" in msg
+    let leaf = tm.loadFromFile(dir / "leaf.yaml")  # leaf -> mid -> daylight
+    check leaf.getThemeProps().cornerRadius.get == 1.0     # its own
+    check leaf.getThemeProps().borderWidth.get == 5.0      # mid's
+    check leaf.getThemeProps().backgroundColor.get == hex"#FFFFFF"   # daylight's

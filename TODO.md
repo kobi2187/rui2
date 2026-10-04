@@ -25,8 +25,12 @@ gate. The gaps below are what stands between that and Qt/Flutter-level trust.
    clipboard, system dark/light preference -- yes. Native file dialogs and
    native-looking widgets -- no: the drawn FileDialog stays, so an app looks
    identical on every platform.
-5. **Open to new widgets.** Innovate freely: nothing has to copy a platform
-   widget. Tons of widgets in the box.
+5. **Open to new widgets, each small and focused.** Innovate freely: nothing
+   has to copy a platform widget, and there are tons in the box. A widget does
+   one job; the ceiling is a chart or a kanban board, and only data-backed
+   grids and tables are bigger. Anything larger (a text editor with
+   highlighting, a rich-text editor) is built from our primitives by the app,
+   not shipped.
 6. **Lean on raylib.** It is a game engine: batching, double buffering,
    shaders, render textures, MSAA, texture filtering, event waiting. Reuse
    what it has before writing our own (what it does *not* cull or smooth for
@@ -162,13 +166,13 @@ the containers place them. No example writes `bounds` any more.
   its 32 px height on 43 px buttons. Both fixed.
 
 ### 5a. Themes: one obvious format, real inheritance *(next)*
-- [ ] Audit the theme file format and write it down (docs/themes.md): the
-  fields, the `brand:` shortcut, `extends`, and how overrides merge. One
-  worked example per case; every key validated, with an error that names the
-  file, the key and the allowed values.
-- [ ] Inheritance you can see: `extends: daylight` for a file, `theme.derive(
-  "acme") with ...` in code; chains (A extends B extends C), cycles detected,
-  and `describe(theme)` printing what each level changed.
+- [x] The theme file format, written down (docs/themes.md), with every key
+  validated: an error names the file, the key and the likely fix. Unknown
+  intents and states are errors rather than silent defaults.
+- [x] Inheritance: `extends` chains through registry and sibling files, cycles
+  and unknown names are errors, and `derive` copies a whole theme (it used to
+  drop the control metrics).
+- [ ] `describe(theme)`: print what each level of an inheritance chain changed.
 - [ ] A theme set in code and a theme in a file are the same thing, and
   round-trip: `theme.toYaml()` writes what `parseTheme` reads.
 
@@ -291,9 +295,10 @@ the containers place them. No example writes `bounds` any more.
   heat-map, kanban board, node graph, breadcrumb, stepper/wizard, avatar
   stack, skeleton loaders, rich tooltip/popover, pull-to-refresh list,
   masonry grid, timeline (exists: extend), toggle/segmented controls.
-- [ ] A rich-text editor (styled runs over `text_content`) and a code editor
-  with syntax highlighting.
-- [ ] Charts: line, bar and scatter, on the Canvas widget.
+- ~~Rich-text and code editors~~ -- out of scope (principle 5). `TextArea`,
+  `text_content` and the text primitives are what an app builds one from.
+- [ ] Charts: line, bar and scatter in one `Plot` widget, and a `KanbanBoard`
+  of cards -- the largest single widgets we ship.
 
 ### 15. Code health
 - [ ] Bring rui_drawing (11), rui_hittest (5, of which interval-tree

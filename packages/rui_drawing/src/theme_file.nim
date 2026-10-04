@@ -13,8 +13,9 @@
 ## Colors in files are hex strings ("#rrggbb" / "#rrggbbaa") or rgb(r,g,b).
 ## The `*File` types hold them as strings; `toThemeProps` converts.
 
-import std/[tables, options, json, strutils, parseutils]
+import std/[tables, options, json, strutils, parseutils, editdistance]
 import yaml
+import yaml/tojson
 import theme_sys_core
 import theme_types
 import brand_themes
@@ -338,12 +339,79 @@ proc toTheme*(tf: ThemeFile, resolver: proc(name: string): Theme): Theme =
     take scrollbarThickness
 
 
+# ============================================================================
+# Validation
+#
+# The decoders ignore a key they do not know, which turns `corner_radius: 8`
+# or `borderwidth: 3` into a theme that quietly looks default. Every key is
+# checked against the file types above first, and a wrong one is an error that
+# says where it is and what was probably meant.
+# ============================================================================
+
+proc fieldNames(T: typedesc): seq[string] =
+  var x: T
+  for name, _ in fieldPairs(x):
+    result.add name
+
+proc suggestion(key: string, allowed: seq[string]): string =
+  let k = key.toLowerAscii.replace("_", "").replace("-", "")
+  for a in allowed:
+    if a.toLowerAscii == k:
+      return " (did you mean '" & a & "'?)"
+  for a in allowed:
+    if editDistanceAscii(k, a.toLowerAscii) <= 2:
+      return " (did you mean '" & a & "'?)"
+
+proc checkKeys(node: JsonNode, where: string, allowed: seq[string],
+               fold = false) =
+  ## `fold`: names that are matched without regard to case (intents, states).
+  if node.kind != JObject:
+    raise newException(ValueError, "theme: " & where & " must be a mapping")
+  for key, _ in node:
+    let known = if fold: key.toLowerAscii in allowed else: key in allowed
+    if not known:
+      raise newException(ValueError,
+        "theme: unknown key '" & key & "' in " & where & suggestion(key, allowed) &
+        "; allowed: " & allowed.join(", "))
+
+proc checkProps(node: JsonNode, where: string) =
+  checkKeys(node, where, fieldNames(ThemePropsFile))
+  if node.hasKey("padding") and node["padding"].kind == JObject:
+    checkKeys(node["padding"], where & ".padding", fieldNames(PaddingFile))
+
+proc validateThemeNode*(root: JsonNode) =
+  ## Raise a ValueError naming the first key a theme file has that the format
+  ## does not. Intent, state and role names are checked by their own parsers.
+  checkKeys(root, "the top level", fieldNames(ThemeFile))
+  if root.hasKey("base"):
+    checkKeys(root["base"], "base", @["default", "info", "success", "warning", "danger"], fold = true)
+    for intent, props in root["base"]:
+      checkProps(props, "base." & intent)
+  if root.hasKey("states"):
+    checkKeys(root["states"], "states", @["default", "info", "success", "warning", "danger"], fold = true)
+    for intent, byState in root["states"]:
+      checkKeys(byState, "states." & intent,
+                @["normal", "disabled", "hovered", "pressed", "focused", "selected", "dragover"],
+                fold = true)
+      for state, props in byState:
+        checkProps(props, "states." & intent & "." & state)
+  if root.hasKey("metrics"):
+    checkKeys(root["metrics"], "metrics", fieldNames(MetricsFile))
+  if root.hasKey("brand"):
+    checkKeys(root["brand"], "brand", fieldNames(BrandFile))
+
 proc parseThemeFile*(content: string, format: ThemeFileFormat): ThemeFile =
   ## Text to the intermediate file representation. Raises on malformed input,
   ## which is the caller's to report with a filename attached.
   case format
-  of tffJson: parseJson(content).to(ThemeFile)
+  of tffJson:
+    let node = parseJson(content)
+    validateThemeNode(node)
+    node.to(ThemeFile)
   of tffYaml:
+    let docs = loadToJson(content)
+    if docs.len > 0:
+      validateThemeNode(docs[0])
     var tf: ThemeFile
     load(content, tf)
     tf
