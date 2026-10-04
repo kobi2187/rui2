@@ -380,8 +380,9 @@ set by the *user* in their preferences file (docs/preferences.md), not by apps.
   following of OS changes: not planned; theme switches stay snappy.
 - [x] Keyboard help overlay: F1 or ? (rebindable) shades the window, the user's
   navigation keys along the top, a badge beside every widget with a
-  `.shortcut("Ctrl+S")` (which really activates it); `app.addHelp` for
-  shortcuts with no widget; a ? typed into a field is left alone.
+  `.hint("...")` or `.shortcut("Ctrl+S")` (which really activates it);
+  `app.bindShortcut` for app-level keys with no widget; `app.addHelp` for
+  plain notes; a ? typed into a field is left alone.
 - [x] Focus rings while navigating by keyboard: firm round the focused widget,
   softer round its container; gone when the mouse takes over.
 - [ ] Windows/macOS config path check in CI.

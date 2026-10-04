@@ -60,3 +60,13 @@ proc shortcut*[T: Widget](widget: T, chord: string): T =
   ## focus. Chords are checked when written, so a typo fails here, not silently.
   widget.hotkey = chord
   widget
+
+proc hint*[T: Widget](widget: T, text: string): T =
+  ## Text the help overlay (F1 or ?) shows beside this widget, wherever it is on
+  ## screen: a key, or any note. It is only a label -- to make a key *do*
+  ## something, use `.shortcut(...)`, which also supplies the hint.
+  ##
+  ##   Button(text = "Save").hint("Ctrl+S")
+  ##   Slider(...).hint("← → adjust")
+  widget.hint = text
+  widget

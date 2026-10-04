@@ -103,7 +103,9 @@ type
     # Keyboard help (F1 or ?)
     helpEntries*: seq[HelpEntry]
       ## Shortcuts the application adds to the overlay (`app.addHelp`).
-    helpOverlay: HelpOverlay
+    appShortcuts: seq[tuple[chord: Chord, text: string, action: proc() {.closure.}]]
+      ## Shortcuts bound to the application itself, not to a widget.
+    helpOverlay*: HelpOverlay
     helpClosedAt: MonoTime
 
     # Keyboard navigation highlight
@@ -449,6 +451,15 @@ proc addHelp*(app: App, keys, text: string) =
   ##   app.addHelp("Ctrl+S", "Save")
   app.helpEntries.add (keys, text)
 
+proc bindShortcut*(app: App, keys: string, text: string,
+                   action: proc() {.closure.}) =
+  ## A shortcut for the whole application, with no widget behind it: the key
+  ## runs `action`, and the help overlay lists it among the notes on its second
+  ## row. The chord is checked here, so a typo fails at startup.
+  ##
+  ##   app.bindShortcut("Ctrl+F", "find", proc() = openFindBar())
+  app.appShortcuts.add (chord(keys), text, action)
+
 proc helpVisible*(app: App): bool =
   app.helpOverlay != nil and app.helpOverlay in overlays()
 
@@ -456,8 +467,11 @@ proc showHelp*(app: App) =
   ## Shade the window and list the keys in force. Rebuilt each time, so it
   ## reflects the user's current bindings.
   if app.helpVisible: return
+  var notes = app.helpEntries
+  for s in app.appShortcuts:
+    notes.add (s.chord.display, s.text)
   app.helpOverlay = newHelpOverlay(items = navigationItems(prefs.keys),
-                                   notes = app.helpEntries,
+                                   notes = notes,
                                    hints = collectHints(app.tree.root))
   app.helpOverlay.bounds = Rect(x: 0, y: 0, width: app.window.width.float32,
                                 height: app.window.height.float32)
@@ -542,11 +556,17 @@ proc handleShortcut*(app: App, event: GuiEvent): bool =
   if focused != nil and focused.takesText and (event.key, event.mods).isTyping:
     return false
   let target = findShortcut(app.tree.root, event.key, event.mods)
-  if target == nil:
-    return false
-  target.activate()
-  app.tree.anyDirty = true
-  true
+  if target != nil:
+    target.activate()
+    app.tree.anyDirty = true
+    return true
+  for s in app.appShortcuts:
+    if s.chord.key == event.key and s.chord.mods == event.mods:
+      if s.action != nil:
+        s.action()
+      app.tree.anyDirty = true
+      return true
+  false
 
 proc handleHelp*(app: App, event: GuiEvent): bool =
   ## Help takes over the keyboard and pointer while it is up: any key or click

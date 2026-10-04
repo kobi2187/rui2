@@ -138,6 +138,10 @@ type
     pressed*: bool             # Mouse button down on this widget
     focused*: bool             # Has keyboard focus
     focusable*: bool
+    hint*: string
+      ## Text for the help overlay to show beside this widget -- a key
+      ## ("Ctrl+S"), or any note ("saves the file"). Set with `.hint(...)`;
+      ## a widget with a `.shortcut(...)` and no hint shows its chord.
     hotkey*: string
       ## A key chord that activates this widget ("Ctrl+S"), set with the
       ## `.shortcut(...)` modifier. The help overlay labels it next to the widget.

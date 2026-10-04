@@ -84,13 +84,17 @@ prefs.reduceMotion              # read-only: honour it in anything custom you an
 prefs.colorScheme               # offer a light and a dark theme; start on the one asked for
 ```
 
-Give a widget a shortcut with `.shortcut(...)` -- it really activates the
-widget, and the help overlay shows it beside it. Shortcuts with no widget go in
-`app.addHelp("Ctrl+F", "Find")`:
+Say what a key does in the GUI itself, three ways:
 
 ```nim
-Button(text = "Save").shortcut("Ctrl+S")
+Button(text = "Save").shortcut("Ctrl+S")      # a real key for this widget; its chord is the hint
+Slider(...).hint("← → adjust")                # any note, shown beside the widget (binds nothing)
+app.bindShortcut("Ctrl+F", "find", openFind)  # a key for the whole app; listed under the top line
 ```
+
+The help overlay gathers every widget that has a hint, takes where it is on
+screen and what it says, and draws a badge there. `app.addHelp(keys, text)` lists
+a note that has no widget and no action.
 
 Do not rebind navigation keys or override scroll and double-click speed: that
 is the user's call, and being able to count on it is the point. Add your own

@@ -299,6 +299,14 @@ suite "shortcuts and hints":
     t.save.enabled = false
     check findShortcut(t.root, chord("S").key, {kmCtrl}).isNil
 
+  test "a wide widget gets its badge on the top-right edge":
+    let within = Rect(x: 0, y: 40, width: 600, height: 300)
+    let wide = Rect(x: 20, y: 100, width: 400, height: 30)
+    let b = placeBadge(wide, Size(width: 60, height: 20), within)
+    check b.x + b.width <= wide.x + wide.width            # inside its right end
+    check b.x > wide.x + wide.width / 2
+    check b.y < wide.y                                    # on the top edge, not below
+
   test "a badge hangs off the widget, stays on screen, and keeps clear of others":
     let within = Rect(x: 0, y: 40, width: 400, height: 300)
     let target = Rect(x: 20, y: 100, width: 80, height: 30)
@@ -351,3 +359,87 @@ suite "shortcuts and hints":
     check not app.handleShortcut(GuiEvent(kind: evKeyDown, key: chord("S").key, mods: {kmCtrl}))
     check saved == 0
     clearOverlays()
+
+
+suite "hints and app shortcuts":
+
+  proc form(): tuple[root, save, slider: Widget] =
+    let root = newVStack(spacing = 8.0)
+    let save = newButton(text = "Save").shortcut("Ctrl+S")
+    let slider = newSlider().hint("← → adjust")
+    root.addChild save
+    root.addChild slider
+    root.addChild newLabel(text = "no hint")
+    root.bounds = Rect(x: 0, y: 0, width: 400, height: 300)
+    root.layout()
+    (Widget(root), Widget(save), Widget(slider))
+
+  test "any widget can carry a hint; the overlay gets its text and place":
+    let f = form()
+    let hints = collectHints(f.root)
+    check hints.len == 2                                   # the label has none
+    check hints[0] == (f.save.bounds, "Ctrl+S")            # a shortcut supplies its chord
+    check hints[1] == (f.slider.bounds, "← → adjust")      # a hint is any text
+
+  test "an explicit hint wins over the shortcut's chord":
+    let f = form()
+    f.save.hint = "save (Ctrl+S)"
+    check collectHints(f.root)[0].keys == "save (Ctrl+S)"
+
+  test "a hint on a hidden widget is not shown":
+    let f = form()
+    f.slider.visible = false
+    check collectHints(f.root).len == 1
+
+  test "a hint is only a label: it does not make a key do anything":
+    let app = newApp("hints")
+    let f = form()
+    app.setRootWidget(f.root)
+    check not app.handleShortcut(GuiEvent(kind: evKeyDown, key: chord("Left").key))
+
+  test "an app shortcut runs its action with no widget behind it":
+    let app = newApp("appkeys")
+    app.setRootWidget(newVStack())
+    var found = 0
+    app.bindShortcut("Ctrl+F", "find", proc() = inc found)
+    check app.handleShortcut(GuiEvent(kind: evKeyDown, key: chord("F").key, mods: {kmCtrl}))
+    check found == 1
+    check not app.handleShortcut(GuiEvent(kind: evKeyDown, key: chord("F").key))   # no Ctrl
+
+  test "a widget's shortcut wins over an app shortcut on the same chord":
+    let app = newApp("appkeys")
+    let f = form()
+    app.setRootWidget(f.root)
+    var widgetFired, appFired = 0
+    Button(f.save).onClick = proc() = inc widgetFired
+    app.bindShortcut("Ctrl+S", "save all", proc() = inc appFired)
+    discard app.handleShortcut(GuiEvent(kind: evKeyDown, key: chord("S").key, mods: {kmCtrl}))
+    check widgetFired == 1 and appFired == 0
+
+  test "app shortcuts are listed on the overlay, in the user's words":
+    let app = newApp("appkeys")
+    app.setRootWidget(newVStack())
+    app.bindShortcut("Ctrl+F", "find", proc() = discard)
+    app.addHelp("Ctrl+Q", "quit")
+    app.showHelp()
+    check ("Ctrl+F", "find") in app.helpOverlay.notes
+    check ("Ctrl+Q", "quit") in app.helpOverlay.notes
+    clearOverlays()
+
+  test "a typing-style app shortcut leaves a focused text field alone":
+    let app = newApp("appkeys")
+    let field = newTextInput()
+    let root = newVStack()
+    root.addChild field
+    root.layout()
+    app.setRootWidget(root)
+    var found = 0
+    app.bindShortcut("G", "go", proc() = inc found)
+    app.focusManager.setFocus(field)
+    check not app.handleShortcut(GuiEvent(kind: evKeyDown, key: chord("G").key))
+    check found == 0
+
+  test "a bad chord fails where it is written":
+    let app = newApp("appkeys")
+    expect ValueError:
+      app.bindShortcut("Hyper+F", "x", proc() = discard)
