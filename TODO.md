@@ -125,6 +125,11 @@ The redesign, for min/max constraints and a cheaper second pass:
   alternate poll / block so raylib's pressed-state is never lost. Measured
   ~1% of a core with the window idle and ~1 wake-up per timer instead of 60/s.
   `wakeMainLoop()` (thread-safe) wakes it for a worker that has queued work.
+- [ ] Typing latency (reported): per-keystroke CPU is ~1 ms (80 chars) to ~0.8 ms (4.6k
+  chars) in `step`, one painted frame per key under software GL, so the lag
+  is not the event queue or Pango on this machine. `RUI_PROFILE=1 ./app`
+  prints step / present time per frame -- capture a typing run on the slow
+  machine to find it.
 - [ ] `Link` is not thread-safe: setting one from another thread is unsafe.
   Needs a main-thread inbox (post a closure, `wakeMainLoop`, run it in `step`).
 

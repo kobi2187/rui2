@@ -974,6 +974,11 @@ proc idleUntilNextFrame(app: App, frameStart: MonoTime) =
     app.idleRecentlyPolled = true
     pollInputEvents()
 
+let profileFrames = getEnv("RUI_PROFILE").len > 0
+  ## `RUI_PROFILE=1 ./app` prints one line per presented frame to stderr:
+  ## how long the step (events, layout, painting widgets) and the present took,
+  ## and how many events the frame handled. For finding where a lag lives.
+
 proc run*(app: App, maxFrames: int = -1) =
   ## Run the main application loop.
   ##
@@ -993,9 +998,14 @@ proc run*(app: App, maxFrames: int = -1) =
 
     let frameStart = getMonoTime()
     let painted = app.step()
+    let stepped = getMonoTime()
     app.applyCursor()
     if app.shouldPresent(painted, frameStart):
       app.renderFrame()       # 6. Composite to screen
+      if profileFrames:
+        stderr.writeLine "frame: step " & $((stepped - frameStart).inMicroseconds) &
+          "us, present " & $((getMonoTime() - stepped).inMicroseconds) &
+          "us, painted " & $painted
       app.lastPresent = frameStart
       app.countFrame()
       app.idleRecentlyPolled = false
