@@ -2,8 +2,9 @@
 ##
 ## Canvas as an interactive drawing surface, and DragDropArea as a file target.
 ##
-## Drops are not GuiEvents, so the app polls them once per frame with
-## pollFileDrops() rather than the widget checking raylib from inside render.
+## Files dropped from the OS arrive as an `evFileDrop` event at the pointer, so
+## the DragDropArea receives them with no polling: drop on it, and it fires
+## onFilesDropped (or onFilesRejected, with a reason).
 ##
 ##   nim c -r -d:useGraphics examples/widgets/canvas.nim
 ##
@@ -83,8 +84,5 @@ app.setRootWidget(root)
 let scriptDir = getAppDir() / "script"
 app.enableScripting(scriptDir)
 app.setScriptPollInterval(0.05)
-
-# Drops arrive outside the event stream, so the app asks for them each frame.
-app.onFrame = proc() = drop.pollFileDrops()
 
 app.start()

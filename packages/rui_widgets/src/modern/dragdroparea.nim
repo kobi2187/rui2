@@ -3,16 +3,16 @@
 ## A drop target for files and directories, with drag-over feedback and a
 ## click-to-browse fallback.
 ##
-## File drops are not part of the GuiEvent stream, so they cannot arrive through
-## `handleInput`. The app polls them instead:
+## Files dropped from the OS arrive as an `evFileDrop` event carrying the paths
+## and the pointer position, and go to the widget under the pointer (bubbling to
+## its ancestors, like a click) -- any widget can take drops with an
+## `on_file_drop:` handler. Nothing needs to poll.
 ##
-##   proc frame(app: App) =
-##     dropArea.pollFileDrops()
-##     ...
+## raylib reports a drop only when it happens, never while files are still being
+## dragged over the window, so `hoverText` and the drag-over look cannot be
+## shown in advance; and dragging *out* of the window is not available.
 ##
-## The old version called raylib's IsFileDropped() from inside `render`, which
-## meant the drop was only noticed on frames where the widget happened to be
-## repainting, and the accept/reject callbacks fired mid-paint.
+## `pollFileDrops` is still here for apps that already call it once per frame.
 
 import rui_core
 import rui_drawing
@@ -22,6 +22,48 @@ import raylib
 
 import drop_rules
 export drop_rules
+
+proc judgeAll[W](widget: W, paths: seq[string]): DropBatch =
+  ## Run every dropped path past the widget's rules.
+  for path in paths:
+    let verdict = judgeDrop(widget.mode, widget.acceptedExtensions,
+                            widget.maxFileSize, path)
+    if verdict.accepted:
+      result.accepted.add(verdict.item)
+    else:
+      result.rejected.add(path)
+      result.reason = verdict.reason
+
+  if not widget.multiple and result.accepted.len > 1:
+    result.keepFirstOnly()
+
+proc announce[W](widget: W, batch: DropBatch) =
+  ## Fire whichever callbacks the batch warrants.
+  if batch.accepted.len > 0:
+    widget.lastDroppedFiles = batch.accepted
+    if widget.onFilesDropped != nil:
+      widget.onFilesDropped(batch.accepted)
+
+  if batch.rejected.len > 0 and widget.onFilesRejected != nil:
+    widget.onFilesRejected(batch.rejected, batch.reason)
+
+proc receiveDrop*[W](widget: W, paths: seq[string]) =
+  ## Files dropped on this widget: filter them against `mode` /
+  ## `acceptedExtensions` / `maxFileSize`, and fire onFilesDropped and
+  ## onFilesRejected. The App delivers an `evFileDrop` to whichever widget is
+  ## under the pointer, so nothing needs to poll.
+  let batch = widget.judgeAll(paths)
+  widget.isDragOver = false
+  widget.errorMessage = batch.reason
+  widget.isDirty = true
+  widget.announce(batch)
+
+proc pollFileDrops*[W](widget: W) =
+  ## The older way: call once per frame and pick up whatever was dropped on the
+  ## window, wherever the pointer was. Prefer the event (`receiveDrop` is called
+  ## for you); this stays for apps that already poll.
+  if isFileDropped():
+    widget.receiveDrop(getDroppedFiles())
 
 definePrimitive(DragDropArea):
   props:
@@ -53,6 +95,12 @@ definePrimitive(DragDropArea):
     on_mouse_down:
       if widget.onClick != nil:
         widget.onClick()
+      return true
+
+    # Files dropped on the window from the OS arrive here when the pointer is
+    # over this widget -- no polling needed.
+    on_file_drop:
+      widget.receiveDrop(event.paths)
       return true
 
   layout:
@@ -100,40 +148,3 @@ definePrimitive(DragDropArea):
                          y: widget.bounds.y + widget.bounds.height - 24,
                          width: widget.bounds.width, height: 20)
       drawThemedCenteredText(widget.errorMessage, errRect, errProps)
-
-proc judgeAll(widget: DragDropArea, paths: seq[string]): DropBatch =
-  ## Run every dropped path past the widget's rules.
-  for path in paths:
-    let verdict = judgeDrop(widget.mode, widget.acceptedExtensions,
-                            widget.maxFileSize, path)
-    if verdict.accepted:
-      result.accepted.add(verdict.item)
-    else:
-      result.rejected.add(path)
-      result.reason = verdict.reason
-
-  if not widget.multiple and result.accepted.len > 1:
-    result.keepFirstOnly()
-
-proc announce(widget: DragDropArea, batch: DropBatch) =
-  ## Fire whichever callbacks the batch warrants.
-  if batch.accepted.len > 0:
-    widget.lastDroppedFiles = batch.accepted
-    if widget.onFilesDropped != nil:
-      widget.onFilesDropped(batch.accepted)
-
-  if batch.rejected.len > 0 and widget.onFilesRejected != nil:
-    widget.onFilesRejected(batch.rejected, batch.reason)
-
-proc pollFileDrops*(widget: DragDropArea) =
-  ## Call once per frame. Picks up any files dropped on the window, filters them
-  ## against `mode` / `acceptedExtensions` / `maxFileSize`, and fires
-  ## onFilesDropped and onFilesRejected.
-  if not isFileDropped():
-    return
-
-  let batch = widget.judgeAll(getDroppedFiles())
-  widget.isDragOver = false
-  widget.errorMessage = batch.reason
-  widget.isDirty = true
-  widget.announce(batch)

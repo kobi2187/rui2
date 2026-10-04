@@ -287,7 +287,10 @@ the containers place them. No example writes `bounds` any more.
 ### 13. Platform integration *(medium)*
 - ~~Native file dialogs~~ -- decided against: the drawn FileDialog stays, so
   the look is the same on every platform.
-- [ ] OS drag-and-drop in (`isFileDropped`) wired into `DragDropArea`.
+- [x] OS drag-and-drop in: `evFileDrop` carries the paths and the pointer
+  position to the widget under it (`on_file_drop`), `DragDropArea` takes it
+  with no polling. raylib reports drops only when they happen (no drag-over
+  feedback in advance) and has no drag-out.
 - [ ] Follow the system dark/light preference and accent colour.
 - [ ] Multiple windows. raylib owns a single window, so this is a backend
   decision; decide it together with #11.

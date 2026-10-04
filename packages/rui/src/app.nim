@@ -428,7 +428,7 @@ proc handleEvent(app: App, event: GuiEvent) =
   of evWindowResize:
     app.handleWindowResize(event)
 
-  of evMouseDown, evMouseUp, evMouseMove, evMouseWheel:
+  of evMouseDown, evMouseUp, evMouseMove, evMouseWheel, evFileDrop:
     if app.router.routePointer(event):
       app.tree.anyDirty = true
 

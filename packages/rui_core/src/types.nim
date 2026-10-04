@@ -288,6 +288,9 @@ type
     evMouseWheel
     evMouseHover
 
+    # Files dropped on the window from the OS, delivered where the pointer is
+    evFileDrop
+
     # Keyboard
     evKeyDown
     evKeyUp
@@ -335,6 +338,8 @@ type
       ## Ctrl-click and a Shift+arrow are both answered from the event itself,
       ## not from live keyboard state that a test or a script cannot set.
     windowSize*: Size
+    paths*: seq[string]
+      ## The files or folders an `evFileDrop` carries (absolute paths).
     wheelDelta*: float32  # Mouse wheel movement (positive = up, negative = down)
 
   EventPattern* = enum

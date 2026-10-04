@@ -82,11 +82,22 @@ proc buttonEvents(dest: var seq[GuiEvent], at: Point) =
     dest.add(GuiEvent(kind: evMouseUp, priority: epHigh,
                       timestamp: getMonoTime(), mousePos: at))
 
+proc dropEvents(dest: var seq[GuiEvent], at: Point) =
+  ## Files dropped on the window from the OS. One event for the whole drop,
+  ## carrying every path and the pointer position, so it reaches the widget the
+  ## files were dropped on rather than whichever one happened to be polling.
+  ## epHigh: a drop must not be coalesced away.
+  if isFileDropped():
+    dest.add(GuiEvent(kind: evFileDrop, priority: epHigh,
+                      timestamp: getMonoTime(), mousePos: at,
+                      paths: getDroppedFiles()))
+
 proc pointerEvents(dest: var seq[GuiEvent]) =
   let mousePos = getMousePosition()
   let at = Point(x: mousePos.x, y: mousePos.y)
   motionEvents(dest, at)
   buttonEvents(dest, at)
+  dropEvents(dest, at)
 
 proc keyboardEvents(dest: var seq[GuiEvent]) =
   ## epHigh and never coalesced: dropping or reordering a keystroke loses text.
