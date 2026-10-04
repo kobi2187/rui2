@@ -1,0 +1,150 @@
+## The user's preferences: defaults, validation, files, and what they drive.
+
+import std/[unittest, json, os, strutils, monotimes, times]
+import rui
+
+suite "key map":
+
+  test "defaults: Tab between groups, arrows within, Escape out":
+    let m = defaultKeyMap()
+    check m.matches(nextGroup, parseKeyChord("Tab").get.key, {})
+    check m.matches(prevGroup, parseKeyChord("Tab").get.key, {kmShift})
+    check not m.matches(nextGroup, parseKeyChord("Tab").get.key, {kmShift})  # exact
+    check m.matches(nextInGroup, parseKeyChord("Down").get.key, {})
+    check m.matches(prevInGroup, parseKeyChord("Left").get.key, {})
+    check m.matches(leaveGroup, parseKeyChord("Escape").get.key, {})
+
+  test "set replaces, add keeps, remove and clear take away":
+    var m = defaultKeyMap()
+    m.add(nextInGroup, "J")
+    check m.matches(nextInGroup, chord("J").key, {})
+    check m.matches(nextInGroup, chord("Down").key, {})
+    m.set(nextGroup, "Ctrl+Tab", "F6")
+    check m.matches(nextGroup, chord("F6").key, {})
+    check m.matches(nextGroup, chord("Tab").key, {kmCtrl})
+    check not m.matches(nextGroup, chord("Tab").key, {})
+    m.remove(nextInGroup, "J")
+    check not m.matches(nextInGroup, chord("J").key, {})
+    m.clear(leaveGroup)
+    check m.bindings[leaveGroup].len == 0
+
+  test "a chord names its keys, and a bad one says so":
+    check $chord("ctrl+shift+tab") == "Ctrl+Shift+Tab"
+    expect ValueError:
+      discard chord("Hyper+Tab")
+    expect ValueError:
+      discard chord("NotAKey")
+
+  test "conflicts are reported":
+    var m = defaultKeyMap()
+    check m.conflicts.len == 0
+    m.add(nextInGroup, "Tab")
+    check m.conflicts.len == 1
+    check "nextInGroup" in m.conflicts[0] and "nextGroup" in m.conflicts[0]
+
+  test "from JSON: named actions are replaced, the rest keep their defaults":
+    let m = keyMapFromJson(parseJson("""{"nextGroup": ["Ctrl+Tab"], "prevInGroup": "K"}"""))
+    check m.matches(nextGroup, chord("Tab").key, {kmCtrl})
+    check m.matches(prevInGroup, chord("K").key, {})
+    check m.matches(nextInGroup, chord("Down").key, {})      # untouched
+    expect ValueError:
+      discard keyMapFromJson(parseJson("""{"nextGrup": ["Tab"]}"""))
+
+suite "preferences":
+
+  test "defaults are the stable RUI defaults":
+    let p = defaultPreferences()
+    check not p.reduceMotion
+    check p.scrollSpeed == 1.0
+    check p.caretBlinkMs == 500
+    check p.doubleClickMs == 400
+    check p.colorScheme == schemeSystem
+
+  test "a good file is read in full":
+    let (p, problems) = parsePreferences("""
+keys:
+  nextGroup: [F6, Ctrl+Tab]
+  nextInGroup: [Down, J]
+motion: reduced
+scroll: 2.5
+caretBlinkMs: 0
+doubleClickMs: 600
+colorScheme: dark
+""")
+    check problems.len == 0
+    check p.reduceMotion
+    check p.scrollSpeed == 2.5
+    check p.caretBlinkMs == 0
+    check p.doubleClickMs == 600
+    check p.colorScheme == schemeDark
+    check p.keys.matches(nextInGroup, chord("J").key, {})
+
+  test "mistakes degrade one setting, never the file":
+    let (p, problems) = parsePreferences("""
+motion: sideways
+scroll: 99
+doubleClickMs: 600
+colour: dark
+keys:
+  nextGroup: [NotAKey]
+""")
+    check p.doubleClickMs == 600            # the good one still applies
+    check p.scrollSpeed == 1.0              # the bad ones keep their defaults
+    check not p.reduceMotion
+    check p.keys.matches(nextGroup, chord("Tab").key, {})
+    check problems.len == 4
+    check problems.join("\n").contains("motion: expected full or reduced")
+    check problems.join("\n").contains("colour: unknown setting; allowed:")
+
+  test "a file that is not even YAML falls back to the defaults":
+    let (p, problems) = parsePreferences("keys: [unclosed")
+    check p.doubleClickMs == 400
+    check problems.len == 1
+
+  test "conflicting key bindings are flagged":
+    let (_, problems) = parsePreferences("keys:\n  nextInGroup: [Tab]\n")
+    check problems.len == 1 and "bound to" in problems[0]
+
+  test "a missing file is normal; the path can be overridden":
+    putEnv("RUI_PREFERENCES", "/nonexistent/prefs.yaml")
+    check preferencesPath() == "/nonexistent/prefs.yaml"
+    let (p, problems) = loadPreferences()
+    check problems.len == 0 and p.doubleClickMs == 400
+    delEnv("RUI_PREFERENCES")
+    check preferencesPath().endsWith("rui" / "preferences.yaml")
+
+  test "problems name the file":
+    let dir = getTempDir() / "rui_prefs_test"
+    createDir(dir)
+    defer: removeDir(dir)
+    writeFile(dir / "p.yaml", "scroll: 99\n")
+    let (_, problems) = loadPreferences(dir / "p.yaml")
+    check problems.len == 1 and "p.yaml" in problems[0]
+
+suite "preferences drive behaviour":
+
+  setup:
+    let saved = prefs
+  teardown:
+    applyPreferences(saved)
+    animationsEnabled = true
+
+  test "reduced motion turns animations off":
+    var p = defaultPreferences()
+    p.reduceMotion = true
+    applyPreferences(p)
+    check not animationsEnabled
+    applyPreferences(defaultPreferences())
+    check animationsEnabled
+
+  test "a new focus manager starts from the user's keys":
+    var p = defaultPreferences()
+    p.keys.set(nextGroup, "F6")
+    applyPreferences(p)
+    let fm = newFocusManager()
+    check fm.keys.matches(nextGroup, chord("F6").key, {})
+    check not fm.keys.matches(nextGroup, chord("Tab").key, {})
+
+  test "the user's blink period sets the caret phase; 0 keeps it steady":
+    check abs(caretPhaseRemaining(10.0, 0.25) - 0.25) < 1e-9
+    check abs(caretPhaseRemaining(10.1, 0.25) - 0.15) < 1e-9

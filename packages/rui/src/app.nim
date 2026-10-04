@@ -10,6 +10,8 @@ import rui_hittest
 import event_source
 import event_routing
 import inspect
+import preferences_file
+export preferences_file
 export event_source, event_routing, inspect
 export rui_core
 export event_manager   # Export for users to access eventManager
@@ -109,7 +111,16 @@ proc newApp*(title = "RUI Application",
              resizable = true,
              minWidth = 320,
              minHeight = 240): App =
-  ## Create a new RUI application
+  ## Create a new RUI application.
+  ##
+  ## The user's preferences (keys, motion, scroll speed, ...) are read here,
+  ## once: they belong to the person at the keyboard and are the same in every
+  ## RUI app. A file with mistakes is reported on stderr and degrades only the
+  ## settings that are wrong.
+  let (userPrefs, problems) = loadPreferences()
+  applyPreferences(userPrefs)
+  for problem in problems:
+    stderr.writeLine "rui: preferences: " & problem
   result = App(
     tree: WidgetTree(
       root: nil,

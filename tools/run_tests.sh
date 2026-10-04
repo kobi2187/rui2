@@ -39,6 +39,9 @@ step() {  # step <name> <command...>
   fi
 }
 
+# Hermetic: a developer's own ~/.config/rui/preferences.yaml must not change a result.
+export RUI_PREFERENCES=/nonexistent/rui-preferences.yaml
+
 echo "== unit tests =="
 mkdir -p /tmp/rui2_tests
 for t in tests/test_*.nim; do

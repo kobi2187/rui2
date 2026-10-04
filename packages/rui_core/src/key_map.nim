@@ -19,11 +19,13 @@
 ##
 ## A chord matches exactly: `Tab` does not fire on `Shift+Tab`, so the two can
 ## be bound to different actions. `conflicts` lists a chord bound twice.
-## `keyMapFromJson` reads the same names from a settings file.
+## `keyMapFromJson` reads the same names from the user's preferences file --
+## which is where these are meant to be set: keys are the *user's* choice, one
+## for the whole machine (see preferences.nim), not something an app decides.
 
 import std/[options, strutils, json]
 import raylib
-import rui_core
+import types, keys
 
 type
   NavAction* = enum

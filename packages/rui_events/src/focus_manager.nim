@@ -27,18 +27,16 @@ type
     builtAtVersion: int              # tree structure version the chain was built at
     focusableWidgets*: Table[WidgetId, Widget]  # Quick lookup
 
-    # Configurable navigation keys
-    nextFocusKeys*: seq[KeyboardKey]      # Keys to move to next widget (default: Tab)
-    prevFocusKeys*: seq[KeyboardKey]      # Keys to move to previous widget (default: none)
-    prevFocusModifiers*: seq[KeyboardKey] # Modifiers for prev (default: Shift)
+    keys*: KeyMap
+      ## Which keys navigate: between groups (Tab), within one (the arrows),
+      ## and out of one (Escape). Starts as the user's `prefs.keys` --
+      ## the user's choice, one for the whole machine, not the application's.
+      ## Tests and migrations may still call setNavigationKeys / setGroupKeys.
 
     # Within a focus group
     activeGroup*: Widget
       ## The group arrow keys currently navigate, or nil at the top level.
       ## Kept in step with `focusedWidget` by setFocus.
-    groupNextKeys*: seq[KeyboardKey]      # Within a group, forwards (default: Down, Right)
-    groupPrevKeys*: seq[KeyboardKey]      # Within a group, backwards (default: Up, Left)
-    exitGroupKeys*: seq[KeyboardKey]      # Pop one level (default: Escape)
     wrapWithinGroup*: bool
       ## Does an arrow key at the end of a group come round to the start?
       ## Default false: an arrow that silently jumps out of the group the user
@@ -57,13 +55,8 @@ proc newFocusManager*(): FocusManager =
     focusChainDirty: true,
     builtAtVersion: -1,              # -1 can never match a real version
     focusableWidgets: initTable[WidgetId, Widget](),
-    nextFocusKeys: @[Tab],
-    prevFocusKeys: @[],
-    prevFocusModifiers: @[LeftShift, RightShift],
+    keys: prefs.keys,
     activeGroup: nil,
-    groupNextKeys: @[KeyboardKey.Down, KeyboardKey.Right],
-    groupPrevKeys: @[KeyboardKey.Up, KeyboardKey.Left],
-    exitGroupKeys: @[KeyboardKey.Escape],
     wrapWithinGroup: false
   )
 # ============================================================================
@@ -74,30 +67,40 @@ proc setGroupKeys*(fm: FocusManager,
                    nextKeys: seq[KeyboardKey],
                    prevKeys: seq[KeyboardKey] = @[],
                    exitKeys: seq[KeyboardKey] = @[]) =
-  ## Configure the keys that navigate *within* the active focus group.
-  ## Examples:
-  ##   fm.setGroupKeys(@[Down], @[Up], @[Escape])       # a vertical list
-  ##   fm.setGroupKeys(@[Right], @[Left], @[Escape])    # a toolbar
-  ##   fm.setGroupKeys(@[J], @[K], @[Escape])           # vim-style
+  ## Set the plain keys that navigate *within* the active focus group,
+  ## replacing the three actions' bindings. Prefer `fm.keys.set(...)` and the
+  ## user's preferences file; this is the older spelling.
   ##
   ## These are only consulted after the focused widget has declined the key, so
   ## a TextInput inside a group keeps Left and Right for its own caret.
-  fm.groupNextKeys = nextKeys
-  fm.groupPrevKeys = prevKeys
-  fm.exitGroupKeys = exitKeys
+  fm.keys.clear(nextInGroup)
+  fm.keys.clear(prevInGroup)
+  fm.keys.clear(leaveGroup)
+  for k in nextKeys: fm.keys.bindings[nextInGroup].add (k, {})
+  for k in prevKeys: fm.keys.bindings[prevInGroup].add (k, {})
+  for k in exitKeys: fm.keys.bindings[leaveGroup].add (k, {})
 
 proc setNavigationKeys*(fm: FocusManager,
                        nextKeys: seq[KeyboardKey],
                        prevKeys: seq[KeyboardKey] = @[],
                        prevModifiers: seq[KeyboardKey] = @[]) =
-  ## Configure which keys trigger focus navigation
-  ## Examples:
-  ##   fm.setNavigationKeys(@[Tab], @[], @[LeftShift, RightShift])  # Tab/Shift+Tab
-  ##   fm.setNavigationKeys(@[Down], @[Up])                         # Up/Down arrows
-  ##   fm.setNavigationKeys(@[J], @[K])                             # Vim-style j/k
-  fm.nextFocusKeys = nextKeys
-  fm.prevFocusKeys = prevKeys
-  fm.prevFocusModifiers = prevModifiers
+  ## Set the keys that move focus between groups, replacing both actions'
+  ## bindings: `nextKeys` go forward, `prevKeys` back, and a `nextKey` pressed
+  ## with one of `prevModifiers` (Shift, say) goes back too. Prefer
+  ## `fm.keys.set(...)` and the user's preferences file.
+  fm.keys.clear(nextGroup)
+  fm.keys.clear(prevGroup)
+  for k in nextKeys:
+    fm.keys.bindings[nextGroup].add (k, {})
+  for k in prevKeys:
+    fm.keys.bindings[prevGroup].add (k, {})
+  for modifier in prevModifiers:
+    let m = modOf(modifier)
+    if m.isSome:
+      for k in nextKeys:
+        let c = (k, {m.get})
+        if c notin fm.keys.bindings[prevGroup]:
+          fm.keys.bindings[prevGroup].add c
 
 # ============================================================================
 # Focus Chain Building
@@ -325,40 +328,24 @@ proc exitGroup*(fm: FocusManager): bool =
   fm.activeGroup = outer
   true
 
-proc groupDelta(fm: FocusManager, key: KeyboardKey): int =
-  ## Which way an arrow key moves inside a group; 0 for a key that is neither.
-  if key in fm.groupNextKeys: 1
-  elif key in fm.groupPrevKeys: -1
-  else: 0
-
-proc handleGroupKeys(fm: FocusManager, key: KeyboardKey): bool =
-  ## The innermost level: arrows and Escape inside the active group.
+proc handleGroupKeys(fm: FocusManager, event: GuiEvent): bool =
+  ## The innermost level: the within-group keys and the leave key, inside the
+  ## active group.
   if fm.activeGroup == nil:
     return false
-  let delta = fm.groupDelta(key)
-  if delta != 0:
-    return fm.moveWithinGroup(delta)
-  key in fm.exitGroupKeys and fm.exitGroup()
-
-proc anyModifierDown(fm: FocusManager, mods: set[KeyMod]): bool =
-  ## Whether the event was made under one of the "go backwards" modifiers.
-  ## Asked of the event, not of the live keyboard, so Shift+Tab can be
-  ## scripted and tested.
-  for modifier in fm.prevFocusModifiers:
-    let m = modOf(modifier)
-    if m.isSome and m.get in mods:
-      return true
-  false
+  if fm.keys.matches(nextInGroup, event):
+    return fm.moveWithinGroup(1)
+  if fm.keys.matches(prevInGroup, event):
+    return fm.moveWithinGroup(-1)
+  fm.keys.matches(leaveGroup, event) and fm.exitGroup()
 
 proc handleNavigationKeys(fm: FocusManager, event: GuiEvent,
                           rootWidget: Widget): bool =
-  ## The outer level: Tab and Shift+Tab between entries.
-  let key = event.key
-  if key in fm.nextFocusKeys:
-    if fm.anyModifierDown(event.mods): fm.prevFocus(rootWidget)
-    else: fm.nextFocus(rootWidget)
+  ## The outer level: between groups.
+  if fm.keys.matches(nextGroup, event):
+    fm.nextFocus(rootWidget)
     return true
-  if key in fm.prevFocusKeys:
+  if fm.keys.matches(prevGroup, event):
     fm.prevFocus(rootWidget)
     return true
   false
@@ -385,7 +372,7 @@ proc handleKeyboardEvent*(fm: FocusManager, event: GuiEvent,
   if event.kind != evKeyDown:
     return false
 
-  fm.handleGroupKeys(event.key) or
+  fm.handleGroupKeys(event) or
     fm.handleNavigationKeys(event, rootWidget)
 
 # ============================================================================

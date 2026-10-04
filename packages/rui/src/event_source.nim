@@ -67,7 +67,10 @@ proc motionEvents(dest: var seq[GuiEvent], at: Point) =
   let wheelMove = getMouseWheelMove()
   if wheelMove != 0:
     dest.add(GuiEvent(kind: evMouseWheel, priority: epNormal,
-                      timestamp: getMonoTime(), wheelDelta: wheelMove))
+                      timestamp: getMonoTime(),
+                      # The user's scroll speed, applied once here so every
+                      # scrolling widget agrees.
+                      wheelDelta: wheelMove * prefs.scrollSpeed))
 
 proc buttonEvents(dest: var seq[GuiEvent], at: Point) =
   ## epHigh because their order matters and they must not be coalesced away --

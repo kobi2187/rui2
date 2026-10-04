@@ -217,13 +217,15 @@ template travel(widget: untyped, forward: bool): bool =
       widget.writeBack(buf, beforeText)
     moved
 
-const MultiClickWindow = initDuration(milliseconds = 400)
+template multiClickWindow(): Duration =
+  ## The user's double-click speed.
+  initDuration(milliseconds = prefs.doubleClickMs)
 
 template countClick(widget: untyped, at: MonoTime): int =
   ## 1, 2 or 3: a click, a double-click or a triple-click. A click within the
   ## window of the last one continues the run; anything slower starts over.
   block:
-    if widget.clickCount > 0 and at - widget.lastClickAt <= MultiClickWindow:
+    if widget.clickCount > 0 and at - widget.lastClickAt <= multiClickWindow():
       widget.clickCount = min(widget.clickCount + 1, 3)
     else:
       widget.clickCount = 1
@@ -289,10 +291,11 @@ proc scrollToShow*(scroll, pos, size, view, content: float32): float32 =
     result = pos + size - view
   result = clamp(result, 0.0'f32, max(0.0'f32, content - view))
 
-proc caretPhaseRemaining*(now: float): float =
-  ## Seconds until the caret next turns on or off. It blinks on half-second
-  ## boundaries of the clock, so this is the time to the next one.
-  (floor(now * 2.0) + 1.0) / 2.0 - now
+proc caretPhaseRemaining*(now: float, halfPeriod = 0.5): float =
+  ## Seconds until the caret next turns on or off. It blinks on `halfPeriod`
+  ## boundaries of the clock (the user's setting; half a second by default),
+  ## so this is the time to the next one.
+  (floor(now / halfPeriod) + 1.0) * halfPeriod - now
 
 proc roomForLine*(text: string, maxLines: int): bool =
   ## Whether Enter may add a line under a `maxLines` limit (-1: no limit).
@@ -362,12 +365,15 @@ template paintEditable(widget: untyped, content: TextContent, inner: Rect) =
       let now = getTime()
       let x = ox + caret.x
       let y = oy + float32(line) * lineH
-      if int(now * 2.0) mod 2 == 0 and x >= inner.x and x <= inner.x + inner.width:
+      let half = prefs.caretBlinkMs.float / 1000.0
+      let caretOn = half <= 0 or int(now / half) mod 2 == 0   # 0: steady
+      if caretOn and x >= inner.x and x <= inner.x + inner.width:
         drawLine(x, max(y, inner.y), x, min(y + lineH, inner.y + inner.height),
                  widget.textColor)
       # Nothing else repaints an idle field, so ask for the next blink phase --
       # without this the caret froze in whichever phase the last edit left it.
-      widget.repaintAfter(caretPhaseRemaining(now))
+      if half > 0:
+        widget.repaintAfter(caretPhaseRemaining(now, half))
 
 definePrimitive(TextArea):
   props:

@@ -35,7 +35,12 @@ gate. The gaps below are what stands between that and Qt/Flutter-level trust.
    shaders, render textures, MSAA, texture filtering, event waiting. Reuse
    what it has before writing our own (what it does *not* cull or smooth for
    us is listed under #8 and #18). Animation and effects use it directly.
-7. **The DSL is the API, and it stays transparent.** `ui:` is plain sugar over
+7. **Preferences are the user's; themes are the author's.** How the person
+   works with applications (navigation keys, motion, scroll speed, caret
+   blink, double-click speed) is one per-user file shared by every RUI app,
+   with stable defaults an app cannot override. Looks and the app's own
+   behaviour are the theme, set by the author. docs/preferences.md.
+8. **The DSL is the API, and it stays transparent.** `ui:` is plain sugar over
    constructors, props are named and typed, there is no hidden state. A new
    user should be able to read an example and write the next one.
 
@@ -355,15 +360,17 @@ left, and it is cheaper now than after more widgets are written against the
 `<= 0` idiom.
 
 
-### 18. Keyboard navigation you can rebind *(medium)*
-Today Tab walks focus. The intended model has two axes, on two different
-keys, both configurable:
-- [ ] **Within a container** -- move between its widgets (default: Tab /
-  Shift+Tab, or arrows in a group).
-- [ ] **Between containers** -- jump from one container (focus group) to the
-  next (default: F6 / Shift+F6, or Ctrl+Tab).
-- [ ] A `KeyMap` the app owns: `app.keys.bind(NextInGroup, Key.Tab)`,
-  `app.keys.bind(NextGroup, Key.F6)`, several keys per action, loadable from
-  the same YAML as themes, with a conflict check.
-- [ ] Containers declare themselves as groups in the DSL
-  (`Column(focusGroup = true)`), so the two axes are obvious from the tree.
+### 18. Keyboard navigation you can rebind
+Two axes on two sets of keys -- within a container, and between containers --
+set by the *user* in their preferences file (docs/preferences.md), not by apps.
+- [x] `KeyMap` of five actions (next/prev within a group, leave, next/prev
+  group), each with any number of chords (`"Ctrl+Tab"`), exact matching,
+  conflict check, loaded from `~/.config/rui/preferences.yaml`
+  (`RUI_PREFERENCES` overrides); `setGroupKeys`/`setNavigationKeys` remain as
+  wrappers. Also in the file: motion (reduced = no animations), scroll speed,
+  caret blink, double-click speed, colour-scheme preference.
+- [x] `FocusScope` declares a container a focus group in the DSL.
+- [ ] Apps start on the theme matching `prefs.colorScheme` (and follow the OS
+  when it is `system`).
+- [ ] A small in-app keyboard help overlay listing the active bindings.
+- [ ] Windows/macOS config path check in CI.
