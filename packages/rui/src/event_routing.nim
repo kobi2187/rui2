@@ -96,6 +96,7 @@ proc routePointer*(router: EventRouter, event: GuiEvent): bool =
 
   var dirty = false
   if event.kind == evMouseMove:
+    setPointer(widget, event.mousePos)
     dirty = router.updateHover(widget)
 
   if widget == nil:

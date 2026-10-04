@@ -104,6 +104,8 @@ type
     textStyle*: Option[TextStyle]
     fontSize*: Option[float32]
     fontFamily*: Option[string]  # Font family for text rendering
+    fontWeight*: Option[FontWeight]  # Captions: SemiBold and up draw bold
+    uppercase*: Option[bool]         # Captions in capitals (button labels, tabs)
 
     # Focus effects
     focusRingColor*: Option[Color]      # Color of focus ring/outline
@@ -136,6 +138,31 @@ type
     
 
     
+  HintStyle* = object
+    ## How the help overlay's hint badges look. Every field is optional; what a
+    ## theme leaves out is the default sign-post look (see `hintLook`).
+    background*, foreground*, border*: Option[Color]
+    borderWidth*, fontSize*: Option[float32]
+    fontFamily*: Option[string]
+    uppercase*: Option[bool]
+
+  ControlMetrics* = object
+    ## The geometry of controls that is not a per-intent colour or stroke: how
+    ## tall a control is, how big a check box's square, how thick a slider's
+    ## track. Unset fields take the library defaults (see the accessors below),
+    ## so a theme file or a hand-built Theme only names what it changes.
+    ##
+    ## Together with the per-intent `borderWidth`, `cornerRadius`, `padding`,
+    ## `fontSize`, `fontWeight` and drop shadow, this is what lets one brand
+    ## be fat and bold and another thin and lean with the same widgets.
+    controlHeight*: Option[float32]   ## Min height of buttons, inputs, combos
+    indicatorSize*: Option[float32]   ## Check box square / radio circle
+    trackThickness*: Option[float32]  ## Slider track
+    thumbSize*: Option[float32]       ## Slider thumb diameter
+    progressHeight*: Option[float32]  ## Progress bar height
+    rowHeight*: Option[float32]       ## List, tree, table and menu rows
+    scrollbarThickness*: Option[float32]
+
   # Complete theme definition
   Theme* = object
     name*: string
@@ -152,6 +179,14 @@ type
     animation*: AnimationSettings         # Motion settings
     assets*: BrandAssets                  # Logo, icons, patterns
     metadata*: ThemeMetadata              # Brand info
+
+    metrics*: ControlMetrics              # Control geometry
+    hint*: HintStyle                      # Help-overlay hint badges
+
+    statePreference*: array[ControlRole, StatePreference]
+      ## Hover-or-focus-first, per control role. Read on every lookup from the
+      ## in-memory theme (`ladderFor`), never from the theme file: the file is
+      ## parsed once, into this.
 
 proc initThemeTables(theme: var Theme) =
   if theme.base.len == 0:
@@ -171,6 +206,71 @@ proc newTheme*(name = ""): Theme =
   for intent in ThemeIntent:
     result.base[intent] = ThemeProps()
     result.states[intent] = initTable[ThemeState, ThemeProps]()
+
+proc controlHeight*(theme: Theme): float32 =
+  ## Minimum height of a button, input or combo box; 0 sizes to content.
+  theme.metrics.controlHeight.get(0.0)
+proc indicatorSize*(theme: Theme): float32 = theme.metrics.indicatorSize.get(20.0)
+proc trackThickness*(theme: Theme): float32 = theme.metrics.trackThickness.get(8.0)
+proc thumbSize*(theme: Theme): float32 = theme.metrics.thumbSize.get(20.0)
+proc progressHeight*(theme: Theme): float32 = theme.metrics.progressHeight.get(20.0)
+
+proc rowHeight*(theme: Theme, legacy: float32): float32 =
+  ## Height of a list, tree, table or menu row: the theme's, or the widget's
+  ## own default (`legacy`) when the theme names none.
+  theme.metrics.rowHeight.get(legacy)
+
+proc barHeight*(theme: Theme, legacy: float32): float32 =
+  ## Height of a tab strip, menu, tool or status bar: the widget's default,
+  ## grown to the theme's control height so a bold brand's bars keep pace
+  ## with its buttons.
+  max(legacy, theme.controlHeight)
+
+type HintLook* = object
+  ## A hint badge's look with every default filled in.
+  background*, foreground*, border*: Color
+  borderWidth*, fontSize*: float32
+  fontFamily*: string
+  uppercase*: bool
+
+proc hintLook*(theme: Theme): HintLook =
+  ## Hint badges read like a sign post by default: yellow, a thick dark border,
+  ## small uppercase monospace type. A theme may change any part of that.
+  let h = theme.hint
+  HintLook(
+    background: h.background.get(Color(r: 255, g: 212, b: 0, a: 255)),
+    foreground: h.foreground.get(Color(r: 17, g: 17, b: 17, a: 255)),
+    border: h.border.get(Color(r: 17, g: 17, b: 17, a: 255)),
+    borderWidth: h.borderWidth.get(2.5'f32),
+    fontSize: h.fontSize.get(11.0'f32),
+    fontFamily: h.fontFamily.get("Monospace"),
+    uppercase: h.uppercase.get(true))
+
+proc transitionSeconds*(theme: Theme): float32 =
+  ## How long a colour takes to change when a control's state does (hover,
+  ## press, focus): the theme's `animation.durationFast`, in milliseconds, 120
+  ## if it names none. 0 makes every change instant.
+  theme.animation.durationFast.get(120.0'f32) / 1000.0'f32
+
+proc scrollbarThickness*(theme: Theme): float32 = theme.metrics.scrollbarThickness.get(12.0)
+
+template themedSize*(explicit: float32, themed: untyped): float32 =
+  ## A size prop that defaults to 0, meaning "whatever the theme says".
+  (if explicit > 0: explicit else: themed)
+
+proc isBold*(props: ThemeProps): bool =
+  ## Whether captions drawn with these props are bold.
+  props.fontWeight.get(Regular) >= SemiBold
+
+proc ladderFor*(theme: Theme, role: ControlRole): StateLadder =
+  ## The ladder this theme uses for a role. A role left at `spRoleDefault`
+  ## keeps the library's convention: a caret matters more than the pointer for
+  ## text, and the pointer matters more for everything it acts on directly.
+  case theme.statePreference[role]
+  of spHoverFirst: slPointerFirst
+  of spFocusFirst: slFocusFirst
+  of spRoleDefault:
+    if role == crText: slFocusFirst else: slPointerFirst
 
 import typetraits, system, system/iterators
 
@@ -292,8 +392,10 @@ proc canvasColor*(theme: Theme): Color =
   Color(r: 245, g: 245, b: 245, a: 255)
 
 proc setCurrentTheme*(theme: Theme) =
-  ## Set the global current theme
+  ## Set the global current theme, and its typography as the default family.
   currentTheme = theme
+  inc settleEpoch                # a new theme lands at once, without fading
+  themeFontFamily = theme.typography.primaryFont.get("")
 
 proc makeColor*(r, g, b: int, a: int = 255): Color =
   Color(

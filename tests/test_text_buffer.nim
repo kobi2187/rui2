@@ -5,7 +5,7 @@
 ## window and type. Three of those branches spelled out the same
 ## "replace the selected range" arithmetic.
 
-import std/unittest
+import std/[unittest, unicode]
 import input/text_buffer
 
 suite "selection":
@@ -165,3 +165,159 @@ suite "caret movement":
     check b.selectionRange() == (0, 5)
     check b.cursor == 5
     check b.hasSelection
+
+suite "UTF-8: a character is not a byte":
+  ## Typing used to be printable ASCII only, because `GuiEvent.char` was one
+  ## byte. With codepoints coming in, every caret step has to skip whole
+  ## characters or it splits them and leaves invalid UTF-8 behind.
+
+  test "boundaries step over multi-byte characters":
+    const s = "aéש€😀b"            # 1, 2, 2, 3, 4, 1 bytes
+    check nextBoundary(s, 0) == 1
+    check nextBoundary(s, 1) == 3
+    check nextBoundary(s, 3) == 5
+    check nextBoundary(s, 5) == 8
+    check nextBoundary(s, 8) == 12
+    check nextBoundary(s, 12) == 13
+    check nextBoundary(s, 13) == 13   # clamped at the end
+    check prevBoundary(s, 13) == 12
+    check prevBoundary(s, 12) == 8
+    check prevBoundary(s, 8) == 5
+    check prevBoundary(s, 1) == 0
+    check prevBoundary(s, 0) == 0     # clamped at the start
+
+  test "backspace takes a whole character":
+    var b = initTextBuffer("héllo", cursor = 3)   # after "hé"
+    check b.backspace()
+    check b.text == "hllo"
+    check b.cursor == 1
+
+  test "delete takes a whole character":
+    var b = initTextBuffer("a😀b", cursor = 1)
+    check b.deleteForward()
+    check b.text == "ab"
+
+  test "inserting a codepoint advances past all its bytes":
+    var b = initTextBuffer("ab", cursor = 1)
+    check b.insert("€")
+    check b.text == "a€b"
+    check b.cursor == 4
+
+  test "maxLength counts characters, not bytes":
+    var b = initTextBuffer("שלו", cursor = 6)     # 3 characters, 6 bytes
+    check b.insert("ם", maxLength = 4)
+    check b.text == "שלום"
+    check not b.insert("!", maxLength = 4)
+
+  test "control characters are not typeable":
+    check not isTypeable(Rune(0x08))    # backspace
+    check not isTypeable(Rune(0x7F))    # DEL
+    check not isTypeable(Rune(0x85))    # C1 next-line
+    check isTypeable(Rune(ord('a')))
+    check isTypeable(Rune(0x05E9))      # ש
+    check isTypeable(Rune(0x1F600))     # 😀
+
+suite "words":
+
+  test "Ctrl+Left and Ctrl+Right stop at word edges":
+    const s = "hello, big world"
+    check nextWordEnd(s, 0) == 5          # end of "hello"
+    check nextWordEnd(s, 5) == 10         # over ", " to the end of "big"
+    check prevWordStart(s, s.len) == 11   # start of "world"
+    check prevWordStart(s, 11) == 7       # back over the space to "big"
+    check prevWordStart(s, 0) == 0
+
+  test "words are Unicode-aware":
+    const s = "naïve שלום"
+    check nextWordEnd(s, 0) == "naïve".len
+    check prevWordStart(s, s.len) == "naïve ".len
+
+  test "a double-click selects the word under it":
+    const s = "one two three"
+    check wordAt(s, 5) == (4, 7)
+    check wordAt(s, 3) == (0, 3)          # just past a word: that word
+    check wordAt(s, 0) == (0, 3)
+
+  test "Ctrl+Backspace deletes back to the word start":
+    var b = initTextBuffer("delete this word", cursor = 16)
+    check b.deleteWordBack()
+    check b.text == "delete this "
+    check b.deleteWordBack()
+    check b.text == "delete "
+
+suite "pasting":
+
+  test "a single-line field turns line breaks into spaces":
+    check fitPaste("a\r\nb\nc", multiline = false, room = -1) == "a b c"
+
+  test "maxLength truncates the paste instead of refusing it":
+    var b = initTextBuffer("ab", cursor = 2)
+    check b.paste("cdefg", multiline = false, maxLength = 4)
+    check b.text == "abcd"
+
+  test "maxLines keeps the paste within the line limit":
+    var b = initTextBuffer("x", cursor = 1)
+    check b.paste("1\n2\n3\n4", multiline = true, maxLines = 2)
+    check b.text == "x1\n2"
+
+  test "pasting replaces the selection":
+    var b = initTextBuffer("hello world", cursor = 11, selStart = 6, selEnd = 11)
+    check b.paste("there", multiline = false)
+    check b.text == "hello there"
+    check b.selectedText == ""
+
+suite "undo":
+
+  proc typeInto(h: var EditHistory, b: var TextBuffer, s: string) =
+    for r in s.runes:
+      let before = b.snapshot
+      discard b.insert($r)
+      h.record(before, b.snapshot)
+
+  test "a run of typing undoes as one step":
+    var b = initTextBuffer("")
+    var h: EditHistory
+    h.typeInto(b, "hello")
+    check h.undoStack.len == 1
+    check h.undo(b)
+    check b.text == ""
+
+  test "a space ends the run, so undo takes back a word at a time":
+    var b = initTextBuffer("")
+    var h: EditHistory
+    h.typeInto(b, "one two")
+    check h.undo(b)
+    check b.text == "one "
+    check h.undo(b)
+    check b.text == "one"
+
+  test "moving the caret ends the run":
+    var b = initTextBuffer("")
+    var h: EditHistory
+    h.typeInto(b, "ab")
+    let before = b.snapshot
+    b.moveCursor(0, extend = false)
+    h.record(before, b.snapshot)
+    h.typeInto(b, "x")
+    check h.undoStack.len == 2
+
+  test "redo reapplies, and a new edit clears it":
+    var b = initTextBuffer("")
+    var h: EditHistory
+    h.typeInto(b, "abc")
+    check h.undo(b)
+    check h.redo(b)
+    check b.text == "abc"
+    check h.undo(b)
+    h.typeInto(b, "z")
+    check not h.redo(b)
+
+  test "undo restores the selection too":
+    var b = initTextBuffer("hello world", cursor = 11, selStart = 6, selEnd = 11)
+    var h: EditHistory
+    let before = b.snapshot
+    discard b.deleteSelection()
+    h.record(before, b.snapshot)
+    check h.undo(b)
+    check b.text == "hello world"
+    check b.selectedText == "world"

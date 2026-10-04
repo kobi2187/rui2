@@ -17,7 +17,7 @@
 
 import rui_core
 import rui_events
-import std/monotimes
+import std/[monotimes, unicode, options]
 
 import raylib
 
@@ -67,7 +67,10 @@ proc motionEvents(dest: var seq[GuiEvent], at: Point) =
   let wheelMove = getMouseWheelMove()
   if wheelMove != 0:
     dest.add(GuiEvent(kind: evMouseWheel, priority: epNormal,
-                      timestamp: getMonoTime(), wheelDelta: wheelMove))
+                      timestamp: getMonoTime(),
+                      # The user's scroll speed, applied once here so every
+                      # scrolling widget agrees.
+                      wheelDelta: wheelMove * prefs.scrollSpeed))
 
 proc buttonEvents(dest: var seq[GuiEvent], at: Point) =
   ## epHigh because their order matters and they must not be coalesced away --
@@ -79,23 +82,44 @@ proc buttonEvents(dest: var seq[GuiEvent], at: Point) =
     dest.add(GuiEvent(kind: evMouseUp, priority: epHigh,
                       timestamp: getMonoTime(), mousePos: at))
 
+proc dropEvents(dest: var seq[GuiEvent], at: Point) =
+  ## Files dropped on the window from the OS. One event for the whole drop,
+  ## carrying every path and the pointer position, so it reaches the widget the
+  ## files were dropped on rather than whichever one happened to be polling.
+  ## epHigh: a drop must not be coalesced away.
+  if isFileDropped():
+    dest.add(GuiEvent(kind: evFileDrop, priority: epHigh,
+                      timestamp: getMonoTime(), mousePos: at,
+                      paths: getDroppedFiles()))
+
 proc pointerEvents(dest: var seq[GuiEvent]) =
   let mousePos = getMousePosition()
   let at = Point(x: mousePos.x, y: mousePos.y)
   motionEvents(dest, at)
   buttonEvents(dest, at)
+  dropEvents(dest, at)
 
 proc keyboardEvents(dest: var seq[GuiEvent]) =
   ## epHigh and never coalesced: dropping or reordering a keystroke loses text.
-  let key = getKeyPressed()
-  if key != KeyboardKey(0):
+  ##
+  ## Both are queues, drained to empty. Reading one of each per frame -- as
+  ## this used to -- dropped keystrokes whenever two landed in the same frame,
+  ## which fast typing and input methods both do.
+  var key = getKeyPressed()
+  while key != KeyboardKey(0):
     dest.add(GuiEvent(kind: evKeyDown, priority: epHigh,
                       timestamp: getMonoTime(), key: key))
+    key = getKeyPressed()
 
-  let charPressed = getCharPressed()
-  if charPressed.int32 > 0:
+  # A codepoint, not a byte: `char(charPressed)` used to truncate anything
+  # past Latin-1 into a different character entirely.
+  var charPressed = getCharPressed().int32
+  while charPressed > 0:
     dest.add(GuiEvent(kind: evChar, priority: epHigh,
-                      timestamp: getMonoTime(), char: char(charPressed)))
+                      timestamp: getMonoTime(),
+                      rune: Rune(charPressed),
+                      char: (if charPressed < 128: char(charPressed) else: '\0')))
+    charPressed = getCharPressed().int32
 
 proc windowEvents(dest: var seq[GuiEvent]) =
   if isWindowResized():
@@ -104,7 +128,19 @@ proc windowEvents(dest: var seq[GuiEvent]) =
                       windowSize: Size(width: float32(getScreenWidth()),
                                        height: float32(getScreenHeight()))))
 
+proc heldMods(): set[KeyMod] =
+  ## The modifiers down right now, read once per poll.
+  for key in [LeftShift, RightShift, LeftControl, RightControl,
+              LeftAlt, RightAlt, LeftSuper, RightSuper]:
+    if isKeyDown(key):
+      result.incl modOf(key).get
+
 method poll*(source: RaylibEventSource): seq[GuiEvent] =
   pointerEvents(result)
   keyboardEvents(result)
   windowEvents(result)
+  # Stamped here, once, rather than by each producer: every event in a poll
+  # happened under the same modifiers, and a widget then asks the event.
+  let mods = heldMods()
+  for e in result.mitems:
+    e.mods = mods

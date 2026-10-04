@@ -43,8 +43,7 @@ let tree = TreeNode(id: "root", text: "project", expanded: true, children: @[
   TreeNode(id: "readme", text: "README.md"),
 ])
 let treeView = newTreeView(rootNode = tree, nodeHeight = 22.0,
-                           visibleRows = 6).named("tree")
-treeView.bounds = Rect(x: 0, y: 0, width: 300, height: 132)
+                           visibleRows = 6).named("tree").frame(width = 300, height = 132)
 treeView.onSelect = proc(nodeId: string) =
   report("tree -> " & nodeId)
 root.addChild(treeView)
@@ -52,24 +51,23 @@ root.addChild(treeView)
 # DataTable ----------------------------------------------------------------
 root.addChild(newLabel(text = "DataTable (click a header to sort):",
                        fontSize = 14.0).named("t2"))
-var tableRows: seq[TableRow] = @[]
+var tableRows: seq[DataRow] = @[]
 for (name, role) in [("ada", "engineer"), ("grace", "admiral"),
                      ("alan", "engineer"), ("edsger", "professor"),
                      ("barbara", "engineer")]:
   var values = initTable[string, JsonNode]()
   values["name"] = %name
   values["role"] = %role
-  tableRows.add(TableRow(id: name, values: values))
+  tableRows.add(DataRow(id: name, values: values))
 
 let table = newDataTable(
   columns = @[
-    ColumnDef(id: "name", title: "Name", width: 160.0,
+    DataColumn(id: "name", title: "Name", width: 160.0,
               sortable: true, filterable: true),
-    ColumnDef(id: "role", title: "Role", width: 200.0,
+    DataColumn(id: "role", title: "Role", width: 200.0,
               sortable: true, filterable: true),
   ],
-  data = tableRows, rowHeight = 22.0, visibleRows = 5).named("table")
-table.bounds = Rect(x: 0, y: 0, width: 360, height: 0)
+  data = tableRows, rowHeight = 22.0, visibleRows = 5).named("table").frame(width = 360)
 
 # Filters are set from code; the strip shows what is active.
 table.filters["role"] = Filter(column: "role", kind: fkContains, text: "engineer")

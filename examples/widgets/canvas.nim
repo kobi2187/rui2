@@ -2,8 +2,9 @@
 ##
 ## Canvas as an interactive drawing surface, and DragDropArea as a file target.
 ##
-## Drops are not GuiEvents, so the app polls them once per frame with
-## pollFileDrops() rather than the widget checking raylib from inside render.
+## Files dropped from the OS arrive as an `evFileDrop` event at the pointer, so
+## the DragDropArea receives them with no polling: drop on it, and it fires
+## onFilesDropped (or onFilesRejected, with a reason).
 ##
 ##   nim c -r -d:useGraphics examples/widgets/canvas.nim
 ##
@@ -31,8 +32,7 @@ proc report(text: string) =
 let canvas = newCanvas(enableDrawing = true, drawingMode = dmFreehand,
                        defaultColor = Color(r: 30, g: 80, b: 160, a: 255),
                        defaultThickness = 2.0, showGrid = true,
-                       gridSize = 20.0).named("canvas")
-canvas.bounds = Rect(x: 0, y: 0, width: 580, height: 260)
+                       gridSize = 20.0).named("canvas").frame(width = 580, height = 260)
 canvas.onDrawComplete = proc(commands: seq[DrawCommand]) =
   report("canvas: " & $commands.len & " commands")
 
@@ -70,8 +70,7 @@ root.addChild(newLabel(text = "Drop .nim files below:",
 let drop = newDragDropArea(mode = dmFiles, acceptedExtensions = @[".nim"],
                            promptText = "Drag .nim files here",
                            hoverText = "Release to drop",
-                           multiple = true).named("drop")
-drop.bounds = Rect(x: 0, y: 0, width: 580, height: 110)
+                           multiple = true).named("drop").frame(width = 580, height = 110)
 drop.onFilesDropped = proc(files: seq[DroppedItem]) =
   var names: seq[string] = @[]
   for f in files:
@@ -85,8 +84,5 @@ app.setRootWidget(root)
 let scriptDir = getAppDir() / "script"
 app.enableScripting(scriptDir)
 app.setScriptPollInterval(0.05)
-
-# Drops arrive outside the event stream, so the app asks for them each frame.
-app.onFrame = proc() = drop.pollFileDrops()
 
 app.start()

@@ -112,33 +112,34 @@ suite "restored basic widgets":
     check labelled.bounds.height > bare.bounds.height
     bare.checkScriptable("ToolButton")
 
-  test "Tooltip follows the pointer":
-    let w = newTooltip(text = "hint", offsetX = 10.0, offsetY = 10.0)
-    w.mouseX = 100.0
-    w.mouseY = 50.0
+  test "Tooltip wraps its target and takes its size":
+    let target = newButton(text = "Save")
+    let w = newTooltip(text = "hint")
+    w.addChild(target)
     w.layout()
-    check w.bounds.x == 110.0
-    check w.bounds.y == 60.0
+    check w.bounds.width == target.bounds.width
+    check w.bounds.height == target.bounds.height
     check w.bounds.width > 0
+    check tipOrigin(Point(x: 100, y: 50), 12.0, 18.0) == Point(x: 112, y: 68)
     w.checkScriptable("Tooltip")
 
 suite "restored containers":
 
   test "Column distributes children along the main axis":
-    let w = newColumn(spacing = 0.0, mainAxisAlignment = MainEnd)
+    let w = newColumn(spacing = 0.0, mainAxisAlignment = MainAxisAlignment.`end`)
     w.bounds = Rect(x: 0, y: 0, width: 200, height: 200)
     let a = newLabel(text = "a", fontSize = 14.0)
     let b = newLabel(text = "b", fontSize = 14.0)
     w.addChild(a)
     w.addChild(b)
     w.layout()
-    # MainEnd pins the last child against the bottom of the content box.
+    # MainAxisAlignment.end pins the last child against the bottom.
     check b.bounds.y + b.bounds.height <= 200.0
     check a.bounds.y < b.bounds.y
     w.checkScriptable("Column")
 
   test "Column centres on the cross axis":
-    let w = newColumn(crossAxisAlignment = CrossCenter)
+    let w = newColumn(crossAxisAlignment = CrossAxisAlignment.center)
     w.bounds = Rect(x: 0, y: 0, width: 200, height: 100)
     let child = newLabel(text = "x", fontSize = 14.0)
     w.addChild(child)
@@ -375,13 +376,13 @@ suite "restored data widgets":
     check w.flatNodes.len == 0
 
   test "DataTable filters in layout, not in render":
-    var rows: seq[TableRow] = @[]
+    var rows: seq[DataRow] = @[]
     for name in ["apple", "banana", "avocado"]:
       var values = initTable[string, JsonNode]()
       values["name"] = %name
-      rows.add(TableRow(id: name, values: values))
+      rows.add(DataRow(id: name, values: values))
 
-    let cols = @[ColumnDef(id: "name", title: "Name", width: 120.0,
+    let cols = @[DataColumn(id: "name", title: "Name", width: 120.0,
                            sortable: true, filterable: true)]
     let w = newDataTable(columns = cols, data = rows)
     w.layout()
@@ -393,13 +394,13 @@ suite "restored data widgets":
     w.checkScriptable("DataTable")
 
   test "DataTable sorts the filtered view":
-    var rows: seq[TableRow] = @[]
+    var rows: seq[DataRow] = @[]
     for name in ["cherry", "apple", "banana"]:
       var values = initTable[string, JsonNode]()
       values["name"] = %name
-      rows.add(TableRow(id: name, values: values))
+      rows.add(DataRow(id: name, values: values))
 
-    let cols = @[ColumnDef(id: "name", title: "Name", width: 120.0, sortable: true)]
+    let cols = @[DataColumn(id: "name", title: "Name", width: 120.0, sortable: true)]
     let w = newDataTable(columns = cols, data = rows)
     w.sortColumn = "name"
     w.sortOrder = soAscending
@@ -491,8 +492,8 @@ suite "restored modern widgets":
 
   test "DataTable sort cycle is decided without a table":
     let cols = @[
-      ColumnDef(id: "a", title: "A", width: 80.0, sortable: true),
-      ColumnDef(id: "b", title: "B", width: 80.0, sortable: false),
+      DataColumn(id: "a", title: "A", width: 80.0, sortable: true),
+      DataColumn(id: "b", title: "B", width: 80.0, sortable: false),
     ]
     check cols.isSortable(0)
     check not cols.isSortable(1)     # not sortable
@@ -647,3 +648,20 @@ suite "restored widgets answer the scripting bridge":
       check w.visible
       check w.enabled
       check w.isDirty
+
+suite "ToolBar fits captioned ToolButtons":
+
+  test "a self-sized bar grows to its tallest child":
+    let bar = newToolBar()
+    let b = newToolButton(iconText = "B", text = "Bold", size = 28.0,
+                          showText = true)
+    bar.addChild(b)
+    bar.layout()
+    check bar.bounds.height >= 28.0 + 9.0 + 6.0 + bar.padding * 2
+    check b.bounds.height >= 28.0 + 9.0 + 6.0
+
+  test "and keeps barHeight when its children are small":
+    let bar = newToolBar(barHeight = 40.0)
+    bar.addChild(newToolButton(iconText = "+", size = 20.0))
+    bar.layout()
+    check bar.bounds.height == 40.0

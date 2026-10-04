@@ -1,7 +1,7 @@
 ## Icon buttons, tool buttons, tooltips and separators
 ##
-## IconButton and ToolButton (including toggle mode), Tooltip as a hover
-## overlay, and Separator as a divider.
+## IconButton and ToolButton (including toggle mode), a Tooltip wrapping its
+## target button, and Separator as a divider.
 ##
 ##   nim c -r -d:useGraphics examples/widgets/buttons_extra.nim
 ##
@@ -50,16 +50,15 @@ for (glyph, caption, id) in [("B", "Bold", "tbBold"),
   bar.addChild(btn)
 root.addChild(bar)
 
-# A button cannot draw its own tooltip: renderPass clips every widget to its
-# own bounds. The Tooltip is a sibling overlay that follows the pointer.
-root.addChild(newLabel(text = "Hover the area below for a tooltip:",
+# A Tooltip wraps the widget it describes. The tip floats on the overlay
+# layer, so it is not clipped by the button's own bounds.
+root.addChild(newLabel(text = "Rest the pointer on the button for a tooltip:",
                        fontSize = 14.0).named("t3"))
-let hoverZone = newZStack().named("hoverZone")
-hoverZone.bounds = Rect(x: 0, y: 0, width: 240, height: 60)
-hoverZone.addChild(newRectangle(color = Color(r: 220, g: 230, b: 245, a: 255),
-                                cornerRadius = 6.0, filled = true).named("hoverBg"))
-hoverZone.addChild(newTooltip(text = "This is a tooltip", delay = 0.4).named("tip"))
-root.addChild(hoverZone)
+let tipped = newTooltip(text = "This is a tooltip", delay = 0.4).named("tip")
+tipped.addChild(newButton(text = "Hover me").named("hoverTarget"))
+let tipRow = newHStack().named("tipRow")   # keeps the button its natural width
+tipRow.addChild(tipped)
+root.addChild(tipRow)
 
 app.setRootWidget(root)
 let scriptDir = getAppDir() / "script"

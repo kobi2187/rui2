@@ -19,16 +19,20 @@ import raylib
 import tree_model
 export tree_model
 
+template rowH(w: untyped): float32 =
+  ## This widget's row height: its own prop, else the theme's.
+  themedSize(w.nodeHeight, currentTheme.rowHeight(24.0))
+
 template viewportOf*(widget: untyped): RowViewport =
   ## A template, not a proc: the TreeView type does not exist until the macro
   ## below has expanded, and the widget body needs this.
   rowViewport(top = widget.bounds.y, height = widget.bounds.height,
-              rowHeight = widget.nodeHeight, scrollY = widget.scrollY)
+              rowHeight = rowH(widget), scrollY = widget.scrollY)
 
 definePrimitive(TreeView):
   props:
     rootNode: TreeNode = nil
-    nodeHeight: float32 = 24.0
+    nodeHeight: float32 = 0.0   # 0: the theme's row height
     indent: float32 = 20.0
     showIcons: bool = true
     visibleRows: int = 10
@@ -98,7 +102,7 @@ definePrimitive(TreeView):
     flatten(widget.rootNode, 0, widget.flatNodes)
 
     if widget.bounds.height <= 0:
-      widget.bounds.height = float32(widget.visibleRows) * widget.nodeHeight
+      widget.bounds.height = float32(widget.visibleRows) * rowH(widget)
     if widget.bounds.width <= 0:
       let style = TextStyle(fontFamily: "", fontSize: 14.0, color: BLACK,
                             bold: false, italic: false, underline: false)
@@ -111,7 +115,7 @@ definePrimitive(TreeView):
 
   render:
     let props = currentTheme.getThemeProps(widget.intent, Normal)
-    let nodeH = widget.nodeHeight
+    let nodeH = rowH(widget)
     let v = viewportOf(widget)
 
     let visible = v.visibleRange(widget.flatNodes.len, buffer = BufferNodes)

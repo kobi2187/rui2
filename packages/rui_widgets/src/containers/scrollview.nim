@@ -28,6 +28,10 @@ export scroll_geometry
 
 import raylib
 
+template scrollbarWidthOf(w: untyped): float =
+  ## Scrollbar thickness: the prop, else the theme's (16 if it names none).
+  themedSize(w.scrollbarWidth, currentTheme.metrics.scrollbarThickness.get(16.0))
+
 const
   BackgroundColor = Color(r: 245, g: 245, b: 245, a: 255)
   TrackColor = Color(r: 220, g: 220, b: 220, a: 255)
@@ -47,7 +51,7 @@ template extent*(widget: untyped): ScrollExtent =
     contentWidth: widget.contentWidth, contentHeight: widget.contentHeight,
     viewportWidth: widget.bounds.width - widget.padding * 2,
     viewportHeight: widget.bounds.height - widget.padding * 2,
-    scrollbarWidth: widget.scrollbarWidth)
+    scrollbarWidth: scrollbarWidthOf(widget))
 
 template thumbColor*(widget: untyped): Color =
   Color(r: widget.scrollbarColor.r, g: widget.scrollbarColor.g,
@@ -56,7 +60,7 @@ template thumbColor*(widget: untyped): Color =
 defineWidget(ScrollView):
   props:
     padding: float = 8.0
-    scrollbarWidth: float = 16.0
+    scrollbarWidth: float = 0.0   # 0: the theme's
     scrollbarColor: tuple[r, g, b, a: uint8] = (150'u8, 150'u8, 150'u8, 255'u8)
     scrollSpeed: float = 20.0  # Pixels per wheel tick
 
@@ -67,6 +71,15 @@ defineWidget(ScrollView):
     contentHeight: float
 
   layout:
+    # Keep the offset inside what the content allowed last time *before* the
+    # children are placed by it; clamping afterwards left them at a stale
+    # offset for a frame, and one beyond the end placed them off the screen.
+    let before = scrollBarsFor(widget.extent)
+    widget.scrollOffsetX = clamp(widget.scrollOffsetX, 0.0f,
+                                 widget.extent.maxScrollX(before))
+    widget.scrollOffsetY = clamp(widget.scrollOffsetY, 0.0f,
+                                 widget.extent.maxScrollY(before))
+
     # Calculate total content size from children
     var maxX = 0.0f
     var maxY = 0.0f
@@ -80,8 +93,13 @@ defineWidget(ScrollView):
       child.layout()
 
       # Track content bounds
-      let childRight = child.bounds.x + child.bounds.width - widget.bounds.x + widget.padding
-      let childBottom = child.bounds.y + child.bounds.height - widget.bounds.y + widget.padding
+      # In the content's own coordinates: the scroll offset is added back, or
+      # the content would measure shorter the further it was scrolled, and the
+      # end would slide out of reach.
+      let childRight = child.bounds.x + widget.scrollOffsetX + child.bounds.width -
+                       widget.bounds.x + widget.padding
+      let childBottom = child.bounds.y + widget.scrollOffsetY + child.bounds.height -
+                        widget.bounds.y + widget.padding
 
       if childRight > maxX:
         maxX = childRight
@@ -119,7 +137,7 @@ defineWidget(ScrollView):
 
     if bars.vertical:
       let track = verticalTrack(widget.bounds, widget.padding,
-                                widget.scrollbarWidth, bars)
+                                scrollbarWidthOf(widget), bars)
       drawRectangle(track.asRectangle, TrackColor)
       let len = thumbLength(track.height, bars.innerHeight,
                             widget.contentHeight)
@@ -131,7 +149,7 @@ defineWidget(ScrollView):
 
     if bars.horizontal:
       let track = horizontalTrack(widget.bounds, widget.padding,
-                                  widget.scrollbarWidth, bars)
+                                  scrollbarWidthOf(widget), bars)
       drawRectangle(track.asRectangle, TrackColor)
       let len = thumbLength(track.width, bars.innerWidth, widget.contentWidth)
       let off = thumbOffset(track.width, len, widget.scrollOffsetX,

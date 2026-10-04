@@ -66,17 +66,8 @@ proc groupDepth*(widget: Widget): int =
     inc result
     w = enclosingGroup(w)
 
-proc isWithin*(widget, scope: Widget): bool =
-  ## Is `widget` inside `scope`? A nil scope is the whole tree, so everything is
-  ## within it.
-  if scope == nil:
-    return true
-  var w = widget
-  while w != nil:
-    if w == scope:
-      return true
-    w = w.parent
-  false
+# isWithin lives in rui_core/overlays.nim, shared with the tooltip's pointer
+# test.
 
 proc navigable(widget: Widget): bool =
   ## Reachable at all: an invisible or disabled widget is not, and neither is

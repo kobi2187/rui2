@@ -11,11 +11,15 @@ import rui_core
 import rui_drawing
 import std/options
 
+template tabBarHeightOf(w: untyped): float32 =
+  ## Tab strip height: the prop, else the theme's.
+  themedSize(w.tabBarHeight, currentTheme.barHeight(28.0))
+
 definePrimitive(TabControl):
   props:
     tabs: seq[string] = @[]      # Tab titles
     initialActiveTab: int = 0
-    tabBarHeight: float32 = 28.0
+    tabBarHeight: float32 = 0.0   # 0: from the theme
     intent: ThemeIntent = Default
 
   state:
@@ -27,13 +31,14 @@ definePrimitive(TabControl):
 
   init:
     widget.focusable = true
+    widget.hoverTab = -1       # nothing is under the pointer yet
 
   events:
     on_mouse_down:
       if widget.tabs.len == 0:
         return false
       # Only the tab strip responds; the body belongs to the active child.
-      if event.mousePos.y > widget.bounds.y + widget.tabBarHeight:
+      if event.mousePos.y > widget.bounds.y + tabBarHeightOf(widget):
         return false
       let tabWidth = widget.bounds.width / float32(widget.tabs.len)
       let idx = int((event.mousePos.x - widget.bounds.x) / tabWidth)
@@ -49,7 +54,7 @@ definePrimitive(TabControl):
     on_mouse_move:
       if widget.tabs.len == 0:
         return false
-      let overBar = event.mousePos.y <= widget.bounds.y + widget.tabBarHeight
+      let overBar = event.mousePos.y <= widget.bounds.y + tabBarHeightOf(widget)
       let tabWidth = widget.bounds.width / float32(widget.tabs.len)
       let idx = int((event.mousePos.x - widget.bounds.x) / tabWidth)
       let newHover = if overBar and idx >= 0 and idx < widget.tabs.len: idx else: -1
@@ -60,27 +65,26 @@ definePrimitive(TabControl):
 
   layout:
     if widget.bounds.width <= 0:
-      let style = TextStyle(fontFamily: "", fontSize: 14.0, color: BLACK,
-                            bold: false, italic: false, underline: false)
+      let style = currentTheme.getThemeProps(widget.intent).captionStyle(BLACK, action = true)
       var total = 0.0'f32
       for tab in widget.tabs:
-        total += measureText(tab, style).width + 24.0
+        total += measureText(tab, style).width + 24.0 + currentTheme.getThemeProps(widget.intent).strokeWidth * 2
       widget.bounds.width = total
 
     var maxChildHeight = 0.0'f32
     for i, child in widget.children:
       child.visible = i == widget.activeTab
       child.bounds.x = widget.bounds.x
-      child.bounds.y = widget.bounds.y + widget.tabBarHeight
+      child.bounds.y = widget.bounds.y + tabBarHeightOf(widget)
       child.bounds.width = widget.bounds.width
       if widget.bounds.height > 0:
-        child.bounds.height = widget.bounds.height - widget.tabBarHeight
+        child.bounds.height = widget.bounds.height - tabBarHeightOf(widget)
       # Inactive tabs are still laid out, so switching to one is instant.
       child.layout()
       maxChildHeight = max(maxChildHeight, child.bounds.height)
 
     if widget.bounds.height <= 0:
-      widget.bounds.height = widget.tabBarHeight + maxChildHeight
+      widget.bounds.height = tabBarHeightOf(widget) + maxChildHeight
 
   render:
     # Only the tab strip is ours; the active child is composited by renderPass.
@@ -98,6 +102,6 @@ definePrimitive(TabControl):
         x: widget.bounds.x + float32(i) * tabWidth,
         y: widget.bounds.y,
         width: tabWidth,
-        height: widget.tabBarHeight
+        height: tabBarHeightOf(widget)
       )
       drawTab(tabRect, tab, props, active, i == widget.hoverTab)

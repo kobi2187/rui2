@@ -8,6 +8,10 @@ import rui_core
 import rui_drawing
 import std/options
 
+template rowH(w: untyped): float32 =
+  ## This widget's row height: its own prop, else the theme's.
+  themedSize(w.itemHeight, currentTheme.rowHeight(24.0))
+
 const
   IconGutter = 20.0'f32
   ShortcutGap = 24.0'f32
@@ -22,7 +26,7 @@ definePrimitive(MenuItem):
     initialChecked: bool = false
     separator: bool = false      # Draw a rule instead of a row
     hasSubmenu: bool = false
-    itemHeight: float32 = 24.0
+    itemHeight: float32 = 0.0   # 0: the theme's row height
     disabled: bool = false
     intent: ThemeIntent = Default
 
@@ -49,7 +53,7 @@ definePrimitive(MenuItem):
   layout:
     if widget.bounds.height <= 0:
       widget.bounds.height = if widget.separator: SeparatorHeight
-                             else: widget.itemHeight
+                             else: rowH(widget)
     if widget.bounds.width <= 0:
       let style = TextStyle(fontFamily: "", fontSize: 14.0, color: BLACK,
                             bold: false, italic: false, underline: false)

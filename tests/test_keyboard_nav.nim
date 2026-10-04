@@ -302,3 +302,64 @@ suite "focus chain invalidation":
     fm.nextFocus(Widget(root))
     fm.nextFocus(Widget(root))
     check fm.focusChain == chain        # same widgets, same order
+
+suite "modifiers come from the event":
+  ## Widgets and the focus manager used to read Shift and Ctrl straight from
+  ## raylib's live keyboard, so none of this could be driven without a window.
+
+  test "Shift+Tab goes backwards through the event's mods":
+    let (root, a, b, _) = buildForm()
+    let fm = newFocusManager()
+    fm.buildFocusChain(root)
+    fm.requestFocus(b)
+    var e = keyEvent(Tab)
+    e.mods = {kmShift}
+    check fm.handleKeyboardEvent(e, root)
+    check fm.getFocusedWidget() == a
+
+  test "plain Tab still goes forwards":
+    let (root, a, b, _) = buildForm()
+    let fm = newFocusManager()
+    fm.buildFocusChain(root)
+    fm.requestFocus(a)
+    check fm.handleKeyboardEvent(keyEvent(Tab), root)
+    check fm.getFocusedWidget() == b
+
+  test "Shift+Right selects in a text field":
+    let t = newTextInput(initialText = "abc")
+    t.focused = true
+    var e = keyEvent(Right)
+    e.mods = {kmShift}
+    check t.handleInput(e)
+    check t.selectionStart == 0
+    check t.selectionEnd == 1
+
+  test "Ctrl-click adds to a multi-select list":
+    let l = newListBox(items = @["a", "b", "c"], itemHeight = 20.0,
+                       visibleRows = 3, multiSelect = true)
+    l.layout()
+    proc click(y: float32, mods: set[KeyMod] = {}) =
+      discard l.handleInput(GuiEvent(kind: evMouseDown, mods: mods,
+        mousePos: Point(x: l.bounds.x + 5, y: l.bounds.y + y)))
+    click(5)
+    click(45, {kmCtrl})
+    check l.selection.len == 2
+    click(25)                                 # no ctrl: replaces
+    check l.selection.len == 1
+
+suite "key chords":
+
+  test "a bare key":
+    let c = parseKeyChord("Tab")
+    check c.isSome and c.get.key == Tab and c.get.mods == {}
+
+  test "modifiers, any case, any order":
+    let c = parseKeyChord("ctrl+Shift+z")
+    check c.isSome
+    check c.get.key == KeyboardKey.Z
+    check c.get.mods == {kmCtrl, kmShift}
+
+  test "nonsense is refused, not guessed":
+    check parseKeyChord("Hyper+Tab").isNone
+    check parseKeyChord("Ctrl+").isNone
+    check parseKeyChord("NotAKey").isNone

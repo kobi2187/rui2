@@ -16,6 +16,10 @@ import std/options
 
 export menu, menuitem
 
+template barHeightOf(w: untyped): float32 =
+  ## Bar height: the prop, else the theme's.
+  themedSize(w.barHeight, currentTheme.barHeight(28.0))
+
 const TitlePadding = 12.0'f32
 
 type TitleSlot = tuple[index: int, x, width: float32]
@@ -42,7 +46,7 @@ proc slotAt(slots: seq[TitleSlot], mouseX: float32): int =
 
 definePrimitive(MenuBar):
   props:
-    barHeight: float32 = 28.0
+    barHeight: float32 = 0.0   # 0: from the theme
     intent: ThemeIntent = Default
 
   state:
@@ -62,7 +66,7 @@ definePrimitive(MenuBar):
 
   events:
     on_mouse_down:
-      if event.mousePos.y > widget.bounds.y + widget.barHeight:
+      if event.mousePos.y > widget.bounds.y + barHeightOf(widget):
         return false   # inside an open dropdown; the MenuItem handles it
 
       let hit = titleSlots(widget.children, widget.bounds.x).slotAt(event.mousePos.x)
@@ -91,7 +95,7 @@ definePrimitive(MenuBar):
 
     on_mouse_move:
       let newHover =
-        if event.mousePos.y <= widget.bounds.y + widget.barHeight:
+        if event.mousePos.y <= widget.bounds.y + barHeightOf(widget):
           titleSlots(widget.children, widget.bounds.x).slotAt(event.mousePos.x)
         else:
           -1
@@ -102,14 +106,14 @@ definePrimitive(MenuBar):
 
   layout:
     let slots = titleSlots(widget.children, widget.bounds.x)
-    var dropdownBottom = widget.bounds.y + widget.barHeight
+    var dropdownBottom = widget.bounds.y + barHeightOf(widget)
     var stripRight = widget.bounds.x
 
     for slot in slots:
       let child = widget.children[slot.index]
       # The dropdown hangs off the left edge of its title.
       child.bounds.x = slot.x
-      child.bounds.y = widget.bounds.y + widget.barHeight
+      child.bounds.y = widget.bounds.y + barHeightOf(widget)
       child.bounds.width = 0        # Menu sizes itself to its widest item
       child.bounds.height = 0
       child.layout()
@@ -127,12 +131,12 @@ definePrimitive(MenuBar):
     # Dropdown panels and their items are composited by renderPass.
     let barProps = currentTheme.getThemeProps(widget.intent, Normal)
     let barRect = Rect(x: widget.bounds.x, y: widget.bounds.y,
-                       width: widget.bounds.width, height: widget.barHeight)
+                       width: widget.bounds.width, height: barHeightOf(widget))
     drawThemedBackground(barRect, barProps)
 
     let borderColor = barProps.borderColor.get(Color(r: 180, g: 180, b: 180, a: 255))
-    drawLine(barRect.x, barRect.y + widget.barHeight,
-             barRect.x + barRect.width, barRect.y + widget.barHeight, borderColor)
+    drawLine(barRect.x, barRect.y + barHeightOf(widget),
+             barRect.x + barRect.width, barRect.y + barHeightOf(widget), borderColor)
 
     for slot in titleSlots(widget.children, widget.bounds.x):
       let state = if slot.index == widget.activeMenuIndex: Selected
@@ -140,7 +144,7 @@ definePrimitive(MenuBar):
                   else: Normal
       let props = currentTheme.getThemeProps(widget.intent, state)
       let titleRect = Rect(x: slot.x, y: widget.bounds.y,
-                           width: slot.width, height: widget.barHeight)
+                           width: slot.width, height: barHeightOf(widget))
 
       if state != Normal:
         drawThemedBackground(titleRect, props, hovered = state == Hovered)

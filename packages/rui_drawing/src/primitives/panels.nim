@@ -149,14 +149,6 @@ proc drawGroupBox*(rect: Rect, title: string, style: GroupBoxStyle) =
     )
     drawRect(titleBgRect, style.titleBackgroundColor.get)
 
-  # Draw title
-  drawText(title, Rect(
-    x: titleX,
-    y: titleY,
-    width: metrics.width,
-    height: titleHeight
-  ), style.titleStyle)
-
   # "Break" the border where the title is
   let breakWidth = metrics.width + style.titlePadding * 2
   let breakStart = case style.titlePosition:
@@ -166,10 +158,18 @@ proc drawGroupBox*(rect: Rect, title: string, style: GroupBoxStyle) =
 
   drawRect(Rect(
     x: breakStart,
-    y: contentY - style.borderStyle.width/2,
+    y: contentY,                     # outlines are drawn inside the box
     width: breakWidth,
     height: style.borderStyle.width
   ), style.backgroundColor)
+
+  # Draw title
+  drawText(title, Rect(
+    x: titleX,
+    y: titleY,
+    width: metrics.width,
+    height: titleHeight
+  ), style.titleStyle)
 
 # ============================================================================
 # Cards and Dividers

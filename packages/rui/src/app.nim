@@ -10,9 +10,15 @@ import rui_hittest
 import event_source
 import event_routing
 import inspect
+import preferences_file
+export preferences_file
+import system_scheme
+export system_scheme
+from rui_widgets import HelpOverlay, newHelpOverlay, FocusRing, newFocusRing,
+  Toast, newToast
 export event_source, event_routing, inspect
 export rui_core
-export event_manager_refactored   # Export for users to access eventManager
+export event_manager   # Export for users to access eventManager
 export focus_manager              # Export focus manager
 export hover_tracker              # Export hover tracker
 export theme_sys_core # Export theme types
@@ -83,6 +89,36 @@ type
     # Control
     shouldClose*: bool
 
+    # Idling
+    idleWhenClean*: bool
+      ## Skip drawing and presenting frames in which nothing was painted, and
+      ## sleep instead. On by default; off gives the old always-present loop.
+    idleRefresh*: Duration
+      ## Present at least this often even when idle, so a window uncovered by
+      ## another one does not show garbage on a compositor-less desktop.
+    lastPresent: MonoTime
+    indicatorShown: bool
+    cursorShown: CursorShape
+    overlaysSeen: int
+
+    # Toasts: transient messages stacked at the bottom of the window
+    toasts: seq[tuple[widget: Toast, until: MonoTime]]
+
+    # Keyboard help (F1 or ?)
+    helpEntries*: seq[HelpEntry]
+      ## Shortcuts the application adds to the overlay (`app.addHelp`).
+    appShortcuts: seq[tuple[chord: Chord, text: string, action: proc() {.closure.}]]
+      ## Shortcuts bound to the application itself, not to a widget.
+    helpOverlay*: HelpOverlay
+    helpClosedAt: MonoTime
+
+    # Keyboard navigation highlight
+    keyboardMode*: bool
+      ## The user is driving by keyboard: show where focus is. Set by any key
+      ## press, cleared by a mouse press -- the "focus-visible" rule, so clicking
+      ## a button does not draw a navigation ring round it.
+    widgetRing*, groupRing*: FocusRing
+
 # Global app instance (for convenience - can also be passed explicitly)
 var app*: App
 
@@ -97,7 +133,16 @@ proc newApp*(title = "RUI Application",
              resizable = true,
              minWidth = 320,
              minHeight = 240): App =
-  ## Create a new RUI application
+  ## Create a new RUI application.
+  ##
+  ## The user's preferences (keys, motion, scroll speed, ...) are read here,
+  ## once: they belong to the person at the keyboard and are the same in every
+  ## RUI app. A file with mistakes is reported on stderr and degrades only the
+  ## settings that are wrong.
+  let (userPrefs, problems) = loadPreferences()
+  applyPreferences(userPrefs)
+  for problem in problems:
+    stderr.writeLine "rui: preferences: " & problem
   result = App(
     tree: WidgetTree(
       root: nil,
@@ -129,6 +174,8 @@ proc newApp*(title = "RUI Application",
     scriptDir: "",
     lastScriptPoll: getMonoTime(),
     shouldClose: false,
+    idleWhenClean: true,
+    idleRefresh: initDuration(seconds = 1),
 
     eventSource: newRaylibEventSource()
   )
@@ -169,12 +216,12 @@ proc setRootWidget*(app: App, root: Widget) =
 proc injectKey(app: App, keyName: string): bool =
   ## Synthesise a key press at whatever currently has focus. **Test-only** --
   ## reached from `enableScripting` under -d:ruiTestKeys and nowhere else.
-  var key: KeyboardKey
-  try:
-    key = parseEnum[KeyboardKey](keyName)
-  except ValueError:
+  ## Takes a chord as well as a bare key: "Tab", "Shift+Tab", "Ctrl+Z".
+  let chord = parseKeyChord(keyName)
+  if chord.isNone:
     return false
-  let event = GuiEvent(kind: evKeyDown, key: key, timestamp: getMonoTime())
+  let event = GuiEvent(kind: evKeyDown, key: chord.get.key,
+                       mods: chord.get.mods, timestamp: getMonoTime())
   result = app.focusManager.handleKeyboardEvent(event, app.tree.root)
   if result:
     app.tree.anyDirty = true
@@ -231,6 +278,7 @@ proc enableScripting*(app: App, scriptDir: string) =
   ## Enable scripting system with specified directory
   app.scriptingEnabled = true
   app.scriptDir = scriptDir
+  animationsEnabled = false   # a script reads settled values, not mid-fade ones
   if not dirExists(scriptDir):
     createDir(scriptDir)
 
@@ -300,6 +348,17 @@ proc setTheme*(app: App, name: string) =
   app.tree.anyDirty = true
   app.tree.isDirty = true
   app.tree.root.markSubtreeDirty()
+
+proc useThemes*(app: App, light, dark: string) =
+  ## Declare the application's light and dark themes (by registered name) and
+  ## start on the one the user wants: their `colorScheme` preference, or the
+  ## operating system's when that is `system`. The author chooses the looks;
+  ## the user chooses which of them to see.
+  ##
+  ##   app.useThemes(light = "daylight", dark = "midnight")
+  let scheme = effectiveScheme(prefs.colorScheme,
+    if prefs.colorScheme == schemeSystem: detectSystemScheme() else: schemeLight)
+  app.setTheme(if scheme == schemeDark: dark else: light)
 
 proc getTheme*(app: App): Theme =
   ## Get the current theme
@@ -387,28 +446,248 @@ template traceEvent(args: varargs[untyped]) =
   when defined(ruiTrace):
     echo args
 
+# ----------------------------------------------------------------------------
+# The keyboard help overlay
+# ----------------------------------------------------------------------------
+
+# ----------------------------------------------------------------------------
+# Toasts
+# ----------------------------------------------------------------------------
+
+const ToastGap = 8.0'f32
+const ToastMargin = 24.0'f32
+
+proc stackToasts(app: App) =
+  ## Bottom-centre, newest lowest, each above the one before it.
+  var y = app.window.height.float32 - ToastMargin
+  for i in countdown(app.toasts.high, 0):
+    let t = app.toasts[i].widget
+    y -= t.bounds.height
+    t.bounds.x = (app.window.width.float32 - t.bounds.width) / 2
+    t.bounds.y = y
+    t.isDirty = true
+    y -= ToastGap
+
+proc toast*(app: App, text: string, intent = ThemeIntent.Default, seconds = 3.0) =
+  ## Show `text` over the window for `seconds`, then take it away:
+  ##   app.toast("Saved")
+  ##   app.toast("Could not connect", intent = ThemeIntent.Danger, seconds = 6)
+  let t = newToast(text = text, intent = intent)
+  t.layout()
+  app.toasts.add (t, getMonoTime() + initDuration(milliseconds = int(seconds * 1000)))
+  showOverlay(t)
+  app.stackToasts()
+  t.repaintAfter(seconds)         # wakes an idle window to remove it
+  app.tree.anyDirty = true
+
+proc pruneToasts*(app: App, now = getMonoTime()) =
+  ## Remove the toasts whose time is up and close the gaps they leave.
+  var kept: seq[tuple[widget: Toast, until: MonoTime]]
+  var removed = false
+  for entry in app.toasts:
+    if entry.until <= now:
+      hideOverlay(entry.widget)
+      removed = true
+    else:
+      kept.add entry
+  if removed:
+    app.toasts = kept
+    app.stackToasts()
+    app.tree.anyDirty = true
+
+proc addHelp*(app: App, keys, text: string) =
+  ## List one of the application's own shortcuts in the help overlay:
+  ##   app.addHelp("Ctrl+S", "Save")
+  app.helpEntries.add (keys, text)
+
+proc bindShortcut*(app: App, keys: string, text: string,
+                   action: proc() {.closure.}) =
+  ## A shortcut for the whole application, with no widget behind it: the key
+  ## runs `action`, and the help overlay lists it among the notes on its second
+  ## row. The chord is checked here, so a typo fails at startup.
+  ##
+  ##   app.bindShortcut("Ctrl+F", "find", proc() = openFindBar())
+  app.appShortcuts.add (chord(keys), text, action)
+
+proc helpVisible*(app: App): bool =
+  app.helpOverlay != nil and app.helpOverlay in overlays()
+
+proc showHelp*(app: App) =
+  ## Shade the window and list the keys in force. Rebuilt each time, so it
+  ## reflects the user's current bindings.
+  if app.helpVisible: return
+  var notes = app.helpEntries
+  for s in app.appShortcuts:
+    notes.add (s.chord.display, s.text)
+  app.helpOverlay = newHelpOverlay(items = navigationItems(prefs.keys),
+                                   notes = notes,
+                                   hints = collectHints(app.tree.root))
+  app.helpOverlay.bounds = Rect(x: 0, y: 0, width: app.window.width.float32,
+                                height: app.window.height.float32)
+  showOverlay(app.helpOverlay)
+  app.tree.anyDirty = true
+
+proc hideHelp*(app: App) =
+  if app.helpVisible:
+    hideOverlay(app.helpOverlay)
+    app.helpClosedAt = getMonoTime()
+    app.tree.anyDirty = true
+
+proc helpKeyPressed(app: App, event: GuiEvent): bool =
+  ## Whether this key press asks for help. A key that is really typing (the "?"
+  ## chord) is left to a text field that has focus.
+  if event.kind != evKeyDown or not prefs.keys.matches(showHelp, event):
+    return false
+  let focused = app.focusManager.focusedWidget
+  not (focused != nil and focused.takesText and (event.key, event.mods).isTyping)
+
+# ----------------------------------------------------------------------------
+# The focus rings: where the keyboard is, at both levels
+# ----------------------------------------------------------------------------
+
+const RingGap = 3.0'f32
+const GroupGap = 6.0'f32
+
+proc ringRect(target: Rect, gap: float32): Rect =
+  Rect(x: target.x - gap, y: target.y - gap,
+       width: target.width + gap * 2, height: target.height + gap * 2)
+
+proc placeRing(ring: var FocusRing, group: bool, target: Widget, gap: float32,
+               show: bool) =
+  ## Show `ring` round `target`, or take it away. Creating it lazily keeps an
+  ## app that is only ever driven by the mouse from paying for either.
+  if not show or target == nil or not target.visible or target.bounds.width <= 0:
+    if ring != nil and ring in overlays():
+      hideOverlay(ring)
+    return
+  if ring == nil:
+    ring = newFocusRing(group = group)
+  let want = ringRect(target.bounds, gap)
+  if ring.bounds != want:
+    ring.bounds = want
+    ring.isDirty = true
+  if ring notin overlays():
+    showOverlay(ring)
+
+proc syncFocusRings*(app: App) =
+  ## Put the rings where focus is: firm round the focused widget, softer round
+  ## the container it is moving about in. Only while the keyboard is driving;
+  ## the widget's own focus look is unaffected.
+  if app.helpVisible:
+    # Widgets move and appear while help is up (and before the first layout):
+    # keep the badges on what is really there.
+    let hints = collectHints(app.tree.root)
+    if hints != app.helpOverlay.hints:
+      app.helpOverlay.hints = hints
+      app.helpOverlay.isDirty = true
+  let focused = app.focusManager.focusedWidget
+  let group = app.focusManager.activeGroup
+  let navigating = app.keyboardMode and not app.helpVisible
+  placeRing(app.widgetRing, false, focused, RingGap, navigating)
+  placeRing(app.groupRing, true, group, GroupGap,
+            navigating and group != nil and group != focused)
+
+proc activate*(widget: Widget) =
+  ## Press a widget as if it had been clicked: a press and a release at its
+  ## middle, offered to it and its ancestors like any pointer event.
+  let at = Point(x: widget.bounds.x + widget.bounds.width / 2,
+                 y: widget.bounds.y + widget.bounds.height / 2)
+  discard widget.dispatchBubbling(GuiEvent(kind: evMouseDown, mousePos: at))
+  discard widget.dispatchBubbling(GuiEvent(kind: evMouseUp, mousePos: at))
+  widget.markDirtyToRoot()
+
+proc handleShortcut*(app: App, event: GuiEvent): bool =
+  ## A key press that is some widget's `.shortcut`: activate that widget. A
+  ## shortcut that is really typing is left to a text field with focus.
+  if event.kind != evKeyDown or app.helpVisible:
+    return false
+  let focused = app.focusManager.focusedWidget
+  if focused != nil and focused.takesText and (event.key, event.mods).isTyping:
+    return false
+  let target = findShortcut(app.tree.root, event.key, event.mods)
+  if target != nil:
+    target.activate()
+    app.tree.anyDirty = true
+    return true
+  for s in app.appShortcuts:
+    if s.chord.key == event.key and s.chord.mods == event.mods:
+      if s.action != nil:
+        s.action()
+      app.tree.anyDirty = true
+      return true
+  false
+
+proc handleHelp*(app: App, event: GuiEvent): bool =
+  ## Help takes over the keyboard and pointer while it is up: any key or click
+  ## closes it, and the character that key would have typed is swallowed too.
+  if app.helpVisible:
+    case event.kind
+    of evKeyDown, evMouseDown:
+      app.hideHelp()
+      return true
+    of evChar, evMouseUp, evMouseMove, evMouseWheel:
+      return true
+    else:
+      return false
+  if event.kind == evChar and getMonoTime() - app.helpClosedAt < initDuration(milliseconds = 60):
+    return true                    # the "?" that just closed it, arriving as text
+  if app.helpKeyPressed(event):
+    app.showHelp()
+    return true
+  false
+
 proc handleWindowResize(app: App, event: GuiEvent) =
   app.window.width = int(event.windowSize.width)
   app.window.height = int(event.windowSize.height)
+  if app.helpVisible:
+    app.helpOverlay.bounds = Rect(x: 0, y: 0, width: event.windowSize.width,
+                                  height: event.windowSize.height)
+    app.helpOverlay.isDirty = true
   discard resizeRoot(app.tree.root, event.windowSize)
   app.tree.anyDirty = true
   traceEvent "[Event] Window resized to ", event.windowSize.width, "x",
              event.windowSize.height
 
+proc pressFocused*(app: App, event: GuiEvent): bool =
+  ## Space or Enter on a focused button-like control presses it, as a click
+  ## would. Only the controls where a click means "do your one thing" -- not,
+  ## say, a Slider, where a click at the middle would jump the value.
+  if event.kind != evKeyDown or not (event.key in {KeyboardKey.Space, KeyboardKey.Enter}):
+    return false
+  let focused = app.focusManager.focusedWidget
+  if focused == nil or focused.takesText or not focused.enabled:
+    return false
+  case focused.getTypeName()
+  of "Button", "Checkbox", "RadioButton", "Hyperlink", "IconButton", "ToolButton":
+    focused.activate()
+    app.tree.anyDirty = true
+    true
+  else:
+    false
+
 proc handleEvent(app: App, event: GuiEvent) =
   ## Route one event. The work is in event_routing.nim; this is the three-way
   ## split between window, pointer and keyboard, and the dirty bookkeeping.
+  if app.handleHelp(event):
+    return
+  if app.handleShortcut(event):
+    return
+  if event.kind == evKeyDown:
+    app.keyboardMode = true
+  elif event.kind == evMouseDown:
+    app.keyboardMode = false
   case event.kind
   of evWindowResize:
     app.handleWindowResize(event)
 
-  of evMouseDown, evMouseUp, evMouseMove, evMouseWheel:
+  of evMouseDown, evMouseUp, evMouseMove, evMouseWheel, evFileDrop:
     if app.router.routePointer(event):
       app.tree.anyDirty = true
 
   of evKeyDown, evChar:
     if not app.router.routeKeyboard(app.tree.root, event):
-      traceEvent "[Event] Keyboard event not handled: ", event.kind
+      if not app.pressFocused(event):
+        traceEvent "[Event] Keyboard event not handled: ", event.kind
 
   else:
     discard
@@ -444,6 +723,8 @@ proc refreshLayout*(app: App) =
   let layoutWillRun = app.tree.root.layoutDirty or
                       app.tree.root.anyChildLayoutDirty()
   app.tree.root.layoutPass()
+  for overlay in overlays():
+    overlay.layoutPass()
 
   # Both of these walk the whole tree, and both only have anything to do when
   # bounds moved or a widget appeared -- so they are gated on layout having
@@ -457,13 +738,29 @@ proc refreshLayout*(app: App) =
   # to follow layout because a widget can be added during it.
   app.tree.registerWidgetRecursive(app.tree.root)
 
-proc updateLayoutAndRender(app: App) =
-  ## Lay out, then paint whatever is dirty into the widget textures.
+proc updateLayoutAndRender(app: App): bool =
+  ## Lay out, then paint whatever is dirty into the widget textures. Returns
+  ## whether anything was painted -- which is what decides if the frame needs
+  ## presenting at all.
   if app.tree.root == nil:
-    return
+    return false
   app.refreshLayout()
+  app.syncFocusRings()
+  # What the window shows: anything wholly outside it is not painted until it
+  # scrolls into view.
+  renderView = some(Rect(x: 0, y: 0, width: getScreenWidth().float32,
+                         height: getScreenHeight().float32))
   if app.tree.root.isDirty or app.tree.root.anyChildDirty():
     app.tree.root.renderPass()
+    result = true
+  for overlay in overlays():
+    if overlay.isDirty or overlay.anyChildDirty():
+      overlay.renderPass()
+      result = true
+  # Showing or hiding an overlay repaints no texture, but the screen changes.
+  if overlayVersion() != app.overlaysSeen:
+    app.overlaysSeen = overlayVersion()
+    result = true
   app.tree.anyDirty = false
 
 # ============================================================================
@@ -493,9 +790,17 @@ proc drawScriptingIndicator() =
   drawText(indicatorText, textX, 5'i32, 14'i32, scriptColor)
 
 proc compositeRoot(app: App) =
-  if app.tree.root != nil and app.tree.root.cachedTexture.isSome:
-    drawRenderTexture(app.tree.root.cachedTexture.get(),
-                      app.tree.root.bounds.x, app.tree.root.bounds.y)
+  ## Widget textures hold premultiplied colour (see main_loop), so they reach
+  ## the screen through the premultiplied blend too.
+  compositingTextures:
+    if app.tree.root != nil and app.tree.root.cachedTexture.isSome:
+      drawRenderTexture(app.tree.root.cachedTexture.get(),
+                        app.tree.root.bounds.x, app.tree.root.bounds.y)
+    # Then the overlay layer, in the order shown, above the whole tree.
+    for overlay in overlays():
+      if overlay.visible and overlay.cachedTexture.isSome:
+        drawRenderTexture(overlay.cachedTexture.get(),
+                          overlay.bounds.x, overlay.bounds.y)
 
 proc beingScripted(app: App): bool =
   app.scriptManager != nil and app.scriptManager.isBeingScripted()
@@ -535,9 +840,35 @@ proc pollScriptCommands(app: App) =
 # Main Loop
 # ============================================================================
 
+proc systemClipboard(): Clipboard =
+  ## The OS clipboard, through raylib. Only valid once a window exists.
+  Clipboard(get: proc(): string = raylib.getClipboardText(),
+            put: proc(text: string) = raylib.setClipboardText(text))
+
+proc raylibCursor(shape: CursorShape): MouseCursor =
+  case shape
+  of csDefault, csArrow: MouseCursor.Arrow
+  of csText: MouseCursor.Ibeam
+  of csPointer: MouseCursor.PointingHand
+  of csCrosshair: MouseCursor.Crosshair
+  of csResizeH: MouseCursor.ResizeEw
+  of csResizeV: MouseCursor.ResizeNs
+  of csMove: MouseCursor.ResizeAll
+  of csNotAllowed: MouseCursor.NotAllowed
+
+proc applyCursor(app: App) =
+  ## Show the hovered widget's pointer shape. Only calls into the window when
+  ## the shape changes, which on most frames it does not.
+  let hovered = app.hoverTracker.hovered
+  let shape = if hovered == nil: csArrow else: hovered.effectiveCursor
+  if shape != app.cursorShown:
+    app.cursorShown = shape
+    setMouseCursor(raylibCursor(shape))
+
 proc openWindow(app: App) =
   initWindow(app.window.width.int32, app.window.height.int32, app.window.title)
   setTargetFPS(app.window.fps.int32)
+  useClipboard(systemClipboard())
   if not app.window.resizable:
     return
   setWindowState(flags(WindowResizable))
@@ -587,10 +918,14 @@ proc stepHeadless*(app: App) =
   app.pumpEvents()
   app.refreshLayout()
 
-proc step*(app: App) =
+proc step*(app: App): bool {.discardable.} =
   ## One frame of the pipeline, without the window or the loop around it.
-  ## Needs a GL context, because it paints.
+  ## Needs a GL context, because it paints. Returns whether anything was
+  ## painted.
   app.pumpEvents()
+  if fireDueRepaints():
+    app.tree.anyDirty = true
+  app.pruneToasts()
   app.updateLayoutAndRender()
 
 proc countFrame(app: App) =
@@ -602,6 +937,29 @@ proc countFrame(app: App) =
     app.currentFPS = float(app.frameCount)
     app.frameCount = 0
     app.fpsUpdateTime = now
+
+proc shouldPresent(app: App, painted: bool, now: MonoTime): bool =
+  ## Whether this frame has to reach the screen. Painting is the usual reason;
+  ## the others are the scripting indicator appearing or going, and the idle
+  ## refresh.
+  if painted or not app.idleWhenClean:
+    return true
+  let indicator = app.beingScripted
+  if indicator != app.indicatorShown:
+    app.indicatorShown = indicator
+    return true
+  now - app.lastPresent >= app.idleRefresh
+
+proc idleUntilNextFrame(app: App, frameStart: MonoTime) =
+  ## An idle frame: no drawing and no buffer swap, just input polling and a
+  ## sleep for the rest of the frame period. endDrawing normally does both --
+  ## polls input, then waits out the frame, partly by busy-waiting -- which is
+  ## why an unchanged window used to cost a steady slice of a core.
+  pollInputEvents()
+  let period = initDuration(nanoseconds = 1_000_000_000 div max(1, app.window.fps))
+  let remaining = period - (getMonoTime() - frameStart)
+  if remaining > DurationZero:
+    sleep(max(1, remaining.inMilliseconds.int))
 
 proc run*(app: App, maxFrames: int = -1) =
   ## Run the main application loop.
@@ -621,9 +979,14 @@ proc run*(app: App, maxFrames: int = -1) =
     inc framesRun
 
     let frameStart = getMonoTime()
-    app.step()
-    app.renderFrame()       # 6. Composite to screen
-    app.countFrame()
+    let painted = app.step()
+    app.applyCursor()
+    if app.shouldPresent(painted, frameStart):
+      app.renderFrame()       # 6. Composite to screen
+      app.lastPresent = frameStart
+      app.countFrame()
+    else:
+      app.idleUntilNextFrame(frameStart)
     app.lastFrameTime = frameStart
 
 # ============================================================================

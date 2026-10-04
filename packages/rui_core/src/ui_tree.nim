@@ -28,7 +28,7 @@
 ## point: the macro is a convenience you can stop using in the middle of a tree
 ## without rewriting the rest.
 ##
-## ## The rules, all four of them
+## ## The rules, all five of them
 ##
 ## - A call whose name starts with a capital is a widget: `Foo(args)` becomes
 ##   `newFoo(args)`, and is added to the enclosing widget.
@@ -42,11 +42,15 @@
 ##   written, with widget calls inside it added to the same enclosing widget.
 ##   So a loop that builds rows works, and so does an `if` that includes a
 ##   control conditionally.
+## - A widget call may carry modifiers -- `Canvas().frame(height = 260)`,
+##   `TextArea().flex` -- which are applied to the widget after it is built.
+##   A child block after the chain belongs to the widget at its bottom:
+##   `VStack(spacing = 4.0).frame(width = 200):` then the children.
 
 import macros
 import types
 
-proc isWidgetCall(node: NimNode): bool =
+proc isPlainWidgetCall(node: NimNode): bool =
   ## A call whose callee is a capitalised identifier. The capital is the whole
   ## test: it is the convention every widget type in the library already
   ## follows, and it keeps `echo x` or `inc count` from being mistaken for one.
@@ -55,6 +59,36 @@ proc isWidgetCall(node: NimNode): bool =
   let callee = node[0]
   callee.kind == nnkIdent and callee.strVal.len > 0 and
     callee.strVal[0] in {'A' .. 'Z'}
+
+proc isWidgetCall(node: NimNode): bool =
+  ## A widget call, or a modifier chained onto one:
+  ## `Canvas().frame(height = 260)`, `TextArea().flex`.
+  if node.isPlainWidgetCall:
+    return true
+  if node.kind in {nnkCall, nnkCommand} and node[0].kind == nnkDotExpr:
+    return node[0][0].isWidgetCall
+  node.kind == nnkDotExpr and node[0].isWidgetCall
+
+proc splitChain(node: NimNode): tuple[base: NimNode, mods: seq[NimNode]] =
+  ## The plain widget call at the bottom of a modifier chain, and the
+  ## modifiers applied to it, innermost first. Each modifier is kept as a call
+  ## whose first argument is a placeholder, filled in by `buildWidget`.
+  var n = node
+  var outerFirst: seq[NimNode]
+  while not n.isPlainWidgetCall:
+    if n.kind == nnkDotExpr:
+      outerFirst.add newCall(n[1])
+      n = n[0]
+    else:
+      var m = newCall(n[0][1])
+      for i in 1 ..< n.len:
+        if n[i].kind != nnkStmtList:
+          m.add n[i]
+      outerFirst.add m
+      n = n[0][0]
+  result.base = n
+  for i in countdown(outerFirst.high, 0):
+    result.mods.add outerFirst[i]
 
 proc constructorName(callee: NimNode): NimNode =
   ## `Label` -> `newLabel`, matching what definePrimitive generates.
@@ -66,7 +100,9 @@ proc addChildrenTo(parent: NimNode, body: NimNode, dest: NimNode)
 proc rewriteControlFlow(parent, stmt: NimNode): NimNode
 
 proc buildCall(node: NimNode, body: NimNode): NimNode =
-  ## `Foo(a, b)` with an optional child block, as an expression.
+  ## `Foo(a, b)` with an optional child block, as an expression. The block
+  ## may come from further up a modifier chain, so it is passed in rather
+  ## than read off `node`.
   let widgetSym = genSym(nskLet, "w")
   var call = newCall(constructorName(node[0]))
   for i in 1 ..< node.len:
@@ -81,11 +117,25 @@ proc buildCall(node: NimNode, body: NimNode): NimNode =
   nnkBlockStmt.newTree(newEmptyNode(), stmts)
 
 proc buildWidget(node: NimNode): NimNode =
-  ## The expression that creates one widget, children and all.
+  ## The expression that creates one widget, children and all, with any
+  ## modifiers applied. A child block is written after the whole chain but
+  ## belongs to the widget at its bottom.
   var body: NimNode = nil
-  if node.len > 1 and node[^1].kind == nnkStmtList:
+  if node.kind != nnkDotExpr and node.len > 1 and node[^1].kind == nnkStmtList:
     body = node[^1]
-  buildCall(node, body)
+  let chain = splitChain(node)
+  if chain.mods.len == 0:
+    return buildCall(chain.base, body)
+  let w = genSym(nskLet, "m")
+  var stmts = newStmtList(nnkLetSection.newTree(
+    newIdentDefs(w, newEmptyNode(), buildCall(chain.base, body))))
+  for m in chain.mods:
+    var call = newCall(m[0], w)
+    for i in 1 ..< m.len:
+      call.add m[i]
+    stmts.add nnkDiscardStmt.newTree(call)
+  stmts.add w
+  nnkBlockStmt.newTree(newEmptyNode(), stmts)
 
 const ControlFlow = {nnkForStmt, nnkIfStmt, nnkElifBranch, nnkElse,
                      nnkWhileStmt, nnkBlockStmt, nnkWhenStmt, nnkCaseStmt,

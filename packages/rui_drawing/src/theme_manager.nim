@@ -89,6 +89,8 @@ proc newThemeManager*(): ThemeManager =
   result.registry["beos"] = createBeosTheme()
   result.registry["joy"] = createJoyTheme()
   result.registry["wide"] = createWideTheme()
+  for (key, theme) in brandThemes():
+    result.registry[key] = theme
   result.current = result.registry["light"]
   setCurrentTheme(result.current)
 
@@ -151,47 +153,53 @@ proc getProps*(tm: ThemeManager, intent: ThemeIntent = Default,
 proc derive*(tm: ThemeManager, baseName: string, newName: string = ""): Theme =
   ## Create a new theme as a copy of a registered base.
   ## Modify the returned Theme, then register it.
+  ##
+  ## A whole-value copy (a Theme owns its tables, so assignment copies them),
+  ## not field by field: the field-by-field version silently dropped whatever
+  ## was added to Theme after it was written -- the control metrics, for one.
   if baseName notin tm.registry:
-    raise newException(ValueError, "Unknown base theme: " & baseName)
-  let base = tm.registry[baseName]
-  result = newTheme(if newName.len > 0: newName else: base.name & " (derived)")
-  result.version = base.version
-  for intent in ThemeIntent:
-    if intent in base.base:
-      result.base[intent] = base.base[intent]
-    if intent in base.states:
-      for state, props in base.states[intent]:
-        result.states[intent][state] = props
-  result.brandPalette = base.brandPalette
-  result.typography = base.typography
-  result.spacing = base.spacing
-  result.animation = base.animation
-  result.assets = base.assets
-  result.metadata = base.metadata
+    raise newException(ValueError, "Unknown base theme: " & baseName &
+      ". Registered: " & tm.listThemes().join(", "))
+  result = tm.registry[baseName]
+  result.name = if newName.len > 0: newName else: result.name & " (derived)"
 
 # ============================================================================
 # File Loading
 # ============================================================================
 
-proc makeResolver(tm: ThemeManager, dir: string): proc(name: string): Theme =
-  ## Create a resolver that checks registry first, then sibling files
+proc makeResolver(tm: ThemeManager, dir: string,
+                  chain: seq[string] = @[]): proc(name: string): Theme =
+  ## Resolve `extends`: the registry first, then a sibling file. `chain` is
+  ## the names being resolved above this one, so a theme that extends itself
+  ## through any number of others is an error instead of an endless loop, and a
+  ## name that is neither registered nor a file says so instead of quietly
+  ## becoming an empty theme.
   result = proc(name: string): Theme =
+    if name in chain:
+      raise newException(ValueError, "theme extends itself: " &
+        (chain & name).join(" -> "))
     if name in tm.registry:
       return tm.derive(name)
     for ext in [".yaml", ".yml", ".json"]:
       let siblingPath = dir / name & ext
       if fileExists(siblingPath):
         return parseTheme(readFile(siblingPath), formatFor(ext),
-                          tm.makeResolver(dir))
-    newTheme(name)
+                          tm.makeResolver(dir, chain & name))
+    raise newException(ValueError, "theme extends '" & name &
+      "', which is neither a registered theme nor a file named " & name &
+      ".yaml / .yml / .json beside it. Registered: " & tm.listThemes().join(", "))
 
 proc loadFromFile*(tm: ThemeManager, path: string): Theme =
   ## Load a theme from a JSON or YAML file (auto-detected by extension).
   ## Supports "extends" referencing registered themes or sibling files.
   if not fileExists(path):
     raise newException(IOError, "Theme file not found: " & path)
-  result = parseTheme(readFile(path), formatFor(path),
-                      tm.makeResolver(parentDir(path)))
+  try:
+    result = parseTheme(readFile(path), formatFor(path),
+                        tm.makeResolver(parentDir(path), @[path.splitFile().name]))
+  except ValueError as e:
+    # Say which file: the parser only knows it was handed some text.
+    raise newException(ValueError, path & ": " & e.msg)
   # Auto-register under filename if not already registered
   let regName = if result.name.len > 0: result.name
                 else: path.splitFile().name
@@ -202,7 +210,11 @@ proc registryResolver(tm: ThemeManager): proc(name: string): Theme =
   ## Resolve `extends` against the registry only -- no sibling-file lookup,
   ## because a string has no directory to look beside.
   result = proc(name: string): Theme =
-    if name in tm.registry: tm.derive(name) else: newTheme(name)
+    if name in tm.registry: tm.derive(name)
+    else:
+      raise newException(ValueError, "theme extends '" & name &
+        "', which is not a registered theme. Registered: " &
+        tm.listThemes().join(", "))
 
 proc loadFromJsonString*(tm: ThemeManager, jsonStr: string): Theme =
   parseTheme(jsonStr, tffJson, tm.registryResolver())

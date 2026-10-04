@@ -167,3 +167,125 @@ suite "Link: bindTo actually changes what the widget shows":
     ratio.set(0.9)
     root.layoutPass()
     check bar.value == 0.9
+
+suite "Link: transaction":
+
+  test "values are visible inside, announcements wait for the end":
+    let a = newLink(1)
+    var fired = 0
+    a.setOnChange(proc(o, n: int) = inc fired)
+    transaction:
+      a.set(2)
+      check a.get() == 2
+      check fired == 0
+    check fired == 1
+
+  test "several sets to one link announce once, from the first old value":
+    let a = newLink(1)
+    var seen: seq[(int, int)]
+    a.setOnChange(proc(o, n: int) = seen.add (o, n))
+    transaction:
+      a.set(2)
+      a.set(3)
+      a.set(4)
+    check seen == @[(1, 4)]
+
+  test "setting a link back to where it began announces nothing":
+    let a = newLink(1)
+    var fired = 0
+    a.setOnChange(proc(o, n: int) = inc fired)
+    transaction:
+      a.set(2)
+      a.set(1)
+    check fired == 0
+
+  test "dependents are marked once the block closes":
+    let a = newLink(0)
+    let w = newLabel(text = "x", fontSize = 14.0)
+    a.addDependent(w)
+    w.layoutDirty = false
+    transaction:
+      a.set(5)
+      check not w.layoutDirty
+    check w.layoutDirty
+
+  test "blocks nest, and only the outermost announces":
+    let a = newLink(0)
+    var fired = 0
+    a.setOnChange(proc(o, n: int) = inc fired)
+    transaction:
+      transaction:
+        a.set(1)
+      check fired == 0
+      a.set(2)
+    check fired == 1
+
+  test "an exception still closes the transaction":
+    let a = newLink(0)
+    var fired = 0
+    a.setOnChange(proc(o, n: int) = inc fired)
+    try:
+      transaction:
+        a.set(1)
+        raise newException(ValueError, "boom")
+    except ValueError: discard
+    check fired == 1
+    a.set(2)                                  # and announcing works again
+    check fired == 2
+
+suite "Link: derive":
+
+  test "follows its source":
+    let first = newLink("Ada")
+    let greeting = derive(first, proc(s: string): string = "Hello, " & s)
+    check greeting.get() == "Hello, Ada"
+    first.set("Grace")
+    check greeting.get() == "Hello, Grace"
+
+  test "two sources, and chaining":
+    let a = newLink(2)
+    let b = newLink(3)
+    let sum = derive(a, b, proc(x, y: int): int = x + y)
+    let doubled = derive(sum, proc(x: int): int = x * 2)
+    check doubled.get() == 10
+    a.set(10)
+    check sum.get() == 13 and doubled.get() == 26
+
+  test "three sources":
+    let a = newLink(1)
+    let b = newLink(2)
+    let c = newLink(3)
+    let total = derive(a, b, c, proc(x, y, z: int): int = x + y + z)
+    c.set(10)
+    check total.get() == 13
+
+  test "only its own dependents are dirtied, and only on a real change":
+    let n = newLink(3)
+    let parity = derive(n, proc(x: int): bool = x mod 2 == 1)
+    let w = newLabel(text = "x", fontSize = 14.0)
+    parity.addDependent(w)
+    w.layoutDirty = false
+    n.set(5)                                  # still odd: result unchanged
+    check not w.layoutDirty
+    n.set(6)
+    check w.layoutDirty
+
+  test "a transaction recomputes it once, from the final values":
+    let a = newLink(1)
+    let b = newLink(1)
+    var runs = 0
+    let sum = derive(a, b, proc(x, y: int): int =
+      inc runs
+      x + y)
+    runs = 0
+    transaction:
+      a.set(5)
+      b.set(7)
+    check sum.get() == 12
+    check runs == 2          # one per source's announcement, never a stale pair
+    var seen = 0
+    sum.setOnChange(proc(o, n: int) = inc seen)
+    transaction:
+      a.set(6)
+      b.set(8)
+    check seen == 1          # the derived link announced a single change

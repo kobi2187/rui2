@@ -6,18 +6,22 @@
 import rui_core
 import rui_drawing
 
+template barHeightOf(w: untyped): float32 =
+  ## Bar height: the prop, else the theme's.
+  themedSize(w.barHeight, currentTheme.barHeight(24.0))
+
 definePrimitive(StatusBar):
   props:
     text: string = ""
     rightText: string = ""
-    barHeight: float32 = 24.0
+    barHeight: float32 = 0.0   # 0: from the theme
     fontSize: float32 = 10.0
     intent: ThemeIntent = Default
 
   layout:
     # Full width comes from the parent; only the height is ours to decide.
     if widget.bounds.height <= 0:
-      widget.bounds.height = widget.barHeight
+      widget.bounds.height = barHeightOf(widget)
     if widget.bounds.width <= 0:
       let style = TextStyle(fontFamily: "", fontSize: widget.fontSize, color: BLACK,
                             bold: false, italic: false, underline: false)

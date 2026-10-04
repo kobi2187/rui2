@@ -3,6 +3,9 @@
 Ordered by dependency and leverage: correctness before features before
 optimization. See [STATUS.md](STATUS.md) for what works today.
 
+> **This is the phase history.** The forward-looking, prioritised plan — with
+> implementation steps for each item — is **[TODO.md](TODO.md)**.
+
 ---
 
 > **Tracking.** Phases with open work are [GitHub
@@ -12,11 +15,9 @@ optimization. See [STATUS.md](STATUS.md) for what works today.
 ## Phase 0 — Lock in the foundation *(small, do first)*
 - [x] **Compile-check CI** — done in `298fcfa`. Runs `nim check` on the 7 package
   barrels + examples.
-- [ ] **Choose a license** — fill the `# license` TODO in all 7 `.nimble` files.
-  ([#26](https://github.com/kobi2187/rui2/issues/26))
-- [ ] **Pin dependencies** — record the `naylib`/`yaml` versions known to build.
-  Currently building against naylib 25.42.0.
-  ([#27](https://github.com/kobi2187/rui2/issues/27))
+- [x] **License** — MIT, with a `LICENSE` in the root and in each package.
+- [x] **Pin dependencies** — `naylib >= 25.42.0`, `yaml >= 2.2.0` in the
+  `.nimble` files and CI (`25c2960`, `776181b`).
 
 ## Phase 1 — Rendering correctness ✅ *(done — `f71d59e`)*
 Dirty marking now propagates up the direct ancestor line via `markDirtyToRoot`,
@@ -43,7 +44,11 @@ compositing model.
   that sibling subtrees are not redrawn.
 </details>
 
-## Phase 2 — Make reactivity real *(medium — the headline promise)*
+## Phase 2 — Make reactivity real *(one-way done; declarative `bind` → TODO.md #6)*
+
+`link.bindTo(widget, apply)` is the one-way half and every example uses it.
+The `bind` word below is still open.
+
 **Push-based, no per-frame polling.** A `Link[T]` holds direct refs to its
 dependent widgets; on `set` it marks exactly those widgets dirty to the root
 (Phase 1). A bound widget re-reads the value only when it actually re-renders
@@ -64,7 +69,11 @@ the binding sugar is missing. Provide both entry points:
   render (which only runs when dirty), instead of snapshotting at build time.
 - Proof: convert the counter to true `bind` (drop the manual `.get()` snapshot).
 
-## Phase 3 — DSL & callback ergonomics *(medium — restores the "elegant" API)*
+## Phase 3 — DSL & callback ergonomics ✅ *(done — `ab6c4c1`, `7ffcc44`)*
+
+Solved with one `ui:` macro rather than a template per container, and handlers
+became plain nilable closures. The original plan:
+
 - **Container types as template blocks.** Containers become templates that take a
   body, so `VStack(spacing = 10): Label(...); Button(...)` works directly instead
   of `newVStack(...)` + `addChild`. This is the intended elegant surface.
@@ -88,17 +97,18 @@ the binding sugar is missing. Provide both entry points:
   content.
 - [x] **The shared text engine** — `rui_widgets/text_content.nim`. Label,
   TextInput and TextArea all measure and draw through it, so what is drawn is
-  what was measured. **TextArea now exists.** The three surfaces stay separate
-  rather than collapsing into one flag-carrying type; the reasoning and the open
-  question are on ([#30](https://github.com/kobi2187/rui2/issues/30)).
+  what was measured.
+- [x] **One text widget** — TextArea, limited by properties: `editable = false`
+  is a Label, `multiline = false` a TextInput. `Label` and `TextInput` are
+  aliases with their own constructors; `getTypeName` reports the role.
 
-## Phase 5 — Performance refinements *(medium — after correctness; measure first, don't over-optimize)*
-- **Stop rebuilding children every layout pass** — composites like `Button` do
+## Phase 5 — Performance refinements *(partly done; the rest → TODO.md #8)*
+- [x] **Stop rebuilding children every layout pass** — composites like `Button` do
   `children.setLen(0)` + reallocate each layout; diff/reuse so identity and caches
   survive.
-- **Incremental hit-testing** — `Widget.previousBounds` exists but is unused;
+- [ ] **Incremental hit-testing** — `Widget.previousBounds` exists but is unused;
   update the interval tree on changed bounds instead of a full rebuild per frame.
-- **Remove per-event `echo`** from the event loop (`rui/src/app.nim`).
+- [x] **Remove per-event `echo`** from the event loop — compiled out unless `-d:ruiTrace`.
 
 ## Phase 6 — Widget library ✅ *(the parked widgets are back)*
 
@@ -109,12 +119,10 @@ own bounds. Each has a runnable example under `examples/widgets/` and coverage i
 `tests/test_restored_widgets.nim`. See the widget table in
 [STATUS.md](STATUS.md).
 
-Two of the collapses this phase asked for are still open:
-
-- Fold `textinput` into the unified text widget
-  ([#30](https://github.com/kobi2187/rui2/issues/30)).
-- Turn the pure-container widgets into template blocks
-  ([#28](https://github.com/kobi2187/rui2/issues/28)).
+Both collapses this phase asked for are done: `textinput` folded into the one
+text widget ([#30](https://github.com/kobi2187/rui2/issues/30)), and container
+bodies written as blocks through the `ui:` macro
+([#28](https://github.com/kobi2187/rui2/issues/28)).
 
 <details><summary>Original parked-widget table (all now restored)</summary>
 
@@ -133,7 +141,7 @@ Priority order to reintroduce: **unified text widget / TextInput → ListView /
 ComboBox → Menus → Dialogs → DataGrid / TreeView**.
 </details>
 
-## Phase 6.5 — Keyboard navigation *(medium — new)*
+## Phase 6.5 — Keyboard navigation ✅ *(done — `b6365dd`)*
 Two-level navigation: Tab between containers, arrows within the focused one,
 Escape to pop out. Nothing in this roadmap covered keyboard navigation before;
 probed and tracked in `tests/test_keyboard_nav.nim` (13 cases).
@@ -143,19 +151,19 @@ to the focused widget, click-to-focus, and seven widgets that handle their own
 keys.
 
 Three defects block the feature, in dependency order:
-- [ ] `isFocusable` on `Widget` — today every container and label is a tab stop
+- [x] `focusable` on `Widget` — every container and label used to be a tab stop
   ([#16](https://github.com/kobi2187/rui2/issues/16))
-- [ ] Invalidate the focus chain when the tree changes — `markDirty` and
+- [x] Invalidate the focus chain when the tree changes — `markDirty` and
   `widgetRemoved` exist and are called from nowhere
   ([#17](https://github.com/kobi2187/rui2/issues/17))
-- [ ] Scope keys to a container, so a list and its parent can both use arrows
+- [x] Scope keys to a container, so a list and its parent can both use arrows
   ([#18](https://github.com/kobi2187/rui2/issues/18))
-- [ ] Focus groups — the feature itself
+- [x] Focus groups — the feature itself
   ([#19](https://github.com/kobi2187/rui2/issues/19))
 
 ## Phase 7 — Testing infrastructure *(medium)*
 Strategy is visual + scripting (no headless).
-- [x] **Unit suite** — 18 suites under `tests/`, no GL context needed. Layout,
+- [x] **Unit suite** — 20 suites under `tests/`, no GL context needed. Layout,
   binding, theming, hit-testing, text metrics, keyboard navigation, focus
   groups, widgets, and the frame pipeline.
 - [x] **Example compiles in CI** — a real `nim c` over all 32 examples, since
@@ -186,22 +194,9 @@ then binding) is the spine — it turns RUI2 from "compiles and draws static UIs
 into "reactive UIs that actually update." Phases 3–4 make it pleasant; 5–8 make
 it fast, complete, and shippable.
 
-**Where that leaves things (2026-09-16).** Phase 0 is done bar the license,
-Phase 1 is done, Phase 4's Pango work is done, and Phase 6's widget library is
-back. The spine now runs:
-
-```
-cleanup  →  bugs  →  features
-   │          │          │
-   │          │          └─ focus groups (6.5), template blocks + closures (3),
-   │          │             unified text widget (4)
-   │          └─ hover latch, focus chain, theme seam
-   └─ dead text cache, raylib re-export, theme_manager / drawing_effects splits,
-      the cc=43 scripting bridge
-```
-
-`app.nim` is the serialization point — six separate items touch it, so the
-split ([#22](https://github.com/kobi2187/rui2/issues/22)) goes last. Dropping the
-wholesale `export raylib` ([#23](https://github.com/kobi2187/rui2/issues/23))
-goes early: it blocks nothing, but every file written before it lands accumulates
-another qualification workaround.
+**Where that leaves things (2026-09-28).** Phases 0, 1, 3, 4, 6 and 6.5 are done;
+2 and 5 are half done. The code-health spine from 2026-09-16 (the
+dead text cache, the hover latch, the theme seam, the `app.nim` split, the
+raylib re-export) has been worked through. What is left is no longer cleanup:
+it is the feature work in [TODO.md](TODO.md), led by the measure/arrange
+layout split, modifier keys on events, and the text-editing essentials.

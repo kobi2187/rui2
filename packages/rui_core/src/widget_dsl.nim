@@ -27,6 +27,7 @@ type WidgetSections = object
   renderBody: NimNode
   layoutBody: NimNode
   initBody: NimNode
+  typeNameBody: NimNode
 
 proc findSection(body: NimNode, name: string): NimNode =
   ## Find section by name in body
@@ -44,6 +45,7 @@ proc parseSections(body: NimNode): WidgetSections =
   result.renderBody = body.findSection("render")
   result.layoutBody = body.findSection("layout")
   result.initBody = body.findSection("init")
+  result.typeNameBody = body.findSection("typeName")
 
 # ============================================================================
 # Type Generation - Build Widget Type
@@ -244,14 +246,24 @@ proc buildEventHandler(name: NimNode, sections: WidgetSections): NimNode =
     caseStmt
   )
 
-proc buildGetTypeNameMethod(name: NimNode): NimNode =
-  ## Generate getTypeName method that returns the widget type name
+proc buildGetTypeNameMethod(name: NimNode, sections: WidgetSections): NimNode =
+  ## Generate getTypeName: the widget's own name, or -- when it declares a
+  ## `typeName:` section -- whatever that section computes.
+  ##
+  ## The section exists for a widget whose properties make it play different
+  ## roles. TextArea is Label, TextInput and TextArea by its `editable` and
+  ## `multiline` flags; reporting the role keeps a script's `Label` selector
+  ## meaning what it says. Built by hand so the section's `widget` binds to
+  ## the method's parameter.
   let typeName = makeWidgetTypeName(name)
-  let typeNameStr = $name  # Convert widget name to string
-
-  quote do:
-    method getTypeName*(widget: `typeName`): string =
-      `typeNameStr`
+  let body = if sections.typeNameBody.isEmpty: newStmtList(newLit($name))
+             else: sections.typeNameBody
+  nnkMethodDef.newTree(
+    nnkPostfix.newTree(ident("*"), ident("getTypeName")),
+    newEmptyNode(), newEmptyNode(),
+    nnkFormalParams.newTree(ident("string"),
+                            newIdentDefs(ident("widget"), typeName)),
+    newEmptyNode(), newEmptyNode(), body)
 
 # ============================================================================
 # Render Method Generation
@@ -282,13 +294,28 @@ proc buildUpdateLayoutMethod(name: NimNode, sections: WidgetSections): NimNode =
   ## NOTE: this used to emit a method named `updateLayout`, which nothing ever
   ## called -- main_loop.layoutPass() dispatches on `layout`. The result was
   ## that no container ever positioned its children.
-  if sections.layoutBody.isEmpty:
-    return newEmptyNode()
+  # Generated even with no `layout:` section: the self-sizing bracket is what
+  # applies a widget's size requests (`frame`), and a Rectangle has as much
+  # right to a requested size as a stack does.
+  let layoutBody = if sections.layoutBody.isEmpty: newStmtList(nnkDiscardStmt.newTree(newEmptyNode()))
+                   else: sections.layoutBody
 
   # Build method manually to avoid premature symbol resolution
   let typeName = makeWidgetTypeName(name)
   let widgetParam = newIdentDefs(ident("widget"), typeName)
   let formalParams = nnkFormalParams.newTree(newEmptyNode(), widgetParam)
+
+  # Every layout is bracketed by begin/endSelfSizing, so a size the widget
+  # computed for itself is re-measured next time instead of passing for one
+  # its parent assigned. `defer` so an early `return` in the body still
+  # records it. Built by hand: a quoted `widget` would be gensymmed.
+  let sizing = genSym(nskLet, "sizing")
+  let body = newStmtList(
+    nnkLetSection.newTree(newIdentDefs(sizing, newEmptyNode(),
+      newCall(ident("beginSelfSizing"), ident("widget")))),
+    nnkDefer.newTree(newStmtList(
+      newCall(ident("endSelfSizing"), ident("widget"), sizing))),
+    layoutBody)
 
   nnkMethodDef.newTree(
     nnkPostfix.newTree(ident("*"), ident("layout")),
@@ -297,7 +324,7 @@ proc buildUpdateLayoutMethod(name: NimNode, sections: WidgetSections): NimNode =
     formalParams,
     newEmptyNode(),  # No pragma needed
     newEmptyNode(),
-    sections.layoutBody
+    body
   )
 
 # ============================================================================
@@ -314,7 +341,6 @@ proc buildScriptStateMethod(name: NimNode, sections: WidgetSections): NimNode =
   ## Generate getScriptableState: base widget fields plus every prop and state
   ## field that json can represent.
   let typeName = makeWidgetTypeName(name)
-  let typeNameStr = $name
 
   # Built with newCall, not `quote do`: quote gensyms the `result` it sees, so
   # a quoted `result[key] = ...` would assign into a fresh local rather than
@@ -324,7 +350,8 @@ proc buildScriptStateMethod(name: NimNode, sections: WidgetSections): NimNode =
   var body = newStmtList()
   body.add nnkAsgn.newTree(
     ident("result"),
-    newCall(ident("baseScriptableState"), ident("widget"), newLit(typeNameStr)))
+    newCall(ident("baseScriptableState"), ident("widget"),
+            newCall(ident("getTypeName"), ident("widget"))))
 
   var fieldNames: seq[string] = @[]
   for prop in sections.props:
@@ -472,7 +499,7 @@ macro definePrimitive*(name: untyped, body: untyped): untyped =
   result.add(buildUpdateLayoutMethod(name, sections))
   result.add(buildRenderMethod(name, sections))
   result.add(buildEventHandler(name, sections))
-  result.add(buildGetTypeNameMethod(name))  # Auto-generate type name
+  result.add(buildGetTypeNameMethod(name, sections))  # Auto-generate type name
   result.add(buildScriptStateMethod(name, sections))   # Scripting bridge
   result.add(buildScriptActionMethod(name, sections))  # Scripting bridge
 
@@ -497,7 +524,7 @@ macro defineWidget*(name: untyped, body: untyped): untyped =
   result.add(buildUpdateLayoutMethod(name, sections))  # Layout required for composites
   result.add(buildRenderMethod(name, sections))        # Render optional
   result.add(buildEventHandler(name, sections))
-  result.add(buildGetTypeNameMethod(name))              # Auto-generate type name
+  result.add(buildGetTypeNameMethod(name, sections))    # Auto-generate type name
   result.add(buildScriptStateMethod(name, sections))    # Scripting bridge
   result.add(buildScriptActionMethod(name, sections))   # Scripting bridge
 

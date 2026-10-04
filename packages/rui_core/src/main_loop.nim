@@ -10,8 +10,10 @@
 ## - Cached Texture2D is reused when widget is clean
 
 import types
-import std/algorithm
+import std/[algorithm, math, options]
 import raylib
+import rlgl
+from rlgl import setBlendFactorsSeparate, BlendFactor, BlendFuncOrEq
 
 
 # ============================================================================
@@ -24,13 +26,56 @@ proc createWidgetTexture*(widget: Widget): RenderTexture2D =
   ## Size is based on widget's bounds
   let width = max(1, widget.bounds.width.int32)
   let height = max(1, widget.bounds.height.int32)
-  result = loadRenderTexture(width, height)
+  # Colour only. raylib's own loadRenderTexture also attaches a 32-bit depth
+  # renderbuffer, which a 2D widget never reads: about as much memory again,
+  # per widget, for nothing (10,000 widgets held 341 MB of colour alone).
+  let fbo = rlgl.loadFramebuffer()
+  if fbo == 0:
+    return loadRenderTexture(width, height)    # let raylib report it
+  rlgl.enableFramebuffer(fbo)
+  let tex = rlgl.loadTexture(nil, width, height,
+                             int32(PixelFormat.UncompressedR8g8b8a8), 1)
+  rlgl.framebufferAttach(fbo, tex, FramebufferAttachType.ColorChannel0,
+                         FramebufferAttachTextureType.Texture2d, 0)
+  rlgl.disableFramebuffer()
+  result = RenderTexture2D(
+    id: fbo,
+    texture: Texture(id: tex, width: width, height: height, mipmaps: 1,
+                     format: PixelFormat.UncompressedR8g8b8a8))
 
 proc freeWidgetTexture*(widget: Widget) =
   ## Free the cached render texture if present.
   ## Resetting the Option destroys the held RenderTexture (naylib RAII).
   if widget.cachedTexture.isSome:
     widget.cachedTexture = none(RenderTexture2D)
+
+# ----------------------------------------------------------------------------
+# Blending
+#
+# Widget textures start transparent and are composited onto their parent. With
+# ordinary alpha blending that is wrong twice over: drawing a 35%-opaque shape
+# into a transparent texture stores alpha 0.35 * 0.35, and compositing then
+# multiplies the colour by alpha again. Anything translucent on a widget with no
+# opaque background of its own came out a fraction of its intended strength --
+# a standalone ScrollBar's thumb was all but invisible.
+#
+# So textures hold premultiplied colour. Drawing into one blends colour as
+# usual but alpha additively-over (`paintingIntoTexture`); drawing one onto
+# anything uses raylib's premultiplied mode (`compositingTextures`). Opaque
+# content comes out exactly as before.
+# ----------------------------------------------------------------------------
+
+template paintingIntoTexture*(body: untyped) =
+  setBlendFactorsSeparate(SrcAlpha, OneMinusSrcAlpha, One, OneMinusSrcAlpha,
+                          FuncAdd, FuncAdd)
+  beginBlendMode(BlendMode.CustomSeparate)
+  body
+  endBlendMode()
+
+template compositingTextures*(body: untyped) =
+  beginBlendMode(BlendMode.AlphaPremultiply)
+  body
+  endBlendMode()
 
 proc drawRenderTexture*(tex: RenderTexture2D, x, y: float32) =
   ## Blit a cached render target with its top-left corner at (x, y).
@@ -41,11 +86,15 @@ proc drawRenderTexture*(tex: RenderTexture2D, x, y: float32) =
   ## glyphs looked upright (two flips cancel) but every widget appeared mirrored
   ## about the window's vertical centre, so a top-aligned stack rendered from the
   ## bottom up in reverse order.
+  ##
+  ## The position is snapped to whole pixels: layout can leave a widget on a
+  ## half pixel (a centred child, say), and a texture blitted there is
+  ## resampled, which smears its text into a doubled ghost.
   let w = tex.texture.width.float32
   let h = tex.texture.height.float32
   drawTexture(tex.texture,
               Rectangle(x: 0, y: 0, width: w, height: -h),
-              Vector2(x: x, y: y),
+              Vector2(x: round(x), y: round(y)),
               White)
 
 proc intersect*(a, b: Rect): Rect =
@@ -70,6 +119,17 @@ proc drawRenderTexturePart*(tex: RenderTexture2D, dest: Rect, clip: Rect) =
   ## widget's own render texture -- it clips the wrong region unless the texture
   ## happens to be screen-sized. Clipping by source rectangle is arithmetic, not
   ## GL state, and is correct at any texture size.
+  ##
+  ## Like drawRenderTexture, the texture lands on whole pixels, and so does the
+  ## clip, so the source rectangle is whole texels and nothing is resampled.
+  let dest = Rect(x: round(dest.x), y: round(dest.y),
+                  width: tex.texture.width.float32,
+                  height: tex.texture.height.float32)
+  let clipL = round(clip.x)
+  let clipT = round(clip.y)
+  let clip = Rect(x: clipL, y: clipT,
+                  width: round(clip.x + clip.width) - clipL,
+                  height: round(clip.y + clip.height) - clipT)
   let visible = intersect(dest, clip)
   if visible.width <= 0 or visible.height <= 0:
     return
@@ -117,12 +177,13 @@ proc anyChildLayoutDirty*(widget: Widget): bool =
   return false
 
 proc anyChildDirty*(widget: Widget): bool =
-  ## Check if any child (recursively) needs rendering
+  ## Check if any child (recursively) needs rendering. A culled subtree is off
+  ## screen, so its dirt does not count: it is painted when it comes into view.
   if widget.isDirty:
     return true
 
   for child in widget.children:
-    if child.anyChildDirty():
+    if not child.culled and child.anyChildDirty():
       return true
 
   return false
@@ -213,31 +274,67 @@ proc layoutPass*(widget: Widget) =
 # Pass 2: Render
 # ============================================================================
 
-proc renderPass*(widget: Widget)
+var renderView*: Option[Rect]
+  ## What is on screen, in the same (absolute) space as widget bounds. The App
+  ## sets it each frame. While it is set, widgets wholly outside it -- and
+  ## outside every scroll area's viewport on the way down -- are not painted.
+  ## `none` paints everything, which is what tests and benchmarks of the full
+  ## pipeline want.
 
-proc renderChildrenFirst(widget: Widget) =
+proc overlapsView*(bounds, view: Rect): bool =
+  ## Whether `bounds` touches `view` at all. Edges that merely meet do not.
+  bounds.x < view.x + view.width and bounds.x + bounds.width > view.x and
+  bounds.y < view.y + view.height and bounds.y + bounds.height > view.y
+
+proc renderPassIn(widget: Widget, view: Option[Rect]): bool
+
+proc renderChildrenFirst(widget: Widget, view: Option[Rect]): bool =
   ## Bottom-up: a parent composites its children's cached textures, so those
-  ## have to exist before it paints.
+  ## have to exist before it paints. Returns whether any descendant came back
+  ## into view, in which case this widget has to composite again even though
+  ## nothing in it changed.
   ##
   ## An overlay parent sorts by zIndex, which is how a MenuBar's dropdown paints
   ## over the controls that follow it in the child list. Only when it says so --
   ## sorting every container every frame would cost more than it buys.
+  ##
+  ## Culling: what the children can show is `view` cut down by this widget's
+  ## own viewport (a ScrollView's `childClip`, which is widget-local, so it is
+  ## moved to absolute space here).
+  var childView = view
+  if view.isSome and widget.childClip.isSome:
+    let c = widget.childClip.get()
+    childView = some(intersect(view.get(),
+      Rect(x: widget.bounds.x + c.x, y: widget.bounds.y + c.y,
+           width: c.width, height: c.height)))
+
+  template visit(child: Widget) =
+    if childView.isSome and child.visible and
+       not overlapsView(child.bounds, childView.get()):
+      child.culled = true
+    else:
+      if child.culled:
+        child.culled = false
+        result = true                  # back in view: re-composite it
+      if renderPassIn(child, childView):
+        result = true
+
   if widget.hasOverlay and widget.children.len > 1:
     var sortedChildren = widget.children
     sortedChildren.sort(proc(a, b: Widget): int =
       cmp(a.zIndex, b.zIndex))          # Ascending: lower z-index renders first
     for child in sortedChildren:
-      child.renderPass()
+      visit(child)
   else:
     for child in widget.children:
-      child.renderPass()
+      visit(child)
 
 proc compositeChildren(widget: Widget, originalX, originalY: float32) =
   ## Blit each child's cached texture into this widget's, in coordinates
   ## relative to this widget's top-left -- which is where bounds.x/y have been
   ## zeroed to for the duration.
   for child in widget.children:
-    if not child.visible or child.cachedTexture.isNone:
+    if not child.visible or child.culled or child.cachedTexture.isNone:
       continue
     let dest = Rect(x: child.bounds.x - originalX,
                     y: child.bounds.y - originalY,
@@ -264,33 +361,44 @@ proc renderToTexture(widget: Widget) =
   let originalY = widget.bounds.y
   widget.bounds.x = 0
   widget.bounds.y = 0
-  widget.render()
+  paintingIntoTexture:
+    widget.render()
   widget.bounds.x = originalX
   widget.bounds.y = originalY
 
-  compositeChildren(widget, originalX, originalY)
+  compositingTextures:
+    compositeChildren(widget, originalX, originalY)
 
   endTextureMode()
   widget.cachedTexture = some(renderTex)
   widget.isDirty = false
 
-proc renderPass*(widget: Widget) =
+proc renderPassIn(widget: Widget, view: Option[Rect]): bool =
   ## Render dirty widgets to textures, bottom-up.
   ##
   ## A clean widget keeps the texture it already has, which is the whole point
   ## of the cache: only what changed is repainted, and its ancestors re-composite
-  ## from textures rather than re-drawing subtrees.
+  ## from textures rather than re-drawing subtrees. The result says whether a
+  ## widget below came back into view (see renderChildrenFirst).
   if not widget.visible:
-    return
-  renderChildrenFirst(widget)
+    return false
+  let revealed = renderChildrenFirst(widget, view)
+  if revealed:
+    widget.isDirty = true
   if widget.isDirty:
     renderToTexture(widget)
+  revealed
+
+proc renderPass*(widget: Widget) =
+  ## Render dirty widgets to textures, bottom-up, skipping what is off screen
+  ## when `renderView` is set. The root is never culled.
+  discard renderPassIn(widget, renderView)
 
 # ============================================================================
 # Main Frame Function
 # ============================================================================
 
-proc frame*(rootWidget: Widget) =
+proc runFrame*(rootWidget: Widget) =
   ## Execute one frame:
   ## 1. Layout pass (if needed)
   ## 2. Render pass (if needed)
@@ -321,7 +429,7 @@ when false:
         rootWidget.handleInput(event.get())
 
       # 2. Update layout & render (two passes)
-      rootWidget.frame()
+      rootWidget.runFrame()
 
       # 3. Composite to screen
       # (For now, render() draws directly. Later, composite cached textures)

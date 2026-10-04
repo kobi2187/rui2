@@ -13,10 +13,12 @@
 ## Colors in files are hex strings ("#rrggbb" / "#rrggbbaa") or rgb(r,g,b).
 ## The `*File` types hold them as strings; `toThemeProps` converts.
 
-import std/[tables, options, json, strutils, parseutils]
+import std/[tables, options, json, strutils, parseutils, editdistance]
 import yaml
+import yaml/tojson
 import theme_sys_core
 import theme_types
+import brand_themes
 import rui_core
 
 export theme_sys_core, theme_types
@@ -77,11 +79,47 @@ type
     dropShadowBlur: Option[float32]
     # Text
     fontFamily: Option[string]
+    fontWeight: Option[string]      ## light, regular, medium, semibold, bold, extrabold
+    uppercase: Option[bool]
+    dropShadowOffset: Option[float32]  ## hard shadow, px right and down
     # Layout
     padding: Option[PaddingFile]
     # Effects (as strings, converted to enums)
     bevelStyle: Option[string]
     gradientDirection: Option[string]
+
+  HintFile* {.sparse.} = object
+    ## A `hint:` section: how the help overlay's badges look.
+    background, foreground, border: Option[string]
+    borderWidth, fontSize: Option[float32]
+    fontFamily: Option[string]
+    uppercase: Option[bool]
+
+  MetricsFile* {.sparse.} = object
+    ## Control geometry (ControlMetrics), every field optional.
+    controlHeight: Option[float32]
+    indicatorSize: Option[float32]
+    trackThickness: Option[float32]
+    thumbSize: Option[float32]
+    progressHeight: Option[float32]
+    rowHeight: Option[float32]
+    scrollbarThickness: Option[float32]
+
+  BrandFile* {.sparse.} = object
+    ## A `brand:` section: the same choices as `BrandSpec`, colours as strings.
+    ## Everything is optional; what is left out takes the spec's own default.
+    name: Option[string]
+    dark: Option[bool]
+    accent, onAccent, canvas, surface, text, border: Option[string]
+    info, success, warning, danger, shadowColor: Option[string]
+    radius, fontSize, padding, paddingX: Option[float32]
+    fontFamily: Option[string]
+    borderWidth, focusRingWidth, shadow: Option[float32]
+    borderless, boldCaptions, uppercaseCaptions: Option[bool]
+    controlHeight, indicatorSize, trackThickness, thumbSize: Option[float32]
+    progressHeight, rowHeight, scrollbarThickness: Option[float32]
+    transitionMs: Option[float32]
+    noTransitions: Option[bool]
 
   ThemeFile* {.sparse.} = object
     ## Top-level theme file structure (JSON or YAML)
@@ -90,6 +128,13 @@ type
     version: Option[string]
     base: Option[Table[string, ThemePropsFile]]
     states: Option[Table[string, Table[string, ThemePropsFile]]]
+    statePreference: Option[Table[string, string]]
+      ## role ("text" / "pointer") -> "focus" / "hover"
+    metrics: Option[MetricsFile]
+    hint: Option[HintFile]
+    brand: Option[BrandFile]
+      ## A whole theme from a handful of brand choices (see brand_themes.nim).
+      ## It replaces `extends`; `base` and `states` still override it.
 
 # ============================================================================
 # Color Parsing
@@ -143,6 +188,21 @@ proc parseStateName*(s: string): ThemeState =
   of "dragover": DragOver
   else: Normal
 
+proc parseRoleName*(s: string): ControlRole =
+  case s.toLowerAscii()
+  of "text": crText
+  of "pointer": crPointer
+  else: raise newException(ValueError, "Unknown control role: " & s &
+                           " (expected text or pointer)")
+
+proc parsePreference*(s: string): StatePreference =
+  case s.toLowerAscii()
+  of "focus": spFocusFirst
+  of "hover": spHoverFirst
+  of "default": spRoleDefault
+  else: raise newException(ValueError, "Unknown state preference: " & s &
+                           " (expected focus, hover or default)")
+
 proc toThemeProps*(fp: ThemePropsFile): ThemeProps =
   ## Convert file props (string colors) to runtime ThemeProps (Color objects)
   result = ThemeProps()
@@ -173,6 +233,18 @@ proc toThemeProps*(fp: ThemePropsFile): ThemeProps =
   result.insetShadowOpacity = fp.insetShadowOpacity
   result.dropShadowBlur = fp.dropShadowBlur
   result.fontFamily = fp.fontFamily
+  if fp.fontWeight.isSome:
+    result.fontWeight = some(case fp.fontWeight.get().toLowerAscii()
+      of "light", "300": Light
+      of "medium", "500": Medium
+      of "semibold", "600": SemiBold
+      of "bold", "700": Bold
+      of "extrabold", "800": ExtraBold
+      else: Regular)
+  result.uppercase = fp.uppercase
+  if fp.dropShadowOffset.isSome:
+    let o = fp.dropShadowOffset.get()
+    result.dropShadowOffset = some((o, o))
   # Padding
   if fp.padding.isSome:
     let p = fp.padding.get()
@@ -208,9 +280,37 @@ proc toThemeProps*(fp: ThemePropsFile): ThemeProps =
       of "radial": theme_types.Radial
       else: theme_types.Vertical)
 
+proc toBrandSpec*(bf: BrandFile): BrandSpec =
+  ## File form to `BrandSpec`. A colour that fails to parse raises, like any
+  ## other colour in a theme file.
+  template color(f: Option[string]): Color =
+    (if f.isSome: parseColor(f.get()) else: Color())
+  template num(f: Option[float32]): float32 = f.get(0.0'f32)
+  BrandSpec(
+    name: bf.name.get("Brand"), dark: bf.dark.get(false),
+    accent: color(bf.accent), onAccent: color(bf.onAccent),
+    canvas: color(bf.canvas), surface: color(bf.surface),
+    text: color(bf.text), border: color(bf.border),
+    info: color(bf.info), success: color(bf.success),
+    warning: color(bf.warning), danger: color(bf.danger),
+    shadowColor: color(bf.shadowColor),
+    radius: num(bf.radius), fontSize: num(bf.fontSize),
+    fontFamily: bf.fontFamily.get(""), padding: num(bf.padding),
+    paddingX: num(bf.paddingX), borderWidth: num(bf.borderWidth),
+    borderless: bf.borderless.get(false), focusRingWidth: num(bf.focusRingWidth),
+    boldCaptions: bf.boldCaptions.get(false),
+    uppercaseCaptions: bf.uppercaseCaptions.get(false), shadow: num(bf.shadow),
+    controlHeight: num(bf.controlHeight), indicatorSize: num(bf.indicatorSize),
+    trackThickness: num(bf.trackThickness), thumbSize: num(bf.thumbSize),
+    progressHeight: num(bf.progressHeight), rowHeight: num(bf.rowHeight),
+    scrollbarThickness: num(bf.scrollbarThickness),
+    transitionMs: num(bf.transitionMs), noTransitions: bf.noTransitions.get(false))
+
 proc toTheme*(tf: ThemeFile, resolver: proc(name: string): Theme): Theme =
   ## Convert a ThemeFile to a Theme, resolving extends via resolver
-  result = if tf.`extends`.isSome:
+  result = if tf.brand.isSome:
+    brandTheme(toBrandSpec(tf.brand.get()))
+  elif tf.`extends`.isSome:
     resolver(tf.`extends`.get())
   else:
     newTheme()
@@ -234,14 +334,103 @@ proc toTheme*(tf: ThemeFile, resolver: proc(name: string): Theme): Theme =
         var merged = result.states[intent].getOrDefault(state, ThemeProps())
         merged.merge(props)
         result.states[intent][state] = merged
+  if tf.statePreference.isSome:
+    for role, pref in tf.statePreference.get():
+      result.statePreference[parseRoleName(role)] = parsePreference(pref)
+  if tf.hint.isSome:
+    let h = tf.hint.get()
+    result.hint = HintStyle(
+      background: optColor(h.background), foreground: optColor(h.foreground),
+      border: optColor(h.border), borderWidth: h.borderWidth,
+      fontSize: h.fontSize, fontFamily: h.fontFamily, uppercase: h.uppercase)
+  if tf.metrics.isSome:
+    let m = tf.metrics.get()
+    template take(field: untyped) =
+      if m.field.isSome: result.metrics.field = m.field
+    take controlHeight
+    take indicatorSize
+    take trackThickness
+    take thumbSize
+    take progressHeight
+    take rowHeight
+    take scrollbarThickness
 
+
+# ============================================================================
+# Validation
+#
+# The decoders ignore a key they do not know, which turns `corner_radius: 8`
+# or `borderwidth: 3` into a theme that quietly looks default. Every key is
+# checked against the file types above first, and a wrong one is an error that
+# says where it is and what was probably meant.
+# ============================================================================
+
+proc fieldNames(T: typedesc): seq[string] =
+  var x: T
+  for name, _ in fieldPairs(x):
+    result.add name
+
+proc suggestion(key: string, allowed: seq[string]): string =
+  let k = key.toLowerAscii.replace("_", "").replace("-", "")
+  for a in allowed:
+    if a.toLowerAscii == k:
+      return " (did you mean '" & a & "'?)"
+  for a in allowed:
+    if editDistanceAscii(k, a.toLowerAscii) <= 2:
+      return " (did you mean '" & a & "'?)"
+
+proc checkKeys(node: JsonNode, where: string, allowed: seq[string],
+               fold = false) =
+  ## `fold`: names that are matched without regard to case (intents, states).
+  if node.kind != JObject:
+    raise newException(ValueError, "theme: " & where & " must be a mapping")
+  for key, _ in node:
+    let known = if fold: key.toLowerAscii in allowed else: key in allowed
+    if not known:
+      raise newException(ValueError,
+        "theme: unknown key '" & key & "' in " & where & suggestion(key, allowed) &
+        "; allowed: " & allowed.join(", "))
+
+proc checkProps(node: JsonNode, where: string) =
+  checkKeys(node, where, fieldNames(ThemePropsFile))
+  if node.hasKey("padding") and node["padding"].kind == JObject:
+    checkKeys(node["padding"], where & ".padding", fieldNames(PaddingFile))
+
+proc validateThemeNode*(root: JsonNode) =
+  ## Raise a ValueError naming the first key a theme file has that the format
+  ## does not. Intent, state and role names are checked by their own parsers.
+  checkKeys(root, "the top level", fieldNames(ThemeFile))
+  if root.hasKey("base"):
+    checkKeys(root["base"], "base", @["default", "info", "success", "warning", "danger"], fold = true)
+    for intent, props in root["base"]:
+      checkProps(props, "base." & intent)
+  if root.hasKey("states"):
+    checkKeys(root["states"], "states", @["default", "info", "success", "warning", "danger"], fold = true)
+    for intent, byState in root["states"]:
+      checkKeys(byState, "states." & intent,
+                @["normal", "disabled", "hovered", "pressed", "focused", "selected", "dragover"],
+                fold = true)
+      for state, props in byState:
+        checkProps(props, "states." & intent & "." & state)
+  if root.hasKey("hint"):
+    checkKeys(root["hint"], "hint", fieldNames(HintFile))
+  if root.hasKey("metrics"):
+    checkKeys(root["metrics"], "metrics", fieldNames(MetricsFile))
+  if root.hasKey("brand"):
+    checkKeys(root["brand"], "brand", fieldNames(BrandFile))
 
 proc parseThemeFile*(content: string, format: ThemeFileFormat): ThemeFile =
   ## Text to the intermediate file representation. Raises on malformed input,
   ## which is the caller's to report with a filename attached.
   case format
-  of tffJson: parseJson(content).to(ThemeFile)
+  of tffJson:
+    let node = parseJson(content)
+    validateThemeNode(node)
+    node.to(ThemeFile)
   of tffYaml:
+    let docs = loadToJson(content)
+    if docs.len > 0:
+      validateThemeNode(docs[0])
     var tf: ThemeFile
     load(content, tf)
     tf

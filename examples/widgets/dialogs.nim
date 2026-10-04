@@ -56,8 +56,7 @@ root.addChild(openBtn)
 root.addChild(newLabel(text = "Embedded FilePicker (double-click a folder to enter):",
                        fontSize = 14.0).named("t1"))
 let embedded = newFilePicker(mode = fpOpen, filters = @["*.nim"],
-                             initialPath = ".", multiSelect = true).named("embedded")
-embedded.bounds = Rect(x: 0, y: 0, width: 600, height: 260)
+                             initialPath = ".", multiSelect = true).named("embedded").frame(width = 600, height = 260)
 embedded.onSelect = proc(paths: HashSet[string]) =
   var picked: seq[string] = @[]
   for p in paths:

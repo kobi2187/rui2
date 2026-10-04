@@ -17,12 +17,17 @@ const
   DefaultGridColor* = Color(r: 220, g: 220, b: 220, a: 255)
   DefaultInkColor* = Color(r: 40, g: 40, b: 40, a: 255)
   PlaceholderColor* = Color(r: 150, g: 150, b: 150, a: 255)
-  CellFontSize* = 12.0'f32
+  HeaderShade = Color(r: 0, g: 0, b: 0, a: 14)   # sets the header row apart
   CellPadX* = 4.0'f32
 
-proc cellBaseline*(rowY, rowHeight: float32): float32 =
-  ## Vertically centres CellFontSize text in a row of this height.
-  rowY + (rowHeight - CellFontSize) / 2
+proc cellFontSize*(props: ThemeProps): float32 =
+  ## Cell text is two points under the theme's text size, as it always was
+  ## (12 against 14), so a brand that sets a size scales its tables with it.
+  max(10.0'f32, props.fontSize.get(14.0) - 2)
+
+proc cellBaseline*(rowY, rowHeight, fontSize: float32): float32 =
+  ## Vertically centres `fontSize` text in a row of this height.
+  rowY + (rowHeight - fontSize) / 2
 
 proc drawColumnHeaders*[C](columns: openArray[C], originX, top, height: float32,
                            sortedIndex: int, order: SortOrder,
@@ -37,8 +42,11 @@ proc drawColumnHeaders*[C](columns: openArray[C], originX, top, height: float32,
   for i, col in columns:
     let cell = Rect(x: x, y: top, width: col.width, height: height)
     drawThemedBackground(cell, props)
+    drawRect(cell, HeaderShade)
     let indicator = if i == sortedIndex: sortIndicatorFor(order) else: ""
-    drawThemedPaddedText(col.title & indicator, cell, props, selected = true)
+    # Ordinary text colour. This passed `selected = true`, which is white --
+    # on a light header background, so the column titles were never legible.
+    drawThemedPaddedText(col.title & indicator, cell, props)
     if showGrid:
       drawLine(x + col.width, cell.y, x + col.width, cell.y + height, gridColor)
     x += col.width
@@ -59,15 +67,15 @@ proc drawRowGridLine*(rowRect: Rect, gridColor: Color) =
 
 proc drawCells*[C](columns: openArray[C], originX, rowY, rowHeight: float32,
                    texts: openArray[string], ink: Color,
-                   showGrid: bool, gridColor: Color) =
+                   showGrid: bool, gridColor: Color, fontSize = 12.0'f32) =
   ## One row of cells. `texts` is parallel to `columns`; a short seq leaves the
   ## remaining cells blank rather than raising, because a row is not guaranteed
   ## to carry a value for every column.
   var x = originX
   for i, col in columns:
     if i < texts.len:
-      drawText(texts[i], x + CellPadX, cellBaseline(rowY, rowHeight),
-               CellFontSize, ink)
+      drawText(texts[i], x + CellPadX, cellBaseline(rowY, rowHeight, fontSize),
+               fontSize, ink)
     if showGrid:
       drawLine(x + col.width, rowY, x + col.width, rowY + rowHeight, gridColor)
     x += col.width

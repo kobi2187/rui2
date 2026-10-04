@@ -378,3 +378,141 @@ suite "adding a widget marks the parent for layout":
     root.layoutPass()
 
     check late.bounds.height > 0      # it was laid out, not left at zero
+
+suite "self-sized widgets re-measure":
+  ## `bounds.width <= 0` meant "measure yourself" only the first time: after
+  ## that a self-computed size looked like one the parent had assigned.
+
+  test "a content-sized stack grows when a child is added":
+    let root = newVStack(spacing = 0.0)
+    root.addChild(newLabel(text = "one", fontSize = 14.0))
+    root.layout()
+    let h1 = root.bounds.height
+    root.addChild(newLabel(text = "two", fontSize = 14.0))
+    root.layout()
+    check root.bounds.height > h1
+
+  test "and shrinks when one is removed":
+    let root = newVStack(spacing = 0.0)
+    for t in ["a", "b", "c"]:
+      root.addChild(newLabel(text = t, fontSize = 14.0))
+    root.layout()
+    let h3 = root.bounds.height
+    root.children.setLen(1)
+    root.layout()
+    check root.bounds.height < h3
+
+  test "a content-sized row widens with longer text":
+    let row = newHStack(spacing = 4.0)
+    let l = newLabel(text = "short", fontSize = 14.0)
+    row.addChild(l)
+    row.layout()
+    let w1 = row.bounds.width
+    l.text = "a good deal longer than it was"
+    row.layout()
+    check row.bounds.width > w1
+
+  test "a size the parent assigned is kept":
+    let root = newVStack(spacing = 0.0)
+    root.bounds = Rect(x: 0, y: 0, width: 300, height: 200)
+    root.addChild(newLabel(text = "x", fontSize = 14.0))
+    root.layout()
+    root.layout()
+    check root.bounds.width == 300.0
+    check root.bounds.height == 200.0
+
+  test "a nested content-sized stack follows its content too":
+    let outer = newVStack(spacing = 0.0)
+    outer.bounds = Rect(x: 0, y: 0, width: 300, height: 400)
+    let inner = newVStack(spacing = 0.0)
+    inner.addChild(newLabel(text = "1", fontSize = 14.0))
+    outer.addChild(inner)
+    outer.layout()
+    let h1 = inner.bounds.height
+    inner.addChild(newLabel(text = "2", fontSize = 14.0))
+    outer.layout()
+    check inner.bounds.height > h1
+
+suite "size requests are honoured by layout":
+
+  test "a requested size wins over stretch":
+    let col = newVStack(spacing = 0.0)
+    col.bounds = Rect(x: 0, y: 0, width: 300, height: 200)
+    let l = newLabel(text = "x", fontSize = 14.0).frame(width = 120)
+    col.addChild(l)
+    col.layout()
+    check l.bounds.width == 120.0
+
+  test "a requested height on a leaf with no layout of its own":
+    let r = newRectangle().frame(width = 90, height = 60)
+    let row = newHStack(spacing = 0.0)
+    row.addChild(r)
+    row.layout()
+    check r.bounds.width == 90.0 and r.bounds.height == 60.0
+    check row.bounds.height == 60.0              # the row sized around it
+
+  test "min and max clamp a content-sized widget":
+    let short = newLabel(text = "hi", fontSize = 14.0).frame(minWidth = 100)
+    short.layout()
+    check short.bounds.width == 100.0
+    let long = newLabel(text = "a rather long caption indeed",
+                        fontSize = 14.0).frame(maxWidth = 50)
+    long.layout()
+    check long.bounds.width == 50.0
+
+  test "a stretched child is still clamped by its max":
+    let col = newVStack(spacing = 0.0)
+    col.bounds = Rect(x: 0, y: 0, width: 400, height: 100)
+    let l = newLabel(text = "x", fontSize = 14.0).frame(maxWidth = 150)
+    col.addChild(l)
+    col.layout()
+    check l.bounds.width == 150.0
+
+  test "unframe goes back to content size":
+    let l = newLabel(text = "x", fontSize = 14.0).frame(width = 200)
+    l.layout()
+    check l.bounds.width == 200.0
+    discard l.unframe()
+    l.layout()
+    check l.bounds.width < 200.0
+
+  test "a requested size survives relayout":
+    let r = newRectangle().frame(width = 50, height = 20)
+    r.layout()
+    r.layout()
+    check r.bounds.width == 50.0 and r.bounds.height == 20.0
+
+suite "ScrollView: content extent does not depend on the scroll position":
+
+  proc tall(): ScrollView =
+    let sv = newScrollView()
+    let col = newVStack(spacing = 0.0)
+    for i in 0 ..< 40:
+      col.addChild newPadding(padding = EdgeInsets.symmetric(vertical = 10))
+    sv.addChild col
+    sv.bounds = Rect(x: 0, y: 0, width: 300, height: 200)
+    sv.layout()
+    sv
+
+  test "the content measures the same however far it is scrolled":
+    let sv = tall()
+    let full = sv.contentHeight
+    check full >= 800.0
+    sv.scrollOffsetY = 300
+    sv.layout()
+    check sv.contentHeight == full           # it used to shrink by the offset
+
+  test "the last row can be reached":
+    let sv = tall()
+    sv.scrollOffsetY = 1_000_000
+    sv.layout()
+    check sv.scrollOffsetY > 500.0           # clamped to the end, not to ~half
+    let last = sv.children[0].children[^1]
+    check last.bounds.y + last.bounds.height <= 200.0 + 0.5   # at the viewport's bottom
+
+  test "children are placed by the clamped offset, in the same pass":
+    let sv = tall()
+    sv.scrollOffsetY = 1_000_000
+    sv.layout()
+    let first = sv.children[0]
+    check first.bounds.y == sv.bounds.y + sv.padding - sv.scrollOffsetY

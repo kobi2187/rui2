@@ -77,7 +77,7 @@ definePrimitive(Spinner):
       widget.bounds.width = m.width + ButtonWidth + 24.0
 
   render:
-    let props = widget.themeProps(widget.intent, slFocusFirst,
+    let props = widget.themeProps(widget.intent, crText,
                                   disabled = widget.disabled)
 
     let text = widget.textLeft & formatFloat(widget.value, ffDecimal, widget.decimals)

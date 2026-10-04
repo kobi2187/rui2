@@ -28,6 +28,14 @@ import tabular
 import tabular_render
 export tabular, tabular_render
 
+template headerHeightOf(w: untyped): float32 =
+  ## Header height: the prop, else the theme's.
+  themedSize(w.headerHeight, currentTheme.barHeight(28.0))
+
+template rowHeightOf(w: untyped): float32 =
+  ## Row height: the prop, else the theme's.
+  themedSize(w.rowHeight, currentTheme.rowHeight(24.0))
+
 type
   GridColumn* = object
     id*: string
@@ -51,7 +59,7 @@ type GridMetrics* = BandMetrics
 template metricsOf*(widget: untyped): GridMetrics =
   ## A template, not a proc: the DataGrid type does not exist until the macro
   ## below has expanded, and the widget body needs this.
-  let hh = if widget.showHeader: widget.headerHeight else: 0.0'f32
+  let hh = if widget.showHeader: headerHeightOf(widget) else: 0.0'f32
   GridMetrics(
     originX: widget.bounds.x, originY: widget.bounds.y,
     filterH: 0.0'f32,          # DataGrid has no filter band
@@ -60,7 +68,7 @@ template metricsOf*(widget: untyped): GridMetrics =
                else: widget.data.len,
     rows: rowViewport(top = widget.bounds.y + hh,
                       height = widget.bounds.height - hh,
-                      rowHeight = widget.rowHeight,
+                      rowHeight = rowHeightOf(widget),
                       scrollY = widget.scrollY)
   )
 
@@ -88,7 +96,7 @@ template selectRowAt*(widget: untyped, viewIdx: int): bool =
       assert viewIdx < widget.order.len,
              "rowAt must not return an index past the display order"
       updateSelection(widget.selected, widget.order[viewIdx],
-                      isKeyDown(LeftControl) or isKeyDown(RightControl))
+                      event.ctrl)
       widget.isDirty = true
       if widget.onSelect != nil:
         widget.onSelect(widget.selected)
@@ -109,8 +117,8 @@ definePrimitive(DataGrid):
     columns: seq[GridColumn] = @[]
     data: seq[GridRow] = @[]     # Loaded rows; may be a prefix of the dataset
     totalRowCount: int = -1      # -1 means use data.len, otherwise lazy loading
-    rowHeight: float32 = 24.0
-    headerHeight: float32 = 28.0
+    rowHeight: float32 = 0.0   # 0: from the theme
+    headerHeight: float32 = 0.0   # 0: from the theme
     showHeader: bool = true
     showGrid: bool = true
     alternateRowColor: bool = true
@@ -135,6 +143,7 @@ definePrimitive(DataGrid):
 
   init:
     widget.focusable = true
+    widget.hoverRow = -1       # nothing is under the pointer yet
 
   events:
     on_mouse_down:
@@ -187,7 +196,7 @@ definePrimitive(DataGrid):
       widget.bounds.width = total
     if widget.bounds.height <= 0:
       let m = metricsOf(widget)
-      widget.bounds.height = m.headerH + float32(widget.visibleRows) * widget.rowHeight
+      widget.bounds.height = m.headerH + float32(widget.visibleRows) * rowHeightOf(widget)
 
   render:
     let props = currentTheme.getThemeProps(widget.intent, Normal)
@@ -228,7 +237,8 @@ definePrimitive(DataGrid):
         drawRowBackground(rowRect, props, viewIdx, widget.alternateRowColor,
                           selected = false, hovered = false)
         drawText("Loading...", widget.bounds.x + CellPadX,
-                 cellBaseline(rowY, rowH), CellFontSize, PlaceholderColor)
+                 cellBaseline(rowY, rowH, props.cellFontSize),
+                 props.cellFontSize, PlaceholderColor)
         continue
 
       let rowIdx = widget.order[viewIdx]
@@ -240,7 +250,7 @@ definePrimitive(DataGrid):
       for colIdx, col in widget.columns:
         texts.add(cellText(widget.data[rowIdx], colIdx, col.formatFunc))
       drawCells(widget.columns, widget.bounds.x, rowY, rowH, texts, fgColor,
-                widget.showGrid, gridColor)
+                widget.showGrid, gridColor, props.cellFontSize)
 
       if widget.showGrid:
         drawRowGridLine(rowRect, gridColor)

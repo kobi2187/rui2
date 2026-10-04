@@ -9,6 +9,7 @@
 
 import rui
 import std/[options, os]
+from raylib import genImageGradientLinear, exportImage
 
 let app = newApp("RUI2 - ImageWidget", 460, 360)
 
@@ -18,36 +19,15 @@ proc named[T](x: T, id: string): T =
 
 let root = newVStack(spacing = 12.0, padding = 20.0).named("root")
 
-# Write a small PPM->PNG-free sample: raylib can load a BMP we generate here.
-let samplePath = getAppDir() / "sample.bmp"
+# A generated sample, so the example needs no asset. PNG, not BMP: the raylib
+# naylib builds has no BMP loader, which is why this used to show "Load
+# failed" three times. Twice as wide as it is tall, so the fit modes differ.
+let samplePath = getAppDir() / "sample.png"
 if not fileExists(samplePath):
-  # 64x64 BMP, 24-bit, simple gradient.
-  var pixels = newSeq[uint8]()
-  for y in 0 ..< 64:
-    for x in 0 ..< 64:
-      pixels.add uint8(x * 4)      # B
-      pixels.add uint8(y * 4)      # G
-      pixels.add 160'u8            # R
-    # rows are already a multiple of 4 bytes (64*3 = 192)
-  var header = newSeq[uint8]()
-  let dataSize = pixels.len
-  let fileSize = 54 + dataSize
-  proc le32(v: int): seq[uint8] =
-    @[uint8(v and 0xFF), uint8((v shr 8) and 0xFF),
-      uint8((v shr 16) and 0xFF), uint8((v shr 24) and 0xFF)]
-  header.add @[uint8('B'), uint8('M')]
-  header.add le32(fileSize)
-  header.add le32(0)
-  header.add le32(54)
-  header.add le32(40)
-  header.add le32(64)
-  header.add le32(64)
-  header.add @[1'u8, 0'u8]          # planes
-  header.add @[24'u8, 0'u8]         # bits per pixel
-  header.add le32(0)
-  header.add le32(dataSize)
-  for _ in 0 ..< 4: header.add le32(2835)
-  writeFile(samplePath, cast[string](header & pixels))
+  let sample = genImageGradientLinear(128, 64, 90,
+                                      Color(r: 60, g: 110, b: 200, a: 255),
+                                      Color(r: 240, g: 170, b: 60, a: 255))
+  discard exportImage(sample, samplePath)
 
 root.addChild(newLabel(text = "ImageWidget fit modes", fontSize = 16.0).named("title"))
 
@@ -56,8 +36,7 @@ for (mode, id) in [(ImageFit.Contain, "contain"),
                    (ImageFit.Fill, "fill"),
                    (ImageFit.Cover, "cover")]:
   let img = newImageWidget(imagePath = samplePath, width = 96.0,
-                           height = 96.0, fitMode = mode).named(id)
-  img.bounds = Rect(x: 0, y: 0, width: 96, height: 96)
+                           height = 96.0, fitMode = mode).named(id).frame(width = 96, height = 96)
   row.addChild(img)
 root.addChild(row)
 

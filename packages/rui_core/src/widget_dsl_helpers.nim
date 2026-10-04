@@ -293,6 +293,7 @@ proc eventNameToKind*(eventName: string): string =
   of "on_mouse_move": "evMouseMove"
   of "on_mouse_hover": "evMouseHover"
   of "on_mouse_wheel": "evMouseWheel"
+  of "on_file_drop": "evFileDrop"
   of "on_key_down": "evKeyDown"
   of "on_key_up": "evKeyUp"
   of "on_char": "evChar"

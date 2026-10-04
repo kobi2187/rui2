@@ -12,7 +12,7 @@
 
 import std/unittest
 import rui
-import std/json
+import std/[json, tables, strutils, options, os]
 
 suite "theme: registry and switching":
 
@@ -348,9 +348,9 @@ suite "themeProps reads the widget's own flags":
   test "it uses hovered and focused from the base Widget fields":
     let w = newButton(text = "x")
     w.hovered = true
-    let hovered = w.themeProps(ThemeIntent.Default, slPointerFirst)
+    let hovered = w.themeProps(ThemeIntent.Default, crPointer)
     w.hovered = false
-    let normal = w.themeProps(ThemeIntent.Default, slPointerFirst)
+    let normal = w.themeProps(ThemeIntent.Default, crPointer)
     # The built-in light theme gives these different backgrounds; what matters
     # here is that the flag is being read at all.
     check hovered != normal
@@ -362,3 +362,378 @@ suite "themeProps reads the widget's own flags":
     let pressed = w.themeProps(ThemeIntent.Default, pressed = true)
     let disabled = w.themeProps(ThemeIntent.Default, disabled = true)
     check pressed != disabled
+
+suite "the theme owns the hover-or-focus preference":
+  ## A widget says what it is (crText / crPointer); which of hover and focus
+  ## wins is the theme's call, read from the in-memory currentTheme on every
+  ## lookup -- never re-read from the theme file.
+
+  proc noExtends(name: string): Theme = newTheme(name)
+
+  test "a fresh theme keeps the library's defaults":
+    let t = newTheme("t")
+    check t.ladderFor(crText) == slFocusFirst
+    check t.ladderFor(crPointer) == slPointerFirst
+
+  test "a zero-initialised theme gets the defaults too":
+    var t: Theme
+    check t.ladderFor(crText) == slFocusFirst
+    check t.ladderFor(crPointer) == slPointerFirst
+
+  test "a theme file can override either role":
+    let t = parseTheme("""
+name: prefs
+statePreference:
+  text: hover
+  pointer: focus
+""", tffYaml, noExtends)
+    check t.ladderFor(crText) == slPointerFirst
+    check t.ladderFor(crPointer) == slFocusFirst
+
+  test "an unknown role or preference is an error, not a silent default":
+    expect ValueError:
+      discard parseTheme("statePreference: {slider: focus}", tffYaml, noExtends)
+    expect ValueError:
+      discard parseTheme("statePreference: {text: sometimes}", tffYaml, noExtends)
+
+  test "themeProps follows the current theme's preference":
+    let saved = currentTheme
+    defer: currentTheme = saved
+    var t = newTheme("prefs")
+    t.states[ThemeIntent.Default][ThemeState.Hovered] =
+      ThemeProps(backgroundColor: some(Color(r: 1, g: 0, b: 0, a: 255)))
+    t.states[ThemeIntent.Default][ThemeState.Focused] =
+      ThemeProps(backgroundColor: some(Color(r: 0, g: 0, b: 1, a: 255)))
+    let w = newButton(text = "x")
+    w.hovered = true
+    w.focused = true
+
+    currentTheme = t
+    check w.themeProps(ThemeIntent.Default, crPointer).backgroundColor.get.r == 1
+
+    t.statePreference[crPointer] = spFocusFirst
+    currentTheme = t
+    check w.themeProps(ThemeIntent.Default, crPointer).backgroundColor.get.b == 1
+
+  test "derived themes inherit the preference":
+    let tm = newThemeManager()
+    var base = newTheme("base")
+    base.statePreference[crText] = spHoverFirst
+    tm.register("base", base)
+    check tm.derive("base").ladderFor(crText) == slPointerFirst
+
+suite "branded themes":
+
+  test "hex and mix":
+    check hex"#4F46E5" == Color(r: 0x4F, g: 0x46, b: 0xE5, a: 255)
+    check hex"#11223380".a == 0x80
+    let mid = mix(Color(r: 0, g: 0, b: 0, a: 255), Color(r: 200, g: 100, b: 50, a: 255), 0.5)
+    check mid == Color(r: 100, g: 50, b: 25, a: 255)
+
+  test "a brand theme is complete: every intent has its colours":
+    let t = brandTheme(daylightSpec())
+    for intent in ThemeIntent:
+      let p = t.getThemeProps(intent, ThemeState.Normal)
+      check p.backgroundColor.isSome
+      check p.foregroundColor.isSome
+      check p.activeColor.isSome
+    for state in [Hovered, Pressed, Focused, Disabled]:
+      check t.states[ThemeIntent.Default].hasKey(state)
+
+  test "the accent reaches the parts that used to fall back to one blue":
+    let spec = auroraSpec()
+    let p = brandTheme(spec).getThemeProps(ThemeIntent.Default, ThemeState.Normal)
+    check p.activeColor.get == spec.accent
+    check p.focusColor.get == spec.accent
+
+  test "the primary action is solid accent":
+    let spec = oceanSpec()
+    let p = brandTheme(spec).getThemeProps(ThemeIntent.Info, ThemeState.Normal)
+    check p.backgroundColor.get == spec.accent
+    check p.foregroundColor.get == Color(r: 255, g: 255, b: 255, a: 255)
+
+  test "hovering leans toward the accent; disabling fades":
+    let spec = daylightSpec()
+    let t = brandTheme(spec)
+    let normal = t.getThemeProps(ThemeIntent.Default, ThemeState.Normal).backgroundColor.get
+    let hovered = t.getThemeProps(ThemeIntent.Default, ThemeState.Hovered).backgroundColor.get
+    check hovered != normal
+    let disabledFg = t.getThemeProps(ThemeIntent.Default, ThemeState.Disabled).foregroundColor.get
+    check disabledFg != spec.text
+
+  test "every shipped brand is registered":
+    let tm = newThemeManager()
+    for key in ["daylight", "midnight", "aurora", "ocean", "forest",
+                "rose", "ember", "graphite", "light", "dark"]:
+      check key in tm.listThemes()
+
+  test "a theme's typography becomes the default font family":
+    let saved = currentTheme
+    defer: setCurrentTheme(saved)
+    setCurrentTheme(brandTheme(forestSpec()))
+    check themeFontFamily == "Serif"
+    check TextStyle(fontSize: 14.0).pangoFont.startsWith("Serif")
+    setCurrentTheme(brandTheme(daylightSpec()))
+    check themeFontFamily == ""
+
+suite "theme: geometry (fat and bold, thin and lean)":
+
+  proc noExtends(name: string): Theme = newTheme(name)
+
+  test "a brand's stroke, radius, padding and weight reach every intent":
+    let t = brandTheme(punchSpec())
+    for intent in ThemeIntent:
+      let p = t.getThemeProps(intent)
+      check p.borderWidth.get == 3.0
+      check p.cornerRadius.get == 6.0
+      check p.padding.get.left == 22.0
+      check p.isBold
+      check p.uppercase.get(false)
+      check p.shadowOffset == (4.0'f32, 4.0'f32)
+
+  test "unset geometry falls back to the library defaults":
+    let t = brandTheme(daylightSpec())
+    check t.getThemeProps().borderWidth.get == 1.0
+    check not t.getThemeProps().isBold
+    check t.getThemeProps().shadowOffset == (0.0'f32, 0.0'f32)
+    check t.indicatorSize == 20.0
+    check t.controlHeight == 0.0
+    var bare: Theme
+    check bare.thumbSize == 20.0
+
+  test "a borderless brand has no outlines":
+    var spec = daylightSpec()
+    spec.borderless = true
+    check brandTheme(spec).getThemeProps().strokeWidth == 0.0
+
+  test "a theme file can set geometry":
+    let t = parseTheme("""
+name: slab
+base:
+  default:
+    borderWidth: 4
+    fontWeight: bold
+    uppercase: true
+    dropShadowOffset: 5
+metrics:
+  controlHeight: 48
+  indicatorSize: 26
+  thumbSize: 30
+""", tffYaml, noExtends)
+    let p = t.getThemeProps()
+    check p.strokeWidth == 4.0
+    check p.isBold
+    check p.uppercase.get(false)
+    check p.shadowOffset == (5.0'f32, 5.0'f32)
+    check t.controlHeight == 48.0
+    check t.indicatorSize == 26.0
+    check t.thumbSize == 30.0
+    check t.trackThickness == 8.0          # unset: the default
+
+  test "widgets size themselves from the theme":
+    let saved = currentTheme
+    defer: setCurrentTheme(saved)
+    proc sizes(theme: Theme): tuple[button, check, input: Rect] =
+      setCurrentTheme(theme)
+      let b = newButton(text = "Save")
+      let c = newCheckbox(text = "Remember me")
+      let i = newTextInput()
+      for w in [Widget(b), Widget(c), Widget(i)]:
+        w.bounds = Rect()
+        w.layout()
+      (b.bounds, c.bounds, i.bounds)
+    let fat = sizes(brandTheme(punchSpec()))
+    let lean = sizes(brandTheme(hairlineSpec()))
+    check fat.button.height >= 46.0         # the brand's control height
+    check lean.button.height < fat.button.height
+    check fat.button.width > lean.button.width
+    check fat.check.height >= 24.0          # its indicator size
+    check lean.check.height < fat.check.height
+    check fat.input.height > lean.input.height
+
+  test "a pressed button sinks into its shadow":
+    let saved = currentTheme
+    defer: setCurrentTheme(saved)
+    setCurrentTheme(brandTheme(punchSpec()))
+    let b = newButton(text = "Go")
+    b.bounds = Rect(x: 0, y: 0, width: 100, height: 50)
+    b.layout()
+    let up = b.children[0].bounds
+    b.isPressed = true
+    b.layout()
+    let down = b.children[0].bounds
+    check up.x == 0 and up.width == 96      # room left for the shadow
+    check down.x == 4 and down.y == 4       # moved into it
+
+  test "switching theme at runtime re-measures the same widgets":
+    let saved = currentTheme
+    defer: setCurrentTheme(saved)
+    setCurrentTheme(brandTheme(punchSpec()))
+    let b = newButton(text = "Save")
+    let c = newCheckbox(text = "Remember me")
+    let i = newTextInput()
+    let box = newComboBox(items = @["One", "Two"])
+    let all = [Widget(b), Widget(c), Widget(i), Widget(box)]
+    proc settle() =
+      # What app.setTheme does: forget self-sized bounds and lay out again.
+      for w in all:
+        w.bounds = Rect()
+        w.layout()
+    settle()
+    var fat: seq[float32]
+    for w in all: fat.add w.bounds.height
+    setCurrentTheme(brandTheme(hairlineSpec()))
+    settle()
+    for n, w in all:
+      check w.bounds.height < fat[n]
+
+  test "rows, bars and scrollbars follow the theme's metrics":
+    let saved = currentTheme
+    defer: setCurrentTheme(saved)
+    proc measure(theme: Theme): tuple[list, tab, status, scroll, panelPad: float32] =
+      setCurrentTheme(theme)
+      let l = newListBox(items = @["a", "b"], visibleRows = 2)
+      let t = newTabControl(tabs = @["One", "Two"])
+      let st = newStatusBar(text = "Ready")
+      let sb = newScrollbar(vertical = true)
+      let p = newPanel()
+      for w in [Widget(l), Widget(t), Widget(st), Widget(sb), Widget(p)]:
+        w.bounds = Rect()
+        w.layout()
+      (l.bounds.height / 2, t.bounds.height, st.bounds.height, sb.bounds.width,
+       p.bounds.height)
+    let fat = measure(brandTheme(punchSpec()))
+    let lean = measure(brandTheme(hairlineSpec()))
+    check fat.list == 38.0
+    check lean.list == 22.0
+    check fat.tab >= 46.0                    # the control height
+    check fat.status >= 46.0
+    check fat.scroll == 18.0
+    check lean.scroll == 8.0
+    check fat.panelPad > lean.panelPad       # themed padding, not a constant 8
+
+  test "an explicit size still beats the theme":
+    let saved = currentTheme
+    defer: setCurrentTheme(saved)
+    setCurrentTheme(brandTheme(punchSpec()))
+    let l = newListBox(items = @["a"], itemHeight = 20.0, visibleRows = 1)
+    l.bounds = Rect()
+    l.layout()
+    check l.bounds.height == 20.0
+    let bar = newStatusBar(text = "x", barHeight = 24.0)
+    bar.bounds = Rect()
+    bar.layout()
+    check bar.bounds.height == 24.0
+
+suite "theme: brand sections in theme files":
+
+  proc noExtends(name: string): Theme = newTheme(name)
+
+  test "a brand: section builds a complete theme":
+    let t = parseTheme("""
+brand:
+  name: Acme
+  accent: "#E4572E"
+  canvas: "#FAF7F2"
+  surface: "#FFFFFF"
+  text: "#1D1A17"
+  border: "#E7E0D6"
+  radius: 10
+  borderWidth: 3
+  boldCaptions: true
+  shadow: 4
+""", tffYaml, noExtends)
+    check t.name == "Acme"
+    for intent in ThemeIntent:
+      check t.getThemeProps(intent).borderWidth.get == 3.0
+    check t.getThemeProps().isBold
+    check t.getThemeProps().cornerRadius.get == 10.0
+    check t.getThemeProps(ThemeIntent.Info).backgroundColor.get == hex"#E4572E"
+
+  test "base and states still override the brand":
+    let t = parseTheme("""
+brand: {name: Acme, accent: "#E4572E", canvas: "#FAF7F2", surface: "#FFFFFF", text: "#1D1A17", border: "#E7E0D6", radius: 8}
+base:
+  danger:
+    cornerRadius: 0
+""", tffYaml, noExtends)
+    check t.getThemeProps(ThemeIntent.Danger).cornerRadius.get == 0.0
+    check t.getThemeProps(ThemeIntent.Default).cornerRadius.get(-1) != 0.0
+
+  test "a file brand equals the same spec built in code":
+    let fromFile = parseTheme("""
+brand: {name: Daylight, accent: "#4F46E5", canvas: "#F3F4F7", surface: "#FFFFFF", text: "#1F2330", border: "#DCDFE6", radius: 6}
+""", tffYaml, noExtends)
+    let inCode = brandTheme(daylightSpec())
+    for intent in ThemeIntent:
+      check fromFile.getThemeProps(intent) == inCode.getThemeProps(intent)
+
+suite "theme: files are validated, inheritance is checked":
+
+  proc noExtends(name: string): Theme = newTheme(name)
+
+  test "a mistyped key is an error that says what was meant":
+    var msg = ""
+    try:
+      discard parseTheme("base:\n  default:\n    corner_radius: 8\n", tffYaml, noExtends)
+    except ValueError as e: msg = e.msg
+    check "unknown key 'corner_radius' in base.default" in msg
+    check "did you mean 'cornerRadius'" in msg
+
+  test "unknown keys are caught at every level, in JSON too":
+    expect ValueError:
+      discard parseTheme("""{"nmae": "x"}""", tffJson, noExtends)
+    expect ValueError:
+      discard parseTheme("""{"base": {"default": {"padding": {"al": 3}}}}""", tffJson, noExtends)
+    expect ValueError:
+      discard parseTheme("""{"brand": {"acent": "#fff"}}""", tffJson, noExtends)
+    expect ValueError:
+      discard parseTheme("""{"metrics": {"rowheight": 3}}""", tffJson, noExtends)
+
+  test "an unknown intent or state is an error, not Default or Normal":
+    expect ValueError:
+      discard parseTheme("""{"base": {"dangerous": {}}}""", tffJson, noExtends)
+    expect ValueError:
+      discard parseTheme("""{"states": {"default": {"hover": {}}}}""", tffJson, noExtends)
+    # ...but the names stay case-insensitive.
+    discard parseTheme("""{"base": {"Danger": {}}, "states": {"default": {"Hovered": {}}}}""",
+                       tffJson, noExtends)
+
+  test "every example theme file still loads":
+    for f in ["examples/themes/light.yaml", "examples/themes/dark.yaml"]:
+      let tm = newThemeManager()
+      discard tm.loadFromFile(f)
+
+  test "derive keeps everything, metrics included":
+    let tm = newThemeManager()
+    tm.register("punch", brandTheme(punchSpec()))
+    let d = tm.derive("punch", "Mine")
+    check d.name == "Mine"
+    check d.controlHeight == 46.0
+    check d.getThemeProps().borderWidth.get == 3.0
+    check d.getThemeProps().isBold
+
+  test "extends through files: chains work, cycles and unknown names are errors":
+    let dir = getTempDir() / "rui_theme_test"
+    createDir(dir)
+    defer: removeDir(dir)
+    writeFile(dir / "a.yaml", "name: a\nextends: b\n")
+    writeFile(dir / "b.yaml", "name: b\nextends: a\n")
+    writeFile(dir / "c.yaml", "name: c\nextends: nowhere\n")
+    writeFile(dir / "leaf.yaml", "name: leaf\nextends: mid\nbase:\n  default:\n    cornerRadius: 1\n")
+    writeFile(dir / "mid.yaml", "name: mid\nextends: daylight\nbase:\n  default:\n    borderWidth: 5\n")
+    let tm = newThemeManager()
+    for (n, t) in brandThemes(): tm.register(n, t)
+    var msg = ""
+    try: discard tm.loadFromFile(dir / "a.yaml")
+    except ValueError as e: msg = e.msg
+    check "theme extends itself: a -> b -> a" in msg
+    check "a.yaml" in msg                       # names the file
+    msg = ""
+    try: discard tm.loadFromFile(dir / "c.yaml")
+    except ValueError as e: msg = e.msg
+    check "extends 'nowhere'" in msg
+    let leaf = tm.loadFromFile(dir / "leaf.yaml")  # leaf -> mid -> daylight
+    check leaf.getThemeProps().cornerRadius.get == 1.0     # its own
+    check leaf.getThemeProps().borderWidth.get == 5.0      # mid's
+    check leaf.getThemeProps().backgroundColor.get == hex"#FFFFFF"   # daylight's

@@ -2,8 +2,8 @@
 ##
 ## Imports and exports all basic widgets
 
-import basic/button_v2
-export button_v2
+import basic/button
+export button
 
 import basic/checkbox
 export checkbox
@@ -37,6 +37,24 @@ export numberinput
 
 import basic/scrollbar
 export scrollbar
+
+import basic/focusring
+export focusring
+
+import basic/switch
+export switch
+
+import basic/segmented
+export segmented
+
+import basic/rating
+export rating
+
+import basic/sparkline
+export sparkline
+
+import basic/toast
+export toast
 
 import basic/separator
 export separator

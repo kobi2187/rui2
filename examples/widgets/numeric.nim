@@ -58,8 +58,7 @@ root.addChild(num)
 root.addChild(newLabel(text = "ScrollBar (drag or scroll):",
                        fontSize = 14.0).named("t3"))
 let bar = newScrollBar(initialValue = 0.0, minValue = 0.0, maxValue = 100.0,
-                       pageSize = 20.0, vertical = false).named("bar")
-bar.bounds = Rect(x: 0, y: 0, width: 300, height: 12)
+                       pageSize = 20.0, vertical = false).named("bar").frame(width = 300, height = 12)
 bar.onChange = proc(value: float32) =
   scrollValue = value
   refresh()

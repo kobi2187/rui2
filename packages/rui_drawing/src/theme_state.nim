@@ -27,23 +27,22 @@
 ## the other way round -- the pointer is about to act on *this* control, and
 ## saying so is more use than remembering which one has the caret.
 ##
-## So `StateLadder` carries the choice rather than a helper silently picking one
-## and changing half the library's appearance. Each widget passes the ladder it
-## already used, so nothing looks different today -- and if the project owner
-## decides the two groups should agree, it is a one-word edit per widget rather
-## than a re-derivation of the ladder in each. See issue #21.
+## The choice belongs to the theme, not to the widget. A widget only says what
+## it *is* -- `crText` or `crPointer` -- and `themeProps` asks the current
+## theme which ladder that role uses (`Theme.statePreference`, read from the
+## in-memory `currentTheme` on every lookup). The defaults keep the split above;
+## a theme file can override either role:
+##
+## ```yaml
+## statePreference:
+##   text: focus      # or hover
+##   pointer: hover
+## ```
 
 import rui_core
 import theme_types
 import theme_sys_core
 
-type
-  StateLadder* = enum
-    slPointerFirst
-      ## Hovered wins over Focused. Buttons and anything else the pointer acts
-      ## on directly.
-    slFocusFirst
-      ## Focused wins over Hovered. Text fields and anything with a caret.
 
 proc firstOf(a, b: bool, aState, bState: ThemeState): ThemeState =
   ## Whichever of two flags is set, in the order given.
@@ -76,7 +75,7 @@ proc visualState*(disabled, pressed, hovered, focused: bool,
   attentionState(hovered, focused, ladder)
 
 proc themeProps*(widget: Widget, intent: ThemeIntent,
-                 ladder = slPointerFirst,
+                 role = crPointer,
                  disabled = false, pressed = false): ThemeProps =
   ## The themed properties for a widget in its current visual state.
   ##
@@ -88,4 +87,4 @@ proc themeProps*(widget: Widget, intent: ThemeIntent,
   ## them keeps the ladder honest without the widget having to write it out.
   currentTheme.getThemeProps(
     intent, visualState(disabled, pressed, widget.hovered, widget.focused,
-                        ladder))
+                        currentTheme.ladderFor(role)))

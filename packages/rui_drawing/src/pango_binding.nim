@@ -225,6 +225,18 @@ proc pangoLayoutSetAutoDir*(l: PangoLayout, autoDir: cint)
 proc pangoLayoutGetLineCount*(l: PangoLayout): cint
   {.importc: "pango_layout_get_line_count", header: pangoHdr.}
 
+proc pangoLayoutMoveCursorVisually*(l: PangoLayout, strong: cint,
+                                    oldIndex, oldTrailing, direction: cint,
+                                    newIndex, newTrailing: ptr cint)
+  {.importc: "pango_layout_move_cursor_visually", header: pangoHdr.}
+  ## Move the caret one step to the left (-1) or right (1) *on screen*, which in
+  ## bidirectional text is not the logical order. new_index comes back as -1
+  ## off the left end and G_MAXINT off the right.
+
+proc pangoLayoutGetLogAttrsReadonly*(l: PangoLayout, nAttrs: ptr cint): pointer
+  {.importc: "pango_layout_get_log_attrs_readonly", header: pangoHdr.}
+  ## One PangoLogAttr (a 32-bit set of flags) per character, plus one at the end.
+
 proc pangoLayoutGetCursorPos*(l: PangoLayout, index: cint,
                               strong, weak: ptr PangoRectangle)
   {.importc: "pango_layout_get_cursor_pos", header: pangoHdr.}
