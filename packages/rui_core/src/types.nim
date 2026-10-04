@@ -674,3 +674,12 @@ proc markDirtyToRoot*(widget: Widget) =
     w.isDirty = true
     w = w.parent
 
+
+proc `$`*(widget: Widget): string =
+  ## "Button(10, 20, 80x30)": for test failures and debugging. Defined so
+  ## `$` works on a Widget -- and on any seq of them -- everywhere, instead of
+  ## being found in some modules and not others.
+  if widget == nil:
+    return "nil"
+  widget.getTypeName() & "(" & $widget.bounds.x & ", " & $widget.bounds.y &
+    ", " & $widget.bounds.width & "x" & $widget.bounds.height & ")"

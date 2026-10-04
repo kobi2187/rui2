@@ -19,3 +19,4 @@ examples/baby/*
 !examples/baby/*.md
 **/script/
 *.bmp
+tests/all_unit.nim

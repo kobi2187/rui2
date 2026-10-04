@@ -2,7 +2,7 @@
 
 ```bash
 ./tools/run_tests.sh          # everything
-./tools/run_tests.sh unit     # unit tests only (no display needed)
+./tools/run_tests.sh     # unit tests only (no display needed)
 ```
 
 `run_tests.sh` does three things:
