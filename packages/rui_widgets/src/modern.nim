@@ -1,6 +1,6 @@
 ## Modern Widgets - Aggregator Module
 ##
-## Canvas drawing surface, DragDropArea file target, Timeline track, MapWidget and Plot.
+## Canvas drawing surface, DragDropArea file target, Timeline track, MapWidget, Plot and KanbanBoard.
 
 import modern/canvas
 export canvas
@@ -16,3 +16,6 @@ export mapwidget
 
 import modern/plot
 export plot
+
+import modern/kanban
+export kanban
