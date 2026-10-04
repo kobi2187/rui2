@@ -1,6 +1,6 @@
 ## The user's preferences: defaults, validation, files, and what they drive.
 
-import std/[unittest, json, os, strutils, monotimes, times]
+import std/[unittest, json, os, strutils, monotimes, times, unicode]
 import rui
 
 suite "key map":
@@ -183,3 +183,79 @@ suite "colour scheme":
     applyPreferences(p)
     app.useThemes(light = "daylight", dark = "midnight")
     check app.getTheme().name == "Daylight"
+
+suite "keyboard help":
+
+  test "the sections list the bindings in force, in the user's words":
+    var m = defaultKeyMap()
+    m.set(nextGroup, "Ctrl+Tab", "F6")
+    let s = helpSections(m, @[("Ctrl+S", "Save")])
+    check s.len == 3
+    check s[0].title == "Moving around"
+    check s[0].entries[0] == ("Ctrl+Tab / F6", "Next container")
+    check s[1].title == "This application" and s[1].entries == @[("Ctrl+S", "Save")]
+    check s[2].entries[0].keys == "F1 / ?"
+
+  test "an unbound action says so; no app shortcuts means no app section":
+    var m = defaultKeyMap()
+    m.clear(leaveGroup)
+    let s = helpSections(m)
+    check s.len == 2
+    check s[0].entries[^1].keys == "(unbound)"
+
+  test "what counts as typing":
+    check chord("Shift+Slash").isTyping
+    check chord("A").isTyping
+    check not chord("F1").isTyping
+    check not chord("Ctrl+Slash").isTyping
+    check not chord("Escape").isTyping
+    check not chord("Tab").isTyping
+
+  proc newTestApp(): App = newApp("help")
+
+  test "F1 opens the overlay; any key closes it; the typed character is swallowed":
+    let app = newTestApp()
+    check not app.helpVisible
+    check app.handleHelp(GuiEvent(kind: evKeyDown, key: chord("F1").key))
+    check app.helpVisible
+    check app.handleHelp(GuiEvent(kind: evChar, rune: Rune('x')))        # eaten while open
+    check app.handleHelp(GuiEvent(kind: evKeyDown, key: chord("A").key)) # closes it
+    check not app.helpVisible
+    check app.handleHelp(GuiEvent(kind: evChar, rune: Rune('a')))        # and its character
+    clearOverlays()
+
+  test "a click closes it; pointer events are held while it is up":
+    let app = newTestApp()
+    discard app.handleHelp(GuiEvent(kind: evKeyDown, key: chord("F1").key))
+    check app.handleHelp(GuiEvent(kind: evMouseMove))
+    check app.handleHelp(GuiEvent(kind: evMouseDown))
+    check not app.helpVisible
+    clearOverlays()
+
+  test "'?' opens it, but not while a text field is typing":
+    let app = newTestApp()
+    let question = GuiEvent(kind: evKeyDown, key: chord("Slash").key, mods: {kmShift})
+    let field = newTextInput()
+    field.layout()
+    app.focusManager.setFocus(field)
+    check field.takesText
+    check not app.handleHelp(question)           # it is a "?" being typed
+    check not app.helpVisible
+    check app.handleHelp(GuiEvent(kind: evKeyDown, key: chord("F1").key))   # F1 still works
+    check app.helpVisible
+    discard app.handleHelp(GuiEvent(kind: evKeyDown, key: chord("Escape").key))
+    app.focusManager.clearFocus()
+    check app.handleHelp(question)               # nothing is typing: opens
+    check app.helpVisible
+    clearOverlays()
+
+  test "the user's rebinding applies: F1 can be taken away":
+    let saved = prefs
+    defer: applyPreferences(saved)
+    let app = newTestApp()          # newApp loads the user's file, so apply after it
+    var p = defaultPreferences()
+    p.keys.set(showHelp, "F2")
+    applyPreferences(p)
+    check not app.handleHelp(GuiEvent(kind: evKeyDown, key: chord("F1").key))
+    check app.handleHelp(GuiEvent(kind: evKeyDown, key: chord("F2").key))
+    clearOverlays()

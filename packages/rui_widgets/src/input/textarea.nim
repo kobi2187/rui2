@@ -514,6 +514,7 @@ definePrimitive(TextArea):
 
   layout:
     widget.cursorShape = if widget.takesInput: csText else: csDefault
+    widget.takesText = widget.takesInput
     let content = widget.contentOf
     let pad = widget.inset * 2
     if not widget.editable:

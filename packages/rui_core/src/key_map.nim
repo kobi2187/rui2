@@ -34,6 +34,7 @@ type
     leaveGroup    ## step out of the group (one level)
     nextGroup     ## on to the next stop outside the current group
     prevGroup
+    showHelp      ## the keyboard help overlay
 
   Chord* = tuple[key: KeyboardKey, mods: set[KeyMod]]
 
@@ -65,6 +66,7 @@ proc defaultKeyMap*(): KeyMap =
   result.bindings[nextInGroup] = @[chord("Down"), chord("Right")]
   result.bindings[prevInGroup] = @[chord("Up"), chord("Left")]
   result.bindings[leaveGroup] = @[chord("Escape")]
+  result.bindings[showHelp] = @[chord("F1"), chord("Shift+Slash")]    # F1, or ?
 
 proc set*(map: var KeyMap, action: NavAction, specs: varargs[string]) =
   ## Replace what triggers `action`.
@@ -89,6 +91,14 @@ proc remove*(map: var KeyMap, action: NavAction, specs: varargs[string]) =
 proc clear*(map: var KeyMap, action: NavAction) =
   ## Nothing triggers `action` any more.
   map.bindings[action].setLen(0)
+
+proc isTyping*(c: Chord): bool =
+  ## Whether a chord is something you would type as text (a bare key, or with
+  ## Shift) rather than a command (F-keys, or anything with Ctrl or Alt).
+  c.mods * {kmCtrl, kmAlt, kmSuper} == {} and
+    not (c.key in {KeyboardKey.F1, F2, F3, F4, F5, F6, F7, F8, F9, F10, F11, F12,
+                   Escape, Tab, Enter, Backspace, Delete, Insert, Home, End,
+                   PageUp, PageDown, Up, Down, Left, Right})
 
 proc matches*(map: KeyMap, action: NavAction, key: KeyboardKey,
               mods: set[KeyMod]): bool =

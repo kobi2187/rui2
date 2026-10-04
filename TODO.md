@@ -376,7 +376,8 @@ set by the *user* in their preferences file (docs/preferences.md), not by apps.
   wrappers. Also in the file: motion (reduced = no animations), scroll speed,
   caret blink, double-click speed, colour-scheme preference.
 - [x] `FocusScope` declares a container a focus group in the DSL.
-- [ ] Apps start on the theme matching `prefs.colorScheme` (and follow the OS
-  when it is `system`).
-- [ ] A small in-app keyboard help overlay listing the active bindings.
+- [x] `app.useThemes(light, dark)` starts on the user's scheme (or the OS's). Live
+  following of OS changes: not planned; theme switches stay snappy.
+- [x] Keyboard help overlay: F1 or ? (rebindable) shades the window and lists the
+  active bindings plus `app.addHelp` shortcuts; a ? typed into a field is left alone.
 - [ ] Windows/macOS config path check in CI.

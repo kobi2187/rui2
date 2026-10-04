@@ -14,6 +14,7 @@ import preferences_file
 export preferences_file
 import system_scheme
 export system_scheme
+from rui_widgets import HelpOverlay, newHelpOverlay
 export event_source, event_routing, inspect
 export rui_core
 export event_manager   # Export for users to access eventManager
@@ -98,6 +99,12 @@ type
     indicatorShown: bool
     cursorShown: CursorShape
     overlaysSeen: int
+
+    # Keyboard help (F1 or ?)
+    helpEntries*: seq[HelpEntry]
+      ## Shortcuts the application adds to the overlay (`app.addHelp`).
+    helpOverlay: HelpOverlay
+    helpClosedAt: MonoTime
 
 # Global app instance (for convenience - can also be passed explicitly)
 var app*: App
@@ -426,9 +433,68 @@ template traceEvent(args: varargs[untyped]) =
   when defined(ruiTrace):
     echo args
 
+# ----------------------------------------------------------------------------
+# The keyboard help overlay
+# ----------------------------------------------------------------------------
+
+proc addHelp*(app: App, keys, text: string) =
+  ## List one of the application's own shortcuts in the help overlay:
+  ##   app.addHelp("Ctrl+S", "Save")
+  app.helpEntries.add (keys, text)
+
+proc helpVisible*(app: App): bool =
+  app.helpOverlay != nil and app.helpOverlay in overlays()
+
+proc showHelp*(app: App) =
+  ## Shade the window and list the keys in force. Rebuilt each time, so it
+  ## reflects the user's current bindings.
+  if app.helpVisible: return
+  app.helpOverlay = newHelpOverlay(sections = helpSections(prefs.keys, app.helpEntries))
+  app.helpOverlay.bounds = Rect(x: 0, y: 0, width: app.window.width.float32,
+                                height: app.window.height.float32)
+  showOverlay(app.helpOverlay)
+  app.tree.anyDirty = true
+
+proc hideHelp*(app: App) =
+  if app.helpVisible:
+    hideOverlay(app.helpOverlay)
+    app.helpClosedAt = getMonoTime()
+    app.tree.anyDirty = true
+
+proc helpKeyPressed(app: App, event: GuiEvent): bool =
+  ## Whether this key press asks for help. A key that is really typing (the "?"
+  ## chord) is left to a text field that has focus.
+  if event.kind != evKeyDown or not prefs.keys.matches(showHelp, event):
+    return false
+  let focused = app.focusManager.focusedWidget
+  not (focused != nil and focused.takesText and (event.key, event.mods).isTyping)
+
+proc handleHelp*(app: App, event: GuiEvent): bool =
+  ## Help takes over the keyboard and pointer while it is up: any key or click
+  ## closes it, and the character that key would have typed is swallowed too.
+  if app.helpVisible:
+    case event.kind
+    of evKeyDown, evMouseDown:
+      app.hideHelp()
+      return true
+    of evChar, evMouseUp, evMouseMove, evMouseWheel:
+      return true
+    else:
+      return false
+  if event.kind == evChar and getMonoTime() - app.helpClosedAt < initDuration(milliseconds = 60):
+    return true                    # the "?" that just closed it, arriving as text
+  if app.helpKeyPressed(event):
+    app.showHelp()
+    return true
+  false
+
 proc handleWindowResize(app: App, event: GuiEvent) =
   app.window.width = int(event.windowSize.width)
   app.window.height = int(event.windowSize.height)
+  if app.helpVisible:
+    app.helpOverlay.bounds = Rect(x: 0, y: 0, width: event.windowSize.width,
+                                  height: event.windowSize.height)
+    app.helpOverlay.isDirty = true
   discard resizeRoot(app.tree.root, event.windowSize)
   app.tree.anyDirty = true
   traceEvent "[Event] Window resized to ", event.windowSize.width, "x",
@@ -437,6 +503,8 @@ proc handleWindowResize(app: App, event: GuiEvent) =
 proc handleEvent(app: App, event: GuiEvent) =
   ## Route one event. The work is in event_routing.nim; this is the three-way
   ## split between window, pointer and keyboard, and the dirty bookkeeping.
+  if app.handleHelp(event):
+    return
   case event.kind
   of evWindowResize:
     app.handleWindowResize(event)

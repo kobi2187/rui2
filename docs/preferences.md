@@ -34,6 +34,7 @@ keys:
   nextInGroup: [Down, Right, J] # within a container
   prevInGroup: [Up, Left, K]
   leaveGroup: [Escape]
+  showHelp: [F1, Shift+Slash]   # F1 or ?
 motion: full                    # full | reduced (no animations)
 scroll: 1.0                     # wheel multiplier, 0.1 to 10
 caretBlinkMs: 500               # half a blink period; 0 keeps the caret steady
@@ -62,6 +63,14 @@ a chord you are told which. A focused widget still gets first refusal on a key:
 a text field keeps Left and Right for its caret even inside a container that
 navigates with them.
 
+## Help overlay
+
+F1 or `?` (the `showHelp` action) shades the window and lists the keys in
+force -- yours, not the defaults -- plus the application's own shortcuts. Any
+key or click closes it. A `?` typed into a text field is just typing.
+
+![help overlay](help_overlay.png)
+
 ## For application authors
 
 ```nim
@@ -69,6 +78,8 @@ let app = newApp("Notes")       # reads the user's preferences; nothing to do
 prefs.reduceMotion              # read-only: honour it in anything custom you animate
 prefs.colorScheme               # offer a light and a dark theme; start on the one asked for
 ```
+
+List your own shortcuts in the help overlay with `app.addHelp("Ctrl+S", "Save")`.
 
 Do not rebind navigation keys or override scroll and double-click speed: that
 is the user's call, and being able to count on it is the point. Add your own

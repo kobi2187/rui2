@@ -138,6 +138,9 @@ type
     pressed*: bool             # Mouse button down on this widget
     focused*: bool             # Has keyboard focus
     focusable*: bool
+    takesText*: bool
+      ## Consumes typed characters while focused (an editable text field). Keys
+      ## that are really typing -- a "?" -- are left alone while one has focus.
       ## Can this widget be a tab stop? Defaults to **false**, so a widget is
       ## reachable by keyboard only if it says so.
       ##

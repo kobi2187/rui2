@@ -15,6 +15,7 @@ import keys;              export keys
 import repaint_timers;    export repaint_timers
 import animation;         export animation
 import key_map;           export key_map
+import help_model;        export help_model
 import preferences;       export preferences
 import clipboard;         export clipboard
 import modifiers;         export modifiers

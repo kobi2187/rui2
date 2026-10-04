@@ -1,6 +1,6 @@
 ## Dialog Widgets - Aggregator Module
 ##
-## Modal MessageBox and FileDialog, plus the embeddable FilePicker.
+## Modal MessageBox and FileDialog, the embeddable FilePicker, and the keyboard HelpOverlay.
 
 import dialogs/modal
 export modal
@@ -16,3 +16,6 @@ export filedialog
 
 import dialogs/filepicker
 export filepicker
+
+import dialogs/helpoverlay
+export helpoverlay
