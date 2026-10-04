@@ -183,7 +183,7 @@ system are designed to stand alone.
   layout/render, the DSL macros, `Link[T]`, theme system, managers, package graph.
 - **[STATUS.md](STATUS.md)** — honest implementation status: what works, what's a
   roadmap item, known issues, next steps.
-- **[TODO.md](TODO.md)** — the prioritised plan, with implementation steps.
+- **[TODO.md](TODO.md)** — the principles; the plan itself is in the GitHub issues (label `roadmap`).
 - **[ROADMAP.md](ROADMAP.md)** — phased plan for what's next (correctness →
   reactivity → ergonomics → text → widgets → release).
 - **[SPLITTING.md](SPLITTING.md)** — how to split each package into its own repo.

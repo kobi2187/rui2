@@ -248,7 +248,7 @@ proc selectedText*(b: TextBuffer): string =
 # A word is a run of letters, digits and underscores; everything else --
 # spaces, punctuation -- separates words. Classified per rune, so "שלום" and
 # "naïve" are one word each. Pango's PangoLogAttr would add dictionary word
-# breaking for scripts without spaces (Thai, CJK); that is on TODO.md.
+# breaking for scripts without spaces (Thai, CJK); tracked in issue #44.
 # ============================================================================
 
 proc runeAt(text: string, i: int): Rune =
