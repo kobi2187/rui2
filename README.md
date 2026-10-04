@@ -64,9 +64,15 @@ code generation step.
   `.frame(width = 300, minHeight = 40)`. `VStack`/`HStack`/`ZStack` remain
   as stretch-by-default shorthands.
 - **Themes** -- `app.setTheme("daylight")`: daylight, midnight, aurora,
-  ocean, forest, rose, ember, graphite. Your own brand is one call:
-  `brandTheme(BrandSpec(name: "Acme", accent: hex"#E4572E", ...))`. See
-  `examples/widgets/theme_gallery.nim`.
+  ocean, forest, rose, ember, graphite, plus two at the extremes of
+  geometry: **punch** (fat -- 3px ink outlines, hard offset shadows that
+  buttons sink into, bold capitals, big controls) and **hairline** (thin and
+  lean). A theme sets colours and fonts but also stroke width, corner radius,
+  padding, caption weight and case, drop shadow and control sizes, and every
+  widget reads them. Your own brand is one call:
+  `brandTheme(BrandSpec(name: "Acme", accent: hex"#E4572E", borderWidth: 3,
+  shadow: 4, boldCaptions: true, ...))`, or the same fields in a theme file.
+  See `examples/widgets/theme_gallery.nim`.
 - **App lifecycle** -- `newApp(title, width, height, fps = 60, resizable = true,
   minWidth = 320, minHeight = 240)`, then `app.setRootWidget(root)` and
   `app.run()`.

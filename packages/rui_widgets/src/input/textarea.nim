@@ -103,10 +103,20 @@ const
   PlaceholderColor = Color(r: 128, g: 128, b: 128, a: 255)
   ThemeColor* = Color(r: 0, g: 0, b: 0, a: 0)
     ## The default `color`: transparent means "the theme's foreground".
+  ThemeFontSize* = 0.0'f32
+    ## The default `fontSize`: the theme's text size.
+  ThemePadding* = -1.0'f32
+    ## The default `padding`: the theme's field inset (its padding + outline).
+
+template fontSizeOf(widget: untyped): float32 =
+  (if widget.fontSize > 0: widget.fontSize
+   else: currentTheme.getThemeProps(widget.intent).fontSize.get(14.0'f32))
 
 template inset(widget: untyped): float32 =
   ## Padding applies only inside a frame; a bare label hugs its text.
-  (if widget.framed: widget.padding else: 0.0'f32)
+  (if not widget.framed: 0.0'f32
+   elif widget.padding >= 0: widget.padding
+   else: currentTheme.getThemeProps(widget.intent).fieldInset)
 
 template textRect*(widget: untyped): Rect =
   ## The area inside the chrome that text is drawn into.
@@ -140,7 +150,7 @@ template contentOf*(widget: untyped): TextContent =
   ## editing, line by line, so both are off while `editable`.
   TextContent(
     text: widget.text,
-    style: textStyle(widget.fontSize, widget.textColor, widget.fontFamily,
+    style: textStyle(widget.fontSizeOf, widget.textColor, widget.fontFamily,
                      widget.bold, widget.italic, widget.underline),
     align: widget.align,
     wrap: widget.wrap and not widget.editable,
@@ -363,7 +373,7 @@ definePrimitive(TextArea):
   props:
     initialText: string = ""
     placeholder: string = "Type here..."
-    fontSize: float32 = 14.0
+    fontSize: float32 = ThemeFontSize  ## 0: the theme's text size
     color: Color = ThemeColor    ## Transparent: use the theme's foreground
     fontFamily: string = ""      ## "" resolves to the system Sans alias
     bold: bool = false
@@ -377,7 +387,7 @@ definePrimitive(TextArea):
     maxLength: int = -1          ## Characters; -1 for unlimited
     maxLines: int = -1           ## Lines Enter may create; -1 for unlimited
     framed: bool = true          ## Draw the input box, and pad inside it
-    padding: float32 = 8.0
+    padding: float32 = ThemePadding  ## Inside the frame; < 0: the theme's
     visibleLines: int = 5        ## Height, in lines, when multiline and editable
     disabled: bool = false
     intent: ThemeIntent = Default
@@ -515,6 +525,8 @@ definePrimitive(TextArea):
       let lines = if widget.multiline: max(1, widget.visibleLines) else: 1
       if widget.bounds.height <= 0:
         widget.bounds.height = content.lineHeight * float32(lines) + pad
+        if not widget.multiline:
+          widget.bounds.height = max(widget.bounds.height, currentTheme.controlHeight)
       if widget.bounds.width <= 0:
         let floor = if widget.multiline: 240.0'f32 else: 200.0'f32
         widget.bounds.width = max(floor, content.measure().width + pad)
@@ -552,7 +564,7 @@ type
   TextInput* = TextArea
     ## A TextArea with `multiline = false`: one line, Enter submits.
 
-proc newLabel*(text = "", fontSize: float32 = 14.0, color: Color = ThemeColor,
+proc newLabel*(text = "", fontSize: float32 = ThemeFontSize, color: Color = ThemeColor,
                fontFamily = "", bold = false, italic = false, underline = false,
                align = TextAlign.Left, wrap = false, markup = false): Label =
   ## Display text, in the theme's text colour unless given one. It was black
@@ -564,8 +576,8 @@ proc newLabel*(text = "", fontSize: float32 = 14.0, color: Color = ThemeColor,
               multiline = true, framed = false, padding = 0.0)
 
 proc newTextInput*(initialText = "", placeholder = "Type here...",
-                   fontSize: float32 = 14.0, maxLength = -1,
-                   padding: float32 = 8.0, disabled = false,
+                   fontSize: float32 = ThemeFontSize, maxLength = -1,
+                   padding: float32 = ThemePadding, disabled = false,
                    intent = ThemeIntent.Default,
                    onChange: proc(newText: string) = nil,
                    onSubmit: proc(text: string) = nil): TextInput =

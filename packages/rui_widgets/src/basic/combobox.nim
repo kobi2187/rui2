@@ -12,6 +12,18 @@ import std/options
 # the key rather than the arrow glyph.
 from raylib import KeyboardKey
 
+proc themedFieldHeight*(): float32 =
+  ## A one-line field's height under the current theme: its caption line, the
+  ## field inset above and below, and at least the theme's control height.
+  ## TextInput comes out the same, so a combo box lines up with the inputs
+  ## beside it in a form.
+  let props = currentTheme.getThemeProps(ThemeIntent.Default)
+  let line = measureText("Ag", props.captionStyle(BLACK)).height
+  max(currentTheme.controlHeight, line + 2 * props.fieldInset)
+
+template closedHeight(w: untyped): float32 =
+  (if w.boxHeight > 0: w.boxHeight else: themedFieldHeight())
+
 definePrimitive(ComboBox):
   props:
     items: seq[string] = @[]
@@ -21,7 +33,7 @@ definePrimitive(ComboBox):
     initialSelectedIndex: int = -1
     placeholder: string = "Select..."
     itemHeight: float32 = 24.0
-    boxHeight: float32 = 28.0    # Height of the closed box (bounds grow when open)
+    boxHeight: float32 = 0.0     # Closed box height; 0 takes the theme's field height
     disabled: bool = false
     intent: ThemeIntent = Default
 
@@ -42,8 +54,8 @@ definePrimitive(ComboBox):
         return false
 
       # A click inside the expanded list picks an item; anywhere else toggles.
-      if widget.isOpen and event.mousePos.y > widget.bounds.y + widget.boxHeight:
-        let offset = event.mousePos.y - (widget.bounds.y + widget.boxHeight)
+      if widget.isOpen and event.mousePos.y > widget.bounds.y + widget.closedHeight:
+        let offset = event.mousePos.y - (widget.bounds.y + widget.closedHeight)
         let idx = int(offset / widget.itemHeight)
         if idx >= 0 and idx < widget.items.len:
           widget.selectedIndex = idx
@@ -64,7 +76,7 @@ definePrimitive(ComboBox):
     on_mouse_move:
       if not widget.isOpen or widget.disabled:
         return false
-      let offset = event.mousePos.y - (widget.bounds.y + widget.boxHeight)
+      let offset = event.mousePos.y - (widget.bounds.y + widget.closedHeight)
       let idx = if offset < 0: -1 else: int(offset / widget.itemHeight)
       let newHover = if idx >= 0 and idx < widget.items.len: idx else: -1
       if newHover != widget.hoverIndex:
@@ -93,18 +105,18 @@ definePrimitive(ComboBox):
       return true
 
   layout:
-    let style = TextStyle(fontFamily: "", fontSize: 14.0, color: BLACK,
-                          bold: false, italic: false, underline: false)
+    let props = widget.themeProps(widget.intent, crText, disabled = widget.disabled)
+    let style = props.captionStyle(BLACK)
     # Height always covers the popup, so the render texture is big enough for it.
     widget.bounds.height =
-      if widget.isOpen: widget.boxHeight + float32(widget.items.len) * widget.itemHeight
-      else: widget.boxHeight
+      if widget.isOpen: widget.closedHeight + float32(widget.items.len) * widget.itemHeight
+      else: widget.closedHeight
     if widget.bounds.width <= 0:
       # Wide enough for the longest item, so opening the list never clips text.
       var widest = measureText(widget.placeholder, style).width
       for item in widget.items:
         widest = max(widest, measureText(item, style).width)
-      widget.bounds.width = widest + 40.0   # padding + arrow gutter
+      widget.bounds.width = widest + props.fieldInset * 2 + 24.0   # + arrow gutter
 
   render:
     let props = widget.themeProps(widget.intent, crText,
@@ -116,7 +128,7 @@ definePrimitive(ComboBox):
                else:
                  widget.placeholder
     let boxRect = Rect(x: widget.bounds.x, y: widget.bounds.y,
-                       width: widget.bounds.width, height: widget.boxHeight)
+                       width: widget.bounds.width, height: widget.closedHeight)
     drawComboBox(boxRect, text, props, widget.isOpen,
                  widget.hovered, widget.focused)
 
@@ -125,7 +137,7 @@ definePrimitive(ComboBox):
       for i, item in widget.items:
         let itemRect = Rect(
           x: widget.bounds.x,
-          y: widget.bounds.y + widget.boxHeight + float32(i) * widget.itemHeight,
+          y: widget.bounds.y + widget.closedHeight + float32(i) * widget.itemHeight,
           width: widget.bounds.width,
           height: widget.itemHeight
         )

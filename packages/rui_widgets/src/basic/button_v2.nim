@@ -107,40 +107,55 @@ defineWidget(Button):
     let buttonColor = props.backgroundColor.get(GRAY)
     let textColor = props.foregroundColor.get(WHITE)
     let radius = props.cornerRadius.get(4.0f32)
-    let fontSize = props.fontSize.get(14.0f32)
+    let caption = props.captionText(widget.text)
+    let style = props.captionStyle(textColor, action = true)
 
-    # Size to content when the parent has not imposed a height.
-    # Real font metrics make this possible; previously the label was placed with
-    # a hard-coded 14px height and a +10/-20 horizontal fudge.
-    let textStyle = TextStyle(fontFamily: "", fontSize: fontSize,
-                              color: textColor, bold: false, italic: false,
-                              underline: false)
-    let metrics = measureText(widget.text, textStyle)
-    const PadX = 16.0f32
-    const PadY = 8.0f32
-
+    # Size to content when the parent has not imposed a size: the caption in
+    # the theme's font, the theme's padding around it, room for its shadow,
+    # and at least the theme's control height. So a bold brand's buttons are
+    # bigger than a lean one's without either writing a number.
+    let metrics = measureText(caption, style)
+    let pad = props.controlPadding()
+    let shadow = props.shadowOffset
     if widget.bounds.height <= 0:
-      widget.bounds.height = metrics.height + PadY * 2
+      widget.bounds.height = max(currentTheme.controlHeight - shadow.y,
+                                 metrics.height + pad.top + pad.bottom) + shadow.y
     if widget.bounds.width <= 0:
-      widget.bounds.width = metrics.width + PadX * 2
+      widget.bounds.width = metrics.width + pad.left + pad.right + shadow.x
 
-    # Background
+    # The body: inside the shadow, sunk into it while pressed.
+    let body = bodyRect(widget.bounds, props, widget.isPressed and not widget.disabled)
     bg.color = buttonColor
     bg.cornerRadius = radius
     bg.filled = true
-    bg.bounds = widget.bounds
+    bg.borderColor = props.borderColor.get(buttonColor)
+    # Focus thickens the outline (the focused state colours it): a ring drawn
+    # by this widget would sit under the body, which is a child.
+    bg.borderWidth = props.strokeWidth +
+                     (if widget.focused: props.focusRingWidth.get(2.0) else: 0.0f32)
+    bg.bounds = body
 
     # Centred label
-    textLabel.text = widget.text
-    textLabel.fontSize = fontSize
+    textLabel.text = caption
+    textLabel.fontSize = style.fontSize
+    textLabel.fontFamily = style.fontFamily
+    textLabel.bold = style.bold
     textLabel.color = textColor
     textLabel.align = TextAlign.Center
     textLabel.bounds = Rect(
-      x: widget.bounds.x + PadX,
-      y: widget.bounds.y + (widget.bounds.height - metrics.height) / 2,
-      width: max(0.0f32, widget.bounds.width - PadX * 2),
+      x: body.x + pad.left,
+      y: body.y + (body.height - metrics.height) / 2,
+      width: max(0.0f32, body.width - pad.left - pad.right),
       height: metrics.height
     )
+
+  render:
+    # Only the shadow: the body and caption are the children, drawn over it.
+    let props = currentTheme.getThemeProps(widget.intent,
+      visualState(widget.disabled, widget.isPressed,
+                  hovered = widget.isHovered, focused = widget.focused,
+                  ladder = currentTheme.ladderFor(crPointer)))
+    drawDropShadow(widget.bounds, props, widget.isPressed and not widget.disabled)
 
 # ============================================================================
 # Scripting Support

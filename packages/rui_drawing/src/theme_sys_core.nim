@@ -104,6 +104,8 @@ type
     textStyle*: Option[TextStyle]
     fontSize*: Option[float32]
     fontFamily*: Option[string]  # Font family for text rendering
+    fontWeight*: Option[FontWeight]  # Captions: SemiBold and up draw bold
+    uppercase*: Option[bool]         # Captions in capitals (button labels, tabs)
 
     # Focus effects
     focusRingColor*: Option[Color]      # Color of focus ring/outline
@@ -136,6 +138,21 @@ type
     
 
     
+  ControlMetrics* = object
+    ## The geometry of controls that is not a per-intent colour or stroke: how
+    ## tall a control is, how big a check box's square, how thick a slider's
+    ## track. Unset fields take the library defaults (see the accessors below),
+    ## so a theme file or a hand-built Theme only names what it changes.
+    ##
+    ## Together with the per-intent `borderWidth`, `cornerRadius`, `padding`,
+    ## `fontSize`, `fontWeight` and drop shadow, this is what lets one brand
+    ## be fat and bold and another thin and lean with the same widgets.
+    controlHeight*: Option[float32]   ## Min height of buttons, inputs, combos
+    indicatorSize*: Option[float32]   ## Check box square / radio circle
+    trackThickness*: Option[float32]  ## Slider track
+    thumbSize*: Option[float32]       ## Slider thumb diameter
+    progressHeight*: Option[float32]  ## Progress bar height
+
   # Complete theme definition
   Theme* = object
     name*: string
@@ -152,6 +169,8 @@ type
     animation*: AnimationSettings         # Motion settings
     assets*: BrandAssets                  # Logo, icons, patterns
     metadata*: ThemeMetadata              # Brand info
+
+    metrics*: ControlMetrics              # Control geometry
 
     statePreference*: array[ControlRole, StatePreference]
       ## Hover-or-focus-first, per control role. Read on every lookup from the
@@ -176,6 +195,18 @@ proc newTheme*(name = ""): Theme =
   for intent in ThemeIntent:
     result.base[intent] = ThemeProps()
     result.states[intent] = initTable[ThemeState, ThemeProps]()
+
+proc controlHeight*(theme: Theme): float32 =
+  ## Minimum height of a button, input or combo box; 0 sizes to content.
+  theme.metrics.controlHeight.get(0.0)
+proc indicatorSize*(theme: Theme): float32 = theme.metrics.indicatorSize.get(20.0)
+proc trackThickness*(theme: Theme): float32 = theme.metrics.trackThickness.get(8.0)
+proc thumbSize*(theme: Theme): float32 = theme.metrics.thumbSize.get(20.0)
+proc progressHeight*(theme: Theme): float32 = theme.metrics.progressHeight.get(20.0)
+
+proc isBold*(props: ThemeProps): bool =
+  ## Whether captions drawn with these props are bold.
+  props.fontWeight.get(Regular) >= SemiBold
 
 proc ladderFor*(theme: Theme, role: ControlRole): StateLadder =
   ## The ladder this theme uses for a role. A role left at `spRoleDefault`

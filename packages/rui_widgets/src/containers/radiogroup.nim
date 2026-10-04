@@ -17,8 +17,11 @@ import std/options
 from raylib import KeyboardKey
 
 const
-  ButtonSize = 20.0'f32
   Gap = 8.0'f32
+
+template pitch(w: untyped): float32 =
+  ## Row pitch: `spacing`, or more if the theme's radios or text need it.
+  max(w.spacing, currentTheme.indicatorSize + 4)
 
 definePrimitive(RadioGroup):
   props:
@@ -40,6 +43,7 @@ definePrimitive(RadioGroup):
 
   init:
     widget.focusable = true
+    widget.hoverIndex = -1       # no row is under the pointer yet
     # Not a focusGroup: RadioGroup draws its own options rather than owning
     # child widgets, so there is nothing for group navigation to move between.
     # Its Up/Down handling is internal, and reaches it because the focused
@@ -49,7 +53,7 @@ definePrimitive(RadioGroup):
     on_mouse_down:
       if widget.disabled:
         return false
-      let idx = int((event.mousePos.y - widget.bounds.y) / widget.spacing)
+      let idx = int((event.mousePos.y - widget.bounds.y) / widget.pitch)
       if idx < 0 or idx >= widget.options.len:
         return false
       if idx != widget.selectedIndex:
@@ -62,7 +66,7 @@ definePrimitive(RadioGroup):
     on_mouse_move:
       if widget.disabled:
         return false
-      let idx = int((event.mousePos.y - widget.bounds.y) / widget.spacing)
+      let idx = int((event.mousePos.y - widget.bounds.y) / widget.pitch)
       let newHover = if idx >= 0 and idx < widget.options.len: idx else: -1
       if newHover != widget.hoverIndex:
         widget.hoverIndex = newHover
@@ -85,19 +89,17 @@ definePrimitive(RadioGroup):
       return true
 
   layout:
-    let style = TextStyle(fontFamily: "", fontSize: 14.0, color: BLACK,
-                          bold: false, italic: false, underline: false)
+    let style = currentTheme.getThemeProps(widget.intent).captionStyle(BLACK)
     if widget.bounds.height <= 0:
-      widget.bounds.height = float32(widget.options.len) * widget.spacing
+      widget.bounds.height = float32(widget.options.len) * widget.pitch
     if widget.bounds.width <= 0:
       var widest = 0.0'f32
       for option in widget.options:
         widest = max(widest, measureText(option, style).width)
-      widget.bounds.width = ButtonSize + Gap + widest
+      widget.bounds.width = currentTheme.indicatorSize + Gap + widest
 
   render:
-    let style = TextStyle(fontFamily: "", fontSize: 14.0, color: BLACK,
-                          bold: false, italic: false, underline: false)
+    let size = currentTheme.indicatorSize
     for i, option in widget.options:
       # Per option, not per widget: the group draws its own rows, so hover
       # and focus are about this row rather than about the group.
@@ -107,14 +109,17 @@ definePrimitive(RadioGroup):
                     focused = widget.focused and i == widget.selectedIndex,
                     ladder = currentTheme.ladderFor(crPointer)))
 
-      let rowY = widget.bounds.y + float32(i) * widget.spacing
-      drawRadioButton(Rect(x: widget.bounds.x, y: rowY,
-                           width: ButtonSize, height: ButtonSize),
-                      i == widget.selectedIndex, props)
+      let rowY = widget.bounds.y + float32(i) * widget.pitch
+      let midY = rowY + widget.pitch / 2
+      drawRadioButton(Rect(x: widget.bounds.x, y: midY - size / 2,
+                           width: size, height: size),
+                      i == widget.selectedIndex, props,
+                      hovered = i == widget.hoverIndex)
 
       let textColor = props.foregroundColor.get(Color(r: 60, g: 60, b: 60, a: 255))
-      drawText(option, widget.bounds.x + ButtonSize + Gap,
-               rowY + (ButtonSize - style.fontSize) / 2, style.fontSize, textColor)
+      let style = props.captionStyle(textColor)
+      drawStyledText(option, widget.bounds.x + size + Gap,
+                     midY - style.fontSize / 2, style)
 
     if widget.disabled:
       drawDisabledOverlay(widget.bounds)

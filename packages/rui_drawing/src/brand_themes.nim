@@ -39,7 +39,23 @@ type
     radius*: float32        ## corner radius for every control
     fontSize*: float32      ## 14 if unset
     fontFamily*: string     ## "" is the system sans
-    padding*: float32       ## 8 if unset
+    padding*: float32       ## vertical padding inside controls; 8 if unset
+    paddingX*: float32      ## horizontal padding in buttons; 2 x padding if unset
+
+    # Geometry: what makes a brand fat and bold or thin and lean. Zero means
+    # the default for each.
+    borderWidth*: float32     ## control outlines; 1 if unset
+    borderless*: bool         ## no outlines at all (overrides borderWidth)
+    focusRingWidth*: float32  ## 2 if unset
+    boldCaptions*: bool       ## button captions in bold
+    uppercaseCaptions*: bool  ## button captions in capitals
+    shadow*: float32          ## hard drop shadow under buttons and fields, px
+    shadowColor*: Color       ## the text colour if unset
+    controlHeight*: float32   ## minimum button / field height; content if unset
+    indicatorSize*: float32   ## check box and radio size; 20 if unset
+    trackThickness*: float32  ## slider track; 8 if unset
+    thumbSize*: float32       ## slider thumb; 20 if unset
+    progressHeight*: float32  ## progress bar; 20 if unset
 
 # ----------------------------------------------------------------------------
 # Colour arithmetic
@@ -100,9 +116,8 @@ proc stateProps(spec: BrandSpec, base: ThemeProps, hue: Color,
   of Pressed:
     ThemeProps(backgroundColor: some(mix(bg, hue, 0.16)))
   of Focused:
-    ThemeProps(borderColor: some(spec.accent),
-               focusRingColor: some(spec.accent.alpha(0.45)),
-               focusRingWidth: some(2.0'f32))
+    ThemeProps(borderColor: some(if spec.borderWidth >= 2: spec.border else: spec.accent),
+               focusRingColor: some(spec.accent.alpha(0.45)))
   of Disabled:
     ThemeProps(backgroundColor: some(mix(bg, spec.canvas, 0.5)),
                foregroundColor: some(mix(spec.text, spec.surface, 0.55)),
@@ -123,6 +138,11 @@ proc brandTheme*(spec: BrandSpec): Theme =
   if not s.danger.isSet: s.danger = DefaultDanger
   if s.fontSize <= 0: s.fontSize = 14
   if s.padding <= 0: s.padding = 8
+  if s.paddingX <= 0: s.paddingX = s.padding * 2
+  if s.borderWidth <= 0: s.borderWidth = 1
+  if s.borderless: s.borderWidth = 0
+  if s.focusRingWidth <= 0: s.focusRingWidth = 2
+  if not s.shadowColor.isSet: s.shadowColor = s.text
 
   result = newTheme(s.name)
   result.brandPalette = BrandPalette(
@@ -133,27 +153,52 @@ proc brandTheme*(spec: BrandSpec): Theme =
   if s.fontFamily.len > 0:
     result.typography.primaryFont = some(s.fontFamily)
     result.typography.secondaryFont = some(s.fontFamily)
+  if s.boldCaptions:
+    result.typography.headingWeight = some(Bold)
 
-  let pad = EdgeInsets(top: s.padding, right: s.padding,
-                       bottom: s.padding, left: s.padding)
-  var default = ThemeProps(
+  proc opt(v: float32): Option[float32] =
+    if v > 0: some(v) else: none(float32)
+  result.metrics = ControlMetrics(
+    controlHeight: opt(s.controlHeight), indicatorSize: opt(s.indicatorSize),
+    trackThickness: opt(s.trackThickness), thumbSize: opt(s.thumbSize),
+    progressHeight: opt(s.progressHeight))
+
+  # The geometry every intent shares, so a Danger button is as fat as a
+  # Default one.
+  proc shaped(p: ThemeProps): ThemeProps =
+    result = p
+    result.borderWidth = some(s.borderWidth)
+    result.cornerRadius = some(s.radius)
+    result.fontSize = some(s.fontSize)
+    result.padding = some(EdgeInsets(top: s.padding, bottom: s.padding,
+                                     left: s.paddingX, right: s.paddingX))
+    result.spacing = some(s.padding)
+    result.focusRingWidth = some(s.focusRingWidth)
+    if s.fontFamily.len > 0:
+      result.fontFamily = some(s.fontFamily)
+    if s.boldCaptions:
+      result.fontWeight = some(Bold)
+    if s.uppercaseCaptions:
+      result.uppercase = some(true)
+    if s.shadow > 0:
+      result.dropShadowOffset = some((s.shadow, s.shadow))
+      result.dropShadowColor = some(s.shadowColor)
+
+  var default = shaped(ThemeProps(
     backgroundColor: some(s.surface), foregroundColor: some(s.text),
-    borderColor: some(s.border), borderWidth: some(1.0'f32),
-    cornerRadius: some(s.radius), fontSize: some(s.fontSize),
-    padding: some(pad), spacing: some(s.padding),
+    borderColor: some(s.border),
     activeColor: some(s.accent), focusColor: some(s.accent),
     hoverColor: some(mix(s.surface, s.accent, 0.08)),
     pressedColor: some(mix(s.surface, s.accent, 0.16)),
-    focusRingColor: some(s.accent.alpha(0.45)), focusRingWidth: some(2.0'f32))
-  if s.fontFamily.len > 0:
-    default.fontFamily = some(s.fontFamily)
+    focusRingColor: some(s.accent.alpha(0.45))))
   result.base[Default] = default
 
   let hues = [(Info, s.info), (Success, s.success), (Warning, s.warning),
               (Danger, s.danger)]
   for (intent, hue) in hues:
-    var p = statusProps(s, hue)
-    p.cornerRadius = some(s.radius)
+    var p = shaped(statusProps(s, hue))
+    if s.borderWidth >= 2:
+      p.borderColor = some(s.border)   # a heavy outline stays the brand's ink
     result.base[intent] = p
 
   for intent in ThemeIntent:
@@ -170,7 +215,7 @@ proc brandTheme*(spec: BrandSpec): Theme =
   var primary = result.base[Info]
   primary.backgroundColor = some(s.accent)
   primary.foregroundColor = some(s.onAccent)
-  primary.borderColor = some(s.accent)
+  primary.borderColor = some(if s.borderWidth >= 2: s.border else: s.accent)
   result.base[Info] = primary
   result.states[Info][Hovered] = ThemeProps(backgroundColor: some(mix(s.accent, shadeTo, 0.10)))
   result.states[Info][Pressed] = ThemeProps(backgroundColor: some(mix(s.accent, shadeTo, 0.20)))
@@ -234,6 +279,31 @@ proc graphiteSpec*(): BrandSpec =
             text: hex"#E4E6EA", border: hex"#2C2E34", radius: 3,
             success: hex"#34D399", warning: hex"#FBBF24", danger: hex"#FB7185")
 
+proc punchSpec*(): BrandSpec =
+  ## Fat and bold: slab outlines in ink, hard offset shadows that buttons sink
+  ## into when pressed, bold capitals, big controls. Same widgets as Hairline.
+  BrandSpec(name: "Punch", accent: hex"#FF5A1F", onAccent: hex"#111111",
+            canvas: hex"#FFF1D6", surface: hex"#FFFFFF",
+            text: hex"#111111", border: hex"#111111", radius: 6,
+            fontSize: 15, padding: 10, paddingX: 22,
+            borderWidth: 3, focusRingWidth: 3, boldCaptions: true,
+            uppercaseCaptions: true, shadow: 4, controlHeight: 46,
+            indicatorSize: 24, trackThickness: 12, thumbSize: 26,
+            progressHeight: 26,
+            info: hex"#2F6BFF", success: hex"#1FA35C", warning: hex"#FFB000",
+            danger: hex"#E5242B")
+
+proc hairlineSpec*(): BrandSpec =
+  ## Thin and lean: hairline strokes, near-square corners, small type and
+  ## tight padding, ink-black accent. Same widgets as Punch.
+  BrandSpec(name: "Hairline", accent: hex"#111111",
+            canvas: hex"#FAFAFA", surface: hex"#FFFFFF",
+            text: hex"#1A1A1A", border: hex"#D4D4D4", radius: 2,
+            fontSize: 13, padding: 5, paddingX: 12,
+            borderWidth: 1, focusRingWidth: 1, controlHeight: 28,
+            indicatorSize: 14, trackThickness: 2, thumbSize: 12,
+            progressHeight: 6)
+
 proc brandThemes*(): seq[tuple[key: string, theme: Theme]] =
   ## Every shipped brand, by registry name.
   @[("daylight", brandTheme(daylightSpec())),
@@ -243,4 +313,6 @@ proc brandThemes*(): seq[tuple[key: string, theme: Theme]] =
     ("forest", brandTheme(forestSpec())),
     ("rose", brandTheme(roseSpec())),
     ("ember", brandTheme(emberSpec())),
-    ("graphite", brandTheme(graphiteSpec()))]
+    ("graphite", brandTheme(graphiteSpec())),
+    ("punch", brandTheme(punchSpec())),
+    ("hairline", brandTheme(hairlineSpec()))]

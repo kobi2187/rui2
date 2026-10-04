@@ -77,11 +77,22 @@ type
     dropShadowBlur: Option[float32]
     # Text
     fontFamily: Option[string]
+    fontWeight: Option[string]      ## light, regular, medium, semibold, bold, extrabold
+    uppercase: Option[bool]
+    dropShadowOffset: Option[float32]  ## hard shadow, px right and down
     # Layout
     padding: Option[PaddingFile]
     # Effects (as strings, converted to enums)
     bevelStyle: Option[string]
     gradientDirection: Option[string]
+
+  MetricsFile* {.sparse.} = object
+    ## Control geometry (ControlMetrics), every field optional.
+    controlHeight: Option[float32]
+    indicatorSize: Option[float32]
+    trackThickness: Option[float32]
+    thumbSize: Option[float32]
+    progressHeight: Option[float32]
 
   ThemeFile* {.sparse.} = object
     ## Top-level theme file structure (JSON or YAML)
@@ -92,6 +103,7 @@ type
     states: Option[Table[string, Table[string, ThemePropsFile]]]
     statePreference: Option[Table[string, string]]
       ## role ("text" / "pointer") -> "focus" / "hover"
+    metrics: Option[MetricsFile]
 
 # ============================================================================
 # Color Parsing
@@ -190,6 +202,18 @@ proc toThemeProps*(fp: ThemePropsFile): ThemeProps =
   result.insetShadowOpacity = fp.insetShadowOpacity
   result.dropShadowBlur = fp.dropShadowBlur
   result.fontFamily = fp.fontFamily
+  if fp.fontWeight.isSome:
+    result.fontWeight = some(case fp.fontWeight.get().toLowerAscii()
+      of "light", "300": Light
+      of "medium", "500": Medium
+      of "semibold", "600": SemiBold
+      of "bold", "700": Bold
+      of "extrabold", "800": ExtraBold
+      else: Regular)
+  result.uppercase = fp.uppercase
+  if fp.dropShadowOffset.isSome:
+    let o = fp.dropShadowOffset.get()
+    result.dropShadowOffset = some((o, o))
   # Padding
   if fp.padding.isSome:
     let p = fp.padding.get()
@@ -254,6 +278,15 @@ proc toTheme*(tf: ThemeFile, resolver: proc(name: string): Theme): Theme =
   if tf.statePreference.isSome:
     for role, pref in tf.statePreference.get():
       result.statePreference[parseRoleName(role)] = parsePreference(pref)
+  if tf.metrics.isSome:
+    let m = tf.metrics.get()
+    template take(field: untyped) =
+      if m.field.isSome: result.metrics.field = m.field
+    take controlHeight
+    take indicatorSize
+    take trackThickness
+    take thumbSize
+    take progressHeight
 
 
 proc parseThemeFile*(content: string, format: ThemeFileFormat): ThemeFile =

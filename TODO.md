@@ -112,6 +112,14 @@ the containers place them. No example writes `bounds` any more.
   Covered by `tests/test_flutter_layout.nim`.
 - [x] Cached widget textures composite on whole pixels, so centred
   content is not resampled into blurry, doubled text.
+- [x] **Theme geometry** -- borders and widths, not only colours: stroke
+  width, radius, padding, caption weight/case, hard drop shadow, control
+  height, indicator/track/thumb/progress sizes (`BrandSpec`, `ThemeProps`,
+  `Theme.metrics`, theme files). Honoured by Button, TextArea/TextInput,
+  Checkbox, Radio, RadioGroup, Slider, ProgressBar, ComboBox. Showcased by
+  the `punch` and `hairline` brands.
+- [ ] Geometry in the remaining widgets (lists, tabs, menus, tree, table,
+  group box, scrollbar).
 - [ ] Table cells spanning several columns or rows.
 - [ ] **SplitView** with a draggable divider.
 - [ ] Right-to-left layout mirroring, driven by the text direction Pango

@@ -475,3 +475,92 @@ suite "branded themes":
     check TextStyle(fontSize: 14.0).pangoFont.startsWith("Serif")
     setCurrentTheme(brandTheme(daylightSpec()))
     check themeFontFamily == ""
+
+suite "theme: geometry (fat and bold, thin and lean)":
+
+  proc noExtends(name: string): Theme = newTheme(name)
+
+  test "a brand's stroke, radius, padding and weight reach every intent":
+    let t = brandTheme(punchSpec())
+    for intent in ThemeIntent:
+      let p = t.getThemeProps(intent)
+      check p.borderWidth.get == 3.0
+      check p.cornerRadius.get == 6.0
+      check p.padding.get.left == 22.0
+      check p.isBold
+      check p.uppercase.get(false)
+      check p.shadowOffset == (4.0'f32, 4.0'f32)
+
+  test "unset geometry falls back to the library defaults":
+    let t = brandTheme(daylightSpec())
+    check t.getThemeProps().borderWidth.get == 1.0
+    check not t.getThemeProps().isBold
+    check t.getThemeProps().shadowOffset == (0.0'f32, 0.0'f32)
+    check t.indicatorSize == 20.0
+    check t.controlHeight == 0.0
+    var bare: Theme
+    check bare.thumbSize == 20.0
+
+  test "a borderless brand has no outlines":
+    var spec = daylightSpec()
+    spec.borderless = true
+    check brandTheme(spec).getThemeProps().strokeWidth == 0.0
+
+  test "a theme file can set geometry":
+    let t = parseTheme("""
+name: slab
+base:
+  default:
+    borderWidth: 4
+    fontWeight: bold
+    uppercase: true
+    dropShadowOffset: 5
+metrics:
+  controlHeight: 48
+  indicatorSize: 26
+  thumbSize: 30
+""", tffYaml, noExtends)
+    let p = t.getThemeProps()
+    check p.strokeWidth == 4.0
+    check p.isBold
+    check p.uppercase.get(false)
+    check p.shadowOffset == (5.0'f32, 5.0'f32)
+    check t.controlHeight == 48.0
+    check t.indicatorSize == 26.0
+    check t.thumbSize == 30.0
+    check t.trackThickness == 8.0          # unset: the default
+
+  test "widgets size themselves from the theme":
+    let saved = currentTheme
+    defer: setCurrentTheme(saved)
+    proc sizes(theme: Theme): tuple[button, check, input: Rect] =
+      setCurrentTheme(theme)
+      let b = newButton(text = "Save")
+      let c = newCheckbox(text = "Remember me")
+      let i = newTextInput()
+      for w in [Widget(b), Widget(c), Widget(i)]:
+        w.bounds = Rect()
+        w.layout()
+      (b.bounds, c.bounds, i.bounds)
+    let fat = sizes(brandTheme(punchSpec()))
+    let lean = sizes(brandTheme(hairlineSpec()))
+    check fat.button.height >= 46.0         # the brand's control height
+    check lean.button.height < fat.button.height
+    check fat.button.width > lean.button.width
+    check fat.check.height >= 24.0          # its indicator size
+    check lean.check.height < fat.check.height
+    check fat.input.height > lean.input.height
+
+  test "a pressed button sinks into its shadow":
+    let saved = currentTheme
+    defer: setCurrentTheme(saved)
+    setCurrentTheme(brandTheme(punchSpec()))
+    let b = newButton(text = "Go")
+    b.bounds = Rect(x: 0, y: 0, width: 100, height: 50)
+    b.layout()
+    let up = b.children[0].bounds
+    b.isPressed = true
+    b.layout()
+    let down = b.children[0].bounds
+    check up.x == 0 and up.width == 96      # room left for the shadow
+    check down.x == 4 and down.y == 4       # moved into it

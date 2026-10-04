@@ -95,9 +95,14 @@ definePrimitive(ProgressBar):
     widget.completed = isComplete
 
     if widget.bounds.height <= 0:
+      # The theme's bar height; a bar that shows its percentage is at least
+      # tall enough for it.
       let style = TextStyle(fontFamily: "", fontSize: 12.0, color: BLACK,
                             bold: false, italic: false, underline: false)
-      widget.bounds.height = max(20.0f32, measureText("0%", style).height + 4)
+      widget.bounds.height =
+        if widget.showText: max(currentTheme.progressHeight,
+                                measureText("0%", style).height + 4)
+        else: currentTheme.progressHeight
     if widget.bounds.width <= 0:
       widget.bounds.width = 200.0f32
 
@@ -111,5 +116,12 @@ definePrimitive(ProgressBar):
       let textColor = props.foregroundColor.get(Color(r: 60, g: 60, b: 60, a: 255))
       let displayText = widget.textLeft &
                         formatProgress(widget.value, widget.maxValue, widget.format)
-      drawText(displayText, widget.bounds.x + widget.bounds.width / 2, widget.bounds.y + (widget.bounds.height - 14) / 2, 14.0, textColor, centered = true)
+      # Over the fill, the caption takes the accent's ink so it stays legible.
+      let ink = if progress >= 0.5:
+                  currentTheme.getThemeProps(ThemeIntent.Info).foregroundColor.get(textColor)
+                else: textColor
+      let style = props.captionStyle(ink, 13.0)
+      drawStyledText(displayText, widget.bounds.x + widget.bounds.width / 2,
+                     widget.bounds.y + (widget.bounds.height - style.fontSize) / 2,
+                     style, centered = true)
 

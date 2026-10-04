@@ -35,8 +35,11 @@ proc valueAtX*(x, boundsX, boundsWidth, minValue, maxValue: float32): float32 =
   minValue + t * (maxValue - minValue)
 
 const
-  CaptionSize = 14.0'f32
   CaptionGap = 8.0'f32
+
+proc captionSize(): float32 =
+  ## Captions in the theme's text size.
+  currentTheme.getThemeProps(ThemeIntent.Default).fontSize.get(14.0'f32)
 
 proc trackRect*(bounds: Rect, leftWidth, rightWidth: float32): Rect =
   ## The part of the bounds the track occupies once the captions either side
@@ -48,7 +51,7 @@ proc trackRect*(bounds: Rect, leftWidth, rightWidth: float32): Rect =
 
 proc captionWidth(text: string): float32 =
   if text.len == 0: 0.0'f32
-  else: measureText(text, textStyle(CaptionSize, BLACK)).width
+  else: measureText(text, textStyle(captionSize(), BLACK)).width
 
 proc formatValue(v: float32): string = fmt"{v:.1f}"
 
@@ -138,7 +141,8 @@ definePrimitive(Slider):
 
   layout:
     if widget.bounds.height <= 0:
-      widget.bounds.height = 24.0f32
+      # Tall enough for the theme's thumb, with a little air.
+      widget.bounds.height = max(24.0f32, currentTheme.thumbSize + 4)
     if widget.bounds.width <= 0:
       # 200 of track, plus whatever the captions and their gaps need
       let room = widget.captionRoom
@@ -156,9 +160,9 @@ definePrimitive(Slider):
                widget.dragging)
 
     let textColor = props.foregroundColor.get(Color(r: 60, g: 60, b: 60, a: 255))
-    let y = widget.bounds.y + (widget.bounds.height - CaptionSize) / 2
+    let y = widget.bounds.y + (widget.bounds.height - captionSize()) / 2
     if widget.textLeft.len > 0:
-      drawText(widget.textLeft, widget.bounds.x, y, CaptionSize, textColor)
+      drawText(widget.textLeft, widget.bounds.x, y, captionSize(), textColor)
     let right = rightCaption(widget.textRight, widget.showValue, widget.value)
     if right.len > 0:
-      drawText(right, t.x + t.width + CaptionGap, y, CaptionSize, textColor)
+      drawText(right, t.x + t.width + CaptionGap, y, captionSize(), textColor)

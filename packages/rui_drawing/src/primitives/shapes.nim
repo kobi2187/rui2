@@ -54,24 +54,58 @@ proc drawRect*(rect: Rect, color: raylib.Color, filled = true) =
       color
     )
 
+proc roundness(rect: Rect, radius: float32): float32 =
+  ## raylib's roundness for a corner radius in pixels. Roundness 1.0 is a
+  ## radius of half the short side -- this used to divide by the whole short
+  ## side, so every corner came out at half the radius the theme asked for.
+  let short = min(rect.width, rect.height)
+  if short <= 0: 0.0'f32 else: clamp(2 * radius / short, 0.0, 1.0)
+
 proc drawRoundedRect*(rect: Rect, radius: float32, color: raylib.Color,
     filled = true, lineThickness = 2.0f32) =
-  ## Draws a rectangle with rounded corners
-  let rec = Rectangle(
-    x: rect.x,
-    y: rect.y,
-    width: rect.width,
-    height: rect.height
-  )
+  ## Draws a rectangle with rounded corners. An outline sits *inside* the
+  ## rectangle, `lineThickness` deep, so a widget's border is not clipped
+  ## away by the texture its widget is painted into.
   if filled:
-    drawRectangleRounded(rec, radius/min(rect.width, rect.height), 10, color)
+    let rec = Rectangle(x: rect.x, y: rect.y, width: rect.width, height: rect.height)
+    drawRectangleRounded(rec, roundness(rect, radius), 12, color)
   else:
-    drawRectangleRoundedLines(rec, radius/min(rect.width, rect.height), 10, lineThickness, color)
+    let t = lineThickness
+    let inner = Rect(x: rect.x + t, y: rect.y + t,
+                     width: rect.width - 2 * t, height: rect.height - 2 * t)
+    if inner.width <= 0 or inner.height <= 0:
+      drawRoundedRect(rect, radius, color)
+      return
+    let rec = Rectangle(x: inner.x, y: inner.y, width: inner.width, height: inner.height)
+    drawRectangleRoundedLines(rec, roundness(inner, max(0.0'f32, radius - t)), 12, t, color)
 
 proc drawRoundedRectLines*(rect: Rect, radius, lineThickness: float32,
     color: raylib.Color) =
   ## Draws rounded rectangle outline (convenience wrapper)
   drawRoundedRect(rect, radius, color, filled = false, lineThickness = lineThickness)
+
+proc drawBox*(rect: Rect, radius: float32, fill: raylib.Color,
+              border: raylib.Color, borderWidth: float32) =
+  ## A filled box with a border `borderWidth` deep, entirely inside `rect`:
+  ## the one shape behind buttons, inputs and panels, at any stroke from a
+  ## hairline to a slab. An opaque fill is drawn as the border colour with the
+  ## fill inset over it, which gives exact, even edges at any width; a
+  ## translucent one gets its outline stroked instead.
+  if rect.width <= 0 or rect.height <= 0:
+    return
+  let bw = max(0.0'f32, borderWidth)
+  if bw <= 0 or border.a == 0:
+    if fill.a > 0: drawRoundedRect(rect, radius, fill)
+    return
+  if fill.a == 255:
+    drawRoundedRect(rect, radius, border)
+    let inner = Rect(x: rect.x + bw, y: rect.y + bw,
+                     width: rect.width - 2 * bw, height: rect.height - 2 * bw)
+    if inner.width > 0 and inner.height > 0:
+      drawRoundedRect(inner, max(0.0'f32, radius - bw), fill)
+  else:
+    if fill.a > 0: drawRoundedRect(rect, radius, fill)
+    drawRoundedRect(rect, radius, border, filled = false, lineThickness = bw)
 
 proc drawLine*(x1, y1, x2, y2: float32, color: raylib.Color, thickness = 1.0f32) =
   ## Draws a line with specified thickness

@@ -7,17 +7,19 @@
 ##   nim c -r -d:useGraphics examples/widgets/theme_gallery.nim aurora
 ##
 ## Themes: daylight (light), midnight (dark), aurora, ocean, forest, rose,
-## ember, graphite. Each is one `brandTheme(BrandSpec(...))` call -- see
+## ember, graphite -- and at the two extremes of geometry, punch (fat, bold,
+## shadowed) and hairline (thin and lean). Each is one
+## `brandTheme(BrandSpec(...))` call -- see
 ## packages/rui_drawing/src/brand_themes.nim to make your own.
 
 import rui
 import std/os
 
 let startTheme = if paramCount() >= 1: paramStr(1) else: "daylight"
-let app = newApp("RUI2 - Theme gallery", 720, 620)
+let app = newApp("RUI2 - Theme gallery", 760, 740)
 
 const brands = ["daylight", "midnight", "aurora", "ocean",
-                "forest", "rose", "ember", "graphite"]
+                "forest", "rose", "ember", "graphite", "punch", "hairline"]
 
 var title: Label
 var switcher: Wrap
