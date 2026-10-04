@@ -302,3 +302,59 @@ suite "in a ui: tree":
     check name.bounds.x == 16.0 and name.bounds.width == 268.0
     let area = root.children[2]
     check area.bounds.y + area.bounds.height == 400.0   # Expanded to the bottom
+
+suite "SplitView":
+
+  proc splitOf(ratio: float32 = 0.5, axis = Axis.horizontal): SplitView =
+    result = newSplitView(axis = axis, initialRatio = ratio, dividerThickness = 6.0)
+    result.addChild(leaf(10, 10))
+    result.addChild(leaf(10, 10))
+    result.bounds = Rect(x: 0, y: 0, width: 406, height: 200)
+    result.layout()
+
+  test "the arithmetic honours minimums, and the ratio when the room is short":
+    check splitFirstSize(400, 0.5, 48, 48) == 200.0
+    check splitFirstSize(400, 0.0, 48, 48) == 48.0
+    check splitFirstSize(400, 1.0, 48, 48) == 352.0
+    check splitFirstSize(60, 0.5, 48, 48) == 30.0       # cannot satisfy both
+    check splitRatioAt(103, 0, 400, 6) == 0.25
+    check splitRatioAt(-50, 0, 400, 6) == 0.0
+
+  test "panes share the room either side of the divider":
+    let s = splitOf(0.25)
+    check s.children[0].bounds == Rect(x: 0, y: 0, width: 100, height: 200)
+    check s.children[1].bounds == Rect(x: 106, y: 0, width: 300, height: 200)
+    check s.dividerRect == Rect(x: 100, y: 0, width: 6, height: 200)
+
+  test "vertical stacks the panes":
+    let s = splitOf(0.5, Axis.vertical)
+    s.bounds = Rect(x: 0, y: 0, width: 300, height: 206)
+    s.layout()
+    check s.children[0].bounds.height == 100.0
+    check s.children[1].bounds.y == 106.0
+    check s.children[1].bounds.width == 300.0
+
+  test "unsized, it is as big as its panes and the divider":
+    let s = newSplitView(dividerThickness = 6.0)
+    s.addChild(leaf(80, 30))
+    s.addChild(leaf(120, 50))
+    s.layout()
+    check s.bounds.width == 206.0 and s.bounds.height == 50.0
+
+  test "dragging the divider moves it and reports the ratio":
+    let s = splitOf(0.5)
+    var reported = -1.0'f32
+    s.onResize = proc(r: float32) = reported = r
+    discard s.handleInput(GuiEvent(kind: evMouseDown, mousePos: Point(x: 203, y: 100)))
+    check s.dragging
+    discard s.handleInput(GuiEvent(kind: evMouseMove, mousePos: Point(x: 103, y: 100)))
+    check reported == 0.25
+    s.layout()
+    check s.children[0].bounds.width == 100.0
+    discard s.handleInput(GuiEvent(kind: evMouseUp, mousePos: Point(x: 103, y: 100)))
+    check not s.dragging
+
+  test "a press off the divider does nothing":
+    let s = splitOf(0.5)
+    check not s.handleInput(GuiEvent(kind: evMouseDown, mousePos: Point(x: 20, y: 100)))
+    check not s.dragging

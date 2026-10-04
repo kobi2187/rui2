@@ -123,7 +123,7 @@ the containers place them. No example writes `bounds` any more.
   (grown to the control height), scrollbar thickness, tab indicator and
   group-box/panel strokes, radius and padding, table cell text size.
 - [ ] Table cells spanning several columns or rows.
-- [ ] **SplitView** with a draggable divider.
+- [x] **SplitView** with a draggable divider (`layout/split.nim`; themed thickness, min pane sizes, `onResize`).
 - [ ] Right-to-left layout mirroring, driven by the text direction Pango
   already reports.
 - [x] **An overlay layer** (`rui_core/overlays.nim`): widgets drawn above the
