@@ -52,3 +52,11 @@ proc flex*[T: Widget](widget: T, weight = 1.0'f32): T =
   widget.flexGrow = weight
   widget.layoutDirty = true
   widget
+
+proc shortcut*[T: Widget](widget: T, chord: string): T =
+  ## A key chord that activates this widget, like a click: `Ctrl+S`, `F5`,
+  ## `Alt+N`. The help overlay (F1 or ?) shows it next to the widget. A chord
+  ## that is really typing (a bare letter) is ignored while a text field has
+  ## focus. Chords are checked when written, so a typo fails here, not silently.
+  widget.hotkey = chord
+  widget

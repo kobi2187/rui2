@@ -14,7 +14,7 @@ import preferences_file
 export preferences_file
 import system_scheme
 export system_scheme
-from rui_widgets import HelpOverlay, newHelpOverlay
+from rui_widgets import HelpOverlay, newHelpOverlay, FocusRing, newFocusRing
 export event_source, event_routing, inspect
 export rui_core
 export event_manager   # Export for users to access eventManager
@@ -105,6 +105,13 @@ type
       ## Shortcuts the application adds to the overlay (`app.addHelp`).
     helpOverlay: HelpOverlay
     helpClosedAt: MonoTime
+
+    # Keyboard navigation highlight
+    keyboardMode*: bool
+      ## The user is driving by keyboard: show where focus is. Set by any key
+      ## press, cleared by a mouse press -- the "focus-visible" rule, so clicking
+      ## a button does not draw a navigation ring round it.
+    widgetRing*, groupRing*: FocusRing
 
 # Global app instance (for convenience - can also be passed explicitly)
 var app*: App
@@ -449,7 +456,9 @@ proc showHelp*(app: App) =
   ## Shade the window and list the keys in force. Rebuilt each time, so it
   ## reflects the user's current bindings.
   if app.helpVisible: return
-  app.helpOverlay = newHelpOverlay(sections = helpSections(prefs.keys, app.helpEntries))
+  app.helpOverlay = newHelpOverlay(items = navigationItems(prefs.keys),
+                                   notes = app.helpEntries,
+                                   hints = collectHints(app.tree.root))
   app.helpOverlay.bounds = Rect(x: 0, y: 0, width: app.window.width.float32,
                                 height: app.window.height.float32)
   showOverlay(app.helpOverlay)
@@ -468,6 +477,76 @@ proc helpKeyPressed(app: App, event: GuiEvent): bool =
     return false
   let focused = app.focusManager.focusedWidget
   not (focused != nil and focused.takesText and (event.key, event.mods).isTyping)
+
+# ----------------------------------------------------------------------------
+# The focus rings: where the keyboard is, at both levels
+# ----------------------------------------------------------------------------
+
+const RingGap = 3.0'f32
+const GroupGap = 6.0'f32
+
+proc ringRect(target: Rect, gap: float32): Rect =
+  Rect(x: target.x - gap, y: target.y - gap,
+       width: target.width + gap * 2, height: target.height + gap * 2)
+
+proc placeRing(ring: var FocusRing, group: bool, target: Widget, gap: float32,
+               show: bool) =
+  ## Show `ring` round `target`, or take it away. Creating it lazily keeps an
+  ## app that is only ever driven by the mouse from paying for either.
+  if not show or target == nil or not target.visible or target.bounds.width <= 0:
+    if ring != nil and ring in overlays():
+      hideOverlay(ring)
+    return
+  if ring == nil:
+    ring = newFocusRing(group = group)
+  let want = ringRect(target.bounds, gap)
+  if ring.bounds != want:
+    ring.bounds = want
+    ring.isDirty = true
+  if ring notin overlays():
+    showOverlay(ring)
+
+proc syncFocusRings*(app: App) =
+  ## Put the rings where focus is: firm round the focused widget, softer round
+  ## the container it is moving about in. Only while the keyboard is driving;
+  ## the widget's own focus look is unaffected.
+  if app.helpVisible:
+    # Widgets move and appear while help is up (and before the first layout):
+    # keep the badges on what is really there.
+    let hints = collectHints(app.tree.root)
+    if hints != app.helpOverlay.hints:
+      app.helpOverlay.hints = hints
+      app.helpOverlay.isDirty = true
+  let focused = app.focusManager.focusedWidget
+  let group = app.focusManager.activeGroup
+  let navigating = app.keyboardMode and not app.helpVisible
+  placeRing(app.widgetRing, false, focused, RingGap, navigating)
+  placeRing(app.groupRing, true, group, GroupGap,
+            navigating and group != nil and group != focused)
+
+proc activate*(widget: Widget) =
+  ## Press a widget as if it had been clicked: a press and a release at its
+  ## middle, offered to it and its ancestors like any pointer event.
+  let at = Point(x: widget.bounds.x + widget.bounds.width / 2,
+                 y: widget.bounds.y + widget.bounds.height / 2)
+  discard widget.dispatchBubbling(GuiEvent(kind: evMouseDown, mousePos: at))
+  discard widget.dispatchBubbling(GuiEvent(kind: evMouseUp, mousePos: at))
+  widget.markDirtyToRoot()
+
+proc handleShortcut*(app: App, event: GuiEvent): bool =
+  ## A key press that is some widget's `.shortcut`: activate that widget. A
+  ## shortcut that is really typing is left to a text field with focus.
+  if event.kind != evKeyDown or app.helpVisible:
+    return false
+  let focused = app.focusManager.focusedWidget
+  if focused != nil and focused.takesText and (event.key, event.mods).isTyping:
+    return false
+  let target = findShortcut(app.tree.root, event.key, event.mods)
+  if target == nil:
+    return false
+  target.activate()
+  app.tree.anyDirty = true
+  true
 
 proc handleHelp*(app: App, event: GuiEvent): bool =
   ## Help takes over the keyboard and pointer while it is up: any key or click
@@ -505,6 +584,12 @@ proc handleEvent(app: App, event: GuiEvent) =
   ## split between window, pointer and keyboard, and the dirty bookkeeping.
   if app.handleHelp(event):
     return
+  if app.handleShortcut(event):
+    return
+  if event.kind == evKeyDown:
+    app.keyboardMode = true
+  elif event.kind == evMouseDown:
+    app.keyboardMode = false
   case event.kind
   of evWindowResize:
     app.handleWindowResize(event)
@@ -573,6 +658,7 @@ proc updateLayoutAndRender(app: App): bool =
   if app.tree.root == nil:
     return false
   app.refreshLayout()
+  app.syncFocusRings()
   # What the window shows: anything wholly outside it is not painted until it
   # scrolls into view.
   renderView = some(Rect(x: 0, y: 0, width: getScreenWidth().float32,

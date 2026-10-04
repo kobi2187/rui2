@@ -1,63 +1,98 @@
-## HelpOverlay -- a shade over the whole window with the keyboard bindings.
+## HelpOverlay -- a shade over the window that shows where the keys are.
 ##
-## F1 or "?" (the user's `showHelp` keys) shows it; any key or click closes it.
-## It lists what is actually in force -- the user's own key choices -- plus any
-## shortcuts the application registered with `app.addHelp`. Like MessageBox it
-## covers the whole window (a widget cannot paint outside its bounds), so
-## `bounds` is the window and the card is centred in it.
+## F1 or "?" (the user's `showHelp` keys) puts it up; any key or click closes it.
+## It says two things:
+##
+## - **along the top**, one line with the general navigation keys -- the user's
+##   own bindings -- and below it any application shortcuts that belong to no
+##   particular widget (`app.addHelp`);
+## - **beside each widget that has a shortcut** (`.shortcut("Ctrl+S")`), a small
+##   badge with the chord, and an outline round the widget, so the keys for
+##   *this* application appear where they apply.
+##
+## Like MessageBox it covers the whole window (a widget cannot paint outside its
+## bounds), so `bounds` is the window.
 
 import rui_core
 import rui_drawing
 import raylib
-import std/strutils
 
 definePrimitive(HelpOverlay):
   props:
-    sections: seq[HelpSection] = @[]
-    title: string = "Keyboard"
+    items: seq[HelpEntry] = @[]       # the navigation keys, along the top
+    notes: seq[HelpEntry] = @[]       # application shortcuts with no widget
+    hints: seq[HintMark] = @[]        # a badge for each of these
     intent: ThemeIntent = Default
 
   render:
     let props = widget.themeProps(widget.intent)
     let ink = props.foregroundColor.get(BLACK)
     let surface = props.backgroundColor.get(WHITE)
-    var head = props.captionStyle(ink, action = true)
-    head.fontSize += 4
-    head.bold = true
-    var section = props.captionStyle(ink.withAlpha(0.65), action = true)
-    var keyStyle = props.captionStyle(props.activeColor.get(ink), action = true)
-    keyStyle.bold = true
-    section.bold = true
-    let body = props.captionStyle(ink)
-    let pad = props.fieldInset * 2
-    let rowH = measureText("Ag", body).height + 6
+    let accent = props.activeColor.get(ink)
+    let onAccent = currentTheme.getThemeProps(ThemeIntent.Info).foregroundColor.get(WHITE)
+    var line = props.captionStyle(ink)
+    line.fontSize = max(11.0'f32, line.fontSize - 2)    # a slim bar: it covers the app's top
+    var strong = props.captionStyle(ink, action = true)
+    strong.bold = true
+    strong.fontSize = line.fontSize
+    var badgeStyle = props.captionStyle(onAccent, action = true)
+    badgeStyle.bold = true
+    badgeStyle.fontSize = max(11.0'f32, badgeStyle.fontSize - 1)
+    let pad = props.fieldInset
+    let lineH = measureText("Ag", line).height
+    let w = widget.bounds.width
 
-    # Size the card to its widest key column and widest description.
-    var keyW, textW = 0.0'f32
-    var rows = 0
-    for s in widget.sections:
-      rows += 1
-      for e in s.entries:
-        keyW = max(keyW, measureText(e.keys, keyStyle).width)
-        textW = max(textW, measureText(e.text, body).width)
-        rows += 1
-    let headH = measureText(widget.title, head).height + pad
-    let w = min(widget.bounds.width - 40, keyW + textW + 24 + pad * 2)
-    let h = min(widget.bounds.height - 40, headH + float32(rows) * rowH + pad * 2)
-    let card = Rect(x: widget.bounds.x + (widget.bounds.width - w) / 2,
-                    y: widget.bounds.y + (widget.bounds.height - h) / 2,
-                    width: w, height: h)
+    drawRect(widget.bounds, Color(r: 0, g: 0, b: 0, a: 150))             # the shade
 
-    drawRect(widget.bounds, Color(r: 0, g: 0, b: 0, a: 150))      # the shade
-    drawBox(card, props.cornerRadius.get(6.0), surface,
-            props.borderColor.get(ink), props.strokeWidth)
-    drawStyledText(widget.title, card.x + pad, card.y + pad, head)
-
-    var y = card.y + headH + pad / 2
-    for s in widget.sections:
-      drawStyledText(s.title.toUpperAscii, card.x + pad, y, section)
+    # The navigation keys, wrapped to the window's width; the application's
+    # other shortcuts follow on their own rows.
+    let sep = 20.0'f32
+    proc rows(entries: seq[HelpEntry]): seq[seq[HelpEntry]] =
+      var current: seq[HelpEntry]
+      var x = 0.0'f32
+      for e in entries:
+        let ew = measureText(e.keys & " " & e.text, strong).width + sep
+        if x + ew > w - pad * 2 and current.len > 0:
+          result.add current
+          current = @[]
+          x = 0
+        current.add e
+        x += ew
+      if current.len > 0: result.add current
+    let navRows = rows(widget.items)
+    let noteRows = rows(widget.notes)
+    let rowH = lineH + 4
+    let bar = Rect(x: 0, y: 0, width: w,
+                   height: float32(navRows.len + noteRows.len) * rowH + pad * 2 - 4)
+    drawRect(bar, surface)
+    drawRect(Rect(x: 0, y: bar.height - props.strokeWidth, width: w,
+                  height: max(1.0'f32, props.strokeWidth)), props.borderColor.get(ink))
+    var y = pad
+    proc drawRow(r: seq[HelpEntry], y: float32) =
+      var x = pad
+      for e in r:
+        drawStyledText(e.keys, x, y, strong)
+        x += measureText(e.keys & " ", strong).width
+        drawStyledText(e.text, x, y, line)
+        x += measureText(e.text, line).width + sep
+    for r in navRows:
+      drawRow(r, y)
       y += rowH
-      for e in s.entries:
-        drawStyledText(e.keys, card.x + pad, y, keyStyle)
-        drawStyledText(e.text, card.x + pad + keyW + 24, y, body)
-        y += rowH
+    for r in noteRows:
+      drawRow(r, y)
+      y += rowH
+
+    # A badge beside each widget with a shortcut.
+    var placed: seq[Rect]
+    for hint in widget.hints:
+      drawBox(Rect(x: hint.target.x - 2, y: hint.target.y - 2,
+                   width: hint.target.width + 4, height: hint.target.height + 4),
+              props.cornerRadius.get(4.0) + 2, Color(r: 0, g: 0, b: 0, a: 0), accent, 2)
+      let tw = measureText(hint.keys, badgeStyle).width
+      let th = measureText("Ag", badgeStyle).height
+      let spot = placeBadge(hint.target, Size(width: tw + 16, height: th + 8),
+                            Rect(x: 4, y: bar.height + 2, width: w - 8,
+                                 height: widget.bounds.height - bar.height - 6), placed)
+      placed.add spot
+      drawBox(spot, spot.height / 2, accent, surface, 2)
+      drawStyledText(hint.keys, spot.x + 8, spot.y + 4, badgeStyle)

@@ -378,6 +378,10 @@ set by the *user* in their preferences file (docs/preferences.md), not by apps.
 - [x] `FocusScope` declares a container a focus group in the DSL.
 - [x] `app.useThemes(light, dark)` starts on the user's scheme (or the OS's). Live
   following of OS changes: not planned; theme switches stay snappy.
-- [x] Keyboard help overlay: F1 or ? (rebindable) shades the window and lists the
-  active bindings plus `app.addHelp` shortcuts; a ? typed into a field is left alone.
+- [x] Keyboard help overlay: F1 or ? (rebindable) shades the window, the user's
+  navigation keys along the top, a badge beside every widget with a
+  `.shortcut("Ctrl+S")` (which really activates it); `app.addHelp` for
+  shortcuts with no widget; a ? typed into a field is left alone.
+- [x] Focus rings while navigating by keyboard: firm round the focused widget,
+  softer round its container; gone when the mouse takes over.
 - [ ] Windows/macOS config path check in CI.

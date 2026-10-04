@@ -138,6 +138,9 @@ type
     pressed*: bool             # Mouse button down on this widget
     focused*: bool             # Has keyboard focus
     focusable*: bool
+    hotkey*: string
+      ## A key chord that activates this widget ("Ctrl+S"), set with the
+      ## `.shortcut(...)` modifier. The help overlay labels it next to the widget.
     takesText*: bool
       ## Consumes typed characters while focused (an editable text field). Keys
       ## that are really typing -- a "?" -- are left alone while one has focus.

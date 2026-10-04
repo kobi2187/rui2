@@ -65,11 +65,16 @@ navigates with them.
 
 ## Help overlay
 
-F1 or `?` (the `showHelp` action) shades the window and lists the keys in
-force -- yours, not the defaults -- plus the application's own shortcuts. Any
-key or click closes it. A `?` typed into a text field is just typing.
+F1 or `?` (the `showHelp` action) shades the window. Along the top is one line
+with the general navigation keys -- yours, not the defaults. Beside each widget
+that has a shortcut is a badge with its keys. Any key or click closes it. A `?`
+typed into a text field is just typing.
 
 ![help overlay](help_overlay.png)
+
+While you navigate by keyboard, the focused widget is ringed in the theme's
+focus colour and the container it belongs to gets a softer ring round it; both
+vanish when you use the mouse.
 
 ## For application authors
 
@@ -79,7 +84,13 @@ prefs.reduceMotion              # read-only: honour it in anything custom you an
 prefs.colorScheme               # offer a light and a dark theme; start on the one asked for
 ```
 
-List your own shortcuts in the help overlay with `app.addHelp("Ctrl+S", "Save")`.
+Give a widget a shortcut with `.shortcut(...)` -- it really activates the
+widget, and the help overlay shows it beside it. Shortcuts with no widget go in
+`app.addHelp("Ctrl+F", "Find")`:
+
+```nim
+Button(text = "Save").shortcut("Ctrl+S")
+```
 
 Do not rebind navigation keys or override scroll and double-click speed: that
 is the user's call, and being able to count on it is the point. Add your own

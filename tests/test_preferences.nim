@@ -186,22 +186,22 @@ suite "colour scheme":
 
 suite "keyboard help":
 
-  test "the sections list the bindings in force, in the user's words":
+  test "the navigation line uses the user's bindings, in short words":
     var m = defaultKeyMap()
     m.set(nextGroup, "Ctrl+Tab", "F6")
-    let s = helpSections(m, @[("Ctrl+S", "Save")])
-    check s.len == 3
-    check s[0].title == "Moving around"
-    check s[0].entries[0] == ("Ctrl+Tab / F6", "Next container")
-    check s[1].title == "This application" and s[1].entries == @[("Ctrl+S", "Save")]
-    check s[2].entries[0].keys == "F1 / ?"
+    let items = navigationItems(m)
+    check items[0] == ("Ctrl+Tab/F6", "next container")
+    check ("Shift+Tab", "previous container") in items
+    check ("↓/→", "next widget") in items            # arrows read as arrows
+    check ("Esc", "leave container") in items
+    check items[^1] == ("F1/?", "help")
+    check infoLine(m).startsWith("Ctrl+Tab/F6 next container   ·   ")
 
-  test "an unbound action says so; no app shortcuts means no app section":
+  test "an unbound action is left out of the line":
     var m = defaultKeyMap()
     m.clear(leaveGroup)
-    let s = helpSections(m)
-    check s.len == 2
-    check s[0].entries[^1].keys == "(unbound)"
+    for item in navigationItems(m):
+      check item.text != "leave container"
 
   test "what counts as typing":
     check chord("Shift+Slash").isTyping
@@ -258,4 +258,96 @@ suite "keyboard help":
     applyPreferences(p)
     check not app.handleHelp(GuiEvent(kind: evKeyDown, key: chord("F1").key))
     check app.handleHelp(GuiEvent(kind: evKeyDown, key: chord("F2").key))
+    clearOverlays()
+
+
+suite "shortcuts and hints":
+
+  proc tree(): tuple[root, save, open, hidden: Widget, field: TextArea] =
+    let root = newVStack(spacing = 8.0)
+    let save = newButton(text = "Save").shortcut("Ctrl+S")
+    let open = newButton(text = "Open").shortcut("Ctrl+O")
+    let hidden = newButton(text = "Hidden").shortcut("F9")
+    let field = newTextInput()
+    root.addChild save
+    root.addChild open
+    root.addChild hidden
+    root.addChild field
+    hidden.visible = false
+    root.bounds = Rect(x: 0, y: 0, width: 400, height: 300)
+    root.layout()
+    (Widget(root), Widget(save), Widget(open), Widget(hidden), field)
+
+  test "hints are collected for visible widgets with shortcuts, in tree order":
+    let t = tree()
+    let hints = collectHints(t.root)
+    check hints.len == 2
+    check hints[0].keys == "Ctrl+S" and hints[0].target == t.save.bounds
+    check hints[1].keys == "Ctrl+O"
+
+  test "a disabled widget has no hint, and a chord that does not parse has none":
+    let t = tree()
+    t.open.enabled = false
+    t.save.hotkey = "Ctrl+NotAKey"
+    check collectHints(t.root).len == 0
+
+  test "findShortcut matches the exact chord on a live widget":
+    let t = tree()
+    check findShortcut(t.root, chord("S").key, {kmCtrl}) == t.save
+    check findShortcut(t.root, chord("S").key, {}).isNil           # no Ctrl: not it
+    check findShortcut(t.root, chord("F9").key, {}).isNil          # hidden
+    t.save.enabled = false
+    check findShortcut(t.root, chord("S").key, {kmCtrl}).isNil
+
+  test "a badge hangs off the widget, stays on screen, and keeps clear of others":
+    let within = Rect(x: 0, y: 40, width: 400, height: 300)
+    let target = Rect(x: 20, y: 100, width: 80, height: 30)
+    let a = placeBadge(target, Size(width: 60, height: 20), within)
+    check a.x >= target.x and a.y > target.y + target.height / 2   # off the lower edge
+    let b = placeBadge(target, Size(width: 60, height: 20), within, [a])
+    check b.y >= a.y + a.height                                    # moved clear of a
+    let edge = placeBadge(Rect(x: 380, y: 330, width: 80, height: 30),
+                          Size(width: 60, height: 20), within)
+    check edge.x + edge.width <= within.x + within.width
+    check edge.y + edge.height <= within.y + within.height
+
+  test "pressing a shortcut clicks its widget":
+    let app = newApp("shortcuts")
+    let t = tree()
+    app.setRootWidget(t.root)
+    var saved = 0
+    Button(t.save).onClick = proc() = inc saved
+    check app.handleShortcut(GuiEvent(kind: evKeyDown, key: chord("S").key, mods: {kmCtrl}))
+    check saved == 1
+    check not app.handleShortcut(GuiEvent(kind: evKeyDown, key: chord("S").key))   # not the chord
+    check saved == 1
+
+  test "a typing-style shortcut is left to a focused text field":
+    let app = newApp("shortcuts")
+    let t = tree()
+    let plain = newButton(text = "Find").shortcut("F")
+    t.root.addChild plain
+    t.root.layout()
+    app.setRootWidget(t.root)
+    var found = 0
+    Button(plain).onClick = proc() = inc found
+    app.focusManager.setFocus(t.field)
+    check not app.handleShortcut(GuiEvent(kind: evKeyDown, key: chord("F").key))   # typing an F
+    check found == 0
+    app.focusManager.clearFocus()
+    check app.handleShortcut(GuiEvent(kind: evKeyDown, key: chord("F").key))
+    check found == 1
+    # a Ctrl chord still works from inside the field
+    app.focusManager.setFocus(t.field)
+    check app.handleShortcut(GuiEvent(kind: evKeyDown, key: chord("S").key, mods: {kmCtrl}))
+
+  test "shortcuts do not fire while the help overlay is up":
+    let app = newApp("shortcuts")
+    let t = tree()
+    app.setRootWidget(t.root)
+    var saved = 0
+    Button(t.save).onClick = proc() = inc saved
+    app.showHelp()
+    check not app.handleShortcut(GuiEvent(kind: evKeyDown, key: chord("S").key, mods: {kmCtrl}))
+    check saved == 0
     clearOverlays()
