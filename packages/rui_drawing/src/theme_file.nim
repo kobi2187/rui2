@@ -111,6 +111,8 @@ type
     borderless, boldCaptions, uppercaseCaptions: Option[bool]
     controlHeight, indicatorSize, trackThickness, thumbSize: Option[float32]
     progressHeight, rowHeight, scrollbarThickness: Option[float32]
+    transitionMs: Option[float32]
+    noTransitions: Option[bool]
 
   ThemeFile* {.sparse.} = object
     ## Top-level theme file structure (JSON or YAML)
@@ -293,7 +295,8 @@ proc toBrandSpec*(bf: BrandFile): BrandSpec =
     controlHeight: num(bf.controlHeight), indicatorSize: num(bf.indicatorSize),
     trackThickness: num(bf.trackThickness), thumbSize: num(bf.thumbSize),
     progressHeight: num(bf.progressHeight), rowHeight: num(bf.rowHeight),
-    scrollbarThickness: num(bf.scrollbarThickness))
+    scrollbarThickness: num(bf.scrollbarThickness),
+    transitionMs: num(bf.transitionMs), noTransitions: bf.noTransitions.get(false))
 
 proc toTheme*(tf: ThemeFile, resolver: proc(name: string): Theme): Theme =
   ## Convert a ThemeFile to a Theme, resolving extends via resolver

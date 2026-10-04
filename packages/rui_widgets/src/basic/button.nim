@@ -39,6 +39,9 @@ defineWidget(Button):
   state:
     isPressed: bool
     isHovered: bool
+    bgFade: Animated[Color]       # the colours as drawn, easing toward the
+    borderFade: Animated[Color]   # theme's for the current state
+    inkFade: Animated[Color]
 
   actions:
     onClick()
@@ -104,8 +107,12 @@ defineWidget(Button):
                   hovered = widget.isHovered, focused = widget.focused,
                   ladder = currentTheme.ladderFor(crPointer)))
 
-    let buttonColor = props.backgroundColor.get(GRAY)
-    let textColor = props.foregroundColor.get(WHITE)
+    # State changes fade rather than snap (the theme sets how long; 0 = snap).
+    let fade = currentTheme.transitionSeconds
+    let buttonColor = widget.bgFade.follow(widget, props.backgroundColor.get(GRAY), fade)
+    let textColor = widget.inkFade.follow(widget, props.foregroundColor.get(WHITE), fade)
+    let outline = widget.borderFade.follow(
+      widget, props.borderColor.get(props.backgroundColor.get(GRAY)), fade)
     let radius = props.cornerRadius.get(4.0f32)
     let caption = props.captionText(widget.text)
     let style = props.captionStyle(textColor, action = true)
@@ -128,7 +135,7 @@ defineWidget(Button):
     bg.color = buttonColor
     bg.cornerRadius = radius
     bg.filled = true
-    bg.borderColor = props.borderColor.get(buttonColor)
+    bg.borderColor = outline
     # Focus thickens the outline (the focused state colours it): a ring drawn
     # by this widget would sit under the body, which is a child.
     bg.borderWidth = props.strokeWidth +

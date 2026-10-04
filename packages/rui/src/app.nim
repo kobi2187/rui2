@@ -245,6 +245,7 @@ proc enableScripting*(app: App, scriptDir: string) =
   ## Enable scripting system with specified directory
   app.scriptingEnabled = true
   app.scriptDir = scriptDir
+  animationsEnabled = false   # a script reads settled values, not mid-fade ones
   if not dirExists(scriptDir):
     createDir(scriptDir)
 

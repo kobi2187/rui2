@@ -58,6 +58,8 @@ type
     progressHeight*: float32  ## progress bar; 20 if unset
     rowHeight*: float32       ## list, tree, table and menu rows; each widget's own if unset
     scrollbarThickness*: float32  ## 12 if unset
+    transitionMs*: float32    ## colour fade on hover/press/focus; 120 if unset
+    noTransitions*: bool      ## every state change is instant
 
 # ----------------------------------------------------------------------------
 # Colour arithmetic
@@ -157,6 +159,9 @@ proc brandTheme*(spec: BrandSpec): Theme =
     result.typography.secondaryFont = some(s.fontFamily)
   if s.boldCaptions:
     result.typography.headingWeight = some(Bold)
+  result.animation.durationFast =
+    some(if s.noTransitions: 0.0'f32
+         elif s.transitionMs > 0: s.transitionMs else: 120.0'f32)
 
   proc opt(v: float32): Option[float32] =
     if v > 0: some(v) else: none(float32)

@@ -237,11 +237,15 @@ the containers place them. No example writes `bounds` any more.
   not only at composite time.
 
 ### 9. Animation and effects *(medium; needs #4; built on raylib)*
-- [ ] Rounded corners and edges that are actually smooth. Today they are
-  triangle fans with a fixed segment count, aliased inside widget textures
-  (the default framebuffer's MSAA does not reach them). A signed-distance
-  shader for rounded boxes -- fill, border, soft shadow, glow, blur --
-  gives crisp edges at any radius and one draw call per box.
+- [x] Rounded corners and edges that are actually smooth: a signed-distance
+  shader draws every box (fill + border, one pass, antialiased at any radius;
+  `primitives/sdf.nim`, GL-tested).
+- [ ] The same shader for soft drop shadows, glow and blur.
+- [x] `Animated[T]` with easing curves, driving frames only while something
+  moves (`rui_core/animation.nim`); Button fades its colours between states
+  over the theme's `transitionMs` (120 by default, 0 = instant), and a theme
+  switch snaps. Next: the other controls, `Animated` for layout (expand /
+  collapse), and a `Transition` helper for widgets entering and leaving.
 - [ ] Effects through raylib shaders (drop shadow, glow, blur, gradient,
   frosted glass), exposed as theme tokens and a small `Effect` set a widget
   can opt into, never as per-widget GL code.

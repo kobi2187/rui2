@@ -13,23 +13,26 @@
 import std/[monotimes, times, options]
 import types
 
-var pending: seq[tuple[widget: Widget, at: MonoTime]]
+var pending: seq[tuple[widget: Widget, at: MonoTime, relayout: bool]]
 
-proc repaintAt*(widget: Widget, at: MonoTime) =
-  ## Mark `widget` dirty once `at` has passed. A widget holds one timer; asking
-  ## again keeps the earlier of the two.
+proc repaintAt*(widget: Widget, at: MonoTime, relayout = false) =
+  ## Mark `widget` dirty once `at` has passed -- and laid out again, if
+  ## `relayout` (what an animation needs: its layout is where it reads the
+  ## value for this frame). A widget holds one timer; asking again keeps the
+  ## earlier time, and a request for relayout sticks.
   for entry in pending.mitems:
     if entry.widget == widget:
       if at < entry.at:
         entry.at = at
+      entry.relayout = entry.relayout or relayout
       return
-  pending.add((widget, at))
+  pending.add((widget, at, relayout))
 
-proc repaintAfter*(widget: Widget, delay: Duration) =
-  widget.repaintAt(getMonoTime() + delay)
+proc repaintAfter*(widget: Widget, delay: Duration, relayout = false) =
+  widget.repaintAt(getMonoTime() + delay, relayout)
 
-proc repaintAfter*(widget: Widget, seconds: float) =
-  widget.repaintAfter(initDuration(nanoseconds = int64(seconds * 1e9)))
+proc repaintAfter*(widget: Widget, seconds: float, relayout = false) =
+  widget.repaintAfter(initDuration(nanoseconds = int64(seconds * 1e9)), relayout)
 
 proc fireDueRepaints*(now = getMonoTime()): bool =
   ## Mark every widget whose time has come dirty up to the root. Returns
@@ -37,6 +40,8 @@ proc fireDueRepaints*(now = getMonoTime()): bool =
   var i = 0
   while i < pending.len:
     if pending[i].at <= now:
+      if pending[i].relayout:
+        pending[i].widget.layoutDirty = true
       pending[i].widget.markDirtyToRoot()
       pending.del(i)
       result = true

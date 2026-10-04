@@ -217,6 +217,12 @@ proc barHeight*(theme: Theme, legacy: float32): float32 =
   ## with its buttons.
   max(legacy, theme.controlHeight)
 
+proc transitionSeconds*(theme: Theme): float32 =
+  ## How long a colour takes to change when a control's state does (hover,
+  ## press, focus): the theme's `animation.durationFast`, in milliseconds, 120
+  ## if it names none. 0 makes every change instant.
+  theme.animation.durationFast.get(120.0'f32) / 1000.0'f32
+
 proc scrollbarThickness*(theme: Theme): float32 = theme.metrics.scrollbarThickness.get(12.0)
 
 template themedSize*(explicit: float32, themed: untyped): float32 =
@@ -359,6 +365,7 @@ proc canvasColor*(theme: Theme): Color =
 proc setCurrentTheme*(theme: Theme) =
   ## Set the global current theme, and its typography as the default family.
   currentTheme = theme
+  inc settleEpoch                # a new theme lands at once, without fading
   themeFontFamily = theme.typography.primaryFont.get("")
 
 proc makeColor*(r, g, b: int, a: int = 255): Color =
