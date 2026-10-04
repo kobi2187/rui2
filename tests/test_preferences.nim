@@ -148,3 +148,38 @@ suite "preferences drive behaviour":
   test "the user's blink period sets the caret phase; 0 keeps it steady":
     check abs(caretPhaseRemaining(10.0, 0.25) - 0.25) < 1e-9
     check abs(caretPhaseRemaining(10.1, 0.25) - 0.15) < 1e-9
+
+suite "colour scheme":
+
+  test "what the platform tools print":
+    check parseSystemScheme("'prefer-dark'\n") == schemeDark
+    check parseSystemScheme("'default'\n") == schemeLight
+    check parseSystemScheme("'prefer-light'") == schemeLight
+    check parseSystemScheme("Dark\n") == schemeDark                  # macOS
+    check parseSystemScheme("The domain/default pair ... does not exist") == schemeLight
+    check parseSystemScheme("    AppsUseLightTheme    REG_DWORD    0x0") == schemeDark   # Windows
+    check parseSystemScheme("    AppsUseLightTheme    REG_DWORD    0x1") == schemeLight
+    check parseSystemScheme("") == schemeLight
+
+  test "the user's choice wins; system defers to the platform":
+    check effectiveScheme(schemeDark, schemeLight) == schemeDark
+    check effectiveScheme(schemeLight, schemeDark) == schemeLight
+    check effectiveScheme(schemeSystem, schemeDark) == schemeDark
+    check effectiveScheme(schemeSystem, schemeLight) == schemeLight
+
+  test "detecting never fails or returns 'system'":
+    check detectSystemScheme() in {schemeLight, schemeDark}
+
+  test "useThemes starts on the user's scheme":
+    let saved = prefs
+    defer: applyPreferences(saved)
+    let app = newApp("t")
+    var p = defaultPreferences()
+    p.colorScheme = schemeDark
+    applyPreferences(p)
+    app.useThemes(light = "daylight", dark = "midnight")
+    check app.getTheme().name == "Midnight"
+    p.colorScheme = schemeLight
+    applyPreferences(p)
+    app.useThemes(light = "daylight", dark = "midnight")
+    check app.getTheme().name == "Daylight"

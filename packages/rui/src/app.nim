@@ -12,6 +12,8 @@ import event_routing
 import inspect
 import preferences_file
 export preferences_file
+import system_scheme
+export system_scheme
 export event_source, event_routing, inspect
 export rui_core
 export event_manager   # Export for users to access eventManager
@@ -326,6 +328,17 @@ proc setTheme*(app: App, name: string) =
   app.tree.anyDirty = true
   app.tree.isDirty = true
   app.tree.root.markSubtreeDirty()
+
+proc useThemes*(app: App, light, dark: string) =
+  ## Declare the application's light and dark themes (by registered name) and
+  ## start on the one the user wants: their `colorScheme` preference, or the
+  ## operating system's when that is `system`. The author chooses the looks;
+  ## the user chooses which of them to see.
+  ##
+  ##   app.useThemes(light = "daylight", dark = "midnight")
+  let scheme = effectiveScheme(prefs.colorScheme,
+    if prefs.colorScheme == schemeSystem: detectSystemScheme() else: schemeLight)
+  app.setTheme(if scheme == schemeDark: dark else: light)
 
 proc getTheme*(app: App): Theme =
   ## Get the current theme
