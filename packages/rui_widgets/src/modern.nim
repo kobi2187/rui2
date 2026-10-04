@@ -1,6 +1,6 @@
 ## Modern Widgets - Aggregator Module
 ##
-## Canvas drawing surface, DragDropArea file target, Timeline track and MapWidget.
+## Canvas drawing surface, DragDropArea file target, Timeline track, MapWidget and Plot.
 
 import modern/canvas
 export canvas
@@ -13,3 +13,6 @@ export timeline
 
 import modern/mapwidget
 export mapwidget
+
+import modern/plot
+export plot

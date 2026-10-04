@@ -306,8 +306,9 @@ the containers place them. No example writes `bounds` any more.
   masonry grid, timeline (exists: extend), toggle/segmented controls.
 - ~~Rich-text and code editors~~ -- out of scope (principle 5). `TextArea`,
   `text_content` and the text primitives are what an app builds one from.
-- [ ] Charts: line, bar and scatter in one `Plot` widget, and a `KanbanBoard`
-  of cards -- the largest single widgets we ship.
+- [x] `Plot`: lines, areas, bars and scatter on round axes with a grid and
+  legend, in the theme's colours (`modern/plot.nim`, pure scale helpers tested).
+- [ ] A `KanbanBoard` of cards -- with `Plot`, the largest single widgets we ship.
 
 ### 15. Code health
 - [ ] Bring rui_drawing (11), rui_hittest (5, of which interval-tree
