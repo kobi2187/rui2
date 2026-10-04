@@ -41,6 +41,21 @@ export scrollbar
 import basic/focusring
 export focusring
 
+import basic/switch
+export switch
+
+import basic/segmented
+export segmented
+
+import basic/rating
+export rating
+
+import basic/sparkline
+export sparkline
+
+import basic/toast
+export toast
+
 import basic/separator
 export separator
 

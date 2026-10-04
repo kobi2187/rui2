@@ -14,7 +14,8 @@ import preferences_file
 export preferences_file
 import system_scheme
 export system_scheme
-from rui_widgets import HelpOverlay, newHelpOverlay, FocusRing, newFocusRing
+from rui_widgets import HelpOverlay, newHelpOverlay, FocusRing, newFocusRing,
+  Toast, newToast
 export event_source, event_routing, inspect
 export rui_core
 export event_manager   # Export for users to access eventManager
@@ -99,6 +100,9 @@ type
     indicatorShown: bool
     cursorShown: CursorShape
     overlaysSeen: int
+
+    # Toasts: transient messages stacked at the bottom of the window
+    toasts: seq[tuple[widget: Toast, until: MonoTime]]
 
     # Keyboard help (F1 or ?)
     helpEntries*: seq[HelpEntry]
@@ -446,6 +450,51 @@ template traceEvent(args: varargs[untyped]) =
 # The keyboard help overlay
 # ----------------------------------------------------------------------------
 
+# ----------------------------------------------------------------------------
+# Toasts
+# ----------------------------------------------------------------------------
+
+const ToastGap = 8.0'f32
+const ToastMargin = 24.0'f32
+
+proc stackToasts(app: App) =
+  ## Bottom-centre, newest lowest, each above the one before it.
+  var y = app.window.height.float32 - ToastMargin
+  for i in countdown(app.toasts.high, 0):
+    let t = app.toasts[i].widget
+    y -= t.bounds.height
+    t.bounds.x = (app.window.width.float32 - t.bounds.width) / 2
+    t.bounds.y = y
+    t.isDirty = true
+    y -= ToastGap
+
+proc toast*(app: App, text: string, intent = ThemeIntent.Default, seconds = 3.0) =
+  ## Show `text` over the window for `seconds`, then take it away:
+  ##   app.toast("Saved")
+  ##   app.toast("Could not connect", intent = ThemeIntent.Danger, seconds = 6)
+  let t = newToast(text = text, intent = intent)
+  t.layout()
+  app.toasts.add (t, getMonoTime() + initDuration(milliseconds = int(seconds * 1000)))
+  showOverlay(t)
+  app.stackToasts()
+  t.repaintAfter(seconds)         # wakes an idle window to remove it
+  app.tree.anyDirty = true
+
+proc pruneToasts*(app: App, now = getMonoTime()) =
+  ## Remove the toasts whose time is up and close the gaps they leave.
+  var kept: seq[tuple[widget: Toast, until: MonoTime]]
+  var removed = false
+  for entry in app.toasts:
+    if entry.until <= now:
+      hideOverlay(entry.widget)
+      removed = true
+    else:
+      kept.add entry
+  if removed:
+    app.toasts = kept
+    app.stackToasts()
+    app.tree.anyDirty = true
+
 proc addHelp*(app: App, keys, text: string) =
   ## List one of the application's own shortcuts in the help overlay:
   ##   app.addHelp("Ctrl+S", "Save")
@@ -599,6 +648,23 @@ proc handleWindowResize(app: App, event: GuiEvent) =
   traceEvent "[Event] Window resized to ", event.windowSize.width, "x",
              event.windowSize.height
 
+proc pressFocused*(app: App, event: GuiEvent): bool =
+  ## Space or Enter on a focused button-like control presses it, as a click
+  ## would. Only the controls where a click means "do your one thing" -- not,
+  ## say, a Slider, where a click at the middle would jump the value.
+  if event.kind != evKeyDown or not (event.key in {KeyboardKey.Space, KeyboardKey.Enter}):
+    return false
+  let focused = app.focusManager.focusedWidget
+  if focused == nil or focused.takesText or not focused.enabled:
+    return false
+  case focused.getTypeName()
+  of "Button", "Checkbox", "RadioButton", "Hyperlink", "IconButton", "ToolButton":
+    focused.activate()
+    app.tree.anyDirty = true
+    true
+  else:
+    false
+
 proc handleEvent(app: App, event: GuiEvent) =
   ## Route one event. The work is in event_routing.nim; this is the three-way
   ## split between window, pointer and keyboard, and the dirty bookkeeping.
@@ -620,7 +686,8 @@ proc handleEvent(app: App, event: GuiEvent) =
 
   of evKeyDown, evChar:
     if not app.router.routeKeyboard(app.tree.root, event):
-      traceEvent "[Event] Keyboard event not handled: ", event.kind
+      if not app.pressFocused(event):
+        traceEvent "[Event] Keyboard event not handled: ", event.kind
 
   else:
     discard
@@ -858,6 +925,7 @@ proc step*(app: App): bool {.discardable.} =
   app.pumpEvents()
   if fireDueRepaints():
     app.tree.anyDirty = true
+  app.pruneToasts()
   app.updateLayoutAndRender()
 
 proc countFrame(app: App) =
