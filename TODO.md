@@ -11,6 +11,26 @@ caching, push-based `Link[T]` reactivity with O(1) invalidation, Pango text
 protocol plus headless frames for testing, and a codebase under a complexity
 gate. The gaps below are what stands between that and Qt/Flutter-level trust.
 
+## Principles (they decide what gets built, and in what order)
+
+1. **Instantaneous and beautiful.** A change must land inside one frame at
+   10,000 widgets, and every widget ships with a considered look in every
+   brand. Speed is measured (`tools/bench.sh`, docs/PERFORMANCE.md), not
+   assumed.
+2. **Full Unicode text.** Shaping, BiDi, emoji and combining marks, CJK input
+   (IME), grapheme-aware editing. Text is never second-class.
+3. **Accessibility: low priority.** Screen-reader support is not a goal for
+   now (#17 stays parked); don't spend effort there.
+4. **Integrates, but looks the same everywhere.** Drag and drop in and out,
+   clipboard, system dark/light preference -- yes. Native file dialogs and
+   native-looking widgets -- no: the drawn FileDialog stays, so an app looks
+   identical on every platform.
+5. **Open to new widgets.** Innovate freely: nothing has to copy a platform
+   widget. Tons of widgets in the box.
+6. **The DSL is the API, and it stays transparent.** `ui:` is plain sugar over
+   constructors, props are named and typed, there is no hidden state. A new
+   user should be able to read an example and write the next one.
+
 Legend: **P0** blocks real apps · **P1** expected of any modern toolkit ·
 **P2** differentiators · **P3** breadth and ecosystem.
 
@@ -232,6 +252,11 @@ the containers place them. No example writes `bounds` any more.
 ### 14. Widgets
 - [ ] DataTable: edit filters from the UI (the strip only displays them).
 - [ ] Date/time picker, colour picker, toasts/notifications, a docking layout.
+- [ ] New widgets, free of platform precedent (principle 5): command palette,
+  tag/chip input, rating, knob/dial, range slider, sparkline, calendar
+  heat-map, kanban board, node graph, breadcrumb, stepper/wizard, avatar
+  stack, skeleton loaders, rich tooltip/popover, pull-to-refresh list,
+  masonry grid, timeline (exists: extend), toggle/segmented controls.
 - [ ] A rich-text editor (styled runs over `text_content`) and a code editor
   with syntax highlighting.
 - [ ] Charts: line, bar and scatter, on the Canvas widget.
