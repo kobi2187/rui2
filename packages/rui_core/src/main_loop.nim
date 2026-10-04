@@ -12,6 +12,7 @@
 import types
 import std/[algorithm, math]
 import raylib
+import rlgl
 from rlgl import setBlendFactorsSeparate, BlendFactor, BlendFuncOrEq
 
 
@@ -25,7 +26,22 @@ proc createWidgetTexture*(widget: Widget): RenderTexture2D =
   ## Size is based on widget's bounds
   let width = max(1, widget.bounds.width.int32)
   let height = max(1, widget.bounds.height.int32)
-  result = loadRenderTexture(width, height)
+  # Colour only. raylib's own loadRenderTexture also attaches a 32-bit depth
+  # renderbuffer, which a 2D widget never reads: about as much memory again,
+  # per widget, for nothing (10,000 widgets held 341 MB of colour alone).
+  let fbo = rlgl.loadFramebuffer()
+  if fbo == 0:
+    return loadRenderTexture(width, height)    # let raylib report it
+  rlgl.enableFramebuffer(fbo)
+  let tex = rlgl.loadTexture(nil, width, height,
+                             int32(PixelFormat.UncompressedR8g8b8a8), 1)
+  rlgl.framebufferAttach(fbo, tex, FramebufferAttachType.ColorChannel0,
+                         FramebufferAttachTextureType.Texture2d, 0)
+  rlgl.disableFramebuffer()
+  result = RenderTexture2D(
+    id: fbo,
+    texture: Texture(id: tex, width: width, height: height, mipmaps: 1,
+                     format: PixelFormat.UncompressedR8g8b8a8))
 
 proc freeWidgetTexture*(widget: Widget) =
   ## Free the cached render texture if present.

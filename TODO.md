@@ -174,8 +174,8 @@ the containers place them. No example writes `bounds` any more.
   budget breach. Found and fixed a text-measure cache that wiped itself when
   full (10k layout 164 -> 21 ms).
 - [ ] Run `tools/bench.sh --gate` in CI and record the `--json` line.
-- [ ] Render textures without the unused 32-bit depth buffer (about half the
-  GPU memory per widget).
+- [x] Render textures without the unused 32-bit depth buffer (about half the
+  GPU memory per widget; full repaint of 1k widgets 22 -> 13 ms).
 - [ ] Widgets taller than the GPU texture limit (16384 px) cannot be cached:
   tile them, or clip to the viewport.
 - [ ] Incremental hit-testing. `HitTestSystem.updateWidget` exists, but

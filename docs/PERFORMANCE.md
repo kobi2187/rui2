@@ -13,8 +13,8 @@ at the render rows, not slower). `--gate` fails when a row is over budget;
 | layout, one label changed | 0.9 | 7.7 |
 | hit-test system rebuilt | 0.7 | 11 |
 | hit-test, one pointer lookup | 0.004 | 0.04 |
-| render, everything repainted | 22 | 1000 |
-| render, one label changed | 0.35 | 1.0 |
+| render, everything repainted | 13 | 840 |
+| render, one label changed | 0.13 | 0.7 |
 | idle frame (nothing changed) | 0.007 | 0.3 |
 
 A frame at 60 fps is 16.7 ms. At 1,000 widgets every interactive path is a
@@ -32,13 +32,17 @@ the 8,000 run 121). It is now two generations of 32,768 entries, and a hot
 set survives churn: 10,000 widgets lay out in 21 ms, a one-label change in
 7.7 ms (was 73).
 
+**Fixed: a depth buffer on every widget.** raylib's `loadRenderTexture`
+gives each framebuffer a 32-bit depth renderbuffer, which a 2D widget never
+reads: as much GPU memory again, for nothing, plus the cost of creating it.
+Widget textures are now colour-only: a full repaint of 1,000 widgets went
+from 22 to 13 ms, repainting one label from 0.35 to 0.13 ms.
+
 **Open (see TODO #8):**
 
-- *Memory per widget.* Every widget owns a render texture, and raylib gives
-  each one a 32-bit depth renderbuffer it never uses: roughly twice the GPU
-  memory it needs. 10,000 widgets hold 341 MB of colour alone. Fixes: build
-  the framebuffers without depth, and cache only containers and expensive
-  leaves, drawing cheap ones into their parent.
+- *Memory per widget.* Every widget still owns a render texture: 10,000
+  widgets hold 341 MB of colour. Cache only containers and expensive leaves,
+  drawing cheap ones into their parent.
 - *Tall content.* A widget taller than the GPU's texture limit (16,384 px
   here) cannot be cached: the framebuffer is incomplete. A very long
   non-virtualised column inside a ScrollView hits this; ListView, TreeView
