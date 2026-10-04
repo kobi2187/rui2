@@ -120,8 +120,13 @@ The redesign, for min/max constraints and a cheaper second pass:
 - [x] Repaint timers (`rui_core/repaint_timers.nim`): a widget asks to be
   drawn again later. The caret uses it -- it used to freeze in whichever
   blink phase the last edit left it.
-- [ ] Block instead of sleeping per frame (GLFW `waitEventsTimeout` until the
-  next timer), and wake on Link sets from other threads with a posted event.
+- [x] Block instead of sleeping per frame: GLFW `waitEventsTimeout` until the
+  earliest repaint timer / idle refresh (`rui/idle_wait.nim`); idle frames
+  alternate poll / block so raylib's pressed-state is never lost. Measured
+  ~1% of a core with the window idle and ~1 wake-up per timer instead of 60/s.
+  `wakeMainLoop()` (thread-safe) wakes it for a worker that has queued work.
+- [ ] `Link` is not thread-safe: setting one from another thread is unsafe.
+  Needs a main-thread inbox (post a closure, `wakeMainLoop`, run it in `step`).
 
 ---
 
