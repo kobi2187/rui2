@@ -174,6 +174,11 @@ system are designed to stand alone.
 
 ## Documentation
 
+- **[docs/tutorial.md](docs/tutorial.md)** — start here: a counter, a form and a
+  data app, each a real program in `examples/tutorial/`.
+- **[docs/themes.md](docs/themes.md)** and **[docs/preferences.md](docs/preferences.md)**
+  — the author's look, and the user's own settings (keys, motion, scroll speed).
+- **[docs/PERFORMANCE.md](docs/PERFORMANCE.md)** — what it costs, measured.
 - **[ARCHITECTURE.md](ARCHITECTURE.md)** — design philosophy, two-pass
   layout/render, the DSL macros, `Link[T]`, theme system, managers, package graph.
 - **[STATUS.md](STATUS.md)** — honest implementation status: what works, what's a

@@ -128,7 +128,7 @@ if [ "$MODE" = "full" ]; then
   # The slow half, for CI: every example built for real (a `nim check` is not
   # enough: naylib's move-only GPU types only fail in the full build), and the
   # scripted UI run.
-  ls examples/*.nim examples/widgets/*.nim examples/baby/*.nim 2>/dev/null \
+  ls examples/*.nim examples/widgets/*.nim examples/baby/*.nim examples/tutorial/*.nim 2>/dev/null \
     | xargs -P "$JOBS" -I{} bash -c 'example_compile {}' | sort | tally "examples compile"
 
   echo
