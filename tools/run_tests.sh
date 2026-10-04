@@ -66,7 +66,7 @@ unit_test() {
 # A GL-backed check (tests/gl/), on its own display number so they can overlap.
 gl_test() {
   local g="$1" n; n="$(basename "$g" .nim)"
-  if ./tools/gl_test.sh "$g" "$((90 + RANDOM % 8))" >"$LOGS/gl_$n.out" 2>&1; then echo "PASS gl $n"
+  if ./tools/gl_test.sh "$g" >"$LOGS/gl_$n.out" 2>&1; then echo "PASS gl $n"
   else echo "FAIL gl $n"; fi
 }
 
