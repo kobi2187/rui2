@@ -169,8 +169,15 @@ the containers place them. No example writes `bounds` any more.
 - **Done when:** text is sharp on a 2× display and sizes match 1×.
 
 ### 8. Performance you can prove *(medium)*
-- [ ] A benchmark app: 1k/10k widgets, reporting frame time for layout,
-  hit-test and render, with numbers recorded in CI so regressions show.
+- [x] A benchmark (`tools/bench.sh`, `benchmarks/bench.nim`, results and
+  findings in docs/PERFORMANCE.md): 1k/10k widgets, `--gate` fails on a
+  budget breach. Found and fixed a text-measure cache that wiped itself when
+  full (10k layout 164 -> 21 ms).
+- [ ] Run `tools/bench.sh --gate` in CI and record the `--json` line.
+- [ ] Render textures without the unused 32-bit depth buffer (about half the
+  GPU memory per widget).
+- [ ] Widgets taller than the GPU texture limit (16384 px) cannot be cached:
+  tile them, or clip to the viewport.
 - [ ] Incremental hit-testing. `HitTestSystem.updateWidget` exists, but
   `app.rebuildHitTestTree` still clears and rebuilds every frame.
 - [ ] A texture-memory budget. Every widget owns a `RenderTexture2D`, so large
@@ -211,8 +218,8 @@ the containers place them. No example writes `bounds` any more.
 - [ ] A `nimble init`-style app template.
 
 ### 13. Platform integration *(medium)*
-- [ ] Native file dialogs through xdg-desktop-portal / Win32 / Cocoa, keeping
-  the drawn FileDialog as the fallback.
+- ~~Native file dialogs~~ -- decided against: the drawn FileDialog stays, so
+  the look is the same on every platform.
 - [ ] OS drag-and-drop in (`isFileDropped`) wired into `DragDropArea`.
 - [ ] Follow the system dark/light preference and accent colour.
 - [ ] Multiple windows. raylib owns a single window, so this is a backend

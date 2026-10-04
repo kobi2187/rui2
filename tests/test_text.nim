@@ -115,6 +115,24 @@ suite "text: caching":
     check after.measureHits > before.measureHits
     check after.measureEntries >= 1
 
+  test "a hot set survives a stream of other strings":
+    # The old cache wiped itself when full, so the strings in use -- a
+    # layout pass re-measures every widget's text -- were thrown out along
+    # with the rest each time the cap was reached.
+    let saved = maxMeasureEntries
+    defer:
+      maxMeasureEntries = saved
+      clearTextCache()
+    clearTextCache()
+    maxMeasureEntries = 10
+    let hot = @["hot a", "hot b", "hot c"]
+    let before = textCacheStats().measureMisses
+    for round in 0 ..< 30:
+      for w in hot: discard measureTextPango(w, font)
+      discard measureTextPango("cold " & $round, font)   # 30 new strings: 3 generations
+    let s = textCacheStats()
+    check s.measureMisses - before == 3 + 30         # each hot string once, each cold once
+
   test "clearing empties both caches":
     discard measureTextPango("something", font)
     clearTextCache()

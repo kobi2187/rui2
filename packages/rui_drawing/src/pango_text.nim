@@ -102,9 +102,21 @@ var
   # every widget measures itself on every layout pass -- so it gets its own
   # small cache. (The deleted text_cache.nim split these the same way; here the
   # split lives below the TextStyle layer so there is no import cycle.)
+  #
+  # Two generations rather than one table that is wiped when full: a layout
+  # pass walks every string in the UI in the same order each time, and a
+  # wipe-when-full cache is worthless against that once the UI has more
+  # strings than the cap -- every lookup misses, because the entry was
+  # cleared just before its turn came round again. Here a full `measureCache`
+  # becomes `measureOld` (the previous contents are dropped), and a hit in the
+  # old generation is promoted, so what is in use survives and only what has
+  # gone untouched for a whole generation is dropped.
   measureCache: Table[CacheKey, TextMeasure]
+  measureOld: Table[CacheKey, TextMeasure]
   measureHits, measureMisses = 0
-  maxMeasureEntries* = 4000
+  maxMeasureEntries* = 32768
+    ## Per generation. About 100 bytes an entry, so a few MB at most, and a
+    ## 10,000-widget UI fits comfortably.
 
   maxCacheEntries* = 1000
     ## Entry ceiling, matching the old text_cache default.
@@ -124,6 +136,7 @@ proc setFontRenderOptions*(opts: FontRenderOptions) =
   cache.clear()
   cacheMemoryBytes = 0
   measureCache.clear()
+  measureOld.clear()
 
 proc fontRenderOptions*(): FontRenderOptions = renderOptions
 
@@ -200,11 +213,16 @@ proc measure*(text: string, font: string, wrapWidth: int32 = -1,
     inc measureHits
     return measureCache[key]
 
-  inc measureMisses
-  result = measureUncached(text, font, wrapWidth, markup)
+  if measureOld.len > 0 and key in measureOld:
+    inc measureHits
+    result = measureOld[key]
+  else:
+    inc measureMisses
+    result = measureUncached(text, font, wrapWidth, markup)
 
   if measureCache.len >= maxMeasureEntries:
-    measureCache.clear()   # metrics are cheap to recompute
+    swap(measureOld, measureCache)     # the old generation is dropped
+    measureCache.clear()
   measureCache[key] = result
 
 # ---------------------------------------------------------------------------
@@ -432,11 +450,12 @@ proc clearTextCache*() =
   cache.clear()
   cacheMemoryBytes = 0
   measureCache.clear()
+  measureOld.clear()
 
 proc textCacheStats*(): TextureCacheStats =
   TextureCacheStats(entries: cache.len, memoryBytes: cacheMemoryBytes,
                     hits: cacheHits, misses: cacheMisses,
-                    measureEntries: measureCache.len,
+                    measureEntries: measureCache.len + measureOld.len,
                     measureHits: measureHits, measureMisses: measureMisses)
 
 proc textCacheLen*(): int = cache.len
