@@ -564,3 +564,25 @@ metrics:
     let down = b.children[0].bounds
     check up.x == 0 and up.width == 96      # room left for the shadow
     check down.x == 4 and down.y == 4       # moved into it
+
+  test "switching theme at runtime re-measures the same widgets":
+    let saved = currentTheme
+    defer: setCurrentTheme(saved)
+    setCurrentTheme(brandTheme(punchSpec()))
+    let b = newButton(text = "Save")
+    let c = newCheckbox(text = "Remember me")
+    let i = newTextInput()
+    let box = newComboBox(items = @["One", "Two"])
+    let all = [Widget(b), Widget(c), Widget(i), Widget(box)]
+    proc settle() =
+      # What app.setTheme does: forget self-sized bounds and lay out again.
+      for w in all:
+        w.bounds = Rect()
+        w.layout()
+    settle()
+    var fat: seq[float32]
+    for w in all: fat.add w.bounds.height
+    setCurrentTheme(brandTheme(hairlineSpec()))
+    settle()
+    for n, w in all:
+      check w.bounds.height < fat[n]

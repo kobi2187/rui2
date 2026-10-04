@@ -73,6 +73,11 @@ code generation step.
   `brandTheme(BrandSpec(name: "Acme", accent: hex"#E4572E", borderWidth: 3,
   shadow: 4, boldCaptions: true, ...))`, or the same fields in a theme file.
   See `examples/widgets/theme_gallery.nim`.
+
+  | punch (fat) | hairline (lean) |
+  |---|---|
+  | ![punch](docs/theme_punch.png) | ![hairline](docs/theme_hairline.png) |
+
 - **App lifecycle** -- `newApp(title, width, height, fps = 60, resizable = true,
   minWidth = 320, minHeight = 240)`, then `app.setRootWidget(root)` and
   `app.run()`.

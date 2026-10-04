@@ -108,11 +108,11 @@ const
   ThemePadding* = -1.0'f32
     ## The default `padding`: the theme's field inset (its padding + outline).
 
-template fontSizeOf(widget: untyped): float32 =
+template fontSizeOf*(widget: untyped): float32 =
   (if widget.fontSize > 0: widget.fontSize
    else: currentTheme.getThemeProps(widget.intent).fontSize.get(14.0'f32))
 
-template inset(widget: untyped): float32 =
+template inset*(widget: untyped): float32 =
   ## Padding applies only inside a frame; a bare label hugs its text.
   (if not widget.framed: 0.0'f32
    elif widget.padding >= 0: widget.padding

@@ -393,7 +393,7 @@ suite "editing shortcuts":
     let t0 = getMonoTime()
     proc click(dt: int) =
       discard a.handleInput(GuiEvent(kind: evMouseDown,
-        mousePos: Point(x: a.bounds.x + a.padding + 2, y: a.bounds.y + a.padding + 2),
+        mousePos: Point(x: a.bounds.x + a.inset + 2, y: a.bounds.y + a.inset + 2),
         timestamp: t0 + initDuration(milliseconds = dt)))
       discard a.handleInput(GuiEvent(kind: evMouseUp,
         timestamp: t0 + initDuration(milliseconds = dt + 10)))

@@ -155,6 +155,13 @@ SizedBox, Align, Container, Stack/Positioned, Wrap, Table, GridView).
   Row/Column/Flex, Expanded/Flexible/Spacer, Padding, SizedBox,
   ConstrainedBox, Align/Center, Container, Stack/Positioned, Wrap, Table,
   GridView -- restored from the original `modules/layout` design, plus Dock.
+- **Theme geometry.** Themes set stroke width, radius, padding, caption
+  weight/case, a hard drop shadow and control sizes as well as colours and
+  fonts (`BrandSpec`, `ThemeProps`, `Theme.metrics`, theme files); the `punch`
+  (fat) and `hairline` (lean) brands show the range. Honoured so far by
+  Button, TextArea/TextInput, Checkbox, Radio/RadioGroup, Slider,
+  ProgressBar and ComboBox; tabs, group box, lists, menus, tree, table and
+  scrollbar still use fixed geometry (see TODO).
 - **Branded themes.** `brandTheme(BrandSpec)` turns a handful of brand
   choices into a complete theme; eight ship (daylight, midnight, aurora,
   ocean, forest, rose, ember, graphite). The accent now reaches fills,

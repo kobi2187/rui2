@@ -21,7 +21,7 @@ proc themedFieldHeight*(): float32 =
   let line = measureText("Ag", props.captionStyle(BLACK)).height
   max(currentTheme.controlHeight, line + 2 * props.fieldInset)
 
-template closedHeight(w: untyped): float32 =
+template closedHeight*(w: untyped): float32 =
   (if w.boxHeight > 0: w.boxHeight else: themedFieldHeight())
 
 definePrimitive(ComboBox):
