@@ -1,18 +1,29 @@
 # Tests
 
 ```bash
-./tools/run_tests.sh          # everything
-./tools/run_tests.sh     # unit tests only (no display needed)
+./tools/run_tests.sh            # unit tests (one binary) + GL checks: under a minute
+./tools/run_tests.sh isolated   # the same, each test file its own program (to blame one file)
+./tools/run_tests.sh full       # also every example built, and the scripted UI run (CI)
 ```
 
-`run_tests.sh` does three things:
+The default run is meant to be quick enough to run after every change, so it
+does two things:
 
-1. **Unit tests** (`tests/test_*.nim`, std/unittest). No GL context required —
-   layout, binding, theming, hit-testing and text metrics are all CPU-side.
-2. **Example compiles.** A real `nim c`, not `nim check`: naylib's GPU types are
+1. **Unit tests** (`tests/test_*.nim`, std/unittest), compiled into *one*
+   program (a generated `tests/all_unit.nim`) so the toolkit builds once, not
+   once per file. No GL context required -- layout, binding, theming,
+   hit-testing and text metrics are all CPU-side. Tests share one process, so
+   they restore any global they change (`currentTheme`, `prefs`,
+   `animationsEnabled`); `isolated` is the way to rule out a leak.
+2. **GL checks** (`tests/gl/*.nim`), each on its own Xvfb display: culling and
+   the distance-field shader, read back from the GPU.
+
+`full` adds what is slow:
+
+3. **Example compiles.** A real `nim c`, not `nim check`: naylib's GPU types are
    move-only (`=copy` is `{.error.}`) and those failures only appear in a full
    build, so a check-only run passes code that cannot link.
-3. **Scripted UI tests** (`tools/ui_test.sh`) — drives a real window on Xvfb
+4. **Scripted UI tests** (`tools/ui_test.sh`) -- drives a real window on Xvfb
    through the file-based scripting protocol and asserts on the JSON replies.
 
 | File | Covers |
