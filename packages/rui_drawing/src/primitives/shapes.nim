@@ -6,6 +6,7 @@
 import raylib
 import math
 import rui_core
+import sdf
 
 export types
 
@@ -66,6 +67,13 @@ proc drawRoundedRect*(rect: Rect, radius: float32, color: raylib.Color,
   ## Draws a rectangle with rounded corners. An outline sits *inside* the
   ## rectangle, `lineThickness` deep, so a widget's border is not clipped
   ## away by the texture its widget is painted into.
+  const Clear = raylib.Color(r: 0, g: 0, b: 0, a: 0)
+  # Smooth edges by distance field when there is a GL context; the triangle
+  # path below is the fallback (and what headless tests exercise).
+  if filled and drawSdfBox(rect, radius, 0, color, Clear):
+    return
+  if not filled and drawSdfBox(rect, radius, lineThickness, Clear, color):
+    return
   if filled:
     let rec = Rectangle(x: rect.x, y: rect.y, width: rect.width, height: rect.height)
     drawRectangleRounded(rec, roundness(rect, radius), 12, color)
@@ -94,6 +102,8 @@ proc drawBox*(rect: Rect, radius: float32, fill: raylib.Color,
   if rect.width <= 0 or rect.height <= 0:
     return
   let bw = max(0.0'f32, borderWidth)
+  if drawSdfBox(rect, radius, bw, fill, border):
+    return
   if bw <= 0 or border.a == 0:
     if fill.a > 0: drawRoundedRect(rect, radius, fill)
     return
