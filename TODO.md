@@ -269,8 +269,9 @@ the containers place them. No example writes `bounds` any more.
 - [ ] IME pre-edit (composition) display for CJK input. This needs platform
   text-input events that GLFW does not surface, so it probably means SDL3 as
   the backend or a GLFW patch.
-- [ ] Grapheme-cluster caret movement (emoji ZWJ sequences, combining marks),
-  using Pango's cursor-position attributes instead of UTF-8 boundaries.
+- [x] Grapheme-cluster caret movement and deletion (via Pango's log attributes:
+  combining marks, emoji modifiers/ZWJ sequences, flags, Hebrew points, and the
+  per-script Backspace rule). ASCII keeps a one-byte fast path.
 - [ ] BiDi caret movement: visual rather than logical order for Left/Right in
   mixed Hebrew/English text.
 
@@ -383,6 +384,8 @@ set by the *user* in their preferences file (docs/preferences.md), not by apps.
   `.hint("...")` or `.shortcut("Ctrl+S")` (which really activates it);
   `app.bindShortcut` for app-level keys with no widget; `app.addHelp` for
   plain notes; a ? typed into a field is left alone.
+- [ ] Help-overlay visuals (later): hint badges small, emoji-sized, at the top-left
+  of each widget, rather than hanging off an edge.
 - [x] Focus rings while navigating by keyboard: firm round the focused widget,
   softer round its container; gone when the mouse takes over.
 - [ ] Windows/macOS config path check in CI.

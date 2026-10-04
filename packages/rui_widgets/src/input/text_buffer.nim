@@ -18,27 +18,72 @@
 ## land inside a character. `maxLength` counts characters, not bytes.
 
 import std/[unicode, strutils, json]
+from pango_text import charAttrs
 
 proc isContinuation(c: char): bool {.inline.} =
   (ord(c) and 0xC0) == 0x80
 
+proc isAscii(text: string): bool =
+  for c in text:
+    if ord(c) >= 0x80: return false
+  true
+
+# The caret moves over what a person calls a character -- a grapheme cluster:
+# "e" plus a combining accent, a thumbs-up plus a skin tone, a family joined by
+# zero-width joiners, a flag. Pango knows the rules (see pango_text.charAttrs).
+# Plain ASCII, nearly all text, skips the question: one byte is one character,
+# except that CRLF is one.
+
 proc prevBoundary*(text: string, i: int): int =
-  ## The start of the character before byte offset `i`.
+  ## The start of the character (cluster) before byte offset `i`.
   result = clamp(i, 0, text.len)
   if result == 0:
     return
-  dec result
-  while result > 0 and text[result].isContinuation:
+  if text.isAscii:
     dec result
+    if result > 0 and text[result] == '\n' and text[result - 1] == '\r':
+      dec result
+    return
+  let a = charAttrs(text)
+  var k = a.byteAt.high
+  while k > 0 and a.byteAt[k] >= result:
+    dec k                               # the last codepoint that starts before `i`
+  while k > 0 and not a.cursorStop[k]:
+    dec k
+  result = a.byteAt[k]
 
 proc nextBoundary*(text: string, i: int): int =
-  ## The start of the character after the one at byte offset `i`.
+  ## The start of the character (cluster) after the one at byte offset `i`.
   result = clamp(i, 0, text.len)
   if result == text.len:
     return
-  inc result
-  while result < text.len and text[result].isContinuation:
+  if text.isAscii:
     inc result
+    if result < text.len and text[result] == '\n' and text[result - 1] == '\r':
+      inc result
+    return
+  let a = charAttrs(text)
+  var k = 0
+  while k < a.byteAt.high and a.byteAt[k] <= result:
+    inc k                               # the first codepoint that starts after `i`
+  while k < a.byteAt.high and not a.cursorStop[k]:
+    inc k
+  result = a.byteAt[k]
+
+proc backspaceStart*(text: string, i: int): int =
+  ## Where the text Backspace removes begins. Usually the cluster before the
+  ## caret -- but for a combining mark it is just the mark (the accent comes off
+  ## and the letter stays), which is Pango's `backspace_deletes_character`.
+  let at = clamp(i, 0, text.len)
+  if at == 0 or text.isAscii:
+    return prevBoundary(text, at)
+  let a = charAttrs(text)
+  var k = a.byteAt.high
+  while k > 0 and a.byteAt[k] > at:
+    dec k
+  if k > 0 and a.backspaceChar[k]:
+    return a.byteAt[k - 1]
+  prevBoundary(text, at)
 
 proc isTypeable*(r: Rune): bool =
   ## Whether a typed codepoint is text rather than a control character.
@@ -98,7 +143,7 @@ proc backspace*(b: var TextBuffer): bool =
     return true
   if b.cursor <= 0:
     return false
-  let start = prevBoundary(b.text, b.cursor)
+  let start = backspaceStart(b.text, b.cursor)
   b.text = b.text[0 ..< start] & b.text[b.cursor .. ^1]
   b.cursor = start
   true

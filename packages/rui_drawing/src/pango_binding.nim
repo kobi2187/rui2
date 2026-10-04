@@ -225,6 +225,10 @@ proc pangoLayoutSetAutoDir*(l: PangoLayout, autoDir: cint)
 proc pangoLayoutGetLineCount*(l: PangoLayout): cint
   {.importc: "pango_layout_get_line_count", header: pangoHdr.}
 
+proc pangoLayoutGetLogAttrsReadonly*(l: PangoLayout, nAttrs: ptr cint): pointer
+  {.importc: "pango_layout_get_log_attrs_readonly", header: pangoHdr.}
+  ## One PangoLogAttr (a 32-bit set of flags) per character, plus one at the end.
+
 proc pangoLayoutGetCursorPos*(l: PangoLayout, index: cint,
                               strong, weak: ptr PangoRectangle)
   {.importc: "pango_layout_get_cursor_pos", header: pangoHdr.}

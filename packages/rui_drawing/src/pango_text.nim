@@ -226,6 +226,60 @@ proc measure*(text: string, font: string, wrapWidth: int32 = -1,
   measureCache[key] = result
 
 # ---------------------------------------------------------------------------
+# Characters, clusters and where a caret may stand
+# ---------------------------------------------------------------------------
+# What a person calls a character is not a codepoint: "e" + a combining accent,
+# a thumbs-up + a skin-tone modifier, a family joined by zero-width joiners and
+# a flag made of two regional indicators are each one thing to move over and
+# delete. Pango knows the Unicode rules (UAX #29) and the per-script exceptions,
+# so the editing code asks it rather than carrying tables of its own.
+
+type
+  CharAttrs* = object
+    ## Per codepoint of a string (and one more for its end).
+    byteAt*: seq[int]          ## byte offset of each codepoint, then text.len
+    cursorStop*: seq[bool]     ## a caret may stand before this codepoint
+    backspaceChar*: seq[bool]  ## Backspace removes just the codepoint before it,
+                               ## not the whole cluster (a combining mark, say)
+
+const
+  LogAttrCursorPosition = 1'u32 shl 4
+  LogAttrBackspaceChar = 1'u32 shl 10
+
+var
+  attrsText: string
+  attrsCache: CharAttrs
+
+proc charAttrs*(text: string): CharAttrs =
+  ## Cluster information for `text`. The last answer is kept: typing asks about
+  ## the same string several times per key.
+  if attrsCache.byteAt.len > 0 and attrsText == text:
+    return attrsCache
+  var offsets: seq[int]
+  var i = 0
+  while i < text.len:
+    offsets.add i
+    inc i
+    while i < text.len and (ord(text[i]) and 0xC0) == 0x80: inc i
+  offsets.add text.len
+  result.byteAt = offsets
+  result.cursorStop = newSeq[bool](offsets.len)
+  result.backspaceChar = newSeq[bool](offsets.len)
+  if text.len == 0:
+    result.cursorStop[0] = true
+  else:
+    ensureMeasureCtx()
+    withLayout("Sans 12", -1, false, measureCtx, text):
+      var n: cint
+      let attrs = cast[ptr UncheckedArray[uint32]](
+        pangoLayoutGetLogAttrsReadonly(layout, addr n))
+      for k in 0 ..< min(int(n), offsets.len):
+        result.cursorStop[k] = (attrs[k] and LogAttrCursorPosition) != 0
+        result.backspaceChar[k] = (attrs[k] and LogAttrBackspaceChar) != 0
+  attrsText = text
+  attrsCache = result
+
+# ---------------------------------------------------------------------------
 # Cursor geometry and hit testing (for editable text)
 # ---------------------------------------------------------------------------
 proc cursorPosition*(text, font: string, byteIndex: int,
