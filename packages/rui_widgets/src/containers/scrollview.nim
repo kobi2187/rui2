@@ -71,6 +71,15 @@ defineWidget(ScrollView):
     contentHeight: float
 
   layout:
+    # Keep the offset inside what the content allowed last time *before* the
+    # children are placed by it; clamping afterwards left them at a stale
+    # offset for a frame, and one beyond the end placed them off the screen.
+    let before = scrollBarsFor(widget.extent)
+    widget.scrollOffsetX = clamp(widget.scrollOffsetX, 0.0f,
+                                 widget.extent.maxScrollX(before))
+    widget.scrollOffsetY = clamp(widget.scrollOffsetY, 0.0f,
+                                 widget.extent.maxScrollY(before))
+
     # Calculate total content size from children
     var maxX = 0.0f
     var maxY = 0.0f
@@ -84,8 +93,13 @@ defineWidget(ScrollView):
       child.layout()
 
       # Track content bounds
-      let childRight = child.bounds.x + child.bounds.width - widget.bounds.x + widget.padding
-      let childBottom = child.bounds.y + child.bounds.height - widget.bounds.y + widget.padding
+      # In the content's own coordinates: the scroll offset is added back, or
+      # the content would measure shorter the further it was scrolled, and the
+      # end would slide out of reach.
+      let childRight = child.bounds.x + widget.scrollOffsetX + child.bounds.width -
+                       widget.bounds.x + widget.padding
+      let childBottom = child.bounds.y + widget.scrollOffsetY + child.bounds.height -
+                        widget.bounds.y + widget.padding
 
       if childRight > maxX:
         maxX = childRight

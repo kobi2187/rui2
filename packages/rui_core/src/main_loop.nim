@@ -10,7 +10,7 @@
 ## - Cached Texture2D is reused when widget is clean
 
 import types
-import std/[algorithm, math]
+import std/[algorithm, math, options]
 import raylib
 import rlgl
 from rlgl import setBlendFactorsSeparate, BlendFactor, BlendFuncOrEq
@@ -177,12 +177,13 @@ proc anyChildLayoutDirty*(widget: Widget): bool =
   return false
 
 proc anyChildDirty*(widget: Widget): bool =
-  ## Check if any child (recursively) needs rendering
+  ## Check if any child (recursively) needs rendering. A culled subtree is off
+  ## screen, so its dirt does not count: it is painted when it comes into view.
   if widget.isDirty:
     return true
 
   for child in widget.children:
-    if child.anyChildDirty():
+    if not child.culled and child.anyChildDirty():
       return true
 
   return false
@@ -273,31 +274,67 @@ proc layoutPass*(widget: Widget) =
 # Pass 2: Render
 # ============================================================================
 
-proc renderPass*(widget: Widget)
+var renderView*: Option[Rect]
+  ## What is on screen, in the same (absolute) space as widget bounds. The App
+  ## sets it each frame. While it is set, widgets wholly outside it -- and
+  ## outside every scroll area's viewport on the way down -- are not painted.
+  ## `none` paints everything, which is what tests and benchmarks of the full
+  ## pipeline want.
 
-proc renderChildrenFirst(widget: Widget) =
+proc overlapsView*(bounds, view: Rect): bool =
+  ## Whether `bounds` touches `view` at all. Edges that merely meet do not.
+  bounds.x < view.x + view.width and bounds.x + bounds.width > view.x and
+  bounds.y < view.y + view.height and bounds.y + bounds.height > view.y
+
+proc renderPassIn(widget: Widget, view: Option[Rect]): bool
+
+proc renderChildrenFirst(widget: Widget, view: Option[Rect]): bool =
   ## Bottom-up: a parent composites its children's cached textures, so those
-  ## have to exist before it paints.
+  ## have to exist before it paints. Returns whether any descendant came back
+  ## into view, in which case this widget has to composite again even though
+  ## nothing in it changed.
   ##
   ## An overlay parent sorts by zIndex, which is how a MenuBar's dropdown paints
   ## over the controls that follow it in the child list. Only when it says so --
   ## sorting every container every frame would cost more than it buys.
+  ##
+  ## Culling: what the children can show is `view` cut down by this widget's
+  ## own viewport (a ScrollView's `childClip`, which is widget-local, so it is
+  ## moved to absolute space here).
+  var childView = view
+  if view.isSome and widget.childClip.isSome:
+    let c = widget.childClip.get()
+    childView = some(intersect(view.get(),
+      Rect(x: widget.bounds.x + c.x, y: widget.bounds.y + c.y,
+           width: c.width, height: c.height)))
+
+  template visit(child: Widget) =
+    if childView.isSome and child.visible and
+       not overlapsView(child.bounds, childView.get()):
+      child.culled = true
+    else:
+      if child.culled:
+        child.culled = false
+        result = true                  # back in view: re-composite it
+      if renderPassIn(child, childView):
+        result = true
+
   if widget.hasOverlay and widget.children.len > 1:
     var sortedChildren = widget.children
     sortedChildren.sort(proc(a, b: Widget): int =
       cmp(a.zIndex, b.zIndex))          # Ascending: lower z-index renders first
     for child in sortedChildren:
-      child.renderPass()
+      visit(child)
   else:
     for child in widget.children:
-      child.renderPass()
+      visit(child)
 
 proc compositeChildren(widget: Widget, originalX, originalY: float32) =
   ## Blit each child's cached texture into this widget's, in coordinates
   ## relative to this widget's top-left -- which is where bounds.x/y have been
   ## zeroed to for the duration.
   for child in widget.children:
-    if not child.visible or child.cachedTexture.isNone:
+    if not child.visible or child.culled or child.cachedTexture.isNone:
       continue
     let dest = Rect(x: child.bounds.x - originalX,
                     y: child.bounds.y - originalY,
@@ -336,17 +373,26 @@ proc renderToTexture(widget: Widget) =
   widget.cachedTexture = some(renderTex)
   widget.isDirty = false
 
-proc renderPass*(widget: Widget) =
+proc renderPassIn(widget: Widget, view: Option[Rect]): bool =
   ## Render dirty widgets to textures, bottom-up.
   ##
   ## A clean widget keeps the texture it already has, which is the whole point
   ## of the cache: only what changed is repainted, and its ancestors re-composite
-  ## from textures rather than re-drawing subtrees.
+  ## from textures rather than re-drawing subtrees. The result says whether a
+  ## widget below came back into view (see renderChildrenFirst).
   if not widget.visible:
-    return
-  renderChildrenFirst(widget)
+    return false
+  let revealed = renderChildrenFirst(widget, view)
+  if revealed:
+    widget.isDirty = true
   if widget.isDirty:
     renderToTexture(widget)
+  revealed
+
+proc renderPass*(widget: Widget) =
+  ## Render dirty widgets to textures, bottom-up, skipping what is off screen
+  ## when `renderView` is set. The root is never culled.
+  discard renderPassIn(widget, renderView)
 
 # ============================================================================
 # Main Frame Function

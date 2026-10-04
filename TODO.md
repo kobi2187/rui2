@@ -27,7 +27,11 @@ gate. The gaps below are what stands between that and Qt/Flutter-level trust.
    identical on every platform.
 5. **Open to new widgets.** Innovate freely: nothing has to copy a platform
    widget. Tons of widgets in the box.
-6. **The DSL is the API, and it stays transparent.** `ui:` is plain sugar over
+6. **Lean on raylib.** It is a game engine: batching, double buffering,
+   shaders, render textures, MSAA, texture filtering, event waiting. Reuse
+   what it has before writing our own (what it does *not* cull or smooth for
+   us is listed under #8 and #18). Animation and effects use it directly.
+7. **The DSL is the API, and it stays transparent.** `ui:` is plain sugar over
    constructors, props are named and typed, there is no hidden state. A new
    user should be able to read an example and write the next one.
 
@@ -157,6 +161,17 @@ the containers place them. No example writes `bounds` any more.
   were measured at 9 px and drawn at the theme's ~14 px, and the bar forced
   its 32 px height on 43 px buttons. Both fixed.
 
+### 5a. Themes: one obvious format, real inheritance *(next)*
+- [ ] Audit the theme file format and write it down (docs/themes.md): the
+  fields, the `brand:` shortcut, `extends`, and how overrides merge. One
+  worked example per case; every key validated, with an error that names the
+  file, the key and the allowed values.
+- [ ] Inheritance you can see: `extends: daylight` for a file, `theme.derive(
+  "acme") with ...` in code; chains (A extends B extends C), cycles detected,
+  and `describe(theme)` printing what each level changed.
+- [ ] A theme set in code and a theme in a file are the same thing, and
+  round-trip: `theme.toYaml()` writes what `parseTheme` reads.
+
 ### 5b. Branded themes ✅ *(follow-ups open)*
 - [x] `brandTheme(BrandSpec)` (`rui_drawing/brand_themes.nim`): accent,
   canvas, surface, text, border, radius, font in; a complete theme out --
@@ -198,6 +213,17 @@ the containers place them. No example writes `bounds` any more.
   GPU memory per widget; full repaint of 1k widgets 22 -> 13 ms).
 - [ ] Widgets taller than the GPU texture limit (16384 px) cannot be cached:
   tile them, or clip to the viewport.
+- [x] Viewport culling: widgets wholly outside the window and every scroll
+  viewport are skipped, and painted when scrolled in (`renderView`,
+  `Widget.culled`; GL-checked in tests/gl/culling.nim). 10,000 widgets:
+  full repaint 877 -> 4 ms. Layout and hit-testing are not culled yet.
+- [ ] What raylib already does, and what it does not. It batches draw calls
+  (so fewer texture switches is faster: draw cheap leaves straight into
+  their parent instead of caching each), double-buffers, and clips to the
+  framebuffer. It does *not* cull 2D draws, and its BeginScissorMode is wrong
+  inside render textures (see scrollview.nim), which is why culling is ours.
+  Idle waiting stays a sleep: raylib's EnableEventWaiting blocks with no
+  timeout, so it would starve repaint timers (caret blink) and animations.
 - [ ] Incremental hit-testing. `HitTestSystem.updateWidget` exists, but
   `app.rebuildHitTestTree` still clears and rebuilds every frame.
 - [ ] A texture-memory budget. Every widget owns a `RenderTexture2D`, so large
@@ -206,7 +232,15 @@ the containers place them. No example writes `bounds` any more.
 - [ ] Clip and cull children outside the viewport before layout and render,
   not only at composite time.
 
-### 9. Animation *(medium; needs #4)*
+### 9. Animation and effects *(medium; needs #4; built on raylib)*
+- [ ] Rounded corners and edges that are actually smooth. Today they are
+  triangle fans with a fixed segment count, aliased inside widget textures
+  (the default framebuffer's MSAA does not reach them). A signed-distance
+  shader for rounded boxes -- fill, border, soft shadow, glow, blur --
+  gives crisp edges at any radius and one draw call per box.
+- [ ] Effects through raylib shaders (drop shadow, glow, blur, gradient,
+  frosted glass), exposed as theme tokens and a small `Effect` set a widget
+  can opt into, never as per-widget GL code.
 - [ ] `Animated[T]`: a Link that tweens toward its target with easing curves,
   keeping the loop awake only while it runs.
 - [ ] Theme-level transitions for hover/press/focus colour changes, so state
@@ -310,3 +344,17 @@ Deferred by the project owner: important eventually, not now.
 #2 and #4 are small and unblock the most. #1 is the one architectural change
 left, and it is cheaper now than after more widgets are written against the
 `<= 0` idiom.
+
+
+### 18. Keyboard navigation you can rebind *(medium)*
+Today Tab walks focus. The intended model has two axes, on two different
+keys, both configurable:
+- [ ] **Within a container** -- move between its widgets (default: Tab /
+  Shift+Tab, or arrows in a group).
+- [ ] **Between containers** -- jump from one container (focus group) to the
+  next (default: F6 / Shift+F6, or Ctrl+Tab).
+- [ ] A `KeyMap` the app owns: `app.keys.bind(NextInGroup, Key.Tab)`,
+  `app.keys.bind(NextGroup, Key.F6)`, several keys per action, loadable from
+  the same YAML as themes, with a conflict check.
+- [ ] Containers declare themselves as groups in the DSL
+  (`Column(focusGroup = true)`), so the two axes are obvious from the tree.

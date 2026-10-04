@@ -70,6 +70,12 @@ if [ "$MODE" != "unit" ]; then
     # compiles in the read-only `inspect` verb. Both are test-only
     # on purpose: scripting is otherwise semantic (address a control, operate
     # it) rather than input emulation, and an ordinary build leaves it out.
+    # GL-backed checks (tests/gl/): a real window, read back from the GPU.
+    for g in tests/gl/*.nim; do
+      n="$(basename "$g" .nim)"
+      step "gl $n" ./tools/gl_test.sh "$g"
+    done
+
     if nim c $NIMFLAGS -d:ruiTestKeys -d:ruiInspect examples/pango_showcase.nim >/tmp/rt_build.log 2>&1; then
       if ./tools/ui_test.sh ./examples/pango_showcase >/tmp/rt_ui.log 2>&1; then
         grep -E "PASS|FAIL" /tmp/rt_ui.log | sed 's/^/  /'

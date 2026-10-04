@@ -480,6 +480,10 @@ proc updateLayoutAndRender(app: App): bool =
   if app.tree.root == nil:
     return false
   app.refreshLayout()
+  # What the window shows: anything wholly outside it is not painted until it
+  # scrolls into view.
+  renderView = some(Rect(x: 0, y: 0, width: getScreenWidth().float32,
+                         height: getScreenHeight().float32))
   if app.tree.root.isDirty or app.tree.root.anyChildDirty():
     app.tree.root.renderPass()
     result = true

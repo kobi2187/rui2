@@ -18,6 +18,7 @@
 ##   hit-test build  the hit-test system rebuilt from the tree (per layout)
 ##   hit-test query  one pointer lookup
 ##   render (full)   every widget repainted into its texture
+##   render (visible) the same, culled to what a 1200x800 window shows
 ##   render (1 leaf) one label repainted and its ancestors re-composited
 ##   idle frame      a frame in which nothing changed
 ##
@@ -131,6 +132,14 @@ proc runSize(n: int): tuple[rows: seq[Row], nodes: int, texMB: float] =
   rows.add ("render (full)", timeit(runs) do:
     markAllDirty(root)
     root.renderPass())
+
+  # The same repaint with only the window's worth on screen: what an app
+  # that has the whole UI laid out but scrolled to the top actually pays.
+  renderView = some(Rect(x: 0, y: 0, width: 1200, height: 800))
+  rows.add ("render (visible)", timeit(runs) do:
+    markAllDirty(root)
+    root.renderPass())
+  renderView = none(Rect)
 
   rows.add ("render (1 leaf)", timeit(runs * 3) do:
     inc round

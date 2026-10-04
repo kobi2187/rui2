@@ -177,6 +177,10 @@ type
     cursorShape*: CursorShape
       ## The pointer shape while hovering this widget. `csDefault` defers to
       ## the parent, so a composite sets it once for all its parts.
+    culled*: bool
+      ## Set by the render pass while the widget is wholly outside what is on
+      ## screen: it is skipped, not painted, and keeps whatever dirt it has
+      ## until it scrolls into view.
     flexLoose*: bool
       ## Flexible's `FlexFit.loose`: take at most the flex share, not exactly it.
     flexGrow*: float32

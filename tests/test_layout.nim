@@ -481,3 +481,38 @@ suite "size requests are honoured by layout":
     r.layout()
     r.layout()
     check r.bounds.width == 50.0 and r.bounds.height == 20.0
+
+suite "ScrollView: content extent does not depend on the scroll position":
+
+  proc tall(): ScrollView =
+    let sv = newScrollView()
+    let col = newVStack(spacing = 0.0)
+    for i in 0 ..< 40:
+      col.addChild newPadding(padding = EdgeInsets.symmetric(vertical = 10))
+    sv.addChild col
+    sv.bounds = Rect(x: 0, y: 0, width: 300, height: 200)
+    sv.layout()
+    sv
+
+  test "the content measures the same however far it is scrolled":
+    let sv = tall()
+    let full = sv.contentHeight
+    check full >= 800.0
+    sv.scrollOffsetY = 300
+    sv.layout()
+    check sv.contentHeight == full           # it used to shrink by the offset
+
+  test "the last row can be reached":
+    let sv = tall()
+    sv.scrollOffsetY = 1_000_000
+    sv.layout()
+    check sv.scrollOffsetY > 500.0           # clamped to the end, not to ~half
+    let last = sv.children[0].children[^1]
+    check last.bounds.y + last.bounds.height <= 200.0 + 0.5   # at the viewport's bottom
+
+  test "children are placed by the clamped offset, in the same pass":
+    let sv = tall()
+    sv.scrollOffsetY = 1_000_000
+    sv.layout()
+    let first = sv.children[0]
+    check first.bounds.y == sv.bounds.y + sv.padding - sv.scrollOffsetY
