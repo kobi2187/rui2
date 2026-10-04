@@ -502,8 +502,8 @@ definePrimitive(TextArea):
       of Left, Right, Home, End:
         let line = lineOf(widget.text, widget.cursorPos)
         let target = case event.key
-                     of Left: prevBoundary(widget.text, widget.cursorPos)
-                     of Right: nextBoundary(widget.text, widget.cursorPos)
+                     of Left: stepCaret(widget.text, widget.cursorPos, -1)
+                     of Right: stepCaret(widget.text, widget.cursorPos, 1)
                      of Home: lineStarts(widget.text)[line]
                      else: lineEnd(widget.text, line)
         widget.edit: buf.moveCursor(target, extend = shiftDown)

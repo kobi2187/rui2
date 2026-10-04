@@ -272,8 +272,9 @@ the containers place them. No example writes `bounds` any more.
 - [x] Grapheme-cluster caret movement and deletion (via Pango's log attributes:
   combining marks, emoji modifiers/ZWJ sequences, flags, Hebrew points, and the
   per-script Backspace rule). ASCII keeps a one-byte fast path.
-- [ ] BiDi caret movement: visual rather than logical order for Left/Right in
-  mixed Hebrew/English text.
+- [x] BiDi caret movement: Left/Right move on screen (Pango's visual cursor
+  motion) in lines with right-to-left text; LTR text keeps the fast path.
+  Home/End and Shift-selection across directions stay logical for now.
 
 ### 12. Developer experience *(medium)*
 - [ ] An in-app inspector overlay (F12): the widget tree, bounds, dirty flags

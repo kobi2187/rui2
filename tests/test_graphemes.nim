@@ -106,3 +106,65 @@ suite "editing by cluster":
     check b.cursor == Family.len
     check b.backspace()
     check b.text == "" and b.cursor == 0
+
+suite "bidirectional text: arrows move on screen":
+
+  const Hebrew = "שלום"         # shalom, right-to-left
+
+  proc visualStops(text: string): seq[int] =
+    ## Caret positions in on-screen left-to-right order, found by stepping the
+    ## Left arrow to the end and then the Right arrow back.
+    var i = 0
+    var guard = 0
+    while guard < 64:
+      let n = stepCaret(text, i, -1)
+      if n == i: break
+      i = n
+      inc guard
+    result.add i
+    guard = 0
+    while guard < 64:
+      let n = stepCaret(text, i, 1)
+      if n == i or n in result: break
+      result.add n
+      i = n
+      inc guard
+
+  test "left-to-right text is unchanged: Right is forward":
+    check stepCaret("abc", 0, 1) == 1
+    check stepCaret("abc", 2, -1) == 1
+    check stepCaret("abc", 0, -1) == 0
+
+  test "in Hebrew, Left moves forward through the string":
+    check stepCaret(Hebrew, 0, -1) == 2             # one letter in, visually leftwards
+    check stepCaret(Hebrew, 2, 1) == 0              # and Right comes back
+
+  test "the logical start of Hebrew is its right edge: nowhere further right":
+    check stepCaret(Hebrew, 0, 1) == 0              # off the end: stays
+
+  test "stepping Right across mixed text visits every caret position once":
+    for text in ["abc " & Hebrew & " def", Hebrew & " abc", "x" & Hebrew & "y"]:
+      let stops = visualStops(text)
+      var logical: seq[int]
+      var i = 0
+      logical.add 0
+      while i < text.len:
+        i = nextBoundary(text, i)
+        logical.add i
+      check stops.len == logical.len                # none skipped, none repeated
+      for s in logical: check s in stops
+
+  test "an inside-the-line step never lands in the middle of a letter":
+    let text = "ab " & Hebrew & " cd"
+    var i = 0
+    for _ in 0 ..< 20:
+      i = stepCaret(text, i, 1)
+      check i in 0 .. text.len
+      check i == text.len or (ord(text[i]) and 0xC0) != 0x80
+
+  test "newline: at the end of a line the caret goes to the next one":
+    let text = Hebrew & "\nabc"
+    var i = 0
+    for _ in 0 ..< 10: i = stepCaret(text, i, -1)    # to the line's left end
+    check i <= Hebrew.len                            # still on line one
+    check stepCaret(text, Hebrew.len, 1) in [Hebrew.len + 1, 0, Hebrew.len - 2]

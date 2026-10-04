@@ -17,8 +17,8 @@
 ## the caret takes goes through `prevBoundary` / `nextBoundary`, which never
 ## land inside a character. `maxLength` counts characters, not bytes.
 
-import std/[unicode, strutils, json]
-from pango_text import charAttrs
+import std/[unicode, strutils, json, options]
+from pango_text import charAttrs, hasRtl, moveCaretVisually
 
 proc isContinuation(c: char): bool {.inline.} =
   (ord(c) and 0xC0) == 0x80
@@ -69,6 +69,48 @@ proc nextBoundary*(text: string, i: int): int =
   while k < a.byteAt.high and not a.cursorStop[k]:
     inc k
   result = a.byteAt[k]
+
+proc isRtlLine(line: string): bool =
+  ## The line's base direction, from its first strong letter (what Pango's
+  ## auto-direction does): right to left if that letter is Hebrew, Arabic, ...
+  var i = 0
+  while i < line.len:
+    var r: Rune
+    fastRuneAt(line, i, r)
+    if r.int < 0x80:
+      if (r.int >= 0x41 and r.int <= 0x5A) or (r.int >= 0x61 and r.int <= 0x7A):
+        return false
+      continue
+    return ($r).hasRtl                       # any other letter reads left to right
+
+proc stepCaret*(text: string, cursor, direction: int): int =
+  ## Where the Left (`direction` -1) or Right (+1) arrow puts the caret.
+  ##
+  ## Plain left-to-right text steps by cluster in logical order. A line with
+  ## Hebrew, Arabic or another right-to-left script moves *on screen*, which in
+  ## mixed text is not the order of the string: Pango decides, within the line.
+  ## At the end of a line on screen the caret stays, unless that end is also the
+  ## line's logical end, in which case it goes on to the neighbouring line --
+  ## after the line's last character for an arrow pointing the way the line
+  ## reads, before its first for the other.
+  if not text.hasRtl:
+    return if direction < 0: prevBoundary(text, cursor) else: nextBoundary(text, cursor)
+  var a = cursor                                 # the line round the caret
+  while a > 0 and text[a - 1] != '\n': dec a
+  var z = cursor
+  while z < text.len and text[z] != '\n': inc z
+  let line = text[a ..< z]
+  let moved = moveCaretVisually(line, cursor - a, direction)
+  if moved.isSome:
+    return a + moved.get
+  # Off an end of the line on screen. In a right-to-left line the left end is
+  # the logical end, so Left reads "forward" there.
+  let logicalDir = if line.isRtlLine: -direction else: direction
+  if logicalDir < 0 and cursor == a:
+    return prevBoundary(text, cursor)
+  if logicalDir > 0 and cursor == z:
+    return nextBoundary(text, cursor)
+  cursor
 
 proc backspaceStart*(text: string, i: int): int =
   ## Where the text Backspace removes begins. Usually the cluster before the

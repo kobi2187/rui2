@@ -28,7 +28,7 @@
 ##    premultiplied; the old `extractARGB` copied the bytes straight out, which
 ##    darkens every partially transparent pixel.
 
-import std/[tables, hashes, math]
+import std/[tables, hashes, math, unicode, options]
 import std/times as stdtimes  # raylib also exports stdtimes.getTime()
 import raylib
 import pango_binding
@@ -278,6 +278,44 @@ proc charAttrs*(text: string): CharAttrs =
         result.backspaceChar[k] = (attrs[k] and LogAttrBackspaceChar) != 0
   attrsText = text
   attrsCache = result
+
+proc hasRtl*(text: string): bool =
+  ## Whether `text` has anything written right to left (Hebrew, Arabic, Syriac,
+  ## Thaana and their presentation forms, or an explicit direction mark). Text
+  ## without any needs no visual-order handling at all.
+  var i = 0
+  while i < text.len:
+    let c = ord(text[i])
+    if c < 0xD6:
+      inc i                                    # ASCII and Latin-1: never RTL
+      continue
+    var r: Rune
+    fastRuneAt(text, i, r)
+    let cp = int(r)
+    if cp in 0x0590 .. 0x08FF or cp in 0xFB1D .. 0xFDFF or cp in 0xFE70 .. 0xFEFF or
+       cp in 0x200F .. 0x200F or cp in 0x202B .. 0x202E or cp in 0x2067 .. 0x2067 or
+       cp in 0x10800 .. 0x10FFF or cp in 0x1E800 .. 0x1EFFF:
+      return true
+
+proc moveCaretVisually*(text: string, index: int, direction: int): Option[int] =
+  ## One step left (-1) or right (+1) *on screen* from byte `index`. In text that
+  ## mixes directions this differs from the logical order: in Hebrew, Right
+  ## moves backwards through the string. `none` when there is nowhere further to
+  ## go in that direction (the end of the line on screen).
+  if text.len == 0:
+    return
+  ensureMeasureCtx()
+  withLayout("Sans 12", -1, false, measureCtx, text):
+    var newIndex, newTrailing: cint
+    pangoLayoutMoveCursorVisually(layout, 1, index.cint, 0, direction.cint,
+                                  addr newIndex, addr newTrailing)
+    if newIndex < 0 or newIndex > text.len:
+      return none(int)
+    var pos = int(newIndex)
+    for _ in 0 ..< int(newTrailing):          # trailing = characters past the index
+      inc pos
+      while pos < text.len and (ord(text[pos]) and 0xC0) == 0x80: inc pos
+    return some(pos)
 
 # ---------------------------------------------------------------------------
 # Cursor geometry and hit testing (for editable text)
