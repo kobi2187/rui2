@@ -91,19 +91,13 @@ proc collectHints*(root: Widget): seq[HintMark] =
 
 proc placeBadge*(target: Rect, size: Size, within: Rect,
                  taken: openArray[Rect] = []): Rect =
-  ## Where a badge of `size` goes for a widget at `target`: hanging off its
-  ## bottom-left edge (overlapping it a little, so it reads as attached, but
-  ## clear of the label in the middle) -- or, for a wide widget, on its top-right
-  ## edge --, kept inside `within`, and moved down
-  ## past any badge already placed there so neighbouring hints never sit on
-  ## each other.
-  result = Rect(x: target.x + 4, y: target.y + target.height - size.height * 0.3,
+  ## Where a badge of `size` goes for a widget at `target`: centred on its
+  ## top-right corner, like a sign post planted there -- off the label, and clear
+  ## of the widget's own content. Kept inside `within`, and moved down past any
+  ## badge already placed there so neighbouring hints never sit on each other.
+  result = Rect(x: target.x + target.width - size.width / 2,
+                y: target.y - size.height / 2,
                 width: size.width, height: size.height)
-  if target.width >= size.width * 2.5:
-    # A wide widget (a field, a slider): sit on its top-right edge instead, so
-    # the badge does not land on whatever is below it.
-    result.x = target.x + target.width - size.width - 8
-    result.y = target.y - size.height * 0.5
   for _ in 0 ..< 8:
     var moved = false
     for t in taken:

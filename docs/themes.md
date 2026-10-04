@@ -77,6 +77,15 @@ text (`fontFamily fontWeight uppercase`), `padding` (`all`, `horizontal` /
 `vertical`, or `left top right bottom`), and effects (`bevelStyle
 gradientDirection`).
 
+`hint:` styles the help overlay's hint badges (F1 or `?`). By default they are
+a sign post planted on each widget's top-right corner: yellow, a thick dark
+border, small uppercase monospace type. Any of `background foreground border
+borderWidth fontSize fontFamily uppercase` can be overridden:
+
+```yaml
+hint: {background: "#00AAFF", borderWidth: 4, uppercase: false}
+```
+
 `metrics:` holds control geometry that is not per intent: `controlHeight
 indicatorSize trackThickness thumbSize progressHeight rowHeight
 scrollbarThickness`.

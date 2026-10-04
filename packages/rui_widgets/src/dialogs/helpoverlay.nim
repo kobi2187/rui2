@@ -28,16 +28,17 @@ definePrimitive(HelpOverlay):
     let props = widget.themeProps(widget.intent)
     let ink = props.foregroundColor.get(BLACK)
     let surface = props.backgroundColor.get(WHITE)
-    let accent = props.activeColor.get(ink)
-    let onAccent = currentTheme.getThemeProps(ThemeIntent.Info).foregroundColor.get(WHITE)
     var line = props.captionStyle(ink)
     line.fontSize = max(11.0'f32, line.fontSize - 2)    # a slim bar: it covers the app's top
     var strong = props.captionStyle(ink, action = true)
     strong.bold = true
     strong.fontSize = line.fontSize
-    var badgeStyle = props.captionStyle(onAccent, action = true)
-    badgeStyle.bold = true
-    badgeStyle.fontSize = max(11.0'f32, badgeStyle.fontSize - 1)
+    # The hint badges: a sign post. The theme says how (yellow, thick border,
+    # small uppercase monospace unless it says otherwise).
+    let look = currentTheme.hintLook
+    let badgeStyle = TextStyle(fontFamily: look.fontFamily, fontSize: look.fontSize,
+                               color: look.foreground, bold: true, italic: false,
+                               underline: false)
     let pad = props.fieldInset
     let lineH = measureText("Ag", line).height
     let w = widget.bounds.width
@@ -82,17 +83,16 @@ definePrimitive(HelpOverlay):
       drawRow(r, y)
       y += rowH
 
-    # A badge beside each widget with a shortcut.
+    # A badge on the top-right corner of each widget that has a hint.
     var placed: seq[Rect]
     for hint in widget.hints:
-      drawBox(Rect(x: hint.target.x - 2, y: hint.target.y - 2,
-                   width: hint.target.width + 4, height: hint.target.height + 4),
-              props.cornerRadius.get(4.0) + 2, Color(r: 0, g: 0, b: 0, a: 0), accent, 2)
-      let tw = measureText(hint.keys, badgeStyle).width
+      let text = if look.uppercase: hint.keys.toUpperAscii else: hint.keys
+      let tw = measureText(text, badgeStyle).width
       let th = measureText("Ag", badgeStyle).height
-      let spot = placeBadge(hint.target, Size(width: tw + 16, height: th + 8),
-                            Rect(x: 4, y: bar.height + 2, width: w - 8,
-                                 height: widget.bounds.height - bar.height - 6), placed)
+      let pad = 5.0'f32 + look.borderWidth
+      let spot = placeBadge(hint.target, Size(width: tw + pad * 2, height: th + pad),
+                            Rect(x: 2, y: bar.height + 2, width: w - 4,
+                                 height: widget.bounds.height - bar.height - 4), placed)
       placed.add spot
-      drawBox(spot, spot.height / 2, accent, surface, 2)
-      drawStyledText(hint.keys, spot.x + 8, spot.y + 4, badgeStyle)
+      drawBox(spot, 3, look.background, look.border, look.borderWidth)
+      drawStyledText(text, spot.x + pad, spot.y + (spot.height - th) / 2, badgeStyle)

@@ -138,6 +138,14 @@ type
     
 
     
+  HintStyle* = object
+    ## How the help overlay's hint badges look. Every field is optional; what a
+    ## theme leaves out is the default sign-post look (see `hintLook`).
+    background*, foreground*, border*: Option[Color]
+    borderWidth*, fontSize*: Option[float32]
+    fontFamily*: Option[string]
+    uppercase*: Option[bool]
+
   ControlMetrics* = object
     ## The geometry of controls that is not a per-intent colour or stroke: how
     ## tall a control is, how big a check box's square, how thick a slider's
@@ -173,6 +181,7 @@ type
     metadata*: ThemeMetadata              # Brand info
 
     metrics*: ControlMetrics              # Control geometry
+    hint*: HintStyle                      # Help-overlay hint badges
 
     statePreference*: array[ControlRole, StatePreference]
       ## Hover-or-focus-first, per control role. Read on every lookup from the
@@ -216,6 +225,26 @@ proc barHeight*(theme: Theme, legacy: float32): float32 =
   ## grown to the theme's control height so a bold brand's bars keep pace
   ## with its buttons.
   max(legacy, theme.controlHeight)
+
+type HintLook* = object
+  ## A hint badge's look with every default filled in.
+  background*, foreground*, border*: Color
+  borderWidth*, fontSize*: float32
+  fontFamily*: string
+  uppercase*: bool
+
+proc hintLook*(theme: Theme): HintLook =
+  ## Hint badges read like a sign post by default: yellow, a thick dark border,
+  ## small uppercase monospace type. A theme may change any part of that.
+  let h = theme.hint
+  HintLook(
+    background: h.background.get(Color(r: 255, g: 212, b: 0, a: 255)),
+    foreground: h.foreground.get(Color(r: 17, g: 17, b: 17, a: 255)),
+    border: h.border.get(Color(r: 17, g: 17, b: 17, a: 255)),
+    borderWidth: h.borderWidth.get(2.5'f32),
+    fontSize: h.fontSize.get(11.0'f32),
+    fontFamily: h.fontFamily.get("Monospace"),
+    uppercase: h.uppercase.get(true))
 
 proc transitionSeconds*(theme: Theme): float32 =
   ## How long a colour takes to change when a control's state does (hover,

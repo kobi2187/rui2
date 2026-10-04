@@ -88,6 +88,13 @@ type
     bevelStyle: Option[string]
     gradientDirection: Option[string]
 
+  HintFile* {.sparse.} = object
+    ## A `hint:` section: how the help overlay's badges look.
+    background, foreground, border: Option[string]
+    borderWidth, fontSize: Option[float32]
+    fontFamily: Option[string]
+    uppercase: Option[bool]
+
   MetricsFile* {.sparse.} = object
     ## Control geometry (ControlMetrics), every field optional.
     controlHeight: Option[float32]
@@ -124,6 +131,7 @@ type
     statePreference: Option[Table[string, string]]
       ## role ("text" / "pointer") -> "focus" / "hover"
     metrics: Option[MetricsFile]
+    hint: Option[HintFile]
     brand: Option[BrandFile]
       ## A whole theme from a handful of brand choices (see brand_themes.nim).
       ## It replaces `extends`; `base` and `states` still override it.
@@ -329,6 +337,12 @@ proc toTheme*(tf: ThemeFile, resolver: proc(name: string): Theme): Theme =
   if tf.statePreference.isSome:
     for role, pref in tf.statePreference.get():
       result.statePreference[parseRoleName(role)] = parsePreference(pref)
+  if tf.hint.isSome:
+    let h = tf.hint.get()
+    result.hint = HintStyle(
+      background: optColor(h.background), foreground: optColor(h.foreground),
+      border: optColor(h.border), borderWidth: h.borderWidth,
+      fontSize: h.fontSize, fontFamily: h.fontFamily, uppercase: h.uppercase)
   if tf.metrics.isSome:
     let m = tf.metrics.get()
     template take(field: untyped) =
@@ -398,6 +412,8 @@ proc validateThemeNode*(root: JsonNode) =
                 fold = true)
       for state, props in byState:
         checkProps(props, "states." & intent & "." & state)
+  if root.hasKey("hint"):
+    checkKeys(root["hint"], "hint", fieldNames(HintFile))
   if root.hasKey("metrics"):
     checkKeys(root["metrics"], "metrics", fieldNames(MetricsFile))
   if root.hasKey("brand"):

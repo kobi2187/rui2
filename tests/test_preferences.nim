@@ -299,25 +299,25 @@ suite "shortcuts and hints":
     t.save.enabled = false
     check findShortcut(t.root, chord("S").key, {kmCtrl}).isNil
 
-  test "a wide widget gets its badge on the top-right edge":
-    let within = Rect(x: 0, y: 40, width: 600, height: 300)
-    let wide = Rect(x: 20, y: 100, width: 400, height: 30)
-    let b = placeBadge(wide, Size(width: 60, height: 20), within)
-    check b.x + b.width <= wide.x + wide.width            # inside its right end
-    check b.x > wide.x + wide.width / 2
-    check b.y < wide.y                                    # on the top edge, not below
+  test "a badge is centred on the widget's top-right corner":
+    let within = Rect(x: 0, y: 0, width: 600, height: 400)
+    let target = Rect(x: 100, y: 100, width: 80, height: 30)
+    let b = placeBadge(target, Size(width: 60, height: 20), within)
+    check b.x + b.width / 2 == 180.0                   # centre on the right edge
+    check b.y + b.height / 2 == 100.0                  # and on the top edge
 
-  test "a badge hangs off the widget, stays on screen, and keeps clear of others":
+  test "a badge stays on screen, and keeps clear of others":
     let within = Rect(x: 0, y: 40, width: 400, height: 300)
     let target = Rect(x: 20, y: 100, width: 80, height: 30)
     let a = placeBadge(target, Size(width: 60, height: 20), within)
-    check a.x >= target.x and a.y > target.y + target.height / 2   # off the lower edge
     let b = placeBadge(target, Size(width: 60, height: 20), within, [a])
-    check b.y >= a.y + a.height                                    # moved clear of a
+    check b.y >= a.y + a.height                        # moved clear of a
     let edge = placeBadge(Rect(x: 380, y: 330, width: 80, height: 30),
                           Size(width: 60, height: 20), within)
     check edge.x + edge.width <= within.x + within.width
     check edge.y + edge.height <= within.y + within.height
+    let top = placeBadge(Rect(x: 10, y: 40, width: 80, height: 30), Size(width: 60, height: 20), within)
+    check top.y >= within.y                            # not pushed above the bar
 
   test "pressing a shortcut clicks its widget":
     let app = newApp("shortcuts")
@@ -443,3 +443,39 @@ suite "hints and app shortcuts":
     let app = newApp("appkeys")
     expect ValueError:
       app.bindShortcut("Hyper+F", "x", proc() = discard)
+
+
+suite "hint badge look":
+
+  test "by default a sign post: yellow, thick dark border, small uppercase monospace":
+    let look = brandTheme(daylightSpec()).hintLook
+    check look.background == Color(r: 255, g: 212, b: 0, a: 255)
+    check look.borderWidth >= 2.5
+    check look.fontFamily == "Monospace"
+    check look.uppercase
+    check look.fontSize <= 12
+
+  test "a theme can change any part of it":
+    var t = brandTheme(daylightSpec())
+    t.hint.background = some(Color(r: 1, g: 2, b: 3, a: 255))
+    t.hint.uppercase = some(false)
+    t.hint.fontSize = some(14.0'f32)
+    let look = t.hintLook
+    check look.background == Color(r: 1, g: 2, b: 3, a: 255)
+    check not look.uppercase and look.fontSize == 14.0
+    check look.fontFamily == "Monospace"               # the rest keeps its default
+
+  test "a theme file's hint: section sets it, and its keys are validated":
+    proc noExtends(name: string): Theme = newTheme(name)
+    let t = parseTheme("""
+hint:
+  background: "#00AAFF"
+  borderWidth: 4
+  fontFamily: Sans
+  uppercase: false
+""", tffYaml, noExtends)
+    let look = t.hintLook
+    check look.background == Color(r: 0, g: 170, b: 255, a: 255)
+    check look.borderWidth == 4.0 and look.fontFamily == "Sans" and not look.uppercase
+    expect ValueError:
+      discard parseTheme("hint:\n  colour: red\n", tffYaml, noExtends)

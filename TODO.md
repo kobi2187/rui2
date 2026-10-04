@@ -387,8 +387,9 @@ set by the *user* in their preferences file (docs/preferences.md), not by apps.
   `.hint("...")` or `.shortcut("Ctrl+S")` (which really activates it);
   `app.bindShortcut` for app-level keys with no widget; `app.addHelp` for
   plain notes; a ? typed into a field is left alone.
-- [ ] Help-overlay visuals (later): hint badges small, emoji-sized, at the top-left
-  of each widget, rather than hanging off an edge.
+- [x] Help-overlay hint badges: a sign post centred on each widget's top-right
+  corner -- yellow, thick border, small uppercase monospace by default; a theme
+  restyles them with its `hint:` section.
 - [x] Focus rings while navigating by keyboard: firm round the focused widget,
   softer round its container; gone when the mouse takes over.
 - [ ] Windows/macOS config path check in CI.
