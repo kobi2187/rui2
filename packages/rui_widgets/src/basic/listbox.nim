@@ -19,6 +19,10 @@ import raylib
 
 export virtual_rows, list_input
 
+template rowH(w: untyped): float32 =
+  ## This widget's row height: its own prop, else the theme's.
+  themedSize(w.itemHeight, currentTheme.rowHeight(20.0))
+
 const
   BufferItems = 5
   LoadAheadItems = 10
@@ -34,13 +38,13 @@ template viewportOf*(widget: untyped): RowViewport =
   ## A template, not a proc: the ListBox type does not exist until the macro
   ## below has expanded, and the widget body needs this.
   rowViewport(top = widget.bounds.y, height = widget.bounds.height,
-              rowHeight = widget.itemHeight, scrollY = widget.scrollY)
+              rowHeight = rowH(widget), scrollY = widget.scrollY)
 
 definePrimitive(ListBox):
   props:
     items: seq[string] = @[]
     totalItemCount: int = -1     # -1 means use items.len, otherwise for lazy loading
-    itemHeight: float32 = 20.0
+    itemHeight: float32 = 0.0   # 0: the theme's row height
     visibleRows: int = 8
     multiSelect: bool = false
     disabled: bool = false
@@ -62,6 +66,7 @@ definePrimitive(ListBox):
 
   init:
     widget.focusable = true
+    widget.hoverIndex = -1       # nothing is under the pointer yet
 
   events:
     on_mouse_wheel:
@@ -134,7 +139,7 @@ definePrimitive(ListBox):
 
   layout:
     if widget.bounds.height <= 0:
-      widget.bounds.height = float32(widget.visibleRows) * widget.itemHeight
+      widget.bounds.height = float32(widget.visibleRows) * rowH(widget)
     if widget.bounds.width <= 0:
       let style = TextStyle(fontFamily: "", fontSize: 12.0, color: BLACK,
                             bold: false, italic: false, underline: false)
@@ -146,7 +151,7 @@ definePrimitive(ListBox):
   render:
     let props = currentTheme.getThemeProps(widget.intent,
                                            if widget.disabled: Disabled else: Normal)
-    let itemH = widget.itemHeight
+    let itemH = rowH(widget)
     let total = widget.totalItems
     let v = viewportOf(widget)
 

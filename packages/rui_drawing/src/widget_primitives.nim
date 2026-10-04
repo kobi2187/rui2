@@ -402,9 +402,9 @@ proc drawTab*(rect: Rect, text: string, props: ThemeProps,
   let radius = props.cornerRadius.get(4.0)
   drawRoundedRect(rect, radius, bgColor)
 
-  # Active indicator bar at bottom
+  # Active indicator bar at bottom: as thick as the theme's strokes call for.
   if active:
-    let indicatorHeight = 3.0
+    let indicatorHeight = max(3.0'f32, props.strokeWidth * 1.5)
     let indicatorRect = Rect(
       x: rect.x,
       y: rect.y + rect.height - indicatorHeight,
@@ -419,8 +419,9 @@ proc drawTab*(rect: Rect, text: string, props: ThemeProps,
                     props.foregroundColor.get(Color(r: 60, g: 60, b: 60, a: 255))
                   else:
                     Color(r: 120, g: 120, b: 120, a: 255)
-  let textY = rect.y + (rect.height - props.fontSize.get(14.0)) / 2
-  drawText(text, rect.x + rect.width/2, textY, props.fontSize.get(14.0), textColor, centered = true)
+  let style = props.captionStyle(textColor, action = true)
+  drawStyledText(text, rect.x + rect.width/2, rect.y + (rect.height - style.fontSize) / 2,
+                 style, centered = true)
 
 proc drawSpinnerButtons*(rect: Rect, props: ThemeProps,
                         upHovered = false, downHovered = false) =
@@ -462,21 +463,16 @@ proc drawGroupBox*(rect: Rect, title: string, props: ThemeProps) =
   ## Group box = reuse existing primitive with theme colors
   let borderColor = props.borderColor.get(Color(r: 180, g: 180, b: 180, a: 255))
   let textColor = props.foregroundColor.get(Color(r: 60, g: 60, b: 60, a: 255))
-  let fontSize = props.fontSize.get(14.0)
-
 
   # TODO: figure out enhancing ThemeProps to also include GroupBoxStyle, and other specific widgets
   let style = panels.GroupBoxStyle(
     borderStyle: panels.BorderStyle(
       style: panels.Solid,
       color: borderColor,
-      width: 1.0f32,
-      radius: 4.0f32
+      width: max(1.0'f32, props.strokeWidth),
+      radius: props.cornerRadius.get(4.0)
     ),
-    titleStyle: TextStyle(
-      fontSize: fontSize,
-      color: textColor
-    ),
+    titleStyle: props.captionStyle(textColor, action = true),
     backgroundColor: props.backgroundColor.get(Color(r: 255, g: 255, b: 255, a: 255)),
     titlePosition: TextAlign.Left,
     titlePadding: 8.0f32,
@@ -492,7 +488,8 @@ proc drawStatusBar*(rect: Rect, text: string, props: ThemeProps) =
 
   # Top border
   let borderColor = props.borderColor.get(Color(r: 200, g: 200, b: 200, a: 255))
-  drawLine(rect.x, rect.y, rect.x + rect.width, rect.y, borderColor, 1.0)
+  drawLine(rect.x, rect.y, rect.x + rect.width, rect.y, borderColor,
+           max(1.0'f32, props.strokeWidth))
 
   # Text
   let padding = props.fieldInset

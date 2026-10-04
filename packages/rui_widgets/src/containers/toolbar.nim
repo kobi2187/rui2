@@ -13,9 +13,13 @@
 import rui_core
 import rui_drawing
 
+template barHeightOf(w: untyped): float32 =
+  ## Bar height: the prop, else the theme's.
+  themedSize(w.barHeight, currentTheme.barHeight(32.0))
+
 defineWidget(ToolBar):
   props:
-    barHeight: float32 = 32.0
+    barHeight: float32 = 0.0   # 0: from the theme
     spacing: float32 = 2.0
     padding: float32 = 4.0
     showBorder: bool = true
@@ -34,7 +38,7 @@ defineWidget(ToolBar):
         child.bounds.height = 0
         child.layout()
         tallest = max(tallest, child.bounds.height)
-      widget.bounds.height = max(widget.barHeight, tallest + widget.padding * 2)
+      widget.bounds.height = max(barHeightOf(widget), tallest + widget.padding * 2)
 
     let itemHeight = max(0.0'f32, widget.bounds.height - widget.padding * 2)
     var x = widget.bounds.x + widget.padding

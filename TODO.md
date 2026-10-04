@@ -118,8 +118,10 @@ the containers place them. No example writes `bounds` any more.
   `Theme.metrics`, theme files). Honoured by Button, TextArea/TextInput,
   Checkbox, Radio, RadioGroup, Slider, ProgressBar, ComboBox. Showcased by
   the `punch` and `hairline` brands.
-- [ ] Geometry in the remaining widgets (lists, tabs, menus, tree, table,
-  group box, scrollbar).
+- [x] Geometry in the remaining widgets: list/tree/table/menu row height
+  (`metrics.rowHeight`), tab/menu/tool/status bar and table header height
+  (grown to the control height), scrollbar thickness, tab indicator and
+  group-box/panel strokes, radius and padding, table cell text size.
 - [ ] Table cells spanning several columns or rows.
 - [ ] **SplitView** with a draggable divider.
 - [ ] Right-to-left layout mirroring, driven by the text direction Pango

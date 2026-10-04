@@ -152,6 +152,8 @@ type
     trackThickness*: Option[float32]  ## Slider track
     thumbSize*: Option[float32]       ## Slider thumb diameter
     progressHeight*: Option[float32]  ## Progress bar height
+    rowHeight*: Option[float32]       ## List, tree, table and menu rows
+    scrollbarThickness*: Option[float32]
 
   # Complete theme definition
   Theme* = object
@@ -203,6 +205,23 @@ proc indicatorSize*(theme: Theme): float32 = theme.metrics.indicatorSize.get(20.
 proc trackThickness*(theme: Theme): float32 = theme.metrics.trackThickness.get(8.0)
 proc thumbSize*(theme: Theme): float32 = theme.metrics.thumbSize.get(20.0)
 proc progressHeight*(theme: Theme): float32 = theme.metrics.progressHeight.get(20.0)
+
+proc rowHeight*(theme: Theme, legacy: float32): float32 =
+  ## Height of a list, tree, table or menu row: the theme's, or the widget's
+  ## own default (`legacy`) when the theme names none.
+  theme.metrics.rowHeight.get(legacy)
+
+proc barHeight*(theme: Theme, legacy: float32): float32 =
+  ## Height of a tab strip, menu, tool or status bar: the widget's default,
+  ## grown to the theme's control height so a bold brand's bars keep pace
+  ## with its buttons.
+  max(legacy, theme.controlHeight)
+
+proc scrollbarThickness*(theme: Theme): float32 = theme.metrics.scrollbarThickness.get(12.0)
+
+template themedSize*(explicit: float32, themed: untyped): float32 =
+  ## A size prop that defaults to 0, meaning "whatever the theme says".
+  (if explicit > 0: explicit else: themed)
 
 proc isBold*(props: ThemeProps): bool =
   ## Whether captions drawn with these props are bold.

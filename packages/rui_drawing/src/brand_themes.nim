@@ -56,6 +56,8 @@ type
     trackThickness*: float32  ## slider track; 8 if unset
     thumbSize*: float32       ## slider thumb; 20 if unset
     progressHeight*: float32  ## progress bar; 20 if unset
+    rowHeight*: float32       ## list, tree, table and menu rows; each widget's own if unset
+    scrollbarThickness*: float32  ## 12 if unset
 
 # ----------------------------------------------------------------------------
 # Colour arithmetic
@@ -161,7 +163,8 @@ proc brandTheme*(spec: BrandSpec): Theme =
   result.metrics = ControlMetrics(
     controlHeight: opt(s.controlHeight), indicatorSize: opt(s.indicatorSize),
     trackThickness: opt(s.trackThickness), thumbSize: opt(s.thumbSize),
-    progressHeight: opt(s.progressHeight))
+    progressHeight: opt(s.progressHeight), rowHeight: opt(s.rowHeight),
+    scrollbarThickness: opt(s.scrollbarThickness))
 
   # The geometry every intent shares, so a Danger button is as fat as a
   # Default one.
@@ -289,7 +292,7 @@ proc punchSpec*(): BrandSpec =
             borderWidth: 3, focusRingWidth: 3, boldCaptions: true,
             uppercaseCaptions: true, shadow: 4, controlHeight: 46,
             indicatorSize: 24, trackThickness: 12, thumbSize: 26,
-            progressHeight: 26,
+            progressHeight: 26, rowHeight: 38, scrollbarThickness: 18,
             info: hex"#2F6BFF", success: hex"#1FA35C", warning: hex"#FFB000",
             danger: hex"#E5242B")
 
@@ -302,7 +305,7 @@ proc hairlineSpec*(): BrandSpec =
             fontSize: 13, padding: 5, paddingX: 12,
             borderWidth: 1, focusRingWidth: 1, controlHeight: 28,
             indicatorSize: 14, trackThickness: 2, thumbSize: 12,
-            progressHeight: 6)
+            progressHeight: 6, rowHeight: 22, scrollbarThickness: 8)
 
 proc brandThemes*(): seq[tuple[key: string, theme: Theme]] =
   ## Every shipped brand, by registry name.

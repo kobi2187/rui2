@@ -31,6 +31,18 @@ import tabular
 import tabular_render
 export datatable_helpers, tabular, tabular_render
 
+template filterHeightOf(w: untyped): float32 =
+  ## Filter strip height: the prop, else the theme's.
+  themedSize(w.filterHeight, currentTheme.barHeight(26.0))
+
+template headerHeightOf(w: untyped): float32 =
+  ## Header height: the prop, else the theme's.
+  themedSize(w.headerHeight, currentTheme.barHeight(28.0))
+
+template rowHeightOf(w: untyped): float32 =
+  ## Row height: the prop, else the theme's.
+  themedSize(w.rowHeight, currentTheme.rowHeight(24.0))
+
 type
   DataColumn* = object
     id*: string
@@ -49,15 +61,15 @@ type TableMetrics* = BandMetrics
 template metricsOf*(widget: untyped): TableMetrics =
   ## A template, not a proc: the DataTable type does not exist until the macro
   ## below has expanded, and the widget body needs this.
-  let fh = if widget.showFilter: widget.filterHeight else: 0.0'f32
-  let hh = if widget.showHeader: widget.headerHeight else: 0.0'f32
+  let fh = if widget.showFilter: filterHeightOf(widget) else: 0.0'f32
+  let hh = if widget.showHeader: headerHeightOf(widget) else: 0.0'f32
   TableMetrics(
     originX: widget.bounds.x, originY: widget.bounds.y,
     filterH: fh, headerH: hh,
     totalRows: widget.filteredIndices.len,
     rows: rowViewport(top = widget.bounds.y + fh + hh,
                       height = widget.bounds.height - fh - hh,
-                      rowHeight = widget.rowHeight,
+                      rowHeight = rowHeightOf(widget),
                       scrollY = widget.scrollY)
   )
 
@@ -98,9 +110,9 @@ definePrimitive(DataTable):
   props:
     columns: seq[DataColumn] = @[]
     data: seq[DataRow] = @[]    # The whole dataset; can be large
-    rowHeight: float32 = 24.0
-    headerHeight: float32 = 28.0
-    filterHeight: float32 = 26.0
+    rowHeight: float32 = 0.0   # 0: from the theme
+    headerHeight: float32 = 0.0   # 0: from the theme
+    filterHeight: float32 = 0.0   # 0: from the theme
     showHeader: bool = true
     showFilter: bool = true
     showGrid: bool = true
@@ -126,6 +138,7 @@ definePrimitive(DataTable):
 
   init:
     widget.focusable = true
+    widget.hoverRow = -1       # nothing is under the pointer yet
 
   events:
     on_mouse_down:
@@ -175,7 +188,7 @@ definePrimitive(DataTable):
     if widget.bounds.height <= 0:
       let m = metricsOf(widget)
       widget.bounds.height = m.filterH + m.headerH +
-                             float32(widget.visibleRows) * widget.rowHeight
+                             float32(widget.visibleRows) * rowHeightOf(widget)
 
   render:
     let props = currentTheme.getThemeProps(widget.intent, Normal)
@@ -240,7 +253,7 @@ definePrimitive(DataTable):
                               if col.formatFunc.isSome: col.formatFunc.get()
                               else: nil))
       drawCells(widget.columns, widget.bounds.x, rowY, rowH, texts, fgColor,
-                widget.showGrid, gridColor)
+                widget.showGrid, gridColor, props.cellFontSize)
 
       if widget.showGrid:
         drawRowGridLine(rowRect, gridColor)

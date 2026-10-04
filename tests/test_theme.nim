@@ -586,3 +586,41 @@ metrics:
     settle()
     for n, w in all:
       check w.bounds.height < fat[n]
+
+  test "rows, bars and scrollbars follow the theme's metrics":
+    let saved = currentTheme
+    defer: setCurrentTheme(saved)
+    proc measure(theme: Theme): tuple[list, tab, status, scroll, panelPad: float32] =
+      setCurrentTheme(theme)
+      let l = newListBox(items = @["a", "b"], visibleRows = 2)
+      let t = newTabControl(tabs = @["One", "Two"])
+      let st = newStatusBar(text = "Ready")
+      let sb = newScrollbar(vertical = true)
+      let p = newPanel()
+      for w in [Widget(l), Widget(t), Widget(st), Widget(sb), Widget(p)]:
+        w.bounds = Rect()
+        w.layout()
+      (l.bounds.height / 2, t.bounds.height, st.bounds.height, sb.bounds.width,
+       p.bounds.height)
+    let fat = measure(brandTheme(punchSpec()))
+    let lean = measure(brandTheme(hairlineSpec()))
+    check fat.list == 38.0
+    check lean.list == 22.0
+    check fat.tab >= 46.0                    # the control height
+    check fat.status >= 46.0
+    check fat.scroll == 18.0
+    check lean.scroll == 8.0
+    check fat.panelPad > lean.panelPad       # themed padding, not a constant 8
+
+  test "an explicit size still beats the theme":
+    let saved = currentTheme
+    defer: setCurrentTheme(saved)
+    setCurrentTheme(brandTheme(punchSpec()))
+    let l = newListBox(items = @["a"], itemHeight = 20.0, visibleRows = 1)
+    l.bounds = Rect()
+    l.layout()
+    check l.bounds.height == 20.0
+    let bar = newStatusBar(text = "x", barHeight = 24.0)
+    bar.bounds = Rect()
+    bar.layout()
+    check bar.bounds.height == 24.0

@@ -159,9 +159,9 @@ SizedBox, Align, Container, Stack/Positioned, Wrap, Table, GridView).
   weight/case, a hard drop shadow and control sizes as well as colours and
   fonts (`BrandSpec`, `ThemeProps`, `Theme.metrics`, theme files); the `punch`
   (fat) and `hairline` (lean) brands show the range. Honoured so far by
-  Button, TextArea/TextInput, Checkbox, Radio/RadioGroup, Slider,
-  ProgressBar and ComboBox; tabs, group box, lists, menus, tree, table and
-  scrollbar still use fixed geometry (see TODO).
+  every widget that draws chrome: buttons, inputs, check/radio, slider,
+  progress, combo, lists, tree, tables, tabs, menus, bars, panel, group
+  box and scrollbars.
 - **Branded themes.** `brandTheme(BrandSpec)` turns a handful of brand
   choices into a complete theme; eight ship (daylight, midnight, aurora,
   ocean, forest, rose, ember, graphite). The accent now reaches fills,

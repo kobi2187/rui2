@@ -7,9 +7,6 @@ import rui_core
 import rui_drawing
 import std/options
 
-const
-  Thickness = 12.0'f32
-
 definePrimitive(ScrollBar):
   props:
     initialValue: float32 = 0.0
@@ -86,12 +83,12 @@ definePrimitive(ScrollBar):
     # Fixed on the cross axis, stretched by the parent on the main axis.
     if widget.vertical:
       if widget.bounds.width <= 0:
-        widget.bounds.width = Thickness
+        widget.bounds.width = currentTheme.scrollbarThickness
       if widget.bounds.height <= 0:
         widget.bounds.height = 100.0'f32
     else:
       if widget.bounds.height <= 0:
-        widget.bounds.height = Thickness
+        widget.bounds.height = currentTheme.scrollbarThickness
       if widget.bounds.width <= 0:
         widget.bounds.width = 100.0'f32
 

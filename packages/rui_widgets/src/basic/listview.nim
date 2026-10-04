@@ -21,8 +21,11 @@ import raylib
 
 export virtual_rows, list_input
 
+template rowH(w: untyped): float32 =
+  ## This widget's row height: its own prop, else the theme's.
+  themedSize(w.itemHeight, currentTheme.rowHeight(24.0))
+
 const
-  ScrollbarWidth = 12.0'f32
   BufferItems = 5          ## Extra rows drawn above/below the viewport.
   LoadAheadItems = 10
   LoadBatchSize = 100
@@ -35,13 +38,13 @@ template viewportOf*(widget: untyped): RowViewport =
   ## A template, not a proc: the ListView type does not exist until the macro
   ## below has expanded, and the widget body needs this.
   rowViewport(top = widget.bounds.y, height = widget.bounds.height,
-              rowHeight = widget.itemHeight, scrollY = widget.scrollY)
+              rowHeight = rowH(widget), scrollY = widget.scrollY)
 
 definePrimitive(ListView):
   props:
     items: seq[string] = @[]
     totalItemCount: int = -1     # -1 means use items.len, otherwise for lazy loading
-    itemHeight: float32 = 24.0
+    itemHeight: float32 = 0.0   # 0: the theme's row height
     visibleRows: int = 8         # Used to size the widget when no height is given
     multiSelect: bool = false
     showScrollbar: bool = true
@@ -63,6 +66,7 @@ definePrimitive(ListView):
 
   init:
     widget.focusable = true
+    widget.hoverIndex = -1       # nothing is under the pointer yet
 
   events:
     on_mouse_wheel:
@@ -108,19 +112,19 @@ definePrimitive(ListView):
 
   layout:
     if widget.bounds.height <= 0:
-      widget.bounds.height = float32(widget.visibleRows) * widget.itemHeight
+      widget.bounds.height = float32(widget.visibleRows) * rowH(widget)
     if widget.bounds.width <= 0:
       let style = TextStyle(fontFamily: "", fontSize: 12.0, color: BLACK,
                             bold: false, italic: false, underline: false)
       var widest = 0.0'f32
       for item in widget.items:
         widest = max(widest, measureText(item, style).width)
-      widget.bounds.width = widest + 16.0 + ScrollbarWidth
+      widget.bounds.width = widest + 16.0 + currentTheme.scrollbarThickness
 
   render:
     let props = currentTheme.getThemeProps(widget.intent,
                                            if widget.disabled: Disabled else: Normal)
-    let itemH = widget.itemHeight
+    let itemH = rowH(widget)
     let total = widget.totalItems
     let v = viewportOf(widget)
     let totalHeight = v.contentHeight(total)
@@ -140,7 +144,7 @@ definePrimitive(ListView):
 
     let clip = beginClip(widget.bounds)
     let listWidth = if widget.showScrollbar and totalHeight > viewHeight:
-                      widget.bounds.width - ScrollbarWidth
+                      widget.bounds.width - currentTheme.scrollbarThickness
                     else:
                       widget.bounds.width
 
@@ -155,9 +159,9 @@ definePrimitive(ListView):
 
     if widget.showScrollbar and totalHeight > viewHeight:
       let barRect = Rect(
-        x: widget.bounds.x + widget.bounds.width - ScrollbarWidth,
+        x: widget.bounds.x + widget.bounds.width - currentTheme.scrollbarThickness,
         y: widget.bounds.y,
-        width: ScrollbarWidth,
+        width: currentTheme.scrollbarThickness,
         height: viewHeight
       )
       drawScrollbar(barRect, totalHeight, viewHeight, widget.scrollY, props)

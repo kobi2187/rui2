@@ -93,6 +93,8 @@ type
     trackThickness: Option[float32]
     thumbSize: Option[float32]
     progressHeight: Option[float32]
+    rowHeight: Option[float32]
+    scrollbarThickness: Option[float32]
 
   ThemeFile* {.sparse.} = object
     ## Top-level theme file structure (JSON or YAML)
@@ -287,6 +289,8 @@ proc toTheme*(tf: ThemeFile, resolver: proc(name: string): Theme): Theme =
     take trackThickness
     take thumbSize
     take progressHeight
+    take rowHeight
+    take scrollbarThickness
 
 
 proc parseThemeFile*(content: string, format: ThemeFileFormat): ThemeFile =
