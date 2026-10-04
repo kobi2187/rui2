@@ -208,7 +208,7 @@ A widget definition is organised into named sections. The common sections are:
 | `render`  | (Primitives) drawing code using drawing primitives. |
 | `layout`  | (Composites) code that positions and/or builds `widget.children`. |
 
-A real composite, from `widgets/basic/button_v2.nim` (condensed):
+A real composite, from `widgets/basic/button.nim` (condensed):
 
 ```nim
 defineWidget(Button):
@@ -422,7 +422,7 @@ The frame loop in `core/app.nim` is, in order:
 
 ### Event manager (time-budgeted + coalesced)
 
-`managers/event_manager_refactored.nim`. UI must hold ~60 FPS (16.7 ms/frame),
+`managers/event_manager.nim`. UI must hold ~60 FPS (16.7 ms/frame),
 but events vary wildly in cost and volume, so the manager combines a **time
 budget** (default 8 ms/frame) with **pattern-based coalescing**:
 

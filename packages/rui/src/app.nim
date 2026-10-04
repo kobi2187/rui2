@@ -12,7 +12,7 @@ import event_routing
 import inspect
 export event_source, event_routing, inspect
 export rui_core
-export event_manager_refactored   # Export for users to access eventManager
+export event_manager   # Export for users to access eventManager
 export focus_manager              # Export focus manager
 export hover_tracker              # Export hover tracker
 export theme_sys_core # Export theme types

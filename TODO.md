@@ -145,7 +145,7 @@ the containers place them. No example writes `bounds` any more.
 - [x] Eight shipped brands: daylight (the new `light`), midnight (the new
   `dark`), aurora, ocean, forest (serif), rose, ember, graphite. See
   `examples/widgets/theme_gallery.nim`.
-- [ ] Load a `BrandSpec` from YAML beside the existing theme files.
+- [x] A theme file takes a `brand:` section (the `BrandSpec` fields), with `base`/`states` overriding it.
 - [ ] Theme transitions (fade between palettes) once animation exists (#9).
 - [ ] A per-brand elevation/shadow token for cards and popups.
 
@@ -232,9 +232,7 @@ the containers place them. No example writes `bounds` any more.
 ### 15. Code health
 - [ ] Bring rui_drawing (11), rui_hittest (5, of which interval-tree
   rebalancing is essential) and rui_scripting (10) under `nimtools cyc --gate 5`.
-- [ ] Drop the `_v2` / `_refactored` file suffixes (`button_v2.nim`,
-  `vstack_v2.nim`, `event_manager_refactored.nim`, …). The old versions are
-  gone, so the suffix only confuses readers.
+- [x] Dropped the `_v2` / `_refactored` file suffixes (`button.nim`, `event_manager.nim`).
 - [ ] Rename the enum values that collide (`Info`/`Warning` exist in two
   rui_drawing enums; `KeyboardKey.Menu` against the Menu widget).
 - [ ] The remaining drawing TODOs: the three-ring focus effect, and rounded and

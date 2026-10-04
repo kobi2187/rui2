@@ -624,3 +624,46 @@ metrics:
     bar.bounds = Rect()
     bar.layout()
     check bar.bounds.height == 24.0
+
+suite "theme: brand sections in theme files":
+
+  proc noExtends(name: string): Theme = newTheme(name)
+
+  test "a brand: section builds a complete theme":
+    let t = parseTheme("""
+brand:
+  name: Acme
+  accent: "#E4572E"
+  canvas: "#FAF7F2"
+  surface: "#FFFFFF"
+  text: "#1D1A17"
+  border: "#E7E0D6"
+  radius: 10
+  borderWidth: 3
+  boldCaptions: true
+  shadow: 4
+""", tffYaml, noExtends)
+    check t.name == "Acme"
+    for intent in ThemeIntent:
+      check t.getThemeProps(intent).borderWidth.get == 3.0
+    check t.getThemeProps().isBold
+    check t.getThemeProps().cornerRadius.get == 10.0
+    check t.getThemeProps(ThemeIntent.Info).backgroundColor.get == hex"#E4572E"
+
+  test "base and states still override the brand":
+    let t = parseTheme("""
+brand: {name: Acme, accent: "#E4572E", canvas: "#FAF7F2", surface: "#FFFFFF", text: "#1D1A17", border: "#E7E0D6", radius: 8}
+base:
+  danger:
+    cornerRadius: 0
+""", tffYaml, noExtends)
+    check t.getThemeProps(ThemeIntent.Danger).cornerRadius.get == 0.0
+    check t.getThemeProps(ThemeIntent.Default).cornerRadius.get(-1) != 0.0
+
+  test "a file brand equals the same spec built in code":
+    let fromFile = parseTheme("""
+brand: {name: Daylight, accent: "#4F46E5", canvas: "#F3F4F7", surface: "#FFFFFF", text: "#1F2330", border: "#DCDFE6", radius: 6}
+""", tffYaml, noExtends)
+    let inCode = brandTheme(daylightSpec())
+    for intent in ThemeIntent:
+      check fromFile.getThemeProps(intent) == inCode.getThemeProps(intent)

@@ -17,6 +17,7 @@ import std/[tables, options, json, strutils, parseutils]
 import yaml
 import theme_sys_core
 import theme_types
+import brand_themes
 import rui_core
 
 export theme_sys_core, theme_types
@@ -96,6 +97,20 @@ type
     rowHeight: Option[float32]
     scrollbarThickness: Option[float32]
 
+  BrandFile* {.sparse.} = object
+    ## A `brand:` section: the same choices as `BrandSpec`, colours as strings.
+    ## Everything is optional; what is left out takes the spec's own default.
+    name: Option[string]
+    dark: Option[bool]
+    accent, onAccent, canvas, surface, text, border: Option[string]
+    info, success, warning, danger, shadowColor: Option[string]
+    radius, fontSize, padding, paddingX: Option[float32]
+    fontFamily: Option[string]
+    borderWidth, focusRingWidth, shadow: Option[float32]
+    borderless, boldCaptions, uppercaseCaptions: Option[bool]
+    controlHeight, indicatorSize, trackThickness, thumbSize: Option[float32]
+    progressHeight, rowHeight, scrollbarThickness: Option[float32]
+
   ThemeFile* {.sparse.} = object
     ## Top-level theme file structure (JSON or YAML)
     name: Option[string]
@@ -106,6 +121,9 @@ type
     statePreference: Option[Table[string, string]]
       ## role ("text" / "pointer") -> "focus" / "hover"
     metrics: Option[MetricsFile]
+    brand: Option[BrandFile]
+      ## A whole theme from a handful of brand choices (see brand_themes.nim).
+      ## It replaces `extends`; `base` and `states` still override it.
 
 # ============================================================================
 # Color Parsing
@@ -251,9 +269,36 @@ proc toThemeProps*(fp: ThemePropsFile): ThemeProps =
       of "radial": theme_types.Radial
       else: theme_types.Vertical)
 
+proc toBrandSpec*(bf: BrandFile): BrandSpec =
+  ## File form to `BrandSpec`. A colour that fails to parse raises, like any
+  ## other colour in a theme file.
+  template color(f: Option[string]): Color =
+    (if f.isSome: parseColor(f.get()) else: Color())
+  template num(f: Option[float32]): float32 = f.get(0.0'f32)
+  BrandSpec(
+    name: bf.name.get("Brand"), dark: bf.dark.get(false),
+    accent: color(bf.accent), onAccent: color(bf.onAccent),
+    canvas: color(bf.canvas), surface: color(bf.surface),
+    text: color(bf.text), border: color(bf.border),
+    info: color(bf.info), success: color(bf.success),
+    warning: color(bf.warning), danger: color(bf.danger),
+    shadowColor: color(bf.shadowColor),
+    radius: num(bf.radius), fontSize: num(bf.fontSize),
+    fontFamily: bf.fontFamily.get(""), padding: num(bf.padding),
+    paddingX: num(bf.paddingX), borderWidth: num(bf.borderWidth),
+    borderless: bf.borderless.get(false), focusRingWidth: num(bf.focusRingWidth),
+    boldCaptions: bf.boldCaptions.get(false),
+    uppercaseCaptions: bf.uppercaseCaptions.get(false), shadow: num(bf.shadow),
+    controlHeight: num(bf.controlHeight), indicatorSize: num(bf.indicatorSize),
+    trackThickness: num(bf.trackThickness), thumbSize: num(bf.thumbSize),
+    progressHeight: num(bf.progressHeight), rowHeight: num(bf.rowHeight),
+    scrollbarThickness: num(bf.scrollbarThickness))
+
 proc toTheme*(tf: ThemeFile, resolver: proc(name: string): Theme): Theme =
   ## Convert a ThemeFile to a Theme, resolving extends via resolver
-  result = if tf.`extends`.isSome:
+  result = if tf.brand.isSome:
+    brandTheme(toBrandSpec(tf.brand.get()))
+  elif tf.`extends`.isSome:
     resolver(tf.`extends`.get())
   else:
     newTheme()

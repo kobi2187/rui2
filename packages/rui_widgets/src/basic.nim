@@ -2,8 +2,8 @@
 ##
 ## Imports and exports all basic widgets
 
-import basic/button_v2
-export button_v2
+import basic/button
+export button
 
 import basic/checkbox
 export checkbox

@@ -5,7 +5,7 @@
 ## a VStack contributes zero height unless something assigns its bounds.
 ##
 ## That is deliberate -- it is the shape composite widgets draw their background
-## with (see basic/button_v2.nim, which sets the rectangle's bounds from its own
+## with (see basic/button.nim, which sets the rectangle's bounds from its own
 ## measured text), not something you place on its own and expect to appear.
 ##
 ## The colours are plain raylib Colors rather than theme intents, for the same
