@@ -1,0 +1,26 @@
+VStack root @0,0 560x460
+  Label t1 @20,20 520x24
+  HStack row @20,56 520x39
+    Button c1 @20,56 66x39 tabstop
+      Rectangle - @20,56 66x39
+      Label - @36,64 34x23
+    Button c2 @96,56 65x39 tabstop
+      Rectangle - @96,56 65x39
+      Label - @112,64 33x23
+    Button c3 @171,56 80x39 tabstop
+      Rectangle - @171,56 80x39
+      Label - @187,64 48x23
+  Label t2 @20,107 520x24
+  HStack outer @20,143 520x77
+    VStack col0 @20,143 42x77
+      Label cell00 @20,143 42x23
+      Label cell01 @20,170 42x23
+      Label cell02 @20,197 42x23
+    VStack col1 @78,143 42x77
+      Label cell10 @78,143 42x23
+      Label cell11 @78,170 42x23
+      Label cell12 @78,197 42x23
+  Label t3 @20,232 520x24
+  ZStack z @20,268 200x60
+    Rectangle zBack @20,268 200x60
+    Label zFront @20,268 200x60

@@ -1,0 +1,9 @@
+VStack root @0,0 460x340
+  Label summary @20,20 420x26
+  Checkbox optA @20,58 420x23 tabstop
+  Checkbox optB @20,93 420x23 tabstop
+  Checkbox optC @20,128 420x23 tabstop
+  Label radioTitle @20,163 420x23
+  RadioButton rRed @20,198 420x23 tabstop
+  RadioButton rGreen @20,233 420x23 tabstop
+  RadioButton rBlue @20,268 420x23 tabstop

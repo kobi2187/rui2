@@ -1,0 +1,7 @@
+VStack root @0,0 460x320
+  Label title @20,20 420x26
+  HStack row @20,58 400x80
+    Rectangle filled @20,58 90x60
+    Rectangle rounded @124,58 90x60
+    Rectangle outline @228,58 90x60
+    Circle dot @332,58 60x60

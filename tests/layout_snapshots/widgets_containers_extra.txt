@@ -1,0 +1,23 @@
+VStack root @0,0 620x600
+  Label summary @16,16 588x24
+  Panel panel @16,52 560x60
+    Label panelText @26,62 540x40
+  GroupBox group @16,124 588x112
+    RadioGroup radios @26,154 568x72 tabstop
+  Label t1 @16,248 588x23
+  Column column @16,283 560x90
+    Label colA @272,283 48x23
+    Label colB @238,312 115x23
+    Label colC @278,341 35x23
+  Label t2 @16,385 588x23
+  TabControl tabs @16,420 560x120 tabstop
+    VStack page0 @16,448 560x92
+      Label pageText0 @24,456 544x23
+      Spacer pageSpacer0 @24,483 544x49
+    VStack page1 @16,448 560x92 hidden
+      Label pageText1 @24,456 544x23
+      Spacer pageSpacer1 @24,483 544x49
+    VStack page2 @16,448 560x92 hidden
+      Label pageText2 @24,456 544x23
+      Spacer pageSpacer2 @24,483 544x49
+  StatusBar status @16,552 560x24

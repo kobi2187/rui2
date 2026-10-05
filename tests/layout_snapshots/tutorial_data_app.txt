@@ -1,0 +1,7 @@
+Padding - @0,0 760x440
+  Column - @16,16 728x408
+    TextInput - @16,16 728x41 tabstop
+    Expanded - @16,67 728x357
+      SplitView - @16,67 728x357
+        DataTable - @16,67 433x357 tabstop
+        Plot - @455,67 288x357

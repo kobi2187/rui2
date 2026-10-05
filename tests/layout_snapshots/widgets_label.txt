@@ -1,0 +1,9 @@
+VStack root @0,0 560x420
+  Label plain @20,20 520x26
+  Label bold @20,58 520x26
+  Label italic @20,96 520x26
+  Label serif @20,134 520x26
+  Label coloured @20,172 520x26
+  Label right @20,210 520x26
+  Label markup @20,248 520x31
+  Label wrapped @20,291 520x46

@@ -17,7 +17,7 @@ export NIMFLAGS="--hints:off --warnings:off -d:useGraphics $DEP"
 OUT=/tmp/rui2_snap; mkdir -p "$OUT/new" tests/layout_snapshots
 snap() {
   local f="$1" n; n="$(echo "${f#examples/}" | tr / _)"; n="${n%.nim}"
-  grep -qE "\.start\(|\.run\(" "$f" || return 0
+  grep -qE "^[^#]*\.(start|run)\(" "$f" || return 0
   if ! nim c $NIMFLAGS --nimcache:"$OUT/nc_$n" -o:"$OUT/bin_$n" "$f" >"$OUT/$n.build" 2>&1; then
     echo "BUILD FAIL $n"; return
   fi

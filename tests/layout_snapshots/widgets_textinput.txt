@@ -1,0 +1,7 @@
+VStack root @0,0 520x320
+  Label t1 @20,20 480x23
+  TextInput input @20,55 440x36 tabstop
+  Label echo @20,103 480x24
+  Label submitted @20,139 480x23
+  Label t2 @20,174 480x23
+  TextInput capped @20,209 200x30 tabstop

@@ -1,0 +1,8 @@
+VStack root @0,0 640x520
+  Label summary @20,20 600x24
+  Label t1 @20,56 600x23
+  ComboBox combo @20,91 600x41 tabstop
+  Label t2 @20,144 600x23
+  ListBox box @20,179 600x80 tabstop
+  Label t3 @20,271 600x23
+  ListView view @20,306 600x144 tabstop

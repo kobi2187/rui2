@@ -1,0 +1,19 @@
+VStack - @0,0 800x600
+  Label - @24,24 752x42
+  Row - @24,80 752x41
+    Label - @24,88 112x24
+    TextInput - @146,80 200x41 tabstop
+  Label - @24,135 752x24
+  Separator - @24,173 752x1
+  Slider - @24,188 752x24 tabstop
+  Checkbox - @24,226 752x23 tabstop
+  ProgressBar - @24,263 752x23
+  Label - @24,300 752x22
+  Spacer - @24,336 752x187
+  HStack - @24,537 752x39
+    Button - @24,537 143x39 tabstop
+      Rectangle - @24,537 143x39
+      Label - @40,545 111x23
+    Button - @177,537 141x39 tabstop
+      Rectangle - @177,537 141x39
+      Label - @193,545 109x23

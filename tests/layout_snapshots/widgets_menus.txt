@@ -1,0 +1,21 @@
+VStack root @0,0 560x400
+  MenuBar bar @0,0 560x28 tabstop
+    Menu fileMenu @0,28 0x0
+      MenuItem miNew @0,0 163x24 hidden
+      MenuItem miOpen @0,0 174x24 hidden
+      MenuItem miSep1 @0,0 36x7 hidden
+      MenuItem miQuit @0,0 163x24 hidden
+    Menu viewMenu @54,28 0x0
+      MenuItem miWrap @0,0 135x24 hidden
+      MenuItem miZoomIn @0,0 201x24 hidden
+  VStack body @0,38 560x156
+    Label summary @20,58 520x24
+    Label hint @20,92 520x23
+    Button popBtn @20,125 520x39 tabstop
+      Rectangle - @20,125 520x39
+      Label - @36,133 488x23
+    ContextMenu ctx @20,174 0x0
+      MenuItem ctxCut @0,0 154x24 hidden
+      MenuItem ctxCopy @0,0 169x24 hidden
+      MenuItem ctxSep @0,0 36x7 hidden
+      MenuItem ctxPaste @0,0 171x24 hidden

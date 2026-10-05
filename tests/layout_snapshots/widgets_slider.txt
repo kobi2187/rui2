@@ -1,0 +1,11 @@
+VStack root @0,0 520x320
+  Label readout @20,20 480x29
+  Slider slider @20,61 480x24 tabstop
+  ProgressBar bar @20,97 480x23
+  HStack row @20,132 480x39
+    Button minus @20,132 63x39 tabstop
+      Rectangle - @20,132 63x39
+      Label - @36,140 31x23
+    Button plus @91,132 72x39 tabstop
+      Rectangle - @91,132 72x39
+      Label - @107,140 40x23

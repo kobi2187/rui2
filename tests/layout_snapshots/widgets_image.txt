@@ -1,0 +1,6 @@
+VStack root @0,0 460x360
+  Label title @20,20 420x26
+  HStack row @20,58 420x96
+    ImageWidget contain @20,58 96x96
+    ImageWidget fill @128,58 96x96
+    ImageWidget cover @236,58 96x96

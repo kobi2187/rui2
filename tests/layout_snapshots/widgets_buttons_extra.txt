@@ -1,0 +1,19 @@
+VStack root @0,0 520x400
+  Label summary @20,20 480x24
+  Label t1 @20,56 480x23
+  HStack iconRow @20,91 480x32
+    IconButton iconAdd @20,91 32x32 tabstop
+    IconButton iconDel @60,91 32x32 tabstop
+    IconButton iconHelp @100,91 32x32 tabstop
+  Separator sep @20,135 480x1
+  Label t2 @20,148 480x23
+  ToolBar bar @20,183 480x51 group
+    ToolButton tbBold @24,187 34x43 tabstop
+    ToolButton tbItalic @62,187 37x43 tabstop
+    ToolButton tbUnder @103,187 45x43 tabstop
+  Label t3 @20,246 480x23
+  HStack tipRow @20,281 480x39
+    Tooltip tip @20,281 122x39
+      Button hoverTarget @20,281 122x39 tabstop
+        Rectangle - @20,281 122x39
+        Label - @36,289 90x23
