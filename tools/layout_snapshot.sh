@@ -9,6 +9,8 @@ cd "$(dirname "$(readlink -f "$0")")/.."
 MODE="${1:-check}"
 export PATH="$HOME/.nimble/bin:/root/.nimble/bin:$PATH"
 export RUI_PREFERENCES=/nonexistent/rui-preferences.yaml
+# Text is measured by Pango: the same fonts everywhere, or every Label moves.
+export FONTCONFIG_FILE="$PWD/tools/fontconfig/fonts.conf"
 DEP=""
 for pkg in naylib yaml; do
   p="$(nimble path "$pkg" 2>/dev/null | tail -1)"; [ -n "$p" ] && DEP="$DEP --path:$p"
