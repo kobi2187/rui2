@@ -10,10 +10,23 @@
 import rui_core
 import rui_drawing
 import std/options
+from raylib import KeyboardKey
 
 template tabBarHeightOf(w: untyped): float32 =
   ## Tab strip height: the prop, else the theme's.
   themedSize(w.tabBarHeight, currentTheme.barHeight(28.0))
+
+template selectTab(widget: untyped, index: int) =
+  ## Show tab `index` (wrapping round), and tell whoever listens.
+  block:
+    let n = widget.tabs.len
+    let i = ((index mod n) + n) mod n
+    if i != widget.activeTab:
+      widget.activeTab = i
+      widget.isDirty = true
+      widget.layoutDirty = true   # child visibility is decided in layout
+      if widget.onTabChanged != nil:
+        widget.onTabChanged(i)
 
 definePrimitive(TabControl):
   props:
@@ -44,11 +57,36 @@ definePrimitive(TabControl):
       let idx = int((event.mousePos.x - widget.bounds.x) / tabWidth)
       if idx < 0 or idx >= widget.tabs.len or idx == widget.activeTab:
         return false
-      widget.activeTab = idx
-      widget.isDirty = true
-      widget.layoutDirty = true   # child visibility is decided in layout
-      if widget.onTabChanged != nil:
-        widget.onTabChanged(idx)
+      widget.selectTab(idx)
+      return true
+
+    on_key_down:
+      # From anywhere inside: Ctrl+Tab / Ctrl+PageDown to the next tab,
+      # Ctrl+Shift+Tab / Ctrl+PageUp to the previous. On the focused strip
+      # itself: Left/Right, Home/End.
+      if widget.tabs.len == 0:
+        return false
+      if event.ctrl:
+        case event.key
+        of KeyboardKey.Tab:
+          widget.selectTab(widget.activeTab + (if event.shift: -1 else: 1))
+          return true
+        of KeyboardKey.PageDown:
+          widget.selectTab(widget.activeTab + 1)
+          return true
+        of KeyboardKey.PageUp:
+          widget.selectTab(widget.activeTab - 1)
+          return true
+        else:
+          return false
+      if not widget.focused:
+        return false
+      case event.key
+      of KeyboardKey.Right: widget.selectTab(widget.activeTab + 1)
+      of KeyboardKey.Left: widget.selectTab(widget.activeTab - 1)
+      of KeyboardKey.Home: widget.selectTab(0)
+      of KeyboardKey.End: widget.selectTab(widget.tabs.len - 1)
+      else: return false
       return true
 
     on_mouse_move:

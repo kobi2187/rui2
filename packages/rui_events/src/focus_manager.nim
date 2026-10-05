@@ -372,6 +372,17 @@ proc handleKeyboardEvent*(fm: FocusManager, event: GuiEvent,
   if event.kind != evKeyDown:
     return false
 
+  # A chord with Ctrl or Alt that the focused widget does not use goes to its
+  # ancestors, innermost first: how a TabControl hears Ctrl+Tab, or a menu
+  # bar its Alt keys, while focus sits on a control inside it. Plain keys
+  # (the arrows, Tab) do not bubble, so they stay with focus navigation.
+  if fm.focusedWidget != nil and (kmCtrl in event.mods or kmAlt in event.mods):
+    var w = fm.focusedWidget.parent
+    while w != nil:
+      if w.visible and w.enabled and w.handleInput(event):
+        return true
+      w = w.parent
+
   fm.handleGroupKeys(event) or
     fm.handleNavigationKeys(event, rootWidget)
 

@@ -351,3 +351,47 @@ suite "tree view from the keyboard":
     check t.flatNodes.len == 5
     discard t.key(KeyboardKey.End)
     check t.selectedId == "b"
+
+suite "tabs from the keyboard":
+  proc tabs(): tuple[t: TabControl, inside: Button] =
+    let t = newTabControl(tabs = @["One", "Two", "Three"])
+    let inside = newButton(text = "in page one")
+    t.addChild inside
+    t.addChild newLabel(text = "two")
+    t.addChild newLabel(text = "three")
+    t.bounds = Rect(x: 0, y: 0, width: 300, height: 200)
+    t.layout()
+    (t, inside)
+
+  proc press(fm: FocusManager, root: Widget, k: KeyboardKey, mods: set[KeyMod] = {}): bool =
+    fm.handleKeyboardEvent(GuiEvent(kind: evKeyDown, key: k, mods: mods,
+                                    timestamp: getMonoTime()), root)
+
+  test "Ctrl+Tab from a control inside a page goes to the next tab":
+    let (t, inside) = tabs()
+    let fm = newFocusManager()
+    fm.setFocus(inside)
+    check fm.press(t, KeyboardKey.Tab, {kmCtrl})
+    check t.activeTab == 1
+    check fm.press(t, KeyboardKey.Tab, {kmCtrl, kmShift})
+    check t.activeTab == 0
+    check fm.press(t, KeyboardKey.PageUp, {kmCtrl})
+    check t.activeTab == 2                               # wraps round
+
+  test "the focused strip takes Left/Right and Home/End":
+    let (t, _) = tabs()
+    let fm = newFocusManager()
+    fm.setFocus(t)
+    check fm.press(t, KeyboardKey.Right)
+    check t.activeTab == 1
+    check fm.press(t, KeyboardKey.End)
+    check t.activeTab == 2
+    check fm.press(t, KeyboardKey.Home)
+    check t.activeTab == 0
+
+  test "plain arrows inside a page are not taken by the tabs":
+    let (t, inside) = tabs()
+    let fm = newFocusManager()
+    fm.setFocus(inside)
+    discard fm.press(t, KeyboardKey.Right)
+    check t.activeTab == 0
