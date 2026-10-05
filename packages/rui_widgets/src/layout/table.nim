@@ -71,6 +71,47 @@ defineWidget(TableRow):
   layout:
     discard
 
+type TablePlan = object
+  widths: seq[float32]             # per column
+  heights: seq[float32]            # per row
+  cells: seq[seq[Size]]            # each cell, measured at its column's width
+  own: Size
+
+proc planTable[W](widget: W, c: Constraints): TablePlan =
+  ## Column widths from the rules and the cells' natural widths, then each
+  ## cell measured at its column's width to find the row heights.
+  var n = 0
+  for row in widget.children:
+    n = max(n, row.children.len)
+  var rules = newSeq[TableColumnWidth](n)
+  for i in 0 ..< n:
+    rules[i] = if i < widget.columnWidths.len: widget.columnWidths[i]
+               else: widget.defaultColumnWidth
+  var intrinsic = newSeq[float32](n)
+  for row in widget.children:
+    for i, cell in row.children:
+      intrinsic[i] = max(intrinsic[i], cell.measure(unbounded()).width)
+  let hasWidth = c.tightWidth and c.minWidth > 0
+  let gaps = totalSpacing(n, widget.columnSpacing)
+  result.widths = resolveColumnWidths(rules, intrinsic,
+                                      (if hasWidth: c.minWidth - gaps else: 0.0'f32))
+  var tableWidth = gaps
+  for w in result.widths: tableWidth += w
+  var total = 0.0'f32
+  for row in widget.children:
+    var sizes: seq[Size]
+    var rowHeight = 0.0'f32
+    for i, cell in row.children:
+      let s = cell.measure(unbounded().withWidth(result.widths[i]))
+      sizes.add s
+      rowHeight = max(rowHeight, s.height)
+    result.cells.add sizes
+    result.heights.add rowHeight
+    total += rowHeight
+  total += totalSpacing(widget.children.len, widget.rowSpacing)
+  result.own = Size(width: (if hasWidth: c.minWidth else: tableWidth),
+                    height: (if c.tightHeight and c.minHeight > 0: c.minHeight else: total))
+
 defineWidget(Table):
   props:
     columnWidths: seq[TableColumnWidth] = @[]
@@ -80,56 +121,46 @@ defineWidget(Table):
     rowSpacing: float32 = 0.0        # and between rows
 
   layout:
-    var n = 0
-    for row in widget.children:
-      n = max(n, row.children.len)
-    var rules = newSeq[TableColumnWidth](n)
-    for c in 0 ..< n:
-      rules[c] = if c < widget.columnWidths.len: widget.columnWidths[c]
-                 else: widget.defaultColumnWidth
-
-    # Intrinsic widths: every cell at its natural size.
-    var intrinsic = newSeq[float32](n)
-    for row in widget.children:
-      for c, cell in row.children:
-        cell.bounds.width = 0
-        cell.bounds.height = 0
-        cell.layout()
-        intrinsic[c] = max(intrinsic[c], cell.bounds.width)
-
-    let hasWidth = widget.bounds.width > 0
-    let gaps = totalSpacing(n, widget.columnSpacing)
-    let widths = resolveColumnWidths(rules, intrinsic,
-                                     (if hasWidth: widget.bounds.width - gaps else: 0.0'f32))
-    var tableWidth = gaps
-    for w in widths: tableWidth += w
-
+    let plan = widget.planTable(constraintsOf(widget.bounds))
+    widget.bounds.width = plan.own.width
+    widget.bounds.height = plan.own.height
+    var tableWidth = totalSpacing(plan.widths.len, widget.columnSpacing)
+    for w in plan.widths: tableWidth += w
     var y = widget.bounds.y
-    for row in widget.children:
-      var rowHeight = 0.0'f32
+    for r, row in widget.children:
+      let rowHeight = plan.heights[r]
       var x = widget.bounds.x
-      for c, cell in row.children:
-        cell.bounds = Rect(x: x, y: y, width: widths[c])
-        cell.layout()
-        rowHeight = max(rowHeight, cell.bounds.height)
-        x += widths[c] + widget.columnSpacing
-      for cell in row.children:
+      for i, cell in row.children:
+        let s = plan.cells[r][i]
         let dy = case widget.defaultVerticalAlignment
                  of TableCellVerticalAlignment.top: 0.0'f32
-                 of TableCellVerticalAlignment.middle: (rowHeight - cell.bounds.height) / 2
-                 of TableCellVerticalAlignment.bottom: rowHeight - cell.bounds.height
-        if dy != 0:
-          cell.bounds.y = y + dy
-          cell.layout()
+                 of TableCellVerticalAlignment.middle: (rowHeight - s.height) / 2
+                 of TableCellVerticalAlignment.bottom: rowHeight - s.height
+        cell.arrange(Rect(x: x, y: y + dy, width: s.width, height: s.height))
+        x += plan.widths[i] + widget.columnSpacing
       row.bounds = Rect(x: widget.bounds.x, y: y, width: tableWidth, height: rowHeight)
       y += rowHeight + widget.rowSpacing
 
-    if not hasWidth: widget.bounds.width = tableWidth
-    if widget.bounds.height <= 0:
-      widget.bounds.height = max(0.0'f32, y - widget.bounds.y -
-        (if widget.children.len > 0: widget.rowSpacing else: 0.0'f32))
+method computeSize*(widget: Table, c: Constraints): Size = widget.planTable(c).own
 
 # A uniform grid of equal cells.
+proc gridSize[W](widget: W, c: Constraints): Size =
+  ## Equal cells: the width divided by the column count -- or, with no width,
+  ## the widest child per column -- and rows at the aspect ratio.
+  let n = max(1, widget.crossAxisCount)
+  let gaps = totalSpacing(n, widget.crossAxisSpacing)
+  var width = c.minWidth
+  if not (c.tightWidth and c.minWidth > 0):
+    var widest = 0.0'f32
+    for child in widget.children:
+      widest = max(widest, child.measure(unbounded()).width)
+    width = widest * float32(n) + gaps
+  let cellH = (width - gaps) / float32(n) / max(0.01'f32, widget.childAspectRatio)
+  let rows = (widget.children.len + n - 1) div n
+  Size(width: width,
+       height: (if c.tightHeight and c.minHeight > 0: c.minHeight
+                else: float32(rows) * cellH + totalSpacing(rows, widget.mainAxisSpacing)))
+
 defineWidget(GridView):
   props:
     crossAxisCount: int = 2
@@ -138,26 +169,16 @@ defineWidget(GridView):
     childAspectRatio: float32 = 1.0   # cell width / cell height
 
   layout:
+    let own = widget.gridSize(constraintsOf(widget.bounds))
+    widget.bounds.width = own.width
+    widget.bounds.height = own.height
     let n = max(1, widget.crossAxisCount)
-    let gaps = totalSpacing(n, widget.crossAxisSpacing)
-    if widget.bounds.width <= 0:
-      # No width to divide: size the cells to the widest child.
-      var widest = 0.0'f32
-      for child in widget.children:
-        child.bounds = Rect()
-        child.layout()
-        widest = max(widest, child.bounds.width)
-      widget.bounds.width = widest * float32(n) + gaps
-    let cellW = (widget.bounds.width - gaps) / float32(n)
+    let cellW = (own.width - totalSpacing(n, widget.crossAxisSpacing)) / float32(n)
     let cellH = cellW / max(0.01'f32, widget.childAspectRatio)
     for i, child in widget.children:
-      let col = i mod n
-      let row = i div n
-      child.bounds = Rect(
-        x: widget.bounds.x + float32(col) * (cellW + widget.crossAxisSpacing),
-        y: widget.bounds.y + float32(row) * (cellH + widget.mainAxisSpacing),
-        width: cellW, height: cellH)
-      child.layout()
-    let rows = (widget.children.len + n - 1) div n
-    if widget.bounds.height <= 0:
-      widget.bounds.height = float32(rows) * cellH + totalSpacing(rows, widget.mainAxisSpacing)
+      child.arrange(Rect(
+        x: widget.bounds.x + float32(i mod n) * (cellW + widget.crossAxisSpacing),
+        y: widget.bounds.y + float32(i div n) * (cellH + widget.mainAxisSpacing),
+        width: cellW, height: cellH))
+
+method computeSize*(widget: GridView, c: Constraints): Size = widget.gridSize(c)
