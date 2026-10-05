@@ -5,3 +5,5 @@ VStack root @0,0 520x320
   Label submitted @20,139 480x23
   Label t2 @20,174 480x23
   TextInput capped @20,209 200x30 tabstop
+  Label t3 @20,251 480x23
+  TextInput password @20,286 200x30 tabstop
