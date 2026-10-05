@@ -85,3 +85,28 @@ suite "plot layout":
               lineSeries("c", @[], some(Color(r: 1, g: 2, b: 3, a: 255)))]
     check seriesColor(s, 0) != seriesColor(s, 1)
     check seriesColor(s, 2) == Color(r: 1, g: 2, b: 3, a: 255)
+
+suite "plot hover readout":
+  proc chart(): Plot =
+    result = newPlot(series = @[
+      lineSeries("sales", @[(0.0, 10.0), (1.0, 30.0), (2.0, 20.0), (3.0, 40.0)]),
+      lineSeries("costs", @[(0.0, 5.0), (1.0, 8.0), (2.0, 12.0), (3.0, 9.0)])])
+    result.bounds = Rect(x: 0, y: 0, width: 400, height: 240)
+    result.layout()
+
+  test "the nearest point goes by x first, then by distance":
+    let p = chart()
+    let f = p.plotFrame
+    let at1 = f.l.toPixel(1.0, 30.0)
+    check nearestPoint(p.series, f.l, at1.x + 3, at1.y + 2) == (0, 1)
+    let low = f.l.toPixel(2.0, 12.0)
+    check nearestPoint(p.series, f.l, low.x - 2, low.y + 4) == (1, 2)
+
+  test "moving over the plot area picks the point; outside it, none":
+    let p = chart()
+    let f = p.plotFrame
+    let at = f.l.toPixel(3.0, 40.0)
+    discard p.handleInput(GuiEvent(kind: evMouseMove, mousePos: Point(x: at.x, y: at.y)))
+    check (p.hoverSeries, p.hoverIndex) == (0, 3)
+    discard p.handleInput(GuiEvent(kind: evMouseMove, mousePos: Point(x: 1, y: 1)))
+    check p.hoverSeries == -1
