@@ -1,7 +1,7 @@
 ## Switch, SegmentedControl, Rating, Sparkline, Toast: small widgets, each with
 ## its arithmetic checked as plain values and its behaviour through real events.
 
-import std/[unittest, math, monotimes, times, options]
+import std/[unittest, math, monotimes, times, options, sets]
 import rui
 from raylib import KeyboardKey
 
@@ -247,3 +247,59 @@ suite "slider from the keyboard and the wheel":
     check snapped(47.3, 0, 5) == 45
     check snapped(47.3, 0, 0) == 47.3'f32
     check stepValue(97, 0, 100, 5, 1) == 100
+
+suite "list view from the keyboard":
+  proc send(w: Widget, e: GuiEvent): bool =
+    var e = e
+    e.timestamp = getMonoTime()
+    w.handleInput(e)
+
+  proc list(multi = false): ListView =
+    var items: seq[string]
+    for i in 0 ..< 50: items.add "item " & $i
+    result = newListView(items = items, multiSelect = multi, itemHeight = 20)
+    result.bounds = Rect(x: 0, y: 0, width: 200, height: 100)   # five rows
+    result.focused = true
+
+  test "Down moves the focus and the selection follows":
+    let l = list()
+    var fired = 0
+    l.onSelect = proc(s: HashSet[int]) = inc fired
+    discard l.send(GuiEvent(kind: evKeyDown, key: KeyboardKey.Down))
+    discard l.send(GuiEvent(kind: evKeyDown, key: KeyboardKey.Down))
+    check l.focusIndex == 2 and l.selection == [2].toHashSet
+    check fired == 2
+
+  test "End goes to the last row and scrolls it into view":
+    let l = list()
+    discard l.send(GuiEvent(kind: evKeyDown, key: KeyboardKey.End))
+    check l.focusIndex == 49
+    check l.scrollY == float32(49 * 20 - 100 + 20)
+
+  test "Shift+Down selects a range in a multi-select list":
+    let l = list(multi = true)
+    discard l.send(GuiEvent(kind: evKeyDown, key: KeyboardKey.Down, mods: {kmShift}))
+    discard l.send(GuiEvent(kind: evKeyDown, key: KeyboardKey.Down, mods: {kmShift}))
+    check l.selection == [0, 1, 2].toHashSet
+
+  test "Ctrl moves the focus alone; Space toggles":
+    let l = list(multi = true)
+    discard l.send(GuiEvent(kind: evKeyDown, key: KeyboardKey.Space))
+    discard l.send(GuiEvent(kind: evKeyDown, key: KeyboardKey.Down, mods: {kmCtrl}))
+    discard l.send(GuiEvent(kind: evKeyDown, key: KeyboardKey.Down, mods: {kmCtrl}))
+    discard l.send(GuiEvent(kind: evKeyDown, key: KeyboardKey.Space))
+    check l.selection == [0, 2].toHashSet
+
+  test "Ctrl+A selects everything; Enter activates the focused row":
+    let l = list(multi = true)
+    discard l.send(GuiEvent(kind: evKeyDown, key: KeyboardKey.A, mods: {kmCtrl}))
+    check l.selection.len == 50
+    var clicked = -1
+    l.onItemClick = proc(i: int) = clicked = i
+    discard l.send(GuiEvent(kind: evKeyDown, key: KeyboardKey.Down))
+    discard l.send(GuiEvent(kind: evKeyDown, key: KeyboardKey.Enter))
+    check clicked == 1
+
+  test "a key that does not navigate is left to others":
+    let l = list()
+    check not l.send(GuiEvent(kind: evKeyDown, key: KeyboardKey.Tab))

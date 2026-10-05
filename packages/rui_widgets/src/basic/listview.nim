@@ -57,6 +57,8 @@ definePrimitive(ListView):
     visibleStart: int
     visibleEnd: int
     hoverIndex: int
+    focusIndex: int              # the keyboard's row
+    anchorIndex: int             # where a Shift range starts
 
   actions:
     onSelect(selection: HashSet[int])
@@ -100,13 +102,61 @@ definePrimitive(ListView):
         return false
 
       # A single-select list ignores ctrl rather than quietly multi-selecting.
-      let additive = widget.multiSelect and event.ctrl
-      updateSelection(widget.selection, idx, additive)
+      if widget.multiSelect and event.shift:
+        discard keyboardSelect(widget.selection, widget.anchorIndex, idx,
+                               true, shift = true, ctrl = false)
+      else:
+        let additive = widget.multiSelect and event.ctrl
+        updateSelection(widget.selection, idx, additive)
+        widget.anchorIndex = idx
+      widget.focusIndex = idx
 
       widget.isDirty = true
       if widget.onItemClick != nil:
         widget.onItemClick(idx)
       if widget.onSelect != nil:
+        widget.onSelect(widget.selection)
+      return true
+
+    on_key_down:
+      # Arrows, Home/End and PageUp/PageDown move the focus row and the
+      # selection with it (Shift: a range, Ctrl: the focus alone); Space
+      # selects -- or toggles, in a multi-select list; Enter activates;
+      # Ctrl+A selects everything.
+      if widget.disabled or not widget.focused:
+        return false
+      let total = widget.totalItems
+      if total == 0:
+        return false
+      let multi = widget.multiSelect
+      var changed = false
+      if event.ctrl and event.key == KeyboardKey.A and multi:
+        let before = widget.selection
+        widget.selection.clear()
+        for i in 0 ..< total: widget.selection.incl i
+        changed = widget.selection != before
+      elif event.key == KeyboardKey.Space:
+        let before = widget.selection
+        updateSelection(widget.selection, widget.focusIndex, multi)
+        widget.anchorIndex = widget.focusIndex
+        changed = widget.selection != before
+      elif event.key in {KeyboardKey.Enter, KeyboardKey.KpEnter}:
+        if widget.onItemClick != nil: widget.onItemClick(widget.focusIndex)
+        return true
+      else:
+        let v = viewportOf(widget)
+        let moved = nextFocusIndex(event.key, widget.focusIndex, total,
+                                   max(1, int(widget.bounds.height / rowH(widget)) - 1))
+        if moved.isNone:
+          return false
+        widget.focusIndex = moved.get
+        changed = keyboardSelect(widget.selection, widget.anchorIndex, moved.get,
+                                 multi, event.shift, event.ctrl)
+        widget.scrollY = v.scrollToShow(moved.get, total)
+        if v.nearEnd(total) and widget.onScrollNearEnd != nil:
+          widget.onScrollNearEnd()
+      widget.isDirty = true
+      if changed and widget.onSelect != nil:
         widget.onSelect(widget.selection)
       return true
 
@@ -154,7 +204,8 @@ definePrimitive(ListView):
       let text = if itemIdx < widget.items.len: widget.items[itemIdx] else: "Loading..."
       drawListItem(itemRect, text, props,
                    selected = itemIdx in widget.selection,
-                   hovered = itemIdx == widget.hoverIndex)
+                   hovered = itemIdx == widget.hoverIndex,
+                   focused = widget.focused and itemIdx == widget.focusIndex)
     endClip(clip)
 
     if widget.showScrollbar and totalHeight > viewHeight:
