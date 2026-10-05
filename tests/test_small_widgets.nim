@@ -303,3 +303,51 @@ suite "list view from the keyboard":
   test "a key that does not navigate is left to others":
     let l = list()
     check not l.send(GuiEvent(kind: evKeyDown, key: KeyboardKey.Tab))
+
+suite "tree view from the keyboard":
+  proc send(w: Widget, e: GuiEvent): bool =
+    var e = e
+    e.timestamp = getMonoTime()
+    w.handleInput(e)
+  proc key(w: Widget, k: KeyboardKey): bool =
+    w.send(GuiEvent(kind: evKeyDown, key: k))
+
+  proc tree(): TreeView =
+    let root = TreeNode(id: "root", text: "root", expanded: true, children: @[
+      TreeNode(id: "a", text: "a", children: @[
+        TreeNode(id: "a1", text: "a1"), TreeNode(id: "a2", text: "a2")]),
+      TreeNode(id: "b", text: "b")])
+    result = newTreeView(rootNode = root, nodeHeight = 20)
+    result.bounds = Rect(x: 0, y: 0, width: 200, height: 200)
+    result.layout()
+    result.focused = true
+
+  test "Down walks the visible rows and selects them":
+    let t = tree()
+    var picked: seq[string]
+    t.onSelect = proc(id: string) = picked.add id
+    discard t.key(KeyboardKey.Down)                      # from root to a
+    discard t.key(KeyboardKey.Down)                      # b (a is closed)
+    check picked == @["a", "b"]
+
+  test "Right opens a branch, then steps into it; Left steps out, then closes":
+    let t = tree()
+    discard t.key(KeyboardKey.Down)                      # a
+    discard t.key(KeyboardKey.Right)
+    check t.flatNodes.rowOf("a").int >= 0 and t.flatNodes[1].node.expanded
+    check t.selectedId == "a"                            # opening does not move
+    discard t.key(KeyboardKey.Right)
+    check t.selectedId == "a1"
+    discard t.key(KeyboardKey.Left)
+    check t.selectedId == "a"                            # out to the parent
+    discard t.key(KeyboardKey.Left)
+    check not t.flatNodes[1].node.expanded               # then closed
+    check t.flatNodes.len == 3
+
+  test "Space toggles a branch; End goes to the last row":
+    let t = tree()
+    discard t.key(KeyboardKey.Down)
+    discard t.key(KeyboardKey.Space)
+    check t.flatNodes.len == 5
+    discard t.key(KeyboardKey.End)
+    check t.selectedId == "b"
