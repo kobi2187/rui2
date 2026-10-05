@@ -2,15 +2,15 @@ VStack root @0,0 460x380
   Label title @20,20 420x26
   ScrollView scroll @20,58 400x260
     VStack inner @28,66 80x876 clipped=80x244
-      Label row1 @34,72 56x23
-      Label row2 @34,101 56x23
-      Label row3 @34,130 56x23
-      Label row4 @34,159 56x23
-      Label row5 @34,188 56x23
-      Label row6 @34,217 56x23
-      Label row7 @34,246 56x23
-      Label row8 @34,275 56x23
-      Label row9 @34,304 56x23 clipped=56x6
+      Label row1 @34,72 68x23
+      Label row2 @34,101 68x23
+      Label row3 @34,130 68x23
+      Label row4 @34,159 68x23
+      Label row5 @34,188 68x23
+      Label row6 @34,217 68x23
+      Label row7 @34,246 68x23
+      Label row8 @34,275 68x23
+      Label row9 @34,304 68x23 clipped=68x6
       Label row10 @34,333 68x23 clipped=68x0
       Label row11 @34,362 68x23 clipped=68x0
       Label row12 @34,391 68x23 clipped=68x0
