@@ -48,4 +48,5 @@ proc applyPreferences*(p: Preferences) =
   ## Make `p` the preferences in force. (Navigation keys reach a FocusManager
   ## when it is created or told to refresh; see App.)
   prefs = p
+  inc measureEpoch               # sizes may depend on them; measure afresh
   animationsEnabled = not p.reduceMotion

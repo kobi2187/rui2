@@ -235,11 +235,13 @@ type
       ## until it scrolls into view.
     flexLoose*: bool
       ## Flexible's `FlexFit.loose`: take at most the flex share, not exactly it.
-    measured*: seq[tuple[constraints: Constraints, size: Size, pass: int]]
+    measured*: seq[tuple[constraints: Constraints, size: Size, pass, epoch: int]]
       ## Answers `measure` already gave, so a container that asks a child twice
       ## (Flex asks once for the natural size and again at its flex share), or
       ## a parent re-arranging after one sibling changed, does not re-measure
       ## a subtree that has not changed. See `measure`.
+    arrangedEpoch*: int
+      ## The `measureEpoch` this widget was last arranged in.
     flexGrow*: float32
       ## Share of a stack's leftover main-axis space this widget takes, like
       ## CSS `flex-grow`. 0 (the default) keeps the widget at its own size.
@@ -666,6 +668,12 @@ proc clampSize*(widget: Widget, size: Size): Size =
   Size(width: clampDimension(size.width, widget.sizeMin.width, widget.sizeMax.width),
        height: clampDimension(size.height, widget.sizeMin.height, widget.sizeMax.height))
 
+var measureEpoch* = 0
+  ## Bumped by anything every measurement depends on -- the theme (sizes,
+  ## paddings, fonts), the user's preferences -- so remembered sizes from
+  ## before it are not used after. Cheaper and surer than marking every
+  ## widget dirty from every place that can change those.
+
 var layoutPassNumber* = 0
   ## Which layout pass this is. A measurement taken in this pass stays good
   ## for the rest of it even if its widget is dirty -- the pass is what
@@ -677,7 +685,7 @@ proc measure*(widget: Widget, c: Constraints): Size =
   ## not measured again. Dirtiness is propagated to ancestors before a pass
   ## (`propagateLayoutDirty`), so a clean widget's whole subtree is clean.
   for entry in widget.measured:
-    if entry.constraints == c and
+    if entry.constraints == c and entry.epoch == measureEpoch and
        (entry.pass == layoutPassNumber or not widget.layoutDirty):
       return entry.size
   result = widget.clampSize(widget.computeSize(widget.applySizing(c)))
@@ -688,13 +696,15 @@ proc measure*(widget: Widget, c: Constraints): Size =
   for i in countdown(widget.measured.high, 0):
     if widget.measured[i].constraints == c:
       widget.measured.delete(i)
-  widget.measured.add((c, result, layoutPassNumber))
+  widget.measured.add((c, result, layoutPassNumber, measureEpoch))
 
 proc arrange*(widget: Widget, rect: Rect) =
   ## Give `widget` its final rect and let it place its children -- skipped
   ## when nothing it depends on changed: same rect, and clean.
-  if widget.bounds == rect and not widget.layoutDirty:
+  if widget.bounds == rect and not widget.layoutDirty and
+     widget.arrangedEpoch == measureEpoch:
     return
+  widget.arrangedEpoch = measureEpoch
   widget.bounds = rect
   # The rect is an assignment, whatever size the widget gave itself before.
   widget.ownWidth = -1

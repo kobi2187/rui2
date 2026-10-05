@@ -5,7 +5,7 @@
 ## remembered until something under the widget changes, and a change deep in
 ## the tree reflows the containers above it.
 
-import std/unittest
+import std/[unittest, strutils]
 import rui
 
 type Counted = ref object of Widget
@@ -130,3 +130,101 @@ suite "a change reflows the containers above it":
     row.layoutPass()
     row.layoutPass()
     for l in leaves: check l.calls == 1
+
+suite "what the remembered sizes must not survive":
+
+  proc form(): Flex =
+    result = newColumn(crossAxisAlignment = CrossAxisAlignment.stretch)
+    let row = newRow(spacing = 8)
+    row.addChild newButton(text = "Save")
+    row.addChild newTextInput(initialText = "name")
+    result.addChild row
+    result.addChild newLabel(text = "Status")
+
+  proc rects(w: Widget): seq[Rect] =
+    result.add w.bounds
+    for c in w.children: result.add c.rects
+
+  test "a theme switch: the same tree as one built under the new theme":
+    let saved = currentTheme
+    defer: setCurrentTheme(saved)
+    setCurrentTheme(brandTheme(daylightSpec()))
+    let switched = form()
+    switched.bounds = Rect(x: 0, y: 0, width: 500, height: 300)
+    switched.layoutPass()
+    setCurrentTheme(brandTheme(punchSpec()))
+    switched.markSubtreeDirty(alsoLayout = false)   # repaint only: no layout flag
+    switched.layoutDirty = true
+    switched.layoutPass()
+    let fresh = form()
+    fresh.bounds = Rect(x: 0, y: 0, width: 500, height: 300)
+    fresh.layoutPass()
+    check switched.rects == fresh.rects
+
+  test "a resize: flex shares follow the new width":
+    let row = newRow()
+    row.addChild box(100, 20)
+    row.addChild newExpanded()
+    row.bounds = Rect(x: 0, y: 0, width: 400, height: 40)
+    row.layoutPass()
+    check row.children[1].bounds.width == 300
+    row.bounds.width = 600
+    row.layoutDirty = true
+    row.layoutPass()
+    check row.children[1].bounds.width == 500
+
+  test "scrolling moves the content and keeps its size":
+    let sv = newScrollView()
+    let col = newVStack(spacing = 0)
+    for i in 0 ..< 30: col.addChild newLabel(text = "row " & $i)
+    sv.addChild col
+    sv.bounds = Rect(x: 0, y: 0, width: 200, height: 100)
+    sv.layoutPass()
+    let size = (col.bounds.width, col.bounds.height)
+    let y0 = col.bounds.y
+    sv.scrollOffsetY = 40
+    sv.layoutDirty = true
+    sv.layoutPass()
+    check col.bounds.y == y0 - 40
+    check (col.bounds.width, col.bounds.height) == size
+
+  test "removing a child shrinks a content-sized parent":
+    let col = newColumn()
+    col.addChild box(50, 20)
+    col.addChild box(50, 20)
+    let outer = newColumn()
+    outer.addChild col
+    outer.bounds = Rect(x: 0, y: 0, width: 300, height: 300)
+    outer.layoutPass()
+    let h = col.bounds.height
+    col.children.setLen(1)
+    col.layoutDirty = true
+    outer.layoutPass()
+    check col.bounds.height < h
+
+  test "typing into a TextInput in a Row moves what follows it":
+    let input = newTextInput(initialText = "")
+    let after = box(20, 20)
+    let row = newRow(mainAxisSize = MainAxisSize.min)
+    row.addChild newLabel(text = "Name")
+    row.addChild input
+    row.addChild after
+    let col = newColumn()
+    col.addChild row
+    col.bounds = Rect(x: 0, y: 0, width: 2000, height: 100)
+    col.layoutPass()
+    let x0 = after.bounds.x
+    input.text = repeat("typed text that is much wider than the field ", 3)
+    input.layoutDirty = true
+    col.layoutPass()
+    check after.bounds.x > x0
+
+  test "a widget marked dirty after a pass is measured again":
+    let leaf = counted(30, 10)
+    let row = newRow()
+    row.addChild leaf
+    row.bounds = Rect(x: 0, y: 0, width: 300, height: 40)
+    row.layoutPass()
+    leaf.natural = Size(width: 80, height: 10)
+    leaf.layoutDirty = true
+    check leaf.measure(unbounded()).width == 80    # outside any pass

@@ -15,17 +15,30 @@ for pkg in naylib yaml; do
 done
 export NIMFLAGS="--hints:off --warnings:off -d:useGraphics $DEP"
 OUT=/tmp/rui2_snap; mkdir -p "$OUT/new" tests/layout_snapshots
+# Built in a few shards, each compiling its examples one after another into
+# one shared nimcache: raylib and the toolkit compile once per shard instead
+# of once per example, and the cache stays small enough for CI to keep.
 snap() {
-  local f="$1" n; n="$(echo "${f#examples/}" | tr / _)"; n="${n%.nim}"
+  local f="$1" shard="$2" n; n="$(echo "${f#examples/}" | tr / _)"; n="${n%.nim}"
   grep -qE "^[^#]*\.(start|run)\(" "$f" || return 0
-  if ! nim c $NIMFLAGS --nimcache:"$OUT/nc_$n" -o:"$OUT/bin_$n" "$f" >"$OUT/$n.build" 2>&1; then
+  if ! nim c $NIMFLAGS --nimcache:"$OUT/nc_shard$shard" -o:"$OUT/bin_$n" "$f" >"$OUT/$n.build" 2>&1; then
     echo "BUILD FAIL $n"; return
   fi
   RUI_LAYOUT_DUMP="$OUT/new/$n.txt" timeout 20 "$OUT/bin_$n" >/dev/null 2>&1 \
     || echo "RUN FAIL $n"
+  rm -f "$OUT/bin_$n"
 }
-export -f snap; export OUT
-ls examples/*.nim examples/*/*.nim | xargs -P "$(nproc)" -I{} bash -c 'snap {}'
+shard() {
+  local k="$1" i=0 f
+  for f in $(ls examples/*.nim examples/*/*.nim); do
+    [ $((i % SHARDS)) -eq "$k" ] && snap "$f" "$k"
+    i=$((i + 1))
+  done
+}
+export -f snap shard; export OUT
+SHARDS="${RUI_TEST_JOBS:-$(nproc)}"; export SHARDS
+rm -f "$OUT"/new/*.txt
+seq 0 $((SHARDS - 1)) | xargs -P "$SHARDS" -I{} bash -c 'shard {}'
 if [ "$MODE" = "update" ]; then
   rm -f tests/layout_snapshots/*.txt; cp "$OUT"/new/*.txt tests/layout_snapshots/
   echo "updated $(ls tests/layout_snapshots | wc -l) snapshots"

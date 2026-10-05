@@ -278,6 +278,10 @@ proc layoutPass*(widget: Widget) =
   inc layoutPassNumber
   widget.propagateLayoutDirty()
   widget.layoutWalk()
+  # Ended: what this pass measured is good only while its widget stays
+  # clean. Without this, a widget marked dirty after the pass would answer
+  # from this pass's memory until the next one began.
+  inc layoutPassNumber
 
 # ============================================================================
 # Pass 2: Render

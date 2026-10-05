@@ -69,4 +69,6 @@ jobs:
           path: /tmp/rui2_snap
           key: snap-${{ runner.os }}-${{ github.sha }}
           restore-keys: snap-${{ runner.os }}-
+      - name: Fonts the snapshots are measured with
+        run: FONTCONFIG_FILE=$PWD/tools/fontconfig/fonts.conf fc-match sans-serif
       - run: ./tools/layout_snapshot.sh check

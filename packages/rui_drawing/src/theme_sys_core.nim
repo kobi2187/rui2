@@ -395,6 +395,7 @@ proc setCurrentTheme*(theme: Theme) =
   ## Set the global current theme, and its typography as the default family.
   currentTheme = theme
   inc settleEpoch                # a new theme lands at once, without fading
+  inc measureEpoch               # and nothing keeps the old theme's sizes
   themeFontFamily = theme.typography.primaryFont.get("")
 
 proc makeColor*(r, g, b: int, a: int = 255): Color =
