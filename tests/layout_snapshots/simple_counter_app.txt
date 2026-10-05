@@ -1,0 +1,10 @@
+VStack - @0,0 400x300
+  Label - @16,16 368x32
+  Label - @16,58 368x23
+  HStack - @16,91 368x39
+    Button - @16,91 39x39 tabstop
+      Rectangle - @16,91 39x39
+      Label - @32,99 7x23
+    Button - @63,91 48x39 tabstop
+      Rectangle - @63,91 48x39
+      Label - @79,99 16x23

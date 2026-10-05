@@ -32,48 +32,61 @@ defineWidget(Docked):
   layout:
     wrapChild(widget)
 
+type DockPlan = object
+  rects: seq[Rect]      # each child, relative to the Dock's corner
+  own: Size
+
+proc planDock(widget: Widget, c: Constraints): DockPlan =
+  ## Docked children take their side in order, each from what the ones
+  ## before left free; anything else fills the rest. A free side of the Dock
+  ## is its children's natural extent.
+  let fixedW = if c.tightWidth: c.minWidth else: 0.0'f32
+  let fixedH = if c.tightHeight: c.minHeight else: 0.0'f32
+  var free = Rect(width: fixedW, height: fixedH)
+  for child in widget.children:
+    var cc = unbounded()
+    var r: Rect
+    if child of Docked:
+      let side = Docked(child).side
+      if side in {DockSide.top, DockSide.bottom}:
+        if free.width > 0: cc = cc.withWidth(free.width)
+      elif free.height > 0: cc = cc.withHeight(free.height)
+      let s = child.measure(cc)
+      r = Rect(x: free.x, y: free.y, width: s.width, height: s.height)
+      case side
+      of DockSide.top:
+        free.y += s.height; free.height -= s.height
+      of DockSide.bottom:
+        r.y = free.y + free.height - s.height; free.height -= s.height
+      of DockSide.left:
+        free.x += s.width; free.width -= s.width
+      of DockSide.right:
+        r.x = free.x + free.width - s.width; free.width -= s.width
+    else:
+      if free.width > 0: cc = cc.withWidth(free.width)
+      if free.height > 0: cc = cc.withHeight(free.height)
+      let s = child.measure(cc)
+      r = Rect(x: free.x, y: free.y, width: s.width, height: s.height)
+    result.rects.add r
+  var right, bottom = 0.0'f32
+  for r in result.rects:
+    right = max(right, r.x + r.width)
+    bottom = max(bottom, r.y + r.height)
+  let sized = fixedW > 0 and fixedH > 0
+  result.own = Size(width: (if sized or fixedW > 0: fixedW else: right),
+                    height: (if sized or fixedH > 0: fixedH else: bottom))
+
 defineWidget(Dock):
   layout:
     # A Dock fills what its parent gives it; with no size it takes its
     # children's natural extents in the obvious arrangement.
-    var free = widget.bounds
-    let sized = free.width > 0 and free.height > 0
+    let plan = widget.planDock(constraintsOf(widget.bounds))
+    widget.bounds.width = plan.own.width
+    widget.bounds.height = plan.own.height
+    for i, child in widget.children:
+      let r = plan.rects[i]
+      child.arrange(Rect(x: widget.bounds.x + r.x, y: widget.bounds.y + r.y,
+                         width: r.width, height: r.height))
 
-    for child in widget.children:
-      if child of Docked:
-        let side = Docked(child).side
-        child.bounds = Rect(x: free.x, y: free.y)
-        case side
-        of DockSide.top, DockSide.bottom:
-          child.bounds.width = max(0.0'f32, free.width)
-        of DockSide.left, DockSide.right:
-          child.bounds.height = max(0.0'f32, free.height)
-        child.layout()
-        case side
-        of DockSide.top:
-          free.y += child.bounds.height
-          free.height -= child.bounds.height
-        of DockSide.bottom:
-          child.bounds.y = free.y + free.height - child.bounds.height
-          child.layout()
-          free.height -= child.bounds.height
-        of DockSide.left:
-          free.x += child.bounds.width
-          free.width -= child.bounds.width
-        of DockSide.right:
-          child.bounds.x = free.x + free.width - child.bounds.width
-          child.layout()
-          free.width -= child.bounds.width
-      else:
-        child.bounds = Rect(x: free.x, y: free.y,
-                            width: max(0.0'f32, free.width),
-                            height: max(0.0'f32, free.height))
-        child.layout()
-
-    if not sized:
-      var right, bottom = 0.0'f32
-      for child in widget.children:
-        right = max(right, child.bounds.x + child.bounds.width)
-        bottom = max(bottom, child.bounds.y + child.bounds.height)
-      if widget.bounds.width <= 0: widget.bounds.width = right - widget.bounds.x
-      if widget.bounds.height <= 0: widget.bounds.height = bottom - widget.bounds.y
+method computeSize*(widget: Dock, c: Constraints): Size = widget.planDock(c).own
+method computeSize*(widget: Docked, c: Constraints): Size = widget.wrapSize(c)

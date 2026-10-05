@@ -8,8 +8,12 @@
 ./tools/run_tests.sh full       # all of the above
 ```
 
-CI (`.github/workflows/ci.yml`) runs `quick`, `examples` and `ui` as three
-parallel jobs on every pull request and on main, with Nimble packages and each
+`./tools/layout_snapshot.sh` lays every example out without a window and
+diffs each widget's rect against `tests/layout_snapshots/` (`update` records
+an intended change; see docs/layout.md).
+
+CI (`.github/workflows/ci.yml`) runs `quick`, `examples`, `ui` and the layout
+snapshots as parallel jobs on every pull request and on main, with Nimble packages and each
 job's nimcache cached; a red job reproduces locally with the same command.
 
 The default run is meant to be quick enough to run after every change, so it

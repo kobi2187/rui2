@@ -1,0 +1,15 @@
+VStack root @0,0 520x400
+  Label big @20,20 480x44
+  Label words @20,76 480x24
+  ProgressBar bar @20,112 480x23
+  Label greeting @20,147 480x26
+  HStack row @20,185 480x39
+    Button inc @20,185 126x39 tabstop
+      Rectangle - @20,185 126x39
+      Label - @36,193 94x23
+    Button reset @156,185 83x39 tabstop
+      Rectangle - @156,185 83x39
+      Label - @172,193 51x23
+    Button rename @249,185 107x39 tabstop
+      Rectangle - @249,185 107x39
+      Label - @265,193 75x23

@@ -1,0 +1,6 @@
+VStack root @0,0 520x420
+  Label - @20,20 480x26
+  TextArea notes @20,58 480x202 tabstop
+  Label - @20,272 480x19
+  TextInput - @20,303 480x41 tabstop
+  Label echo @20,356 480x19

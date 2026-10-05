@@ -1,0 +1,19 @@
+Padding - @0,0 520x420
+  Column - @24,24 472x372
+    Label - @24,24 472x38
+    Table - @24,74 472x143
+      TableRow - @24,74 472x41
+        Label - @24,83 54x23
+        TextInput - @90,74 406x41 tabstop
+      TableRow - @24,125 472x41
+        Label - @24,134 54x23
+        TextInput - @90,125 406x41 tabstop
+      TableRow - @24,176 472x41
+        Label - @24,185 54x23
+        ComboBox - @90,176 406x41 tabstop
+    Checkbox - @24,229 472x23 tabstop
+    Row - @24,264 472x39
+      Button - @325,264 171x39 tabstop
+        Rectangle - @325,264 171x39
+        Label - @341,272 139x23
+    Label - @24,315 472x23

@@ -1,0 +1,4 @@
+VStack root @0,0 720x420
+  Label summary @16,16 688x24
+  Timeline track @16,52 680x260 tabstop
+  Label hint @16,324 688x22

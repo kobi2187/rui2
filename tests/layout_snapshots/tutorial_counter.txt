@@ -1,0 +1,10 @@
+Center - @0,0 360x220
+  Column - @90,62 179x95
+    Label - @90,62 179x44
+    Row - @132,118 95x39
+      Button - @132,118 39x39 tabstop
+        Rectangle - @132,118 39x39
+        Label - @148,126 7x23
+      Button - @179,118 48x39 tabstop
+        Rectangle - @179,118 48x39
+        Label - @195,126 16x23

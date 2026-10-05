@@ -38,6 +38,49 @@ proc lineBreaks*(widths: openArray[float32], available, spacing: float32): seq[i
       x = 0
     x += w + spacing
 
+type WrapPlan = object
+  rects: seq[Rect]      # each child, relative to the Wrap's corner
+  own: Size
+
+proc planWrap[W](widget: W, c: Constraints): WrapPlan =
+  ## Children at their natural size, broken into runs that fit the width.
+  let hasWidth = c.tightWidth and c.minWidth > 0
+  var sizes: seq[Size]
+  var widths: seq[float32]
+  for child in widget.children:
+    let s = child.measure(unbounded())
+    sizes.add s
+    widths.add s.width
+  let runs = lineBreaks(widths, (if hasWidth: c.minWidth else: 0.0'f32), widget.spacing)
+  result.rects.setLen(widget.children.len)
+  var y = 0.0'f32
+  var widest = 0.0'f32
+  for r, first in runs:
+    let last = (if r + 1 < runs.len: runs[r + 1] else: widget.children.len) - 1
+    var runWidth, runHeight = 0.0'f32
+    for i in first .. last:
+      runWidth += widths[i]
+      runHeight = max(runHeight, sizes[i].height)
+    let count = last - first + 1
+    let extent = if hasWidth: c.minWidth
+                 else: runWidth + totalSpacing(count, widget.spacing)
+    let (gap, start) = calculateDistributedSpacing(widget.alignment, extent,
+                                                   runWidth, count, widget.spacing)
+    var x = start
+    for i in first .. last:
+      let dy = case widget.crossAxisAlignment
+               of WrapCrossAlignment.start: 0.0'f32
+               of WrapCrossAlignment.center: (runHeight - sizes[i].height) / 2
+               of WrapCrossAlignment.`end`: runHeight - sizes[i].height
+      result.rects[i] = Rect(x: x, y: y + dy, width: sizes[i].width, height: sizes[i].height)
+      x += widths[i] + gap
+    widest = max(widest, runWidth + totalSpacing(count, widget.spacing))
+    y += runHeight + widget.runSpacing
+  result.own = Size(
+    width: (if hasWidth: c.minWidth else: widest),
+    height: (if c.tightHeight and c.minHeight > 0: c.minHeight
+             else: max(0.0'f32, y - (if runs.len > 0: widget.runSpacing else: 0.0'f32))))
+
 defineWidget(Wrap):
   props:
     spacing: float32 = 0.0        # between children in a run
@@ -46,44 +89,12 @@ defineWidget(Wrap):
     crossAxisAlignment: WrapCrossAlignment = WrapCrossAlignment.start
 
   layout:
-    let hasWidth = widget.bounds.width > 0
-    var widths: seq[float32]
-    for child in widget.children:
-      child.bounds.width = 0
-      child.bounds.height = 0
-      child.layout()
-      widths.add child.bounds.width
+    let plan = widget.planWrap(constraintsOf(widget.bounds))
+    widget.bounds.width = plan.own.width
+    widget.bounds.height = plan.own.height
+    for i, child in widget.children:
+      let r = plan.rects[i]
+      child.arrange(Rect(x: widget.bounds.x + r.x, y: widget.bounds.y + r.y,
+                         width: r.width, height: r.height))
 
-    let runs = lineBreaks(widths, (if hasWidth: widget.bounds.width else: 0.0'f32),
-                          widget.spacing)
-    var y = 0.0'f32
-    var widest = 0.0'f32
-    for r, first in runs:
-      let last = (if r + 1 < runs.len: runs[r + 1] else: widget.children.len) - 1
-      var runWidth, runHeight = 0.0'f32
-      for i in first .. last:
-        runWidth += widths[i]
-        runHeight = max(runHeight, widget.children[i].bounds.height)
-      let count = last - first + 1
-      let extent = if hasWidth: widget.bounds.width
-                   else: runWidth + totalSpacing(count, widget.spacing)
-      let (gap, start) = calculateDistributedSpacing(widget.alignment, extent,
-                                                     runWidth, count, widget.spacing)
-      var x = start
-      for i in first .. last:
-        let child = widget.children[i]
-        let dy = case widget.crossAxisAlignment
-                 of WrapCrossAlignment.start: 0.0'f32
-                 of WrapCrossAlignment.center: (runHeight - child.bounds.height) / 2
-                 of WrapCrossAlignment.`end`: runHeight - child.bounds.height
-        child.bounds.x = widget.bounds.x + x
-        child.bounds.y = widget.bounds.y + y + dy
-        child.layout()
-        x += widths[i] + gap
-      widest = max(widest, runWidth + totalSpacing(count, widget.spacing))
-      y += runHeight + widget.runSpacing
-
-    if not hasWidth:
-      widget.bounds.width = widest
-    if widget.bounds.height <= 0:
-      widget.bounds.height = max(0.0'f32, y - (if runs.len > 0: widget.runSpacing else: 0.0'f32))
+method computeSize*(widget: Wrap, c: Constraints): Size = widget.planWrap(c).own

@@ -1,0 +1,24 @@
+VStack root @0,0 760x740
+  Label title @22,22 716x42
+  Label subtitle @22,73 716x23
+  Label regular @22,105 716x26
+  Label bold @22,140 716x26
+  Label italic @22,175 716x26
+  Label serif @22,210 716x26
+  Label mono @22,245 716x26
+  Label hebrew @22,280 716x29
+  Label arabic @22,318 716x29
+  Label cjk @22,356 716x32
+  Label mixed @22,397 716x28
+  Label markup @22,434 716x32
+  Label paragraph @22,475 716x69
+  Label counter @22,553 716x26
+  HStack buttonRow @22,588 716x39
+    Button clickButton @22,588 111x39 tabstop
+      Rectangle - @22,588 111x39
+      Label - @38,596 79x23
+    Button quitButton @143,588 71x39 tabstop
+      Rectangle - @143,588 71x39
+      Label - @159,596 39x23
+  Checkbox agree @22,636 716x23 tabstop
+  ProgressBar progress @22,668 716x23

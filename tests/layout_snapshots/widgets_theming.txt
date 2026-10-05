@@ -1,0 +1,25 @@
+VStack root @0,0 520x420
+  Label current @20,20 480x26
+  VStack samples @20,58 480x227
+    Button sDefault @20,58 480x39 tabstop
+      Rectangle - @20,58 480x39
+      Label - @36,66 448x23
+    Button sInfo @20,105 480x39 tabstop
+      Rectangle - @20,105 480x39
+      Label - @36,113 448x23
+    Button sSuccess @20,152 480x39 tabstop
+      Rectangle - @20,152 480x39
+      Label - @36,160 448x23
+    Button sWarning @20,199 480x39 tabstop
+      Rectangle - @20,199 480x39
+      Label - @36,207 448x23
+    Button sDanger @20,246 480x39 tabstop
+      Rectangle - @20,246 480x39
+      Label - @36,254 448x23
+  HStack switcher @20,297 480x39
+    Button use_light @20,297 114x39 tabstop
+      Rectangle - @20,297 114x39
+      Label - @36,305 82x23
+    Button use_dark @144,297 115x39 tabstop
+      Rectangle - @144,297 115x39
+      Label - @160,305 83x23

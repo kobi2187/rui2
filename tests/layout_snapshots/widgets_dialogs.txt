@@ -1,0 +1,12 @@
+VStack root @0,0 680x560
+  Label summary @20,20 640x24
+  Button askBtn @20,56 640x39 tabstop
+    Rectangle - @20,56 640x39
+    Label - @36,64 608x23
+  Button openBtn @20,107 640x39 tabstop
+    Rectangle - @20,107 640x39
+    Label - @36,115 608x23
+  Label t1 @20,158 640x23
+  FilePicker embedded @20,193 600x260 tabstop
+  MessageBox confirm @0,0 0x0
+  FileDialog fileDialog @0,0 0x0

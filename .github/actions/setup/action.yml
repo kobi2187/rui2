@@ -21,7 +21,8 @@ runs:
       run: |
         sudo apt-get update -qq
         pkgs="libpango1.0-dev libcairo2-dev libasound2-dev libx11-dev libxrandr-dev libxi-dev
-              libgl1-mesa-dev libglu1-mesa-dev libxcursor-dev libxinerama-dev libxkbcommon-dev libwayland-bin"
+              libgl1-mesa-dev libglu1-mesa-dev libxcursor-dev libxinerama-dev libxkbcommon-dev libwayland-bin
+              fonts-dejavu-core fonts-wqy-zenhei"
         [ "${{ inputs.xvfb }}" = "true" ] && pkgs="$pkgs xvfb imagemagick xdotool"
         sudo apt-get install -y -qq --no-install-recommends $pkgs >/dev/null
 

@@ -1,0 +1,20 @@
+VStack root @0,0 460x400
+  Label status @20,20 420x26
+  Button bDefault @20,58 420x39 tabstop
+    Rectangle - @20,58 420x39
+    Label - @36,66 388x23
+  Button bInfo @20,109 420x39 tabstop
+    Rectangle - @20,109 420x39
+    Label - @36,117 388x23
+  Button bSuccess @20,160 420x39 tabstop
+    Rectangle - @20,160 420x39
+    Label - @36,168 388x23
+  Button bWarning @20,211 420x39 tabstop
+    Rectangle - @20,211 420x39
+    Label - @36,219 388x23
+  Button bDanger @20,262 420x39 tabstop
+    Rectangle - @20,262 420x39
+    Label - @36,270 388x23
+  Button bDisabled @20,313 420x39 tabstop
+    Rectangle - @20,313 420x39
+    Label - @36,321 388x23

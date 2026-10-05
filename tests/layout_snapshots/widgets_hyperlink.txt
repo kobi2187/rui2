@@ -1,0 +1,5 @@
+VStack root @0,0 460x260
+  Label note @20,20 420x24
+  Hyperlink l1 @20,56 420x23 tabstop
+  Hyperlink l2 @20,91 420x23 tabstop
+  Label hint @20,126 420x22

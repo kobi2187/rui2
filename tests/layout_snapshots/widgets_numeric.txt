@@ -1,0 +1,8 @@
+VStack root @0,0 560x420
+  Label summary @20,20 520x24
+  Label t1 @20,58 520x23
+  Spinner spin @20,95 520x28 tabstop
+  Label t2 @20,137 520x23
+  NumberInput num @20,174 520x28 tabstop
+  Label t3 @20,216 520x23
+  ScrollBar bar @20,253 300x12 tabstop

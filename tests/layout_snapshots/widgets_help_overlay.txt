@@ -1,0 +1,16 @@
+VStack - @0,0 900x460
+  Label - @24,24 852x38
+  Row - @24,74 852x39
+    Button - @24,74 82x39 tabstop
+      Rectangle - @24,74 82x39
+      Label - @40,82 50x23
+    Button - @114,74 77x39 tabstop
+      Rectangle - @114,74 77x39
+      Label - @130,82 45x23
+    Button - @199,74 68x39 tabstop
+      Rectangle - @199,74 68x39
+      Label - @215,82 36x23
+  TextInput - @24,125 852x41 tabstop
+  Slider - @24,178 852x24 tabstop
+  Checkbox - @24,214 852x23 tabstop
+  Label - @24,249 852x22

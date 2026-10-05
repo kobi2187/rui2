@@ -56,6 +56,22 @@ proc dividerRect*[W](w: W): Rect =
   else:
     Rect(x: w.bounds.x, y: w.bounds.y + first, width: w.bounds.width, height: w.dividerOf)
 
+proc splitNatural[W](widget: W, c: Constraints): Size =
+  ## With no size given: the panes at their natural size, side by side, plus
+  ## the divider. A fixed side is kept.
+  let horizontal = widget.horizontalAxis
+  var along, across = 0.0'f32
+  for i, child in widget.children:
+    if i > 1: break
+    let s = child.measure(unbounded())
+    along += (if horizontal: s.width else: s.height)
+    across = max(across, (if horizontal: s.height else: s.width))
+  along += widget.dividerOf
+  Size(width: (if c.tightWidth and c.minWidth > 0: c.minWidth
+               elif horizontal: along else: across),
+       height: (if c.tightHeight and c.minHeight > 0: c.minHeight
+                elif horizontal: across else: along))
+
 defineWidget(SplitView):
   props:
     axis: Axis = Axis.horizontal
@@ -112,17 +128,9 @@ defineWidget(SplitView):
 
     if not hasSize:
       # Nothing assigned: the panes at their natural size, side by side.
-      var along, across = 0.0'f32
-      for child in widget.children:
-        child.bounds = Rect(x: widget.bounds.x, y: widget.bounds.y)
-        child.layout()
-        along += (if horizontal: child.bounds.width else: child.bounds.height)
-        across = max(across, (if horizontal: child.bounds.height else: child.bounds.width))
-      along += thick
-      if widget.bounds.width <= 0:
-        widget.bounds.width = if horizontal: along else: across
-      if widget.bounds.height <= 0:
-        widget.bounds.height = if horizontal: across else: along
+      let own = widget.splitNatural(constraintsOf(widget.bounds))
+      widget.bounds.width = own.width
+      widget.bounds.height = own.height
 
     let first = widget.firstSizeOf
     let total = if horizontal: widget.bounds.width else: widget.bounds.height
@@ -131,14 +139,13 @@ defineWidget(SplitView):
       if i > 1: break                    # a SplitView has two panes
       let start = if i == 0: 0.0'f32 else: secondStart
       let size = if i == 0: first else: max(0.0'f32, total - secondStart)
-      child.bounds =
+      child.arrange(
         if horizontal:
           Rect(x: widget.bounds.x + start, y: widget.bounds.y,
                width: size, height: widget.bounds.height)
         else:
           Rect(x: widget.bounds.x, y: widget.bounds.y + start,
-               width: widget.bounds.width, height: size)
-      child.layout()
+               width: widget.bounds.width, height: size))
 
   render:
     # The panes are composited by renderPass; only the divider is ours.
@@ -158,3 +165,9 @@ defineWidget(SplitView):
                      else: (float32(k) * step, 0.0'f32)
       drawRect(Rect(x: cx + dx - dot / 2, y: cy + dy - dot / 2, width: dot, height: dot),
                props.foregroundColor.get(BLACK).withAlpha(0.6))
+
+method computeSize*(widget: SplitView, c: Constraints): Size =
+  if c.tightWidth and c.minWidth > 0 and c.tightHeight and c.minHeight > 0:
+    Size(width: c.minWidth, height: c.minHeight)
+  else:
+    widget.splitNatural(c)

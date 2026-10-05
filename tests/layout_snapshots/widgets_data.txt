@@ -1,0 +1,8 @@
+VStack root @0,0 760x620
+  Label summary @16,16 728x24
+  Label t1 @16,52 728x23
+  TreeView tree @16,87 300x132 tabstop
+  Label t2 @16,231 728x23
+  DataTable table @16,266 360x164 tabstop
+  Label t3 @16,442 728x23
+  DataGrid grid @16,477 728x160 tabstop

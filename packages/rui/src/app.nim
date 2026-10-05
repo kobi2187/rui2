@@ -986,6 +986,15 @@ proc run*(app: App, maxFrames: int = -1) =
   ## is what automated tests and screenshot capture want; Stage B removed the
   ## old headless mode on purpose, and this is the graphics-only equivalent --
   ## a real window, really rendered, for a bounded number of frames.
+  ##
+  ## `RUI_LAYOUT_DUMP=<file>` instead lays the tree out once without a window,
+  ## writes the geometry of every widget to the file and returns: the snapshot
+  ## that `tools/layout_snapshot.sh` diffs to catch layout drift.
+  let dump = getEnv("RUI_LAYOUT_DUMP")
+  if dump.len > 0:
+    app.stepHeadless()
+    writeFile(dump, inspectTree(app.tree.root))
+    return
   app.openWindow()
   defer: closeWindow()
   app.announce()

@@ -1,0 +1,81 @@
+VStack - @0,0 760x740
+  Label - @24,24 712x38
+  Wrap - @24,78 712x84
+    Button - @24,78 107x39 tabstop
+      Rectangle - @24,78 107x39
+      Label - @40,86 75x23
+    Button - @137,78 115x39 tabstop
+      Rectangle - @137,78 115x39
+      Label - @153,86 83x23
+    Button - @258,78 92x39 tabstop
+      Rectangle - @258,78 92x39
+      Label - @274,86 60x23
+    Button - @356,78 87x39 tabstop
+      Rectangle - @356,78 87x39
+      Label - @372,86 55x23
+    Button - @449,78 85x39 tabstop
+      Rectangle - @449,78 85x39
+      Label - @465,86 53x23
+    Button - @540,78 71x39 tabstop
+      Rectangle - @540,78 71x39
+      Label - @556,86 39x23
+    Button - @617,78 92x39 tabstop
+      Rectangle - @617,78 92x39
+      Label - @633,86 60x23
+    Button - @24,123 110x39 tabstop
+      Rectangle - @24,123 110x39
+      Label - @40,131 78x23
+    Button - @140,123 90x39 tabstop
+      Rectangle - @140,123 90x39
+      Label - @156,131 58x23
+    Button - @236,123 101x39 tabstop
+      Rectangle - @236,123 101x39
+      Label - @252,131 69x23
+  Table - @24,178 712x143
+    TableRow - @24,178 712x41
+      Label - @24,187 54x23
+      TextInput - @90,178 646x41 tabstop
+    TableRow - @24,229 712x41
+      Label - @24,238 54x23
+      TextInput - @90,229 646x41 tabstop
+    TableRow - @24,280 712x41
+      Label - @24,289 54x23
+      ComboBox - @90,280 646x41 tabstop
+  Separator - @24,337 712x1
+  Row - @24,354 712x89
+    VStack - @24,354 235x89
+      Checkbox - @24,354 235x23 tabstop
+      Checkbox - @24,387 235x23 tabstop
+      Checkbox - @24,420 235x23 tabstop
+    RadioGroup - @283,354 102x72 tabstop
+    Expanded - @409,354 327x57
+      Column - @409,354 327x57
+        Slider - @409,354 327x24 tabstop
+        ProgressBar - @409,388 327x23
+  Wrap - @24,459 712x39
+    Button - @24,459 99x39 tabstop
+      Rectangle - @24,459 99x39
+      Label - @40,467 67x23
+    Button - @131,459 104x39 tabstop
+      Rectangle - @131,459 104x39
+      Label - @147,467 72x23
+    Button - @243,459 107x39 tabstop
+      Rectangle - @243,459 107x39
+      Label - @259,467 75x23
+    Button - @358,459 108x39 tabstop
+      Rectangle - @358,459 108x39
+      Label - @374,467 76x23
+    Button - @474,459 91x39 tabstop
+      Rectangle - @474,459 91x39
+      Label - @490,467 59x23
+    Button - @573,459 112x39 tabstop
+      Rectangle - @573,459 112x39
+      Label - @589,467 80x23
+  Spacer - @24,514 712x147
+  Row - @24,677 712x39
+    Button - @473,677 94x39 tabstop
+      Rectangle - @473,677 94x39
+      Label - @489,685 62x23
+    Button - @575,677 161x39 tabstop
+      Rectangle - @575,677 161x39
+      Label - @591,685 129x23

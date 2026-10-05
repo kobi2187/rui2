@@ -1,0 +1,21 @@
+VStack root @0,0 640x620
+  Label summary @16,16 608x24
+  Canvas canvas @16,50 580x260 tabstop
+  HStack modeRow @16,320 608x39
+    Button mFree @16,320 117x39 tabstop
+      Rectangle - @16,320 117x39
+      Label - @32,328 85x23
+    Button mLine @139,320 70x39 tabstop
+      Rectangle - @139,320 70x39
+      Label - @155,328 38x23
+    Button mRect @215,320 72x39 tabstop
+      Rectangle - @215,320 72x39
+      Label - @231,328 40x23
+    Button mCircle @293,320 83x39 tabstop
+      Rectangle - @293,320 83x39
+      Label - @309,328 51x23
+    Button clearBtn @382,320 80x39 tabstop
+      Rectangle - @382,320 80x39
+      Label - @398,328 48x23
+  Label t1 @16,369 608x23
+  DragDropArea drop @16,402 580x110 tabstop

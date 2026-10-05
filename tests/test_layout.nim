@@ -296,7 +296,7 @@ suite "what a bounds change invalidates":
     # line, so a longer string would not actually change the label's size.
     Label(a).fontSize = 40.0
     a.layoutDirty = true
-    a.layoutPass()
+    stack.layoutPass()                # the parent decides a child's size
 
     check a.isDirty                   # its texture is a different size now
     check stack.isDirty               # so the parent's composite changed too
@@ -406,10 +406,11 @@ suite "self-sized widgets re-measure":
     let row = newHStack(spacing = 4.0)
     let l = newLabel(text = "short", fontSize = 14.0)
     row.addChild(l)
-    row.layout()
+    row.layoutPass()
     let w1 = row.bounds.width
     l.text = "a good deal longer than it was"
-    row.layout()
+    l.layoutDirty = true              # what a binding or a setter does
+    row.layoutPass()
     check row.bounds.width > w1
 
   test "a size the parent assigned is kept":
@@ -427,10 +428,10 @@ suite "self-sized widgets re-measure":
     let inner = newVStack(spacing = 0.0)
     inner.addChild(newLabel(text = "1", fontSize = 14.0))
     outer.addChild(inner)
-    outer.layout()
+    outer.layoutPass()
     let h1 = inner.bounds.height
     inner.addChild(newLabel(text = "2", fontSize = 14.0))
-    outer.layout()
+    outer.layoutPass()
     check inner.bounds.height > h1
 
 suite "size requests are honoured by layout":

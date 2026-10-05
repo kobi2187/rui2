@@ -1,0 +1,16 @@
+Padding - @0,0 700x420
+  Column - @24,24 652x372
+    Label - @24,24 258x38
+    Switch - @24,80 166x24 tabstop
+    Switch - @24,122 153x24 tabstop
+    SegmentedControl - @24,164 222x41 tabstop
+    Row - @24,223 208x24
+      Label - @24,223 60x23
+      Rating - @96,223 136x24 tabstop
+    Row - @24,265 284x32
+      Label - @24,269 132x23
+      Sparkline - @168,265 140x32
+    Button - @24,315 77x39 tabstop
+      Rectangle - @24,315 77x39
+      Label - @40,323 45x23
+    Label - @24,372 0x22

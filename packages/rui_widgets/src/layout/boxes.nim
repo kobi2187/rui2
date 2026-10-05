@@ -55,25 +55,27 @@ defineWidget(ConstrainedBox):
   layout:
     wrapChild(widget)
 
-template placeAligned(widget: untyped, alignment: Alignment) =
+proc alignedSize(widget: Widget, c: Constraints): Size =
+  ## Align's measure: a fixed side is kept, a free one is the child's.
+  var natural = Size()
+  if widget.children.len > 0:
+    natural = widget.children[0].measure(unbounded())
+  Size(width: (if c.tightWidth: c.minWidth else: natural.width),
+       height: (if c.tightHeight: c.minHeight else: natural.height))
+
+proc placeAligned(widget: Widget, alignment: Alignment) =
   ## The Align rule: the child at its natural size, placed by `alignment` in
   ## the box -- which is the parent's, or the child's own when unsized.
+  let own = widget.alignedSize(constraintsOf(widget.bounds))
+  widget.bounds.width = own.width
+  widget.bounds.height = own.height
   if widget.children.len > 0:
     let child = widget.children[0]
-    child.bounds.width = 0
-    child.bounds.height = 0
-    child.bounds.x = widget.bounds.x
-    child.bounds.y = widget.bounds.y
-    child.layout()
-    if widget.bounds.width <= 0: widget.bounds.width = child.bounds.width
-    if widget.bounds.height <= 0: widget.bounds.height = child.bounds.height
+    let natural = child.measure(unbounded())
     let off = alignmentOffset(alignment,
-      (widget.bounds.width - child.bounds.width,
-       widget.bounds.height - child.bounds.height))
-    if off.x != 0 or off.y != 0:
-      child.bounds.x = widget.bounds.x + off.x
-      child.bounds.y = widget.bounds.y + off.y
-      child.layout()
+      (own.width - natural.width, own.height - natural.height))
+    child.arrange(Rect(x: widget.bounds.x + off.x, y: widget.bounds.y + off.y,
+                       width: natural.width, height: natural.height))
 
 # Places its child inside its own box.
 defineWidget(Align):
@@ -132,21 +134,19 @@ defineWidget(Container):
     if widget.alignment.isNone or widget.children.len == 0:
       wrapChild(widget, inset)
     else:
-      # Aligned: size the box first, then place the child inside the insets.
+      # Aligned: the child at its natural size, placed inside the insets.
       let child = widget.children[0]
-      child.bounds = Rect(x: widget.bounds.x + inset.left,
-                          y: widget.bounds.y + inset.top)
-      child.layout()
+      let natural = child.measure(unbounded())
       if widget.bounds.width <= 0:
-        widget.bounds.width = child.bounds.width + inset.horizontal
+        widget.bounds.width = natural.width + inset.horizontal
       if widget.bounds.height <= 0:
-        widget.bounds.height = child.bounds.height + inset.vertical
+        widget.bounds.height = natural.height + inset.vertical
       let off = alignmentOffset(widget.alignment.get,
-        (widget.bounds.width - inset.horizontal - child.bounds.width,
-         widget.bounds.height - inset.vertical - child.bounds.height))
-      child.bounds.x = widget.bounds.x + inset.left + off.x
-      child.bounds.y = widget.bounds.y + inset.top + off.y
-      child.layout()
+        (widget.bounds.width - inset.horizontal - natural.width,
+         widget.bounds.height - inset.vertical - natural.height))
+      child.arrange(Rect(x: widget.bounds.x + inset.left + off.x,
+                         y: widget.bounds.y + inset.top + off.y,
+                         width: natural.width, height: natural.height))
 
   render:
     let d = widget.decoration
@@ -160,3 +160,10 @@ defineWidget(Container):
       else: drawRect(box, fill)
     if d.border.width > 0 and d.border.color.a > 0:
       drawRoundedRectLines(box, d.borderRadius, d.border.width, d.border.color)
+
+# Measuring without laying out (see `measure`).
+method computeSize*(widget: Padding, c: Constraints): Size = widget.wrapSize(c, widget.padding)
+method computeSize*(widget: SizedBox, c: Constraints): Size = widget.wrapSize(c)
+method computeSize*(widget: ConstrainedBox, c: Constraints): Size = widget.wrapSize(c)
+method computeSize*(widget: Align, c: Constraints): Size = widget.alignedSize(c)
+method computeSize*(widget: Center, c: Constraints): Size = widget.alignedSize(c)
