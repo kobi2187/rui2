@@ -575,3 +575,66 @@ suite "scrolling a long text":
     discard ta.send(GuiEvent(kind: evMouseUp, mousePos: Point(x: cx, y: 10_000)))
     check not ta.draggingBar
     check ta.cursorPos == 0                                  # the caret did not move
+
+suite "password input":
+  proc send(w: TextArea, e: GuiEvent): bool =
+    var e = e
+    e.timestamp = getMonoTime()
+    w.handleInput(e)
+
+  proc pw(text: string): TextArea =
+    result = newPasswordInput(initialText = text, fontSize = 14.0)
+    result.bounds = Rect(x: 0, y: 0, width: 240, height: 34)
+    result.layout()
+    result.focused = true
+
+  test "one bullet per character the caret steps over":
+    check maskOf("abc") == "•••"
+    check maskOf("é👍🏽x") == "•••"            # accented e, a toned thumb, x
+    check maskOf("") == ""
+
+  test "offsets map between the text and its bullets":
+    let t = "aé👍"
+    check toMasked(t, 0) == 0
+    check toMasked(t, 1) == 3                         # after "a": one bullet
+    check toMasked(t, t.len) == 9
+    check fromMasked(t, 6) == 3                       # the third bullet starts at 👍
+    check fromMasked(t, 9) == t.len
+
+  test "typing edits the real text; the screen shows bullets":
+    let p = pw("")
+    for r in "s3cr€t".runes: discard p.send(GuiEvent(kind: evChar, rune: r))
+    check p.text == "s3cr€t"
+    check p.shownText == "••••••"
+
+  test "it never reaches the clipboard":
+    let p = pw("hunter2")
+    discard p.send(GuiEvent(kind: evKeyDown, key: KeyboardKey.A, mods: {kmCtrl}))
+    setClipboardText("unchanged")
+    discard p.send(GuiEvent(kind: evKeyDown, key: KeyboardKey.C, mods: {kmCtrl}))
+    check clipboardText() == "unchanged"
+    discard p.send(GuiEvent(kind: evKeyDown, key: KeyboardKey.X, mods: {kmCtrl}))
+    check clipboardText() == "unchanged"
+    check p.text == "hunter2"                         # and Ctrl+X cut nothing
+
+  test "word moves and double-click reveal no word lengths":
+    let p = pw("two words")
+    p.cursorPos = 9
+    discard p.send(GuiEvent(kind: evKeyDown, key: KeyboardKey.Left, mods: {kmCtrl}))
+    check p.cursorPos == 0                            # straight to the start
+    discard p.send(GuiEvent(kind: evMouseDown, mousePos: Point(x: 20, y: 17)))
+    discard p.send(GuiEvent(kind: evMouseUp, mousePos: Point(x: 20, y: 17)))
+    discard p.send(GuiEvent(kind: evMouseDown, mousePos: Point(x: 20, y: 17)))
+    check p.selectionStart == 0 and p.selectionEnd == p.text.len
+
+  test "scripts cannot read it":
+    let p = pw("hunter2")
+    check p.blockReading
+    check not p.multiline
+
+  test "a click lands between bullets, on a real character boundary":
+    let p = pw("aé👍x")
+    let inner = p.lineRect(p.contentOf.lineHeight)
+    let bullet = measureText("•", p.contentOf.style).width
+    let at = p.indexAt(Point(x: inner.x + bullet * 2.1, y: inner.y + 5))
+    check at == 3                                     # after "aé", before 👍

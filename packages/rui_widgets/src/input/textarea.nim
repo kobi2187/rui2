@@ -174,6 +174,40 @@ proc verticalMoveVisual*(text: string, lines: openArray[VisualLine],
   let row = visualLineOf(lines, cursor) + (if down: 1 else: -1)
   (indexAtVisual(text, lines, row, goal), goal)
 
+# ----------------------------------------------------------------------------
+# Secret text
+#
+# A password field shows one bullet per character -- per grapheme cluster, so
+# an emoji or an accented letter is one dot, as it is one caret step. Editing
+# works on the real text; everything that measures or draws goes through the
+# bullets, with these two maps between the offsets.
+# ----------------------------------------------------------------------------
+
+const MaskBullet* = "\u2022"
+
+proc clusterStarts(text: string): seq[int] =
+  ## Byte offset of each grapheme cluster, then text.len.
+  let attrs = charAttrs(text)
+  for k in 0 ..< attrs.byteAt.high:
+    if attrs.cursorStop[k]: result.add attrs.byteAt[k]
+  result.add text.len
+
+proc maskOf*(text: string): string =
+  ## One bullet per character the caret steps over.
+  MaskBullet.repeat(max(0, clusterStarts(text).len - 1))
+
+proc toMasked*(text: string, index: int): int =
+  ## Where real byte offset `index` falls in the bullets.
+  let starts = clusterStarts(text)
+  var n = 0
+  while n + 1 < starts.len and starts[n] < index: inc n
+  n * MaskBullet.len
+
+proc fromMasked*(text: string, index: int): int =
+  ## The real byte offset of bullet offset `index`.
+  let starts = clusterStarts(text)
+  starts[clamp(index div MaskBullet.len, 0, starts.high)]
+
 const
   SelectionColor = Color(r: 100, g: 150, b: 255, a: 128)
   PlaceholderColor = Color(r: 128, g: 128, b: 128, a: 255)
@@ -246,12 +280,27 @@ template linesOf*(widget: untyped): seq[VisualLine] =
   ## The editor's text as drawn, line by line.
   visualLines(widget.text, widget.contentOf.style.pangoFont, widget.editWrapWidth)
 
+template shownText*(widget: untyped): string =
+  ## What is drawn: the text, or bullets for a secret.
+  (if widget.secret: maskOf(widget.text) else: widget.text)
+
+template toShown(widget: untyped, index: int): int =
+  (if widget.secret: toMasked(widget.text, index) else: index)
+
+template toReal(widget: untyped, index: int): int =
+  (if widget.secret: fromMasked(widget.text, index) else: index)
+
+template shownLines(widget: untyped): seq[VisualLine] =
+  ## The drawn text's lines. A secret is one line, never wrapped.
+  (if widget.secret: visualLines(widget.shownText, widget.contentOf.style.pangoFont, 0)
+   else: widget.linesOf)
+
 template lineShift(widget: untyped, line: VisualLine, font: string,
                    inner: Rect): float32 =
   ## How far right a line starts. A wrapped right-to-left paragraph hugs the
   ## right edge, as it would in any editor; everything else starts at the left.
   (if widget.editWrapWidth > 0 and line.dir == tdRtl:
-     inner.width - measureTextPango(widget.text[line.start ..< line.stop], font,
+     inner.width - measureTextPango(widget.shownText[line.start ..< line.stop], font,
                                     dir = line.dir).width
    else: 0.0'f32)
 
@@ -261,17 +310,18 @@ template indexAt*(widget: untyped, pos: Point): int =
   block:
     let content = widget.contentOf
     let inner = widget.lineRect(content.lineHeight)
-    let lines = widget.linesOf
+    let shown = widget.shownText
+    let lines = widget.shownLines
     let row = clamp(int((pos.y - inner.y + widget.scrollY) / content.lineHeight),
                     0, lines.high)
     let line = lines[row]
     let font = content.style.pangoFont
-    let hit = indexFromPosition(widget.text[line.start ..< line.stop], font,
+    let hit = indexFromPosition(shown[line.start ..< line.stop], font,
                                 pos.x - inner.x + widget.scrollX -
                                   widget.lineShift(line, font, inner),
                                 0.0, dir = line.dir)
-    clamp(line.start + hit.index + hit.trailing, line.start,
-          softEnd(widget.text, line))
+    widget.toReal(clamp(line.start + hit.index + hit.trailing, line.start,
+                        softEnd(shown, line)))
 
 template bufferOf(widget: untyped): TextBuffer =
   initTextBuffer(widget.text, widget.cursorPos, widget.selectionStart,
@@ -343,10 +393,10 @@ template ctrlKey(widget: untyped, event: GuiEvent): bool =
       widget.edit: buf.selectAll()
     of KeyboardKey.C:
       let b = widget.bufferOf
-      if b.hasSelection: setClipboardText(b.selectedText)
+      if b.hasSelection and not widget.secret: setClipboardText(b.selectedText)
     of KeyboardKey.X:
       let b = widget.bufferOf
-      if b.hasSelection:
+      if b.hasSelection and not widget.secret:
         setClipboardText(b.selectedText)
         widget.edit: discard buf.deleteSelection()
     of KeyboardKey.V:
@@ -357,19 +407,26 @@ template ctrlKey(widget: untyped, event: GuiEvent): bool =
     of KeyboardKey.Y:
       discard widget.travel(forward = true)
     of Left:
-      widget.edit: buf.moveCursor(prevWordStart(buf.text, buf.cursor),
-                                  extend = event.shift)
+      # A secret has no words to show: its word moves go to the ends.
+      widget.edit: buf.moveCursor(
+        (if widget.secret: 0 else: prevWordStart(buf.text, buf.cursor)),
+        extend = event.shift)
     of Right:
-      widget.edit: buf.moveCursor(nextWordEnd(buf.text, buf.cursor),
-                                  extend = event.shift)
+      widget.edit: buf.moveCursor(
+        (if widget.secret: buf.text.len else: nextWordEnd(buf.text, buf.cursor)),
+        extend = event.shift)
     of Home:
       widget.edit: buf.moveCursor(0, extend = event.shift)
     of End:
       widget.edit: buf.moveCursor(buf.text.len, extend = event.shift)
     of Backspace:
-      widget.edit: discard buf.deleteWordBack()
+      widget.edit:
+        if widget.secret: buf.moveCursor(0, extend = true); discard buf.deleteSelection()
+        else: discard buf.deleteWordBack()
     of Delete:
-      widget.edit: discard buf.deleteWordForward()
+      widget.edit:
+        if widget.secret: buf.moveCursor(buf.text.len, extend = true); discard buf.deleteSelection()
+        else: discard buf.deleteWordForward()
     of Enter, KpEnter:
       # Ctrl+Enter submits even where Enter makes a new line.
       if widget.onSubmit != nil: widget.onSubmit(widget.text)
@@ -445,12 +502,14 @@ template keepCaretInView(widget: untyped, content: TextContent, inner: Rect) =
   ## the caret's pixel position is known; indexAt reads the result.
   block:
     let lineH = content.lineHeight
-    let lines = widget.linesOf
-    let row = visualLineOf(lines, widget.cursorPos)
+    let shown = widget.shownText
+    let lines = widget.shownLines
+    let cursor = widget.toShown(widget.cursorPos)
+    let row = visualLineOf(lines, cursor)
     let line = lines[row]
-    let lineText = widget.text[line.start ..< line.stop]
+    let lineText = shown[line.start ..< line.stop]
     let caret = cursorPosition(lineText, content.style.pangoFont,
-                               widget.cursorPos - line.start, dir = line.dir)
+                               cursor - line.start, dir = line.dir)
     let lineW = measureTextPango(lineText, content.style.pangoFont, dir = line.dir).width
     widget.scrollX = if widget.editWrapWidth > 0: 0.0'f32   # wrapped: nothing to the side
                      else: scrollToShow(widget.scrollX, caret.x, 1.0, inner.width,
@@ -474,17 +533,18 @@ template paintEditable(widget: untyped, content: TextContent, inner: Rect) =
     let font = content.style.pangoFont
     let ox = inner.x - widget.scrollX
     let oy = inner.y - widget.scrollY
-    let lines = widget.linesOf
+    let shown = widget.shownText
+    let lines = widget.shownLines
 
     # Selection under the glyphs, one band per line. Both edges from Pango's
     # caret positions, so it lines up with the glyphs in any script.
     if widget.selectionStart >= 0 and widget.selectionStart != widget.selectionEnd:
-      let lo = min(widget.selectionStart, widget.selectionEnd)
-      let hi = max(widget.selectionStart, widget.selectionEnd)
+      let lo = widget.toShown(min(widget.selectionStart, widget.selectionEnd))
+      let hi = widget.toShown(max(widget.selectionStart, widget.selectionEnd))
       for i, line in lines:
         if hi < line.start or lo > line.stop or (hi == line.start and lo < line.start):
           continue
-        let lineText = widget.text[line.start ..< line.stop]
+        let lineText = shown[line.start ..< line.stop]
         let shift = widget.lineShift(line, font, inner)
         let x0 = shift + cursorPosition(lineText, font, max(lo, line.start) - line.start,
                                         dir = line.dir).x
@@ -499,7 +559,7 @@ template paintEditable(widget: untyped, content: TextContent, inner: Rect) =
       let y = oy + float32(i) * lineH
       if y + lineH < inner.y or y > inner.y + inner.height:
         continue
-      drawTextPangoClipped(widget.text[line.start ..< line.stop],
+      drawTextPangoClipped(shown[line.start ..< line.stop],
                            ox + widget.lineShift(line, font, inner), y, font,
                            content.style.color,
                            Rectangle(x: inner.x, y: inner.y,
@@ -507,10 +567,11 @@ template paintEditable(widget: untyped, content: TextContent, inner: Rect) =
                            dir = line.dir)
 
     if widget.focused and widget.takesInput:
-      let row = visualLineOf(lines, widget.cursorPos)
+      let cursor = widget.toShown(widget.cursorPos)
+      let row = visualLineOf(lines, cursor)
       let line = lines[row]
-      let caret = cursorPosition(widget.text[line.start ..< line.stop],
-                                 font, widget.cursorPos - line.start, dir = line.dir)
+      let caret = cursorPosition(shown[line.start ..< line.stop],
+                                 font, cursor - line.start, dir = line.dir)
       let now = getTime()
       let x = ox + widget.lineShift(line, font, inner) + caret.x
       let y = oy + float32(row) * lineH
@@ -539,6 +600,7 @@ definePrimitive(TextArea):
     markup: bool = false         ## Display text is Pango markup
     editable: bool = true        ## false: display only, takes no input
     multiline: bool = true       ## false: one line, Enter fires onSubmit
+    secret: bool = false         ## Show bullets, never copy, never read by scripts
     maxLength: int = -1          ## Characters; -1 for unlimited
     maxLines: int = -1           ## Lines Enter may create; -1 for unlimited
     framed: bool = true          ## Draw the input box, and pad inside it
@@ -574,6 +636,8 @@ definePrimitive(TextArea):
 
   init:
     widget.focusable = widget.editable
+    widget.blockReading = widget.secret
+    if widget.secret: widget.multiline = false
     widget.selectionStart = -1
     widget.selectionEnd = -1
     widget.goalColumn = -1
@@ -601,8 +665,11 @@ definePrimitive(TextArea):
       let at = widget.indexAt(event.mousePos)
       case widget.countClick(event.timestamp)
       of 2:
-        let word = wordAt(widget.text, at)
-        widget.edit: buf.selectRange(word.a, word.b)
+        if widget.secret:
+          widget.edit: buf.selectAll()           # no word lengths to reveal
+        else:
+          let word = wordAt(widget.text, at)
+          widget.edit: buf.selectRange(word.a, word.b)
       of 3:
         let line = lineOf(widget.text, at)
         widget.edit: buf.selectRange(lineStarts(widget.text)[line],
@@ -728,6 +795,7 @@ definePrimitive(TextArea):
 
   layout:
     widget.cursorShape = if widget.takesInput: csText else: csDefault
+    widget.blockReading = widget.blockReading or widget.secret
     widget.takesText = widget.takesInput
     let content = widget.contentOf
     let pad = widget.inset * 2
@@ -820,3 +888,16 @@ proc newTextInput*(initialText = "", placeholder = "Type here...",
               fontSize = fontSize, maxLength = maxLength, padding = padding,
               disabled = disabled, intent = intent, multiline = false,
               maxLines = 1, onChange = onChange, onSubmit = onSubmit)
+
+proc newPasswordInput*(initialText = "", placeholder = "Password",
+                       fontSize: float32 = ThemeFontSize, maxLength = -1,
+                       padding: float32 = ThemePadding, disabled = false,
+                       intent = ThemeIntent.Default,
+                       onChange: proc(newText: string) = nil,
+                       onSubmit: proc(text: string) = nil): TextInput =
+  ## One line of secret text: bullets on screen, nothing to the clipboard,
+  ## nothing to scripts.
+  newTextArea(initialText = initialText, placeholder = placeholder,
+              fontSize = fontSize, maxLength = maxLength, padding = padding,
+              disabled = disabled, intent = intent, multiline = false,
+              maxLines = 1, secret = true, onChange = onChange, onSubmit = onSubmit)
