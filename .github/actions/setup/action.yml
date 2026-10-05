@@ -1,0 +1,49 @@
+name: Set up RUI2 build
+description: Nim, the system libraries, the Nimble deps, and a warm nimcache for one job.
+inputs:
+  cache-key:
+    description: Which job's nimcache to restore (each job builds different programs).
+    required: true
+  xvfb:
+    description: Also install Xvfb (for GL checks and the scripted UI).
+    default: 'false'
+runs:
+  using: composite
+  steps:
+    - name: Set up Nim
+      uses: jiro4989/setup-nim-action@v2
+      with:
+        nim-version: '2.2.x'
+        repo-token: ${{ github.token }}
+
+    - name: Install system libraries
+      shell: bash
+      run: |
+        sudo apt-get update -qq
+        pkgs="libpango1.0-dev libcairo2-dev libasound2-dev libx11-dev libxrandr-dev libxi-dev
+              libgl1-mesa-dev libglu1-mesa-dev libxcursor-dev libxinerama-dev libxkbcommon-dev libwayland-bin"
+        [ "${{ inputs.xvfb }}" = "true" ] && pkgs="$pkgs xvfb imagemagick xdotool"
+        sudo apt-get install -y -qq --no-install-recommends $pkgs >/dev/null
+
+    # Pinned to the bounds in packages/*/*.nimble, so CI builds against the
+    # versions the library claims to support. naylib's version is date-based,
+    # and a bare install can pick up a release that moves raylib underneath
+    # the move-only GPU types.
+    - name: Cache Nimble packages
+      uses: actions/cache@v4
+      with:
+        path: ~/.nimble/pkgs2
+        key: nimble-${{ runner.os }}-naylib-25.42-yaml-2.2-v1
+    - name: Install Nimble packages
+      shell: bash
+      run: nimble install -y "naylib@>=25.42.0" "yaml@>=2.2.0" >/dev/null
+
+    # Nim regenerates C for every module but only recompiles the .c files whose
+    # text changed, so a restored nimcache turns a 37 s build into about 6 s.
+    # The key moves with every commit; restore-keys picks up the latest one.
+    - name: Cache nimcache
+      uses: actions/cache@v4
+      with:
+        path: /tmp/rui2_tests
+        key: nimcache-${{ inputs.cache-key }}-${{ runner.os }}-${{ github.sha }}
+        restore-keys: nimcache-${{ inputs.cache-key }}-${{ runner.os }}-

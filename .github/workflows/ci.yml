@@ -1,53 +1,56 @@
 name: CI
 
+# Pull requests, and main after a merge. (Running on every push as well ran
+# each PR commit twice.) A newer push to the same branch cancels the old run.
 on:
   push:
+    branches: [main]
   pull_request:
+  workflow_dispatch:
 
+concurrency:
+  group: ci-${{ github.event.pull_request.number || github.ref }}
+  cancel-in-progress: true
+
+# Three jobs in parallel, each running one stage of tools/run_tests.sh -- the
+# same script a contributor runs, so a red job reproduces locally with the
+# same command.
 jobs:
-  check:
-    name: nim check (packages + examples)
+  unit:
+    name: unit tests + GL checks
     runs-on: ubuntu-latest
+    timeout-minutes: 15
     steps:
       - uses: actions/checkout@v4
+      - uses: ./.github/actions/setup
+        with: {cache-key: unit, xvfb: 'true'}
+      - run: ./tools/run_tests.sh quick
 
-      - name: Set up Nim
-        uses: jiro4989/setup-nim-action@v2
-        with:
-          nim-version: 'stable'
-
-      - name: Install system libraries
-        run: |
-          sudo apt-get update -qq
-          sudo apt-get install -y -qq \
-            libpango1.0-dev libcairo2-dev \
-            libasound2-dev libx11-dev libxrandr-dev libxi-dev \
-            libgl1-mesa-dev libglu1-mesa-dev libxcursor-dev libxinerama-dev \
-            libxkbcommon-dev libwayland-bin
-
-      - name: Install dependencies
-        # Pinned to match the bounds in packages/*/*.nimble, so CI builds against
-        # the versions the library claims to support rather than whatever is
-        # newest on the day. naylib's version is date-based -- 25.42.0 is 2025
-        # week 42 -- so a bare `nimble install naylib` can pick up a release
-        # that moves raylib underneath the move-only GPU types.
-        run: nimble install -y "naylib@>=25.42.0" "yaml@>=2.2.0"
-
+  examples:
+    name: packages + examples (Nim backend)
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v4
+      - uses: ./.github/actions/setup
+        with: {cache-key: examples}
       - name: Type-check every package barrel
         run: |
           set -euo pipefail
-          NAYLIB="$(nimble path naylib | tail -1)"
-          YAML="$(nimble path yaml | tail -1)"
-          PATHS="--path:$NAYLIB --path:$YAML"          # config.nims adds the in-repo package paths
+          PATHS="--path:$(nimble path naylib | tail -1) --path:$(nimble path yaml | tail -1)"
           rc=0
           for p in rui_core rui_hittest rui_events rui_drawing rui_scripting rui_widgets rui; do
-            echo "::group::nim check $p"
             nim check --hints:off --warnings:off $PATHS "packages/$p/src/$p.nim" || rc=1
-            echo "::endgroup::"
           done
           exit $rc
+      - run: ./tools/run_tests.sh examples
 
-      - name: Regression suite (unit tests, example compiles, scripted UI tests)
-        run: |
-          sudo apt-get install -y -qq xvfb imagemagick
-          ./tools/run_tests.sh
+  ui:
+    name: scripted UI
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v4
+      - uses: ./.github/actions/setup
+        with: {cache-key: ui, xvfb: 'true'}
+      - run: ./tools/run_tests.sh ui
