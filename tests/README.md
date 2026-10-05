@@ -3,8 +3,14 @@
 ```bash
 ./tools/run_tests.sh            # unit tests (one binary) + GL checks: under a minute
 ./tools/run_tests.sh isolated   # the same, each test file its own program (to blame one file)
-./tools/run_tests.sh full       # also every example built, and the scripted UI run (CI)
+./tools/run_tests.sh examples   # every example through the Nim backend (~1 min)
+./tools/run_tests.sh ui         # the scripted UI run on Xvfb
+./tools/run_tests.sh full       # all of the above
 ```
+
+CI (`.github/workflows/ci.yml`) runs `quick`, `examples` and `ui` as three
+parallel jobs on every pull request and on main, with Nimble packages and each
+job's nimcache cached; a red job reproduces locally with the same command.
 
 The default run is meant to be quick enough to run after every change, so it
 does two things:
@@ -20,9 +26,10 @@ does two things:
 
 `full` adds what is slow:
 
-3. **Example compiles.** A real `nim c`, not `nim check`: naylib's GPU types are
-   move-only (`=copy` is `{.error.}`) and those failures only appear in a full
-   build, so a check-only run passes code that cannot link.
+3. **Example compiles.** `nim c --compileOnly`, not `nim check`: naylib's GPU
+   types are move-only (`=copy` is `{.error.}`), an error raised by destructor
+   injection, which `nim check` skips. Stopping before the C compiler keeps
+   that check at ~5 s per example instead of ~37 s.
 4. **Scripted UI tests** (`tools/ui_test.sh`) -- drives a real window on Xvfb
    through the file-based scripting protocol and asserts on the JSON replies.
 
