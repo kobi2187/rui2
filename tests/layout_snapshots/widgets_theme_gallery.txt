@@ -44,9 +44,9 @@ VStack - @0,0 760x740
   Separator - @24,337 712x1
   Row - @24,354 712x89
     VStack - @24,354 235x89
-      Checkbox - @24,354 195x23 tabstop
+      Checkbox - @24,354 235x23 tabstop
       Checkbox - @24,387 235x23 tabstop
-      Checkbox - @24,420 172x23 tabstop
+      Checkbox - @24,420 235x23 tabstop
     RadioGroup - @283,354 102x72 tabstop
     Expanded - @409,354 327x57
       Column - @409,354 327x57

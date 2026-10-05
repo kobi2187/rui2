@@ -19,7 +19,7 @@ method computeSize(widget: Counted, c: Constraints): Size =
 
 proc counted(w, h: float32): Counted =
   result = Counted(natural: Size(width: w, height: h))
-  initWidget(result)
+  initWidgetBase(result)
 
 proc box(w, h: float32): Widget =
   newRectangle().frame(width = w, height = h)
