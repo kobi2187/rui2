@@ -262,9 +262,15 @@ type
     cursorStop*: seq[bool]     ## a caret may stand before this codepoint
     backspaceChar*: seq[bool]  ## Backspace removes just the codepoint before it,
                                ## not the whole cluster (a combining mark, say)
+    wordStart*: seq[bool]      ## a word begins here / ends before here, by the
+    wordEnd*: seq[bool]        ## Unicode rules plus Pango's per-script ones --
+                               ## dictionary-based for Thai, Lao, Khmer, which
+                               ## are written without spaces
 
 const
   LogAttrCursorPosition = 1'u32 shl 4
+  LogAttrWordStart = 1'u32 shl 5
+  LogAttrWordEnd = 1'u32 shl 6
   LogAttrBackspaceChar = 1'u32 shl 10
 
 var
@@ -286,6 +292,8 @@ proc charAttrs*(text: string): CharAttrs =
   result.byteAt = offsets
   result.cursorStop = newSeq[bool](offsets.len)
   result.backspaceChar = newSeq[bool](offsets.len)
+  result.wordStart = newSeq[bool](offsets.len)
+  result.wordEnd = newSeq[bool](offsets.len)
   if text.len == 0:
     result.cursorStop[0] = true
   else:
@@ -297,6 +305,8 @@ proc charAttrs*(text: string): CharAttrs =
       for k in 0 ..< min(int(n), offsets.len):
         result.cursorStop[k] = (attrs[k] and LogAttrCursorPosition) != 0
         result.backspaceChar[k] = (attrs[k] and LogAttrBackspaceChar) != 0
+        result.wordStart[k] = (attrs[k] and LogAttrWordStart) != 0
+        result.wordEnd[k] = (attrs[k] and LogAttrWordEnd) != 0
   attrsText = text
   attrsCache = result
 
