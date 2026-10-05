@@ -225,6 +225,25 @@ proc pangoLayoutSetAutoDir*(l: PangoLayout, autoDir: cint)
 proc pangoLayoutGetLineCount*(l: PangoLayout): cint
   {.importc: "pango_layout_get_line_count", header: pangoHdr.}
 
+proc pangoContextSetBaseDir*(c: PangoContext, dir: cint)
+  {.importc: "pango_context_set_base_dir", header: pangoHdr.}
+  ## PANGO_DIRECTION_LTR = 0, PANGO_DIRECTION_RTL = 1.
+
+proc pangoFindBaseDir*(text: cstring, length: cint): cint
+  {.importc: "pango_find_base_dir", header: pangoHdr.}
+  ## The direction of the first strong character; NEUTRAL (10) for none.
+
+type
+  PangoLayoutLineObj* {.importc: "PangoLayoutLine", header: pangoHdr,
+                        incompleteStruct.} = object
+    ## Only the fields line-breaking needs: where the line starts in the
+    ## layout's text and how many bytes it covers.
+    start_index*: cint
+    length*: cint
+
+proc pangoLayoutGetLineReadonly*(l: PangoLayout, line: cint): ptr PangoLayoutLineObj
+  {.importc: "pango_layout_get_line_readonly", header: pangoHdr.}
+
 proc pangoLayoutMoveCursorVisually*(l: PangoLayout, strong: cint,
                                     oldIndex, oldTrailing, direction: cint,
                                     newIndex, newTrailing: ptr cint)

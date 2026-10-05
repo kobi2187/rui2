@@ -6,7 +6,7 @@
 
 import std/unittest
 import rui
-import std/[monotimes, unicode, times]
+import std/[monotimes, unicode, times, strutils]
 from raylib import KeyboardKey
 
 suite "finding the lines":
@@ -433,3 +433,81 @@ suite "keeping the caret in view":
 
   test "short content never scrolls":
     check scrollToShow(0.0, 40.0, 1.0, 100.0, 60.0) == 0.0
+
+suite "wrapping while editing":
+  const Para = "The quick brown fox jumps over the lazy dog and keeps running " &
+               "across the field until the evening comes."
+  let font = textStyle(14.0, BLACK, "", false, false, false).pangoFont
+
+  proc focusedArea(text: string, width: float32): TextArea =
+    result = newTextArea(initialText = text, fontSize = 14.0, padding = 4.0)
+    result.bounds = Rect(x: 0, y: 0, width: width, height: 200)
+    result.layout()
+    result.focused = true
+
+  proc key(w: TextArea, k: KeyboardKey): bool =
+    w.handleInput(GuiEvent(kind: evKeyDown, key: k, timestamp: getMonoTime()))
+
+  test "without a width, visual lines are the hard lines":
+    let lines = visualLines("one\ntwo\n\nfour", font, 0)
+    var spans: seq[(int, int)]
+    for l in lines: spans.add (l.start, l.stop)
+    check spans == @[(0, 3), (4, 7), (8, 8), (9, 13)]
+
+  test "a long paragraph breaks into lines that fit, and covers the text":
+    let lines = visualLines(Para, font, 150)
+    check lines.len > 2
+    check lines[0].start == 0 and lines[^1].stop == Para.len
+    for i in 1 ..< lines.len:
+      check lines[i].start == lines[i - 1].stop          # contiguous
+    for line in lines:
+      let w = measureText(Para[line.start ..< line.stop].strip(leading = false),
+                          textStyle(14.0, BLACK, "", false, false, false)).width
+      check w <= 151
+
+  test "hard lines still break where the newlines are":
+    let lines = visualLines(Para & "\nshort", font, 150)
+    check (lines[^1].start, lines[^1].stop) == (Para.len + 1, Para.len + 6)
+
+  test "every wrapped line keeps its paragraph's direction":
+    let mixed = "שלום עולם, a paragraph that starts in Hebrew and goes on in English for a while"
+    let lines = visualLines(mixed & "\nEnglish first, then שלום", font, 120)
+    check lines.len > 3
+    for l in lines:
+      if l.start < mixed.len: check l.dir == tdRtl
+      else: check l.dir == tdLtr
+
+  test "an editable TextArea wraps by default; a TextInput never does":
+    let ta = focusedArea(Para, 160)
+    check ta.linesOf.len > 2
+    let input = newTextInput(initialText = Para)
+    input.bounds = Rect(x: 0, y: 0, width: 160, height: 30)
+    check input.linesOf.len == 1
+
+  test "Down moves to the next line as drawn, inside one paragraph":
+    let ta = focusedArea(Para, 160)
+    let lines = ta.linesOf
+    discard ta.key(Down)
+    check visualLineOf(lines, ta.cursorPos) == 1
+    check ta.cursorPos < Para.len                        # still the first paragraph
+
+  test "End stops at the end of the drawn line, not the paragraph":
+    let ta = focusedArea(Para, 160)
+    let lines = ta.linesOf
+    discard ta.key(End)
+    check ta.cursorPos < lines[1].start
+    check visualLineOf(lines, ta.cursorPos) == 0
+    discard ta.key(Home)
+    check ta.cursorPos == 0
+
+  test "a click on the second drawn line lands in it":
+    let ta = focusedArea(Para, 160)
+    let lines = ta.linesOf
+    let lineH = ta.contentOf.lineHeight
+    let at = ta.indexAt(Point(x: 10, y: ta.textRect.y + lineH * 1.5))
+    check visualLineOf(lines, at) == 1
+
+  test "wrap = false keeps one line per paragraph":
+    let ta = newTextArea(initialText = Para, wrap = false, fontSize = 14.0)
+    ta.bounds = Rect(x: 0, y: 0, width: 160, height: 200)
+    check ta.linesOf.len == 1

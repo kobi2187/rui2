@@ -23,9 +23,12 @@
 ##
 ## Up and Down remember the column they started from (`goalColumn`), so passing
 ## through a short line does not drag the caret left. The text scrolls to keep
-## the caret in view (`scrollX` / `scrollY`), clipped to the frame. Not yet:
-## wheel scrolling and a scrollbar, and wrapping while editing (wrap and
-## markup apply to display text only).
+## the caret in view (`scrollX` / `scrollY`), clipped to the frame.
+##
+## A multi-line editor wraps at its width (`wrap`, on by default): the caret,
+## selection, clicks, Up/Down and Home/End all work on the lines as drawn,
+## which Pango breaks by the Unicode rules. Markup applies to display text
+## only.
 
 import rui_core
 import text_buffer
@@ -98,6 +101,78 @@ proc verticalMove*(text: string, cursor, goalColumn: int,
   let line = lineOf(text, cursor) + (if down: 1 else: -1)
   (indexAtLineColumn(text, line, goal), goal)
 
+# ----------------------------------------------------------------------------
+# Visual lines
+#
+# What the editor walks, draws and hit-tests is the line as it appears: a
+# paragraph that wraps is several of them. Without wrapping they are exactly
+# the hard lines. Pango decides where a paragraph breaks.
+# ----------------------------------------------------------------------------
+
+type VisualLine* = tuple[start, stop: int, dir: TextDir]
+  ## Bytes `start ..< stop` of the text, drawn as one line. `stop` leaves out
+  ## a newline; on a line that wraps it is where the next line starts. `dir`
+  ## is its paragraph's direction: a wrapped line is laid out in that, not in
+  ## whatever its own first letter suggests.
+
+var linesMemo: tuple[text, font: string, width: float32, lines: seq[VisualLine]]
+
+proc visualLines*(text, font: string, wrapWidth: float32): seq[VisualLine] =
+  ## The lines `text` is drawn as, wrapped at `wrapWidth` pixels (0: no
+  ## wrapping). Remembered for the last text, as the editor asks per key.
+  if linesMemo.lines.len > 0 and linesMemo.text == text and
+     linesMemo.font == font and linesMemo.width == wrapWidth:
+    return linesMemo.lines
+  let hard = lineStarts(text)
+  for i, start in hard:
+    let stop = lineEnd(text, i)
+    let dir = paragraphDir(text[start ..< stop])
+    if wrapWidth > 0 and stop > start:
+      let breaks = softBreaks(text[start ..< stop], font, int32(wrapWidth))
+      for k, b in breaks:
+        result.add (start + b, (if k + 1 < breaks.len: start + breaks[k + 1] else: stop), dir)
+    else:
+      result.add (start, stop, dir)
+  linesMemo = (text, font, wrapWidth, result)
+
+proc visualLineOf*(lines: openArray[VisualLine], index: int): int =
+  ## The line a byte offset is drawn on. At a soft break the caret belongs to
+  ## the line that starts there, as in every editor.
+  for i, line in lines:
+    if line.start <= index: result = i
+    else: break
+
+proc softEnd(text: string, line: VisualLine): int =
+  ## Where a caret may stand at the end of `line`: before the newline of a
+  ## hard line; on a wrapped line, before its last character -- the position
+  ## after it is the next line's start.
+  if line.stop < text.len and text[line.stop] != '\n' and line.stop > line.start:
+    prevBoundary(text, line.stop)
+  else:
+    line.stop
+
+proc visualColumn*(text: string, lines: openArray[VisualLine], index: int): int =
+  let line = lines[visualLineOf(lines, index)]
+  text[line.start ..< min(index, text.len)].runeLen
+
+proc indexAtVisual*(text: string, lines: openArray[VisualLine], row, column: int): int =
+  ## `column` characters into visual line `row`, clamped to where a caret may
+  ## stand on it.
+  let line = lines[clamp(row, 0, lines.high)]
+  let stop = softEnd(text, line)
+  result = line.start
+  for _ in 0 ..< column:
+    if result >= stop: break
+    result = nextBoundary(text, result)
+
+proc verticalMoveVisual*(text: string, lines: openArray[VisualLine],
+                         cursor, goalColumn: int,
+                         down: bool): tuple[index, goalColumn: int] =
+  ## Up / Down over visual lines, keeping the column a run started from.
+  let goal = if goalColumn >= 0: goalColumn else: visualColumn(text, lines, cursor)
+  let row = visualLineOf(lines, cursor) + (if down: 1 else: -1)
+  (indexAtVisual(text, lines, row, goal), goal)
+
 const
   SelectionColor = Color(r: 100, g: 150, b: 255, a: 128)
   PlaceholderColor = Color(r: 128, g: 128, b: 128, a: 255)
@@ -157,21 +232,45 @@ template contentOf*(widget: untyped): TextContent =
     markup: widget.markup and not widget.editable,
     wrapWidth: widget.textRect.width)
 
+template editWrapWidth*(widget: untyped): float32 =
+  ## The width editable text wraps at, or 0 when it does not wrap: only a
+  ## multi-line editor with `wrap` does, at the width inside its frame --
+  ## and not before it has one.
+  (if widget.editable and widget.multiline and widget.wrap and
+      widget.textRect.width > 0:
+     widget.textRect.width
+   else: 0.0'f32)
+
+template linesOf*(widget: untyped): seq[VisualLine] =
+  ## The editor's text as drawn, line by line.
+  visualLines(widget.text, widget.contentOf.style.pangoFont, widget.editWrapWidth)
+
+template lineShift(widget: untyped, line: VisualLine, font: string,
+                   inner: Rect): float32 =
+  ## How far right a line starts. A wrapped right-to-left paragraph hugs the
+  ## right edge, as it would in any editor; everything else starts at the left.
+  (if widget.editWrapWidth > 0 and line.dir == tdRtl:
+     inner.width - measureTextPango(widget.text[line.start ..< line.stop], font,
+                                    dir = line.dir).width
+   else: 0.0'f32)
+
 template indexAt*(widget: untyped, pos: Point): int =
-  ## Byte offset of the caret position under a click: which line the y falls on,
-  ## then Pango for the column within it.
+  ## Byte offset of the caret position under a click: which visual line the y
+  ## falls on, then Pango for the position within it.
   block:
     let content = widget.contentOf
     let inner = widget.lineRect(content.lineHeight)
-    let starts = lineStarts(widget.text)
+    let lines = widget.linesOf
     let row = clamp(int((pos.y - inner.y + widget.scrollY) / content.lineHeight),
-                    0, starts.len - 1)
-    let start = starts[row]
-    let stop = lineEnd(widget.text, row)
-    let hit = indexFromPosition(widget.text[start ..< stop],
-                                content.style.pangoFont,
-                                pos.x - inner.x + widget.scrollX, 0.0)
-    clamp(start + hit.index + hit.trailing, 0, widget.text.len)
+                    0, lines.high)
+    let line = lines[row]
+    let font = content.style.pangoFont
+    let hit = indexFromPosition(widget.text[line.start ..< line.stop], font,
+                                pos.x - inner.x + widget.scrollX -
+                                  widget.lineShift(line, font, inner),
+                                0.0, dir = line.dir)
+    clamp(line.start + hit.index + hit.trailing, line.start,
+          softEnd(widget.text, line))
 
 template bufferOf(widget: untyped): TextBuffer =
   initTextBuffer(widget.text, widget.cursorPos, widget.selectionStart,
@@ -306,17 +405,19 @@ template keepCaretInView(widget: untyped, content: TextContent, inner: Rect) =
   ## the caret's pixel position is known; indexAt reads the result.
   block:
     let lineH = content.lineHeight
-    let starts = lineStarts(widget.text)
-    let line = lineOf(widget.text, widget.cursorPos)
-    let lineText = widget.text[starts[line] ..< lineEnd(widget.text, line)]
+    let lines = widget.linesOf
+    let row = visualLineOf(lines, widget.cursorPos)
+    let line = lines[row]
+    let lineText = widget.text[line.start ..< line.stop]
     let caret = cursorPosition(lineText, content.style.pangoFont,
-                               widget.cursorPos - starts[line])
-    let lineW = measureText(lineText, content.style).width
-    widget.scrollX = scrollToShow(widget.scrollX, caret.x, 1.0, inner.width,
-                                  lineW + 1.0)
+                               widget.cursorPos - line.start, dir = line.dir)
+    let lineW = measureTextPango(lineText, content.style.pangoFont, dir = line.dir).width
+    widget.scrollX = if widget.editWrapWidth > 0: 0.0'f32   # wrapped: nothing to the side
+                     else: scrollToShow(widget.scrollX, caret.x, 1.0, inner.width,
+                                        lineW + 1.0)
     widget.scrollY = if widget.multiline:
-                       scrollToShow(widget.scrollY, float32(line) * lineH, lineH,
-                                    inner.height, float32(starts.len) * lineH)
+                       scrollToShow(widget.scrollY, float32(row) * lineH, lineH,
+                                    inner.height, float32(lines.len) * lineH)
                      else: 0.0'f32
 
 template paintEditable(widget: untyped, content: TextContent, inner: Rect) =
@@ -329,42 +430,46 @@ template paintEditable(widget: untyped, content: TextContent, inner: Rect) =
     let font = content.style.pangoFont
     let ox = inner.x - widget.scrollX
     let oy = inner.y - widget.scrollY
-    let starts = lineStarts(widget.text)
+    let lines = widget.linesOf
 
     # Selection under the glyphs, one band per line. Both edges from Pango's
     # caret positions, so it lines up with the glyphs in any script.
     if widget.selectionStart >= 0 and widget.selectionStart != widget.selectionEnd:
       let lo = min(widget.selectionStart, widget.selectionEnd)
       let hi = max(widget.selectionStart, widget.selectionEnd)
-      for i, start in starts:
-        let stop = lineEnd(widget.text, i)
-        if hi < start or lo > stop or (hi == start and lo < start):
+      for i, line in lines:
+        if hi < line.start or lo > line.stop or (hi == line.start and lo < line.start):
           continue
-        let lineText = widget.text[start ..< stop]
-        let x0 = cursorPosition(lineText, font, max(lo, start) - start).x
-        let x1 = cursorPosition(lineText, font, min(hi, stop) - start).x
-        let band = intersect(Rect(x: ox + x0, y: oy + float32(i) * lineH,
-                                  width: x1 - x0, height: lineH), inner)
+        let lineText = widget.text[line.start ..< line.stop]
+        let shift = widget.lineShift(line, font, inner)
+        let x0 = shift + cursorPosition(lineText, font, max(lo, line.start) - line.start,
+                                        dir = line.dir).x
+        let x1 = shift + cursorPosition(lineText, font, min(hi, line.stop) - line.start,
+                                        dir = line.dir).x
+        let band = intersect(Rect(x: ox + min(x0, x1), y: oy + float32(i) * lineH,
+                                  width: abs(x1 - x0), height: lineH), inner)
         if band.width > 0 and band.height > 0:
           drawRect(band, SelectionColor)
 
-    for i, start in starts:
+    for i, line in lines:
       let y = oy + float32(i) * lineH
       if y + lineH < inner.y or y > inner.y + inner.height:
         continue
-      drawTextPangoClipped(widget.text[start ..< lineEnd(widget.text, i)],
-                           ox, y, font, content.style.color,
+      drawTextPangoClipped(widget.text[line.start ..< line.stop],
+                           ox + widget.lineShift(line, font, inner), y, font,
+                           content.style.color,
                            Rectangle(x: inner.x, y: inner.y,
-                                     width: inner.width, height: inner.height))
+                                     width: inner.width, height: inner.height),
+                           dir = line.dir)
 
     if widget.focused and widget.takesInput:
-      let line = lineOf(widget.text, widget.cursorPos)
-      let start = starts[line]
-      let caret = cursorPosition(widget.text[start ..< lineEnd(widget.text, line)],
-                                 font, widget.cursorPos - start)
+      let row = visualLineOf(lines, widget.cursorPos)
+      let line = lines[row]
+      let caret = cursorPosition(widget.text[line.start ..< line.stop],
+                                 font, widget.cursorPos - line.start, dir = line.dir)
       let now = getTime()
-      let x = ox + caret.x
-      let y = oy + float32(line) * lineH
+      let x = ox + widget.lineShift(line, font, inner) + caret.x
+      let y = oy + float32(row) * lineH
       let half = prefs.caretBlinkMs.float / 1000.0
       let caretOn = half <= 0 or int(now / half) mod 2 == 0   # 0: steady
       if caretOn and x >= inner.x and x <= inner.x + inner.width:
@@ -386,7 +491,7 @@ definePrimitive(TextArea):
     italic: bool = false
     underline: bool = false
     align: TextAlign = TextAlign.Left
-    wrap: bool = false           ## Display text wraps to the assigned width
+    wrap: bool = true            ## Wrap at the width: display text, and multi-line editors
     markup: bool = false         ## Display text is Pango markup
     editable: bool = true        ## false: display only, takes no input
     multiline: bool = true       ## false: one line, Enter fires onSubmit
@@ -493,19 +598,21 @@ definePrimitive(TextArea):
         # A single line has nowhere to go; leave the keys to focus navigation.
         if not widget.multiline:
           return false
-        let move = verticalMove(widget.text, widget.cursorPos,
-                                widget.goalColumn, down = event.key == Down)
+        let move = verticalMoveVisual(widget.text, widget.linesOf, widget.cursorPos,
+                                      widget.goalColumn, down = event.key == Down)
         widget.edit: buf.moveCursor(move.index, extend = shiftDown)
         widget.goalColumn = move.goalColumn
         return true
 
       of Left, Right, Home, End:
-        let line = lineOf(widget.text, widget.cursorPos)
+        # Home and End go to the ends of the line as drawn.
+        let lines = widget.linesOf
+        let line = lines[visualLineOf(lines, widget.cursorPos)]
         let target = case event.key
                      of Left: stepCaret(widget.text, widget.cursorPos, -1)
                      of Right: stepCaret(widget.text, widget.cursorPos, 1)
-                     of Home: lineStarts(widget.text)[line]
-                     else: lineEnd(widget.text, line)
+                     of Home: line.start
+                     else: softEnd(widget.text, line)
         widget.edit: buf.moveCursor(target, extend = shiftDown)
         return true
 
@@ -536,7 +643,10 @@ definePrimitive(TextArea):
           widget.bounds.height = max(widget.bounds.height, currentTheme.controlHeight)
       if widget.bounds.width <= 0:
         let floor = if widget.multiline: 240.0'f32 else: 200.0'f32
-        widget.bounds.width = max(floor, content.measure().width + pad)
+        # Wrapping text has no natural width beyond the floor: it would be
+        # as wide as its longest paragraph, which wrapping is there to avoid.
+        widget.bounds.width = if widget.wrap and widget.multiline: floor
+                              else: max(floor, content.measure().width + pad)
 
   render:
     if widget.framed:
