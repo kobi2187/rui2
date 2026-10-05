@@ -126,3 +126,52 @@ suite "context menus":
     f.app.stepHeadless()
     f.key(KeyboardKey.Escape)
     check not cm.isVisible
+
+suite "combo box":
+  proc combo(): ComboBox =
+    clearPopups()
+    result = newComboBox(items = @["Apple", "Banana", "Cherry", "Blueberry"])
+    result.bounds = Rect(x: 0, y: 0, width: 160, height: 30)
+    result.layout()
+    result.focused = true
+
+  proc key(w: Widget, k: KeyboardKey, mods: set[KeyMod] = {}): bool =
+    w.handleInput(GuiEvent(kind: evKeyDown, key: k, mods: mods, timestamp: getMonoTime()))
+
+  test "closed, the arrows and Home/End change the choice at once":
+    let c = combo()
+    var picked: seq[int]
+    c.onSelect = proc(i: int) = picked.add i
+    discard c.key(KeyboardKey.Down)
+    discard c.key(KeyboardKey.End)
+    discard c.key(KeyboardKey.Home)
+    check picked == @[0, 3, 0]                         # nothing was chosen at first
+
+  test "a letter jumps to the next item starting with it":
+    let c = combo()
+    discard c.key(KeyboardKey.B)
+    check c.selectedIndex == 1
+    discard c.key(KeyboardKey.B)
+    check c.selectedIndex == 3                         # Blueberry, the next B
+
+  test "open, the arrows move a highlight; Enter picks it, Escape does not":
+    let c = combo()
+    discard c.key(KeyboardKey.Down, {kmAlt})
+    check c.isOpen
+    discard c.key(KeyboardKey.Down)
+    discard c.key(KeyboardKey.Down)
+    check c.hoverIndex == 1 and c.selectedIndex == -1  # highlighted, not chosen
+    discard c.key(KeyboardKey.Escape)
+    check not c.isOpen and c.selectedIndex == -1
+    discard c.key(KeyboardKey.Space)
+    discard c.key(KeyboardKey.Down)
+    discard c.key(KeyboardKey.Down)
+    discard c.key(KeyboardKey.Enter)
+    check not c.isOpen and c.selectedIndex == 1
+
+  test "a press outside closes its list":
+    let c = combo()
+    discard c.key(KeyboardKey.Enter)
+    check c.isOpen and anyPopupOpen()
+    check dismissPopupsOutside(nil)
+    check not c.isOpen
