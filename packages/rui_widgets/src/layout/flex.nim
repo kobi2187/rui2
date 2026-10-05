@@ -34,6 +34,102 @@
 
 import rui_core
 
+type FlexPlan = object
+  sizes: seq[Size]          # each child's measured size
+  own: Size                 # the Flex's own size
+
+proc constraintsOf*(bounds: Rect): Constraints =
+  ## The old protocol's meaning of a rect, as constraints: a non-zero side
+  ## is fixed, a zero one is free.
+  result = unbounded()
+  if bounds.width > 0: result = result.withWidth(bounds.width)
+  if bounds.height > 0: result = result.withHeight(bounds.height)
+
+proc planFlex[W](widget: W, c: Constraints): FlexPlan =
+  ## Flutter's flex rules, by measuring the children (rules 1-3 above):
+  ## natural sizes first, then the free main-axis room shared between the
+  ## flex children, then the Flex's own size.
+  let horizontal = widget.direction == Axis.horizontal
+  let pad = widget.padding
+  let padMain = if horizontal: pad.horizontal else: pad.vertical
+  let padCross = if horizontal: pad.vertical else: pad.horizontal
+  template mainOf(s: Size): float32 = (if horizontal: s.width else: s.height)
+  template crossOf(s: Size): float32 = (if horizontal: s.height else: s.width)
+  let mainFixed = (if horizontal: c.tightWidth else: c.tightHeight)
+  let crossFixed = (if horizontal: c.tightHeight else: c.tightWidth)
+  let mainAvail = if horizontal: c.minWidth else: c.minHeight
+  let crossAvail = if horizontal: c.minHeight else: c.minWidth
+  let mainBounded = mainFixed and mainAvail > 0 and
+                    widget.mainAxisSize == MainAxisSize.max
+  let stretch = widget.crossAxisAlignment == CrossAxisAlignment.stretch
+
+  proc childConstraints(main: float32): Constraints =
+    ## `main` < 0: natural size along the axis.
+    result = unbounded()
+    if stretch and crossFixed and crossAvail > 0:
+      result = if horizontal: result.withHeight(crossAvail - padCross)
+               else: result.withWidth(crossAvail - padCross)
+    if main >= 0:
+      result = if horizontal: result.withWidth(main) else: result.withHeight(main)
+
+  var factors, natural: seq[float32]
+  var loose: seq[bool]
+  var fixedUsed = 0.0'f32
+  for child in widget.children:
+    let size = child.measure(childConstraints(-1))
+    result.sizes.add size
+    factors.add child.flexGrow
+    loose.add child.flexLoose
+    natural.add mainOf(size)
+    if child.flexGrow <= 0:
+      fixedUsed += mainOf(size)
+
+  let gaps = totalSpacing(widget.children.len, widget.spacing)
+  let free = if mainBounded: mainAvail - padMain - fixedUsed - gaps
+             else: -1.0'f32
+  let shares = flexSizes(factors, loose, natural, free)
+  for i, child in widget.children:
+    if factors[i] > 0 and shares[i] != natural[i]:
+      result.sizes[i] = child.measure(childConstraints(shares[i]))
+
+  var content, crossMax = 0.0'f32
+  for size in result.sizes:
+    content += mainOf(size)
+    crossMax = max(crossMax, crossOf(size))
+  content += gaps
+  let ownMain = if mainBounded: mainAvail else: content + padMain
+  let ownCross = if crossFixed and crossAvail > 0: crossAvail else: crossMax + padCross
+  result.own = if horizontal: Size(width: ownMain, height: ownCross)
+               else: Size(width: ownCross, height: ownMain)
+
+proc placeFlex[W](widget: W, plan: FlexPlan) =
+  ## Rule 4: spend the free room by mainAxisAlignment, place each child
+  ## across by crossAxisAlignment, and give each its rect.
+  let horizontal = widget.direction == Axis.horizontal
+  let pad = widget.padding
+  let padMain = if horizontal: pad.horizontal else: pad.vertical
+  let padCross = if horizontal: pad.vertical else: pad.horizontal
+  template mainOf(s: Size): float32 = (if horizontal: s.width else: s.height)
+  template crossOf(s: Size): float32 = (if horizontal: s.height else: s.width)
+  let gaps = totalSpacing(widget.children.len, widget.spacing)
+  var content = gaps
+  for size in plan.sizes: content += mainOf(size)
+  let ownMain = if horizontal: widget.bounds.width else: widget.bounds.height
+  let crossExtent = (if horizontal: widget.bounds.height else: widget.bounds.width) - padCross
+  let (gap, startOffset) = calculateDistributedSpacing(
+    widget.mainAxisAlignment, ownMain - padMain, content - gaps,
+    widget.children.len, widget.spacing)
+  var pos = startOffset
+  for i, child in widget.children:
+    let size = plan.sizes[i]
+    let across = calculateAlignmentOffset(widget.crossAxisAlignment,
+                                          crossExtent, crossOf(size))
+    let x = if horizontal: pad.left + pos else: pad.left + across
+    let y = if horizontal: pad.top + across else: pad.top + pos
+    child.arrange(Rect(x: widget.bounds.x + x, y: widget.bounds.y + y,
+                       width: size.width, height: size.height))
+    pos += mainOf(size) + gap
+
 defineWidget(Flex):
   props:
     direction: Axis = Axis.horizontal
@@ -50,78 +146,19 @@ defineWidget(Flex):
     if widget.kindName.len > 0: widget.kindName else: "Flex"
 
   layout:
-    let horizontal = widget.direction == Axis.horizontal
-    let pad = widget.padding
-    let padMain = if horizontal: pad.horizontal else: pad.vertical
-    let padCross = if horizontal: pad.vertical else: pad.horizontal
-    template mainOf(r: Rect): float32 = (if horizontal: r.width else: r.height)
-    template crossOf(r: Rect): float32 = (if horizontal: r.height else: r.width)
-    template setMain(w: Widget, v: float32) =
-      (if horizontal: w.bounds.width = v else: w.bounds.height = v)
-    template setCross(w: Widget, v: float32) =
-      (if horizontal: w.bounds.height = v else: w.bounds.width = v)
+    # Arrange. A zero side is still "size yourself" for parents that have
+    # not moved to measure/arrange.
+    let plan = widget.planFlex(constraintsOf(widget.bounds))
+    if widget.bounds.width <= 0: widget.bounds.width = plan.own.width
+    if widget.bounds.height <= 0: widget.bounds.height = plan.own.height
+    if widget.mainAxisSize == MainAxisSize.min:
+      # A min-size Flex is its content along the axis, whatever it was given.
+      if widget.direction == Axis.horizontal: widget.bounds.width = plan.own.width
+      else: widget.bounds.height = plan.own.height
+    widget.placeFlex(plan)
 
-    let mainBounded = mainOf(widget.bounds) > 0 and
-                      widget.mainAxisSize == MainAxisSize.max
-    let crossBounded = crossOf(widget.bounds) > 0
-    let innerCross = crossOf(widget.bounds) - padCross
-    let stretch = widget.crossAxisAlignment == CrossAxisAlignment.stretch
-
-    proc measure(child: Widget, main: float32) =
-      child.setMain(main)
-      child.setCross(if stretch and crossBounded: innerCross else: 0.0'f32)
-      child.layout()
-
-    # 1. Natural sizes, for everything (flex children too: Flexible needs it,
-    #    and an unbounded axis gives them nothing else).
-    var factors, natural: seq[float32]
-    var loose: seq[bool]
-    var fixedUsed = 0.0'f32
-    for child in widget.children:
-      measure(child, 0)
-      factors.add child.flexGrow
-      loose.add child.flexLoose
-      natural.add mainOf(child.bounds)
-      if child.flexGrow <= 0:
-        fixedUsed += mainOf(child.bounds)
-
-    # 2. Share out what is left between the flex children.
-    let gaps = totalSpacing(widget.children.len, widget.spacing)
-    let free = if mainBounded:
-                 mainOf(widget.bounds) - padMain - fixedUsed - gaps
-               else: -1.0'f32
-    let sizes = flexSizes(factors, loose, natural, free)
-    for i, child in widget.children:
-      if factors[i] > 0 and sizes[i] != natural[i]:
-        measure(child, sizes[i])
-
-    # 3. Own size.
-    var content, crossMax = 0.0'f32
-    for child in widget.children:
-      content += mainOf(child.bounds)
-      crossMax = max(crossMax, crossOf(child.bounds))
-    content += gaps
-    if not mainBounded:
-      widget.setMain(content + padMain)
-    if not crossBounded:
-      widget.setCross(crossMax + padCross)
-
-    # 4. Place: mainAxisAlignment along, crossAxisAlignment across.
-    let crossExtent = crossOf(widget.bounds) - padCross
-    let (gap, startOffset) = calculateDistributedSpacing(
-      widget.mainAxisAlignment, mainOf(widget.bounds) - padMain,
-      content - gaps, widget.children.len, widget.spacing)
-    var pos = startOffset
-    for child in widget.children:
-      let across = calculateAlignmentOffset(widget.crossAxisAlignment,
-                                            crossExtent, crossOf(child.bounds))
-      let x = if horizontal: pad.left + pos else: pad.left + across
-      let y = if horizontal: pad.top + across else: pad.top + pos
-      if child.bounds.x != widget.bounds.x + x or child.bounds.y != widget.bounds.y + y:
-        child.bounds.x = widget.bounds.x + x
-        child.bounds.y = widget.bounds.y + y
-        child.layout()          # so its own children follow it
-      pos += mainOf(child.bounds) + gap
+method computeSize*(widget: Flex, c: Constraints): Size =
+  widget.planFlex(c).own
 
 proc newRow*(mainAxisAlignment = MainAxisAlignment.start,
              crossAxisAlignment = CrossAxisAlignment.center,

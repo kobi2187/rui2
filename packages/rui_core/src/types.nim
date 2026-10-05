@@ -95,8 +95,50 @@ proc edgeInsetsLTRB*(left, top, right, bottom: float32): EdgeInsets =
 
 type
   Constraints* = object
+    ## What a parent allows a child, per axis: a size from `min` to `max`.
+    ## `max` is `Inf` for an axis with no limit -- not 0, which would mean
+    ## "must be 0 wide". Build them with `tight`, `loose` and `unbounded`
+    ## rather than by hand.
     minWidth*, maxWidth*: float32
     minHeight*, maxHeight*: float32
+
+proc unbounded*(): Constraints =
+  ## Any size at all: what a child gets on an axis its parent does not fix.
+  Constraints(maxWidth: Inf, maxHeight: Inf)
+
+proc tight*(width, height: float32): Constraints =
+  ## Exactly this size.
+  Constraints(minWidth: width, maxWidth: width, minHeight: height, maxHeight: height)
+
+proc tight*(size: Size): Constraints = tight(size.width, size.height)
+
+proc loose*(width, height: float32): Constraints =
+  ## Up to this size.
+  Constraints(maxWidth: width, maxHeight: height)
+
+proc tightWidth*(c: Constraints): bool = c.minWidth >= c.maxWidth
+proc tightHeight*(c: Constraints): bool = c.minHeight >= c.maxHeight
+
+proc withWidth*(c: Constraints, width: float32): Constraints =
+  ## `c` with the width fixed at `width`.
+  result = c
+  result.minWidth = width
+  result.maxWidth = width
+
+proc withHeight*(c: Constraints, height: float32): Constraints =
+  result = c
+  result.minHeight = height
+  result.maxHeight = height
+
+proc constrain*(c: Constraints, size: Size): Size =
+  ## `size` brought within `c`.
+  Size(width: clamp(size.width, c.minWidth, c.maxWidth),
+       height: clamp(size.height, c.minHeight, c.maxHeight))
+
+proc `$`*(c: Constraints): string =
+  proc axis(lo, hi: float32): string =
+    if lo >= hi: $lo elif hi == Inf: $lo & ".." else: $lo & ".." & $hi
+  "(" & axis(c.minWidth, c.maxWidth) & " x " & axis(c.minHeight, c.maxHeight) & ")"
 
 # ============================================================================
 # Scripting System Types
@@ -193,6 +235,11 @@ type
       ## until it scrolls into view.
     flexLoose*: bool
       ## Flexible's `FlexFit.loose`: take at most the flex share, not exactly it.
+    measured*: seq[tuple[constraints: Constraints, size: Size, pass: int]]
+      ## Answers `measure` already gave, so a container that asks a child twice
+      ## (Flex asks once for the natural size and again at its flex share), or
+      ## a parent re-arranging after one sibling changed, does not re-measure
+      ## a subtree that has not changed. See `measure`.
     flexGrow*: float32
       ## Share of a stack's leftover main-axis space this widget takes, like
       ## CSS `flex-grow`. 0 (the default) keeps the widget at its own size.
@@ -561,15 +608,99 @@ method render*(widget: Widget) {.base.} =
   ## Base implementation does nothing.
   discard
 
-method measure*(widget: Widget, constraints: Constraints): Size {.base.}=
-  ## Calculate the preferred size of this widget given constraints.
-  ## Base implementation returns current bounds size.
-  result = Size(width: widget.bounds.width, height: widget.bounds.height)
-
 method layout*(widget: Widget) {.base.}=
-  ## Position and size children of this widget.
-  ## Base implementation does nothing (leaf widgets don't need layout).
+  ## Arrange: place this widget's children inside the `bounds` it has been
+  ## given. Leaves have nothing to place.
   discard
+
+# ----------------------------------------------------------------------------
+# Measuring
+#
+# Layout is two questions. *Measure*: how big would you be, within these
+# constraints? *Arrange* (`layout`): here is your rect, place your children.
+# A container answers the first by measuring its children -- never by laying
+# them out to see where they land -- and the second exactly once per child.
+#
+# Constraints in this release are tight or unbounded per axis: tight is a
+# size the parent decides (a stretched cross axis, a flex share), unbounded
+# is "your natural size". That is what the old `bounds.width <= 0` protocol
+# expressed, and keeping the meaning lets widgets move over one at a time.
+# ----------------------------------------------------------------------------
+
+method computeSize*(widget: Widget, c: Constraints): Size {.base.} =
+  ## The size this widget wants within `c`. Override it to measure without
+  ## laying out; call `measure`, not this, from a container.
+  ##
+  ## The default is the old protocol, for widgets that have not moved over
+  ## yet: a fixed axis is assigned, a free one is zeroed, and `layout` sizes
+  ## the widget to its content. It lays the widget out as a side effect,
+  ## which is why containers cache what it says.
+  widget.bounds.width = if c.tightWidth: c.minWidth else: 0.0'f32
+  widget.bounds.height = if c.tightHeight: c.minHeight else: 0.0'f32
+  # A fixed axis is an assignment, even if it happens to equal the size the
+  # widget gave itself last time (see beginSelfSizing).
+  widget.ownWidth = -1
+  widget.ownHeight = -1
+  widget.layout()
+  Size(width: widget.bounds.width, height: widget.bounds.height)
+
+proc applySizing*(widget: Widget, c: Constraints): Constraints =
+  ## `c` with the widget's own sizing applied, as `beginSelfSizing` does for
+  ## the old protocol: a requested size wins over the parent's (an explicit
+  ## width beats stretch, as in CSS), and a fixed axis is clamped to the
+  ## widget's min/max before its children see it.
+  result = c
+  if widget.sizeRequest.width > 0:
+    result = result.withWidth(widget.sizeRequest.width)
+  if widget.sizeRequest.height > 0:
+    result = result.withHeight(widget.sizeRequest.height)
+  if result.tightWidth:
+    result = result.withWidth(clampDimension(result.minWidth,
+                              widget.sizeMin.width, widget.sizeMax.width))
+  if result.tightHeight:
+    result = result.withHeight(clampDimension(result.minHeight,
+                               widget.sizeMin.height, widget.sizeMax.height))
+
+proc clampSize*(widget: Widget, size: Size): Size =
+  ## A measured size within the widget's own min/max.
+  Size(width: clampDimension(size.width, widget.sizeMin.width, widget.sizeMax.width),
+       height: clampDimension(size.height, widget.sizeMin.height, widget.sizeMax.height))
+
+var layoutPassNumber* = 0
+  ## Which layout pass this is. A measurement taken in this pass stays good
+  ## for the rest of it even if its widget is dirty -- the pass is what
+  ## cleans it.
+
+proc measure*(widget: Widget, c: Constraints): Size =
+  ## How big `widget` wants to be within `c`, remembered: a widget that is
+  ## not layout-dirty, or was already asked the same thing in this pass, is
+  ## not measured again. Dirtiness is propagated to ancestors before a pass
+  ## (`propagateLayoutDirty`), so a clean widget's whole subtree is clean.
+  for entry in widget.measured:
+    if entry.constraints == c and
+       (entry.pass == layoutPassNumber or not widget.layoutDirty):
+      return entry.size
+  result = widget.clampSize(widget.computeSize(widget.applySizing(c)))
+  # Few distinct questions are ever asked of one widget (natural size, a
+  # flex share, a stretched width); a short list keeps the latest.
+  if widget.measured.len >= 4:
+    widget.measured.delete(0)
+  for i in countdown(widget.measured.high, 0):
+    if widget.measured[i].constraints == c:
+      widget.measured.delete(i)
+  widget.measured.add((c, result, layoutPassNumber))
+
+proc arrange*(widget: Widget, rect: Rect) =
+  ## Give `widget` its final rect and let it place its children -- skipped
+  ## when nothing it depends on changed: same rect, and clean.
+  if widget.bounds == rect and not widget.layoutDirty:
+    return
+  widget.bounds = rect
+  # The rect is an assignment, whatever size the widget gave itself before.
+  widget.ownWidth = -1
+  widget.ownHeight = -1
+  widget.layout()
+  widget.layoutDirty = false
 
 method handleInput*(widget: Widget, event: GuiEvent): bool {.base.}=
   ## Handle input event. Return true if handled (stops propagation).
