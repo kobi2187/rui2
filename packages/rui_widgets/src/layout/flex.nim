@@ -38,13 +38,6 @@ type FlexPlan = object
   sizes: seq[Size]          # each child's measured size
   own: Size                 # the Flex's own size
 
-proc constraintsOf*(bounds: Rect): Constraints =
-  ## The old protocol's meaning of a rect, as constraints: a non-zero side
-  ## is fixed, a zero one is free.
-  result = unbounded()
-  if bounds.width > 0: result = result.withWidth(bounds.width)
-  if bounds.height > 0: result = result.withHeight(bounds.height)
-
 proc planFlex[W](widget: W, c: Constraints): FlexPlan =
   ## Flutter's flex rules, by measuring the children (rules 1-3 above):
   ## natural sizes first, then the free main-axis room shared between the
@@ -244,3 +237,6 @@ definePrimitive(Spacer):
     widget.flexGrow = float32(widget.flex)
     if widget.bounds.width <= 0: widget.bounds.width = widget.minWidth
     if widget.bounds.height <= 0: widget.bounds.height = widget.minHeight
+
+method computeSize*(widget: Expanded, c: Constraints): Size = widget.wrapSize(c)
+method computeSize*(widget: Flexible, c: Constraints): Size = widget.wrapSize(c)

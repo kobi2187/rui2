@@ -173,21 +173,38 @@ proc alignmentOffset*(alignment: Alignment, free: tuple[x, y: float32]):
   ## mapped onto 0..free.
   (free.x * (alignment.x + 1) / 2, free.y * (alignment.y + 1) / 2)
 
+proc constraintsOf*(bounds: Rect): Constraints =
+  ## The old protocol's meaning of a rect, as constraints: a non-zero side
+  ## is fixed, a zero one is free.
+  result = unbounded()
+  if bounds.width > 0: result = result.withWidth(bounds.width)
+  if bounds.height > 0: result = result.withHeight(bounds.height)
+
+proc deflate*(c: Constraints, padding: EdgeInsets): Constraints =
+  ## What is left for a child inside `padding`: fixed sides shrink by it,
+  ## free ones stay free.
+  result = unbounded()
+  if c.tightWidth: result = result.withWidth(max(0.0'f32, c.minWidth - padding.horizontal))
+  if c.tightHeight: result = result.withHeight(max(0.0'f32, c.minHeight - padding.vertical))
+
+proc wrapSize*(widget: Widget, c: Constraints, padding = EdgeInsets()): Size =
+  ## The single-child wrapper's measure: a fixed side is kept, a free one is
+  ## the child's natural size plus the padding.
+  var inner = Size()
+  if widget.children.len > 0:
+    inner = widget.children[0].measure(c.deflate(padding))
+  Size(width: (if c.tightWidth: c.minWidth else: inner.width + padding.horizontal),
+       height: (if c.tightHeight: c.minHeight else: inner.height + padding.vertical))
+
 proc wrapChild*(widget: Widget, padding = EdgeInsets()) =
-  ## The single-child wrapper's layout (Padding, Expanded, SizedBox, ...): the
-  ## child fills the wrapper's box inside `padding`; a wrapper with no box of
-  ## its own takes the child's natural size plus the padding.
-  let w = widget.bounds.width
-  let h = widget.bounds.height
-  if widget.children.len == 0:
-    if w <= 0: widget.bounds.width = padding.horizontal
-    if h <= 0: widget.bounds.height = padding.vertical
-    return
-  let child = widget.children[0]
-  child.bounds = Rect(x: widget.bounds.x + padding.left,
-                      y: widget.bounds.y + padding.top,
-                      width: (if w > 0: max(0.0'f32, w - padding.horizontal) else: 0.0'f32),
-                      height: (if h > 0: max(0.0'f32, h - padding.vertical) else: 0.0'f32))
-  child.layout()
-  if w <= 0: widget.bounds.width = child.bounds.width + padding.horizontal
-  if h <= 0: widget.bounds.height = child.bounds.height + padding.vertical
+  ## The single-child wrapper's arrange (Padding, Expanded, SizedBox, ...):
+  ## the child fills the wrapper's box inside `padding`; a wrapper with no
+  ## box of its own takes the child's natural size plus the padding.
+  let own = widget.wrapSize(constraintsOf(widget.bounds), padding)
+  widget.bounds.width = own.width
+  widget.bounds.height = own.height
+  if widget.children.len > 0:
+    widget.children[0].arrange(Rect(
+      x: widget.bounds.x + padding.left, y: widget.bounds.y + padding.top,
+      width: max(0.0'f32, own.width - padding.horizontal),
+      height: max(0.0'f32, own.height - padding.vertical)))
