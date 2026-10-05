@@ -3,6 +3,7 @@
 
 import std/[unittest, math, monotimes, times, options]
 import rui
+from raylib import KeyboardKey
 
 proc down(x, y: float32): GuiEvent = GuiEvent(kind: evMouseDown, mousePos: Point(x: x, y: y))
 proc key(k: string): GuiEvent = GuiEvent(kind: evKeyDown, key: chord(k).key)
@@ -201,3 +202,48 @@ suite "Space and Enter press a focused button-like control":
     let before = s.value
     check not app.pressFocused(key("Space"))
     check s.value == before                       # no jump to the middle
+
+suite "slider from the keyboard and the wheel":
+  proc send(w: Widget, e: GuiEvent): bool =
+    var e = e
+    e.timestamp = getMonoTime()
+    w.handleInput(e)
+
+  proc focusedSlider(step = 0.0'f32): Slider =
+    result = newSlider(initialValue = 50, minValue = 0, maxValue = 100, step = step)
+    result.focused = true
+
+  test "arrows move a step, PageUp/PageDown ten, Home/End to the ends":
+    let s = focusedSlider(step = 5)
+    check s.send(GuiEvent(kind: evKeyDown, key: KeyboardKey.Right))
+    check s.value == 55
+    discard s.send(GuiEvent(kind: evKeyDown, key: KeyboardKey.Down))
+    check s.value == 50
+    discard s.send(GuiEvent(kind: evKeyDown, key: KeyboardKey.PageUp))
+    check s.value == 100                                   # clamped at the top
+    discard s.send(GuiEvent(kind: evKeyDown, key: KeyboardKey.Home))
+    check s.value == 0
+    discard s.send(GuiEvent(kind: evKeyDown, key: KeyboardKey.End))
+    check s.value == 100
+
+  test "with no step, a step is a hundredth of the range":
+    let s = focusedSlider()
+    discard s.send(GuiEvent(kind: evKeyDown, key: KeyboardKey.Left))
+    check s.value == 49
+
+  test "the wheel moves it only while focused":
+    let s = focusedSlider(step = 1)
+    check s.send(GuiEvent(kind: evMouseWheel, wheelDelta: 1))
+    check s.value == 51
+    s.focused = false
+    check not s.send(GuiEvent(kind: evMouseWheel, wheelDelta: 1))
+    check s.value == 51
+
+  test "unfocused, it leaves the keys alone":
+    let s = newSlider(initialValue = 50)
+    check not s.send(GuiEvent(kind: evKeyDown, key: KeyboardKey.Right))
+
+  test "dragging snaps to the step":
+    check snapped(47.3, 0, 5) == 45
+    check snapped(47.3, 0, 0) == 47.3'f32
+    check stepValue(97, 0, 100, 5, 1) == 100
