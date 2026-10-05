@@ -19,6 +19,7 @@
 ## under the pointer. Sizes and strokes come from the theme.
 
 import rui_core
+from raylib import KeyboardKey
 import rui_drawing
 import std/options
 import raylib
@@ -64,6 +65,10 @@ definePrimitive(KanbanBoard):
     pressAt: Point
     pointer: Point
     target: Option[CardSpot]
+    focus: CardSpot                # the keyboard's card (index 0 in an empty column)
+    carrying: bool                 # picked up with Space, moved by the arrows
+    carriedFrom: CardSpot          # where it was picked up
+    beforeCarry: seq[KanbanColumn] # to put it back on Escape
 
   actions:
     onMove(cardId: string, fromColumn: int, toColumn: int, toIndex: int)
@@ -81,6 +86,7 @@ definePrimitive(KanbanBoard):
       widget.held = true
       widget.dragging = false
       widget.grabbed = hit.get
+      widget.focus = hit.get
       widget.pressAt = event.mousePos
       widget.pointer = event.mousePos
       return true
@@ -125,6 +131,87 @@ definePrimitive(KanbanBoard):
                              to0.index - 1 else: to0.index))
       elif not wasDragging and widget.onCardClick != nil:
         widget.onCardClick(widget.columns[from0.column].cards[from0.index].id)
+      return true
+
+    on_key_down:
+      # Arrows move between cards and columns; Enter opens a card. Space
+      # picks the card up: then the arrows carry it, Space or Enter drops
+      # it, Escape puts it back where it was.
+      if not widget.focused or widget.columns.len == 0:
+        return false
+      var f = widget.focus
+      f.column = clamp(f.column, 0, widget.columns.high)
+      let count = widget.columns[f.column].cards.len
+      f.index = clamp(f.index, 0, max(0, count - 1))
+      let hasCard = count > 0
+      if widget.carrying:
+        case event.key
+        of KeyboardKey.Space, KeyboardKey.Enter, KeyboardKey.KpEnter:
+          widget.carrying = false
+          let src = widget.carriedFrom
+          if f != src and widget.onMove != nil:
+            widget.onMove(widget.columns[f.column].cards[f.index].id,
+                          src.column, f.column, f.index)
+        of KeyboardKey.Escape:
+          widget.carrying = false
+          widget.columns = widget.beforeCarry
+          f = widget.carriedFrom
+          widget.layoutDirty = true
+        of KeyboardKey.Up, KeyboardKey.Down, KeyboardKey.Left, KeyboardKey.Right:
+          var to: CardSpot = f
+          var lands: CardSpot = f
+          case event.key
+          of KeyboardKey.Up:
+            if f.index == 0: return true
+            to = (f.column, f.index - 1); lands = to
+          of KeyboardKey.Down:
+            if f.index >= count - 1: return true
+            to = (f.column, f.index + 2); lands = (f.column, f.index + 1)
+          of KeyboardKey.Left, KeyboardKey.Right:
+            let c = f.column + (if event.key == KeyboardKey.Right: 1 else: -1)
+            if c < 0 or c > widget.columns.high: return true
+            let at = min(f.index, widget.columns[c].cards.len)
+            to = (c, at); lands = to
+          else: discard
+          widget.columns = applyMove(widget.columns, f, to)
+          f = lands
+          widget.layoutDirty = true
+        else:
+          return false
+      else:
+        case event.key
+        of KeyboardKey.Up: f.index = max(0, f.index - 1)
+        of KeyboardKey.Down: f.index = min(max(0, count - 1), f.index + 1)
+        of KeyboardKey.Left, KeyboardKey.Right:
+          f.column = clamp(f.column + (if event.key == KeyboardKey.Right: 1 else: -1),
+                           0, widget.columns.high)
+          f.index = min(f.index, max(0, widget.columns[f.column].cards.len - 1))
+        of KeyboardKey.Home: f.index = 0
+        of KeyboardKey.End: f.index = max(0, count - 1)
+        of KeyboardKey.Space:
+          if not hasCard: return true
+          widget.carrying = true
+          widget.carriedFrom = f
+          widget.beforeCarry = widget.columns
+        of KeyboardKey.Enter, KeyboardKey.KpEnter:
+          if hasCard and widget.onCardClick != nil:
+            widget.onCardClick(widget.columns[f.column].cards[f.index].id)
+          return true
+        else:
+          return false
+      widget.focus = f
+      # Keep the focused card in its column's view.
+      let g = geometryOf(widget)
+      while widget.scrolls.len < widget.columns.len: widget.scrolls.add 0.0'f32
+      let r = g.cardRect(f.column, f.index, 0)
+      let view = widget.bounds.height - g.headerHeight
+      let top = r.y - (widget.bounds.y + g.headerHeight)
+      var sc = widget.scrolls[f.column]
+      if top - g.cardGap < sc: sc = max(0.0'f32, top - g.cardGap)
+      elif top + r.height + g.cardGap > sc + view: sc = top + r.height + g.cardGap - view
+      widget.scrolls[f.column] = clamp(sc, 0.0'f32,
+        g.maxScroll(widget.columns[f.column].cards.len))
+      widget.isDirty = true
       return true
 
     on_mouse_wheel:
@@ -206,7 +293,12 @@ definePrimitive(KanbanBoard):
       for j, c in col.cards:
         if widget.dragging and widget.grabbed == (i, j):
           continue                                    # lifted: drawn under the pointer
-        drawCard(g.cardRect(i, j, scroll), c, false)
+        let r = g.cardRect(i, j, scroll)
+        let isFocus = widget.focused and widget.focus == (i, j)
+        drawCard(r, c, isFocus and widget.carrying)   # a carried card is lifted
+        if isFocus:
+          drawFocusRing(Rect(x: r.x - 2, y: r.y - 2, width: r.width + 4,
+                             height: r.height + 4), props.activeColor.get(ink))
       if widget.dragging and widget.target.isSome and
          widget.target.get.column == i:
         let idx = widget.target.get.index
