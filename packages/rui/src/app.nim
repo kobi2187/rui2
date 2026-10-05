@@ -8,6 +8,7 @@ import rui_drawing
 import rui_scripting
 import rui_hittest
 import event_source
+import idle_wait
 import event_routing
 import inspect
 import preferences_file
@@ -97,6 +98,7 @@ type
       ## Present at least this often even when idle, so a window uncovered by
       ## another one does not show garbage on a compositor-less desktop.
     lastPresent: MonoTime
+    idleRecentlyPolled: bool      # see idleUntilNextFrame
     indicatorShown: bool
     cursorShown: CursorShape
     overlaysSeen: int
@@ -951,15 +953,31 @@ proc shouldPresent(app: App, painted: bool, now: MonoTime): bool =
   now - app.lastPresent >= app.idleRefresh
 
 proc idleUntilNextFrame(app: App, frameStart: MonoTime) =
-  ## An idle frame: no drawing and no buffer swap, just input polling and a
-  ## sleep for the rest of the frame period. endDrawing normally does both --
-  ## polls input, then waits out the frame, partly by busy-waiting -- which is
-  ## why an unchanged window used to cost a steady slice of a core.
-  pollInputEvents()
-  let period = initDuration(nanoseconds = 1_000_000_000 div max(1, app.window.fps))
-  let remaining = period - (getMonoTime() - frameStart)
-  if remaining > DurationZero:
-    sleep(max(1, remaining.inMilliseconds.int))
+  ## An idle frame: no drawing and no buffer swap. endDrawing normally polls
+  ## input and then waits out the frame, partly by busy-waiting, which is why
+  ## an unchanged window used to cost a steady slice of a core.
+  ##
+  ## Idle frames alternate. The first polls (which also rotates raylib's
+  ## pressed/released state, so a click is seen once) and lets the next step
+  ## read what arrived. The second, finding nothing new, blocks until input, a
+  ## repaint timer or the idle refresh; whatever wakes it is read by the step
+  ## after, before the next poll rotates it away.
+  if app.idleRecentlyPolled:
+    app.idleRecentlyPolled = false
+    let now = getMonoTime()
+    # Scripting reads command files once per frame, so it keeps the frame period.
+    let cap = if app.scriptManager != nil:
+                some(initDuration(nanoseconds = 1_000_000_000 div max(1, app.window.fps)))
+              else: none(Duration)
+    blockForEvents(idleWaitFor(now, nextRepaint(), app.lastPresent + app.idleRefresh, cap))
+  else:
+    app.idleRecentlyPolled = true
+    pollInputEvents()
+
+let profileFrames = getEnv("RUI_PROFILE").len > 0
+  ## `RUI_PROFILE=1 ./app` prints one line per presented frame to stderr:
+  ## how long the step (events, layout, painting widgets) and the present took,
+  ## and how many events the frame handled. For finding where a lag lives.
 
 proc run*(app: App, maxFrames: int = -1) =
   ## Run the main application loop.
@@ -980,11 +998,17 @@ proc run*(app: App, maxFrames: int = -1) =
 
     let frameStart = getMonoTime()
     let painted = app.step()
+    let stepped = getMonoTime()
     app.applyCursor()
     if app.shouldPresent(painted, frameStart):
       app.renderFrame()       # 6. Composite to screen
+      if profileFrames:
+        stderr.writeLine "frame: step " & $((stepped - frameStart).inMicroseconds) &
+          "us, present " & $((getMonoTime() - stepped).inMicroseconds) &
+          "us, painted " & $painted
       app.lastPresent = frameStart
       app.countFrame()
+      app.idleRecentlyPolled = false
     else:
       app.idleUntilNextFrame(frameStart)
     app.lastFrameTime = frameStart

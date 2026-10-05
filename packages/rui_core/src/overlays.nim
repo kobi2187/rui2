@@ -9,7 +9,7 @@
 ##
 ## Overlays are display-only for now: they are not hit-tested, which is all a
 ## tooltip needs. Menus and combo-box lists grow their own bounds instead, and
-## moving them here (with hit-testing first) is on TODO.md.
+## moving them here (with hit-testing first) is tracked in issue #43.
 ##
 ## The pointer state is here for the same reason: a widget has no App, and a
 ## tooltip needs to know whether the pointer is still over its target.

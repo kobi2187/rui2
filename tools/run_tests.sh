@@ -3,8 +3,9 @@
 #
 #   ./tools/run_tests.sh            unit tests (one binary) + GL checks (under a minute)
 #   ./tools/run_tests.sh isolated   the same, but every test file its own program
-#   ./tools/run_tests.sh full       also builds every example and runs the scripted UI
-#                                   tests (for CI; several minutes)
+#   ./tools/run_tests.sh examples   every example through the Nim backend (no C compile)
+#   ./tools/run_tests.sh ui         the scripted UI tests on Xvfb
+#   ./tools/run_tests.sh full       all of the above (what CI runs, as parallel jobs)
 #   RUI_TEST_JOBS=2 ...             how many builds at once (default: the core count)
 #
 # Unit tests need no GL context: they exercise layout, binding, theming,
@@ -14,7 +15,7 @@ set -uo pipefail
 shopt -s lastpipe    # so the verdict counters survive the `| tally` pipeline
 cd "$(dirname "$(readlink -f "$0")")/.."
 
-MODE="${1:-quick}"   # quick | isolated | full
+MODE="${1:-quick}"   # quick | isolated | examples | ui | full
 
 # Nim may live in a choosenim prefix that is not on a non-login shell's PATH.
 export PATH="$HOME/.nimble/bin:/root/.nimble/bin:$PATH"
@@ -70,9 +71,14 @@ gl_test() {
   else echo "FAIL gl $n"; fi
 }
 
+# Every example through the whole Nim backend, stopping before the C compiler.
+# `nim check` is not enough -- naylib's GPU types are move-only (`=copy` is
+# {.error.}) and that error is raised by destructor injection, which check
+# skips -- but the C compile is 85% of a build (37 s against 5 s) and finds
+# nothing the unit binary's C compile has not.
 example_compile() {
   local f="$1" n; n="$(basename "$f" .nim)"
-  if nim c $NIMFLAGS --nimcache:"/tmp/rui2_tests/ncx_$n" -o:"/tmp/rui2_tests/x_$n" "$f" \
+  if nim c $NIMFLAGS --compileOnly --nimcache:"/tmp/rui2_tests/ncx_$n" "$f" \
         >"$LOGS/x_$n.build" 2>&1; then echo "PASS compile $n"
   else echo "FAIL compile $n"; fi
 }
@@ -112,6 +118,7 @@ unit_single() {
 }
 export -f unit_single
 
+if [ "$MODE" = "quick" ] || [ "$MODE" = "isolated" ] || [ "$MODE" = "full" ]; then
 {
   if [ "$MODE" = "isolated" ]; then
     ls tests/test_*.nim | xargs -P "$JOBS" -I{} bash -c 'unit_test {}'
@@ -123,22 +130,22 @@ export -f unit_single
   fi
   wait
 } | sort | tally "unit tests + GL checks"
+fi
 
-if [ "$MODE" = "full" ]; then
-  # The slow half, for CI: every example built for real (a `nim check` is not
-  # enough: naylib's move-only GPU types only fail in the full build), and the
-  # scripted UI run.
+if [ "$MODE" = "examples" ] || [ "$MODE" = "full" ]; then
   ls examples/*.nim examples/widgets/*.nim examples/baby/*.nim examples/tutorial/*.nim 2>/dev/null \
     | xargs -P "$JOBS" -I{} bash -c 'example_compile {}' | sort | tally "examples compile"
+fi
 
-  echo
+if [ "$MODE" = "ui" ] || [ "$MODE" = "full" ]; then
   echo "== scripted UI tests =="
   if command -v Xvfb >/dev/null 2>&1; then
     # -d:ruiTestKeys compiles in the scripting `key` command; -d:ruiInspect
     # compiles in the read-only `inspect` verb. Both are test-only
     # on purpose: scripting is otherwise semantic (address a control, operate
     # it) rather than input emulation, and an ordinary build leaves it out.
-    if nim c $NIMFLAGS -d:ruiTestKeys -d:ruiInspect examples/pango_showcase.nim >/tmp/rt_build.log 2>&1; then
+    if nim c $NIMFLAGS -d:ruiTestKeys -d:ruiInspect --nimcache:/tmp/rui2_tests/nc_ui \
+          examples/pango_showcase.nim >/tmp/rt_build.log 2>&1; then
       if ./tools/ui_test.sh ./examples/pango_showcase >/tmp/rt_ui.log 2>&1; then
         grep -E "PASS|FAIL" /tmp/rt_ui.log | sed 's/^/  /'
         PASS=$((PASS+1))
