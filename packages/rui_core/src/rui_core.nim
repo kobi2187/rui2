@@ -20,3 +20,4 @@ import preferences;       export preferences
 import clipboard;         export clipboard
 import modifiers;         export modifiers
 import overlays;          export overlays
+import popups;            export popups

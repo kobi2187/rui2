@@ -46,6 +46,11 @@ let capped = newTextInput(initialText = "max 8 chars", maxLength = 8,
 root.addChild(newLabel(text = "maxLength = 8:", fontSize = 14.0).named("t2"))
 root.addChild(capped)
 
+# Bullets on screen; never copied, never readable by scripts.
+let secret = newPasswordInput(fontSize = 14.0).named("password").frame(width = 200, height = 30)
+root.addChild(newLabel(text = "Password:", fontSize = 14.0).named("t3"))
+root.addChild(secret)
+
 app.setRootWidget(root)
 let scriptDir = getAppDir() / "script"
 app.enableScripting(scriptDir)

@@ -50,3 +50,21 @@ proc nextFocusIndex*(key: KeyboardKey, current, total, pageSize: int): Option[in
   of PageUp:   some(max(0, current - pageSize))
   of PageDown: some(min(total - 1, current + pageSize))
   else:        none(int)
+
+proc keyboardSelect*(selected: var HashSet[int], anchor: var int, to: int,
+                     multiSelect, shift, ctrl: bool): bool =
+  ## The selection after the keyboard focus moves to row `to`, the way every
+  ## desktop list does it: the selection follows the focus; with Shift (in a
+  ## multi-select list) it spans from the anchor to the focus; with Ctrl only
+  ## the focus moves, so Space can then toggle rows one by one. Returns
+  ## whether the selection changed.
+  let before = selected
+  if multiSelect and shift:
+    selected.clear()
+    for i in min(anchor, to) .. max(anchor, to): selected.incl i
+  elif multiSelect and ctrl:
+    discard
+  else:
+    selected = [to].toHashSet
+    anchor = to
+  selected != before

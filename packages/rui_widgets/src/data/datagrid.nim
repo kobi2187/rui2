@@ -97,6 +97,8 @@ template selectRowAt*(widget: untyped, viewIdx: int): bool =
              "rowAt must not return an index past the display order"
       updateSelection(widget.selected, widget.order[viewIdx],
                       event.ctrl)
+      widget.focusRow = viewIdx
+      widget.anchorRow = viewIdx
       widget.isDirty = true
       if widget.onSelect != nil:
         widget.onSelect(widget.selected)
@@ -126,6 +128,8 @@ definePrimitive(DataGrid):
     intent: ThemeIntent = Default
 
   state:
+    focusRow: int                # the keyboard's row, in the rows as shown
+    anchorRow: int               # where a Shift range starts
     selected: HashSet[int]
     sortColumn: int              # -1 means unsorted
     sortOrder: SortOrder
@@ -138,6 +142,7 @@ definePrimitive(DataGrid):
   actions:
     onSort(column: int, order: SortOrder)
     onSelect(selected: HashSet[int])
+    onActivate(row: int)         # Enter on the focus row (a source row index)
     onLoadMore(startIndex: int, count: int)
     onScrollNearEnd()
 
@@ -170,6 +175,10 @@ definePrimitive(DataGrid):
       if m.rows.nearEnd(m.totalRows) and widget.onScrollNearEnd != nil:
         widget.onScrollNearEnd()
       return true
+
+    on_key_down:
+      let m = metricsOf(widget)
+      return widget.tableKeyDown(widget.order, m.rows, event)
 
   layout:
     # Build the display order once here rather than per frame in render.
@@ -245,6 +254,8 @@ definePrimitive(DataGrid):
       drawRowBackground(rowRect, props, viewIdx, widget.alternateRowColor,
                         selected = rowIdx in widget.selected,
                         hovered = viewIdx == widget.hoverRow)
+      if widget.focused and viewIdx == widget.focusRow:
+        drawFocusRing(rowRect, props.borderColor.get(GRAY))   # the keyboard's row
 
       var texts: seq[string] = @[]
       for colIdx, col in widget.columns:

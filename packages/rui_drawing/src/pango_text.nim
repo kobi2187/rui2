@@ -37,6 +37,13 @@ export fontDescString
 export CairoAntialias, CairoSubpixelOrder, CairoHintStyle
 
 type
+  TextDir* = enum
+    ## The base direction a run of text is laid out in. `tdAuto` lets Pango
+    ## take it from the text's first strong character -- right for a whole
+    ## paragraph, wrong for one wrapped line of it, which must keep its
+    ## paragraph's direction.
+    tdAuto, tdLtr, tdRtl
+
   TextMeasure* = object
     width*: float32
     height*: float32
@@ -65,6 +72,7 @@ type
     font: string
     wrapWidth: int32   ## -1 for "no wrapping"
     markup: bool
+    dir: TextDir
 
   CachedGlyphs = object
     texture: Texture2D
@@ -154,8 +162,9 @@ proc applyFontOptions(layout: PangoLayout) =
   cairoFontOptionsDestroy(opts)
   pangoLayoutContextChanged(layout)
 
-template withLayout(font: string, wrapWidth: int32, markup: bool,
-                    ctx: CairoContext, content: string, body: untyped) =
+template withLayoutDir(font: string, wrapWidth: int32, markup: bool,
+                       ctx: CairoContext, content: string, dir: TextDir,
+                       body: untyped) =
   ## Build a configured PangoLayout named `layout`, run `body`, then free it.
   var layout {.inject.} = pangoCairoCreateLayout(ctx)
   applyFontOptions(layout)
@@ -165,8 +174,15 @@ template withLayout(font: string, wrapWidth: int32, markup: bool,
   pangoFontDescriptionFree(desc)
 
   # Let Pango pick the base direction from the text itself, so a Hebrew or
-  # Arabic string lays out right-to-left without the caller saying so.
-  pangoLayoutSetAutoDir(layout, 1)
+  # Arabic string lays out right-to-left without the caller saying so --
+  # unless the caller knows better (a wrapped line keeps its paragraph's).
+  if dir == tdAuto:
+    pangoLayoutSetAutoDir(layout, 1)
+  else:
+    pangoLayoutSetAutoDir(layout, 0)
+    pangoContextSetBaseDir(pangoLayoutGetContext(layout),
+                           (if dir == tdRtl: 1.cint else: 0.cint))
+    pangoLayoutContextChanged(layout)
 
   if wrapWidth > 0:
     pangoLayoutSetWidth(layout, wrapWidth * PANGO_SCALE)
@@ -183,18 +199,23 @@ template withLayout(font: string, wrapWidth: int32, markup: bool,
   body
   gObjectUnref(layout.pointer)
 
+template withLayout(font: string, wrapWidth: int32, markup: bool,
+                    ctx: CairoContext, content: string, body: untyped) =
+  withLayoutDir(font, wrapWidth, markup, ctx, content, tdAuto, body)
+
+
 # ---------------------------------------------------------------------------
 # Measurement
 # ---------------------------------------------------------------------------
 proc measureUncached(text: string, font: string, wrapWidth: int32 = -1,
-                     markup = false): TextMeasure =
+                     markup = false, dir = tdAuto): TextMeasure =
   ## Real text metrics from the layout engine.
   ensureMeasureCtx()
 
   # An empty string still occupies a line, so measure a space to get the font's
   # line height: empty labels and inputs keep their row height.
   let content = if text.len == 0: " " else: text
-  withLayout(font, wrapWidth, markup and text.len > 0, measureCtx, content):
+  withLayoutDir(font, wrapWidth, markup and text.len > 0, measureCtx, content, dir):
     var w, h: cint
     pangoLayoutGetPixelSize(layout, addr w, addr h)
     result = TextMeasure(
@@ -205,10 +226,10 @@ proc measureUncached(text: string, font: string, wrapWidth: int32 = -1,
     )
 
 proc measure*(text: string, font: string, wrapWidth: int32 = -1,
-              markup = false): TextMeasure =
+              markup = false, dir = tdAuto): TextMeasure =
   ## Cached text metrics.
   let key = CacheKey(text: text, font: font, wrapWidth: wrapWidth,
-                     markup: markup)
+                     markup: markup, dir: dir)
   if key in measureCache:
     inc measureHits
     return measureCache[key]
@@ -218,7 +239,7 @@ proc measure*(text: string, font: string, wrapWidth: int32 = -1,
     result = measureOld[key]
   else:
     inc measureMisses
-    result = measureUncached(text, font, wrapWidth, markup)
+    result = measureUncached(text, font, wrapWidth, markup, dir)
 
   if measureCache.len >= maxMeasureEntries:
     swap(measureOld, measureCache)     # the old generation is dropped
@@ -241,9 +262,15 @@ type
     cursorStop*: seq[bool]     ## a caret may stand before this codepoint
     backspaceChar*: seq[bool]  ## Backspace removes just the codepoint before it,
                                ## not the whole cluster (a combining mark, say)
+    wordStart*: seq[bool]      ## a word begins here / ends before here, by the
+    wordEnd*: seq[bool]        ## Unicode rules plus Pango's per-script ones --
+                               ## dictionary-based for Thai, Lao, Khmer, which
+                               ## are written without spaces
 
 const
   LogAttrCursorPosition = 1'u32 shl 4
+  LogAttrWordStart = 1'u32 shl 5
+  LogAttrWordEnd = 1'u32 shl 6
   LogAttrBackspaceChar = 1'u32 shl 10
 
 var
@@ -265,6 +292,8 @@ proc charAttrs*(text: string): CharAttrs =
   result.byteAt = offsets
   result.cursorStop = newSeq[bool](offsets.len)
   result.backspaceChar = newSeq[bool](offsets.len)
+  result.wordStart = newSeq[bool](offsets.len)
+  result.wordEnd = newSeq[bool](offsets.len)
   if text.len == 0:
     result.cursorStop[0] = true
   else:
@@ -276,6 +305,8 @@ proc charAttrs*(text: string): CharAttrs =
       for k in 0 ..< min(int(n), offsets.len):
         result.cursorStop[k] = (attrs[k] and LogAttrCursorPosition) != 0
         result.backspaceChar[k] = (attrs[k] and LogAttrBackspaceChar) != 0
+        result.wordStart[k] = (attrs[k] and LogAttrWordStart) != 0
+        result.wordEnd[k] = (attrs[k] and LogAttrWordEnd) != 0
   attrsText = text
   attrsCache = result
 
@@ -317,14 +348,30 @@ proc moveCaretVisually*(text: string, index: int, direction: int): Option[int] =
       while pos < text.len and (ord(text[pos]) and 0xC0) == 0x80: inc pos
     return some(pos)
 
+proc softBreaks*(text, font: string, wrapWidth: int32): seq[int] =
+  ## Where one paragraph (no newlines) wraps at `wrapWidth` pixels: the byte
+  ## offset each visual line starts at, the first always 0. Pango breaks
+  ## where the Unicode line-breaking rules allow, so Thai and CJK wrap
+  ## between words and a word longer than the width is split.
+  result = @[0]
+  if text.len == 0 or wrapWidth <= 0:
+    return
+  ensureMeasureCtx()
+  withLayout(font, wrapWidth, false, measureCtx, text):
+    let n = pangoLayoutGetLineCount(layout)
+    for i in 1 ..< n:
+      let line = pangoLayoutGetLineReadonly(layout, i)
+      if line != nil:
+        result.add int(line.start_index)
+
 # ---------------------------------------------------------------------------
 # Cursor geometry and hit testing (for editable text)
 # ---------------------------------------------------------------------------
 proc cursorPosition*(text, font: string, byteIndex: int,
-                     wrapWidth: int32 = -1): CursorPos =
+                     wrapWidth: int32 = -1, dir = tdAuto): CursorPos =
   ## Caret rectangle for a byte index — where to draw the insertion point.
   ensureMeasureCtx()
-  withLayout(font, wrapWidth, false, measureCtx, text):
+  withLayoutDir(font, wrapWidth, false, measureCtx, text, dir):
     var strong, weak: PangoRectangle
     pangoLayoutGetCursorPos(layout, byteIndex.cint, addr strong, addr weak)
     result = CursorPos(
@@ -334,10 +381,10 @@ proc cursorPosition*(text, font: string, byteIndex: int,
     )
 
 proc indexFromPosition*(text, font: string, x, y: float32,
-                        wrapWidth: int32 = -1): HitResult =
+                        wrapWidth: int32 = -1, dir = tdAuto): HitResult =
   ## Which byte index sits under a point — click-to-place-caret.
   ensureMeasureCtx()
-  withLayout(font, wrapWidth, false, measureCtx, text):
+  withLayoutDir(font, wrapWidth, false, measureCtx, text, dir):
     var index, trailing: cint
     let inside = pangoLayoutXyToIndex(layout, toPangoUnits(x), toPangoUnits(y),
                                       addr index, addr trailing)
@@ -348,7 +395,7 @@ proc indexFromPosition*(text, font: string, x, y: float32,
 # Rasterisation
 # ---------------------------------------------------------------------------
 proc rasteriseA8(text, font: string, wrapWidth: int32,
-                 m: TextMeasure): seq[Color] =
+                 m: TextMeasure, dir = tdAuto): seq[Color] =
   ## Coverage mask -> white RGBA. Colour comes from the draw tint.
   let w = max(1'i32, m.width.int32)
   let h = max(1'i32, m.height.int32)
@@ -357,7 +404,7 @@ proc rasteriseA8(text, font: string, wrapWidth: int32,
   let ctx = cairoCreate(surface)
   cairoSetSourceRgba(ctx, 1.0, 1.0, 1.0, 1.0)
 
-  withLayout(font, wrapWidth, false, ctx, text):
+  withLayoutDir(font, wrapWidth, false, ctx, text, dir):
     cairoMoveTo(ctx, 0.0, 0.0)
     pangoCairoShowLayout(ctx, layout)
 
@@ -446,21 +493,21 @@ proc evictIfNeeded(newBytes: int) =
     evictOldest()
 
 proc getGlyphs(text, font: string, wrapWidth: int32,
-               markup: bool): ptr CachedGlyphs =
+               markup: bool, dir = tdAuto): ptr CachedGlyphs =
   let key = CacheKey(text: text, font: font, wrapWidth: wrapWidth,
-                     markup: markup)
+                     markup: markup, dir: dir)
   if key in cache:
     inc cacheHits
     cache[key].lastUsed = stdtimes.getTime()
     return addr cache[key]
 
   inc cacheMisses
-  let m = measure(text, font, wrapWidth, markup)
+  let m = measure(text, font, wrapWidth, markup, dir)
   let w = max(1'i32, m.width.int32)
   let h = max(1'i32, m.height.int32)
 
   let pixels = if markup: rasteriseArgb32(text, font, wrapWidth, m)
-               else: rasteriseA8(text, font, wrapWidth, m)
+               else: rasteriseA8(text, font, wrapWidth, m, dir)
 
   let bytes = w.int * h.int * 4
   evictIfNeeded(bytes)
@@ -494,7 +541,7 @@ proc drawTextPango*(text: string, x, y: float32, font: string,
   drawTexture(g.texture, Vector2(x: round(x), y: round(y)), color)
 
 proc drawTextPangoClipped*(text: string, x, y: float32, font: string,
-                           color: Color, clip: Rectangle) =
+                           color: Color, clip: Rectangle, dir = tdAuto) =
   ## `drawTextPango`, showing only the part that falls inside `clip`.
   ##
   ## For scrolled text. Clipping is done by source rectangle rather than
@@ -503,7 +550,7 @@ proc drawTextPangoClipped*(text: string, x, y: float32, font: string,
   ## widget's render texture.
   if text.len == 0:
     return
-  let g = getGlyphs(text, font, -1'i32, markup = false)
+  let g = getGlyphs(text, font, -1'i32, markup = false, dir)
   let dx = round(x)
   let dy = round(y)
   let left = max(dx, clip.x)
@@ -529,8 +576,15 @@ proc drawMarkupPango*(markup: string, x, y: float32, font: string,
   drawTexture(g.texture, Vector2(x: round(x), y: round(y)), White)
 
 proc measureTextPango*(text: string, font: string,
-                       wrapWidth: int32 = -1): TextMeasure =
-  measure(text, font, wrapWidth)
+                       wrapWidth: int32 = -1, dir = tdAuto): TextMeasure =
+  measure(text, font, wrapWidth, dir = dir)
+
+proc paragraphDir*(text: string): TextDir =
+  ## The direction a paragraph is laid out in: that of its first strong
+  ## character, as Pango decides it (left to right when it has none).
+  if text.len == 0: tdLtr
+  elif pangoFindBaseDir(text.cstring, text.len.cint) == 1: tdRtl
+  else: tdLtr
 
 proc measureMarkupPango*(markup: string, font: string,
                          wrapWidth: int32 = -1): TextMeasure =

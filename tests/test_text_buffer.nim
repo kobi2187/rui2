@@ -321,3 +321,31 @@ suite "undo":
     check h.undo(b)
     check b.text == "hello world"
     check b.selectedText == "world"
+
+suite "words in every script":
+  proc words(t: string): seq[string] =
+    ## Ctrl+Right from the start, collecting each word it jumps over.
+    var i = 0
+    while i < t.len:
+      let e = nextWordEnd(t, i)
+      if e <= i: break
+      result.add t[prevWordStart(t, e) ..< e]
+      i = e
+
+  test "Thai, written without spaces, splits by dictionary":
+    check words("สวัสดีครับ") == @["สวัสดี", "ครับ"]
+
+  test "each Chinese or Japanese character is a word":
+    check words("我爱你") == @["我", "爱", "你"]
+    check words("ひらがな") == @["ひ", "ら", "が", "な"]
+
+  test "an identifier with underscores is one word":
+    check words("hello_world foo") == @["hello_world", "foo"]
+
+  test "Hebrew and accented Latin are words too":
+    check words("שלום naïve") == @["שלום", "naïve"]
+
+  test "double-click picks the Thai word under the pointer":
+    let t = "สวัสดีครับ"
+    let w = wordAt(t, "สวัสดี".len + 3)               # inside ครับ
+    check t[w.a ..< w.b] == "ครับ"

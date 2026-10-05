@@ -21,7 +21,7 @@
 import rui_core
 import rui_drawing
 import ../text_content
-import std/[options, strformat, strutils]
+import std/[options, strformat, strutils, math]
 
 import raylib
 
@@ -91,6 +91,20 @@ template setValue(w, computed: untyped) =
       if w.onChange != nil:
         w.onChange(v)
 
+proc stepValue*(value, minValue, maxValue, step: float32, steps: float32): float32 =
+  ## `value` moved by `steps` steps (negative: down), kept on the range and,
+  ## when `step` > 0, on its grid. A step of 0 is a hundredth of the range.
+  let s = if step > 0: step else: (maxValue - minValue) / 100
+  result = clamp(value + s * steps, min(minValue, maxValue), max(minValue, maxValue))
+  if step > 0:
+    result = clamp(minValue + round((result - minValue) / step) * step,
+                   min(minValue, maxValue), max(minValue, maxValue))
+
+proc snapped*(value, minValue, step: float32): float32 =
+  ## A dragged value on the step grid; unchanged when there is no step.
+  if step > 0: minValue + round((value - minValue) / step) * step
+  else: value
+
 definePrimitive(Slider):
   props:
     initialValue: float32 = 0.0
@@ -99,6 +113,7 @@ definePrimitive(Slider):
     showValue: bool = true
     textLeft: string = ""
     textRight: string = ""
+    step: float32 = 0.0          ## Arrow-key / wheel step, and the drag grid; 0: 1% of the range
     disabled: bool = false
     intent: ThemeIntent = Default
 
@@ -119,18 +134,48 @@ definePrimitive(Slider):
       if not widget.disabled:
         widget.dragging = true
         let t = widget.track
-        widget.setValue(valueAtX(event.mousePos.x, t.x, t.width,
-                                 widget.minValue, widget.maxValue))
+        widget.setValue(snapped(valueAtX(event.mousePos.x, t.x, t.width,
+                                         widget.minValue, widget.maxValue),
+                                widget.minValue, widget.step))
         return true
       return false
 
     on_mouse_move:
       if widget.dragging and not widget.disabled:
         let t = widget.track
-        widget.setValue(valueAtX(event.mousePos.x, t.x, t.width,
-                                 widget.minValue, widget.maxValue))
+        widget.setValue(snapped(valueAtX(event.mousePos.x, t.x, t.width,
+                                         widget.minValue, widget.maxValue),
+                                widget.minValue, widget.step))
         return true
       return false
+
+    on_key_down:
+      # Arrows a step, PageUp/PageDown ten, Home/End to the ends.
+      if widget.disabled or not widget.focused:
+        return false
+      let steps = case event.key
+                  of KeyboardKey.Right, KeyboardKey.Up: 1.0'f32
+                  of KeyboardKey.Left, KeyboardKey.Down: -1.0'f32
+                  of KeyboardKey.PageUp: 10.0'f32
+                  of KeyboardKey.PageDown: -10.0'f32
+                  else: 0.0'f32
+      case event.key
+      of KeyboardKey.Home: widget.setValue(widget.minValue)
+      of KeyboardKey.End: widget.setValue(widget.maxValue)
+      else:
+        if steps == 0: return false
+        widget.setValue(stepValue(widget.value, widget.minValue, widget.maxValue,
+                                  widget.step, steps))
+      return true
+
+    on_mouse_wheel:
+      # Only while focused: a slider passing under the pointer must not
+      # steal the scroll from the page around it.
+      if widget.disabled or not widget.focused or event.wheelDelta == 0:
+        return false
+      widget.setValue(stepValue(widget.value, widget.minValue, widget.maxValue,
+                                widget.step, (if event.wheelDelta > 0: 1.0'f32 else: -1.0'f32)))
+      return true
 
     on_mouse_up:
       if widget.dragging:

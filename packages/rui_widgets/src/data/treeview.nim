@@ -10,6 +10,7 @@
 import rui_core
 import rui_drawing
 import ../virtual_rows
+import ../list_input
 import std/[options, json]
 
 export virtual_rows
@@ -28,6 +29,23 @@ template viewportOf*(widget: untyped): RowViewport =
   ## below has expanded, and the widget body needs this.
   rowViewport(top = widget.bounds.y, height = widget.bounds.height,
               rowHeight = rowH(widget), scrollY = widget.scrollY)
+
+template reflatten(widget: untyped) =
+  ## Rebuild the visible rows from the expanded part of the tree.
+  widget.flatNodes.setLen(0)
+  flatten(widget.rootNode, 0, widget.flatNodes)
+
+template setExpanded(widget: untyped, node: TreeNode, open: bool) =
+  ## Open or close a branch, re-flatten, and tell whoever listens.
+  if node.expanded != open:
+    node.expanded = open
+    widget.reflatten()
+    widget.layoutDirty = true
+    widget.isDirty = true
+    if open:
+      if widget.onExpand != nil: widget.onExpand(node.id)
+    else:
+      if widget.onCollapse != nil: widget.onCollapse(node.id)
 
 definePrimitive(TreeView):
   props:
@@ -96,10 +114,54 @@ definePrimitive(TreeView):
         widget.isDirty = true
       return true
 
+    on_key_down:
+      # Up/Down (Home/End, PageUp/PageDown) move the selection; Right opens a
+      # closed branch or steps into an open one; Left closes an open branch
+      # or steps out to the parent; Space/Enter open or close a branch.
+      if not widget.focused:
+        return false
+      widget.reflatten()
+      let rows = widget.flatNodes
+      if rows.len == 0:
+        return false
+      var at = rows.rowOf(widget.selectedId)
+      if at < 0: at = 0
+      let node = rows[at].node
+      let branch = node.children.len > 0
+      var target = at
+      case event.key
+      of KeyboardKey.Right:
+        if branch and not node.expanded: widget.setExpanded(node, true)
+        elif branch: target = at + 1
+        else: return true
+      of KeyboardKey.Left:
+        if branch and node.expanded: widget.setExpanded(node, false)
+        else:
+          let parent = rows.parentRow(at)
+          if parent >= 0: target = parent
+      of KeyboardKey.Space, KeyboardKey.Enter, KeyboardKey.KpEnter:
+        if branch: widget.setExpanded(node, not node.expanded)
+        return true
+      else:
+        let moved = nextFocusIndex(event.key, at, rows.len,
+                                   max(1, int(widget.bounds.height / rowH(widget)) - 1))
+        if moved.isNone:
+          return false
+        target = moved.get
+      widget.reflatten()
+      target = clamp(target, 0, widget.flatNodes.high)
+      let id = widget.flatNodes[target].node.id
+      if id != widget.selectedId:
+        widget.selectedId = id
+        if widget.onSelect != nil: widget.onSelect(id)
+      widget.scrollY = viewportOf(widget).scrollToShow(target, widget.flatNodes.len)
+      widget.isDirty = true
+      return true
+
   layout:
-    # Re-flatten: this is the only place the visible row list is built.
-    widget.flatNodes.setLen(0)
-    flatten(widget.rootNode, 0, widget.flatNodes)
+    # Re-flatten: the visible row list is built here (and by a key that
+    # opens or closes a branch, which needs it at once).
+    widget.reflatten()
 
     if widget.bounds.height <= 0:
       widget.bounds.height = float32(widget.visibleRows) * rowH(widget)

@@ -53,3 +53,15 @@ proc flatten*(node: TreeNode, level: int, dest: var seq[FlatNode]) =
     for child in node.children:
       flatten(child, level + 1, dest)
 
+proc parentRow*(rows: openArray[FlatNode], index: int): int =
+  ## The row of `index`'s parent, or -1 for a top-level row.
+  let level = rows[index].level
+  for i in countdown(index - 1, 0):
+    if rows[i].level < level: return i
+  -1
+
+proc rowOf*(rows: openArray[FlatNode], id: string): int =
+  ## The row showing node `id`, or -1 when it is not visible.
+  for i, r in rows:
+    if r.node.id == id: return i
+  -1

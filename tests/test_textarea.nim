@@ -6,7 +6,7 @@
 
 import std/unittest
 import rui
-import std/[monotimes, unicode, times]
+import std/[monotimes, unicode, times, strutils]
 from raylib import KeyboardKey
 
 suite "finding the lines":
@@ -433,3 +433,208 @@ suite "keeping the caret in view":
 
   test "short content never scrolls":
     check scrollToShow(0.0, 40.0, 1.0, 100.0, 60.0) == 0.0
+
+suite "wrapping while editing":
+  const Para = "The quick brown fox jumps over the lazy dog and keeps running " &
+               "across the field until the evening comes."
+  let font = textStyle(14.0, BLACK, "", false, false, false).pangoFont
+
+  proc focusedArea(text: string, width: float32): TextArea =
+    result = newTextArea(initialText = text, fontSize = 14.0, padding = 4.0)
+    result.bounds = Rect(x: 0, y: 0, width: width, height: 200)
+    result.layout()
+    result.focused = true
+
+  proc key(w: TextArea, k: KeyboardKey): bool =
+    w.handleInput(GuiEvent(kind: evKeyDown, key: k, timestamp: getMonoTime()))
+
+  test "without a width, visual lines are the hard lines":
+    let lines = visualLines("one\ntwo\n\nfour", font, 0)
+    var spans: seq[(int, int)]
+    for l in lines: spans.add (l.start, l.stop)
+    check spans == @[(0, 3), (4, 7), (8, 8), (9, 13)]
+
+  test "a long paragraph breaks into lines that fit, and covers the text":
+    let lines = visualLines(Para, font, 150)
+    check lines.len > 2
+    check lines[0].start == 0 and lines[^1].stop == Para.len
+    for i in 1 ..< lines.len:
+      check lines[i].start == lines[i - 1].stop          # contiguous
+    for line in lines:
+      let w = measureText(Para[line.start ..< line.stop].strip(leading = false),
+                          textStyle(14.0, BLACK, "", false, false, false)).width
+      check w <= 151
+
+  test "hard lines still break where the newlines are":
+    let lines = visualLines(Para & "\nshort", font, 150)
+    check (lines[^1].start, lines[^1].stop) == (Para.len + 1, Para.len + 6)
+
+  test "every wrapped line keeps its paragraph's direction":
+    let mixed = "שלום עולם, a paragraph that starts in Hebrew and goes on in English for a while"
+    let lines = visualLines(mixed & "\nEnglish first, then שלום", font, 120)
+    check lines.len > 3
+    for l in lines:
+      if l.start < mixed.len: check l.dir == tdRtl
+      else: check l.dir == tdLtr
+
+  test "an editable TextArea wraps by default; a TextInput never does":
+    let ta = focusedArea(Para, 160)
+    check ta.linesOf.len > 2
+    let input = newTextInput(initialText = Para)
+    input.bounds = Rect(x: 0, y: 0, width: 160, height: 30)
+    check input.linesOf.len == 1
+
+  test "Down moves to the next line as drawn, inside one paragraph":
+    let ta = focusedArea(Para, 160)
+    let lines = ta.linesOf
+    discard ta.key(Down)
+    check visualLineOf(lines, ta.cursorPos) == 1
+    check ta.cursorPos < Para.len                        # still the first paragraph
+
+  test "End stops at the end of the drawn line, not the paragraph":
+    let ta = focusedArea(Para, 160)
+    let lines = ta.linesOf
+    discard ta.key(End)
+    check ta.cursorPos < lines[1].start
+    check visualLineOf(lines, ta.cursorPos) == 0
+    discard ta.key(Home)
+    check ta.cursorPos == 0
+
+  test "a click on the second drawn line lands in it":
+    let ta = focusedArea(Para, 160)
+    let lines = ta.linesOf
+    let lineH = ta.contentOf.lineHeight
+    let at = ta.indexAt(Point(x: 10, y: ta.textRect.y + lineH * 1.5))
+    check visualLineOf(lines, at) == 1
+
+  test "wrap = false keeps one line per paragraph":
+    let ta = newTextArea(initialText = Para, wrap = false, fontSize = 14.0)
+    ta.bounds = Rect(x: 0, y: 0, width: 160, height: 200)
+    check ta.linesOf.len == 1
+
+suite "scrolling a long text":
+  proc longArea(): TextArea =
+    var text = ""
+    for i in 1 .. 40: text.add "line " & $i & "\n"
+    result = newTextArea(initialText = text, fontSize = 14.0, padding = 6.0)
+    result.bounds = Rect(x: 0, y: 0, width: 220, height: 120)
+    result.layout()
+    result.focused = true
+
+  proc send(w: TextArea, e: GuiEvent): bool =
+    var e = e
+    e.timestamp = getMonoTime()
+    w.handleInput(e)
+
+  proc lineH(w: TextArea): float32 = w.contentOf.lineHeight
+
+  test "the wheel scrolls three lines a notch, within the text":
+    let ta = longArea()
+    check ta.send(GuiEvent(kind: evMouseWheel, wheelDelta: -1))
+    check ta.scrollY == ta.lineH * 3
+    for _ in 0 ..< 100: discard ta.send(GuiEvent(kind: evMouseWheel, wheelDelta: -1))
+    let inner = ta.lineRect(ta.lineH)
+    check ta.scrollY == float32(ta.linesOf.len) * ta.lineH - inner.height
+
+  test "at the end the wheel is left to an enclosing scroll view":
+    let ta = longArea()
+    check not ta.send(GuiEvent(kind: evMouseWheel, wheelDelta: 1))   # already at the top
+    let short = newTextArea(initialText = "one line", fontSize = 14.0)
+    short.bounds = Rect(x: 0, y: 0, width: 220, height: 120)
+    check not short.send(GuiEvent(kind: evMouseWheel, wheelDelta: -1))
+
+  test "painting does not undo a wheel scroll; typing brings the caret back":
+    let ta = longArea()
+    discard ta.send(GuiEvent(kind: evMouseWheel, wheelDelta: -3))
+    let scrolled = ta.scrollY
+    check scrolled > 0
+    ta.revealCaret = false
+    check ta.scrollY == scrolled
+    discard ta.send(GuiEvent(kind: evChar, rune: Rune('x')))
+    check ta.revealCaret                                     # next paint scrolls to it
+
+  test "PageDown moves a page of lines and the view with it":
+    let ta = longArea()
+    let rows = max(1, int(ta.lineRect(ta.lineH).height / ta.lineH) - 1)
+    check ta.send(GuiEvent(kind: evKeyDown, key: KeyboardKey.PageDown))
+    check visualLineOf(ta.linesOf, ta.cursorPos) == rows
+    check ta.scrollY == float32(rows) * ta.lineH
+    check ta.send(GuiEvent(kind: evKeyDown, key: KeyboardKey.PageUp))
+    check visualLineOf(ta.linesOf, ta.cursorPos) == 0
+
+  test "dragging the scroll bar's thumb to the bottom shows the end":
+    let ta = longArea()
+    let inner = ta.lineRect(ta.lineH)
+    let thumb = ta.scrollThumb(ta.lineH, inner)
+    check thumb.height > 0 and thumb.height < inner.height
+    let cx = thumb.x + thumb.width / 2
+    check ta.send(GuiEvent(kind: evMouseDown, mousePos: Point(x: cx, y: thumb.y + 2)))
+    check ta.draggingBar
+    discard ta.send(GuiEvent(kind: evMouseMove, mousePos: Point(x: cx, y: 10_000)))
+    check ta.scrollY == ta.maxScrollY(ta.lineH, inner)
+    discard ta.send(GuiEvent(kind: evMouseUp, mousePos: Point(x: cx, y: 10_000)))
+    check not ta.draggingBar
+    check ta.cursorPos == 0                                  # the caret did not move
+
+suite "password input":
+  proc send(w: TextArea, e: GuiEvent): bool =
+    var e = e
+    e.timestamp = getMonoTime()
+    w.handleInput(e)
+
+  proc pw(text: string): TextArea =
+    result = newPasswordInput(initialText = text, fontSize = 14.0)
+    result.bounds = Rect(x: 0, y: 0, width: 240, height: 34)
+    result.layout()
+    result.focused = true
+
+  test "one bullet per character the caret steps over":
+    check maskOf("abc") == "•••"
+    check maskOf("é👍🏽x") == "•••"            # accented e, a toned thumb, x
+    check maskOf("") == ""
+
+  test "offsets map between the text and its bullets":
+    let t = "aé👍"
+    check toMasked(t, 0) == 0
+    check toMasked(t, 1) == 3                         # after "a": one bullet
+    check toMasked(t, t.len) == 9
+    check fromMasked(t, 6) == 3                       # the third bullet starts at 👍
+    check fromMasked(t, 9) == t.len
+
+  test "typing edits the real text; the screen shows bullets":
+    let p = pw("")
+    for r in "s3cr€t".runes: discard p.send(GuiEvent(kind: evChar, rune: r))
+    check p.text == "s3cr€t"
+    check p.shownText == "••••••"
+
+  test "it never reaches the clipboard":
+    let p = pw("hunter2")
+    discard p.send(GuiEvent(kind: evKeyDown, key: KeyboardKey.A, mods: {kmCtrl}))
+    setClipboardText("unchanged")
+    discard p.send(GuiEvent(kind: evKeyDown, key: KeyboardKey.C, mods: {kmCtrl}))
+    check clipboardText() == "unchanged"
+    discard p.send(GuiEvent(kind: evKeyDown, key: KeyboardKey.X, mods: {kmCtrl}))
+    check clipboardText() == "unchanged"
+    check p.text == "hunter2"                         # and Ctrl+X cut nothing
+
+  test "word moves and double-click reveal no word lengths":
+    let p = pw("two words")
+    p.cursorPos = 9
+    discard p.send(GuiEvent(kind: evKeyDown, key: KeyboardKey.Left, mods: {kmCtrl}))
+    check p.cursorPos == 0                            # straight to the start
+    discard p.send(GuiEvent(kind: evMouseDown, mousePos: Point(x: 20, y: 17)))
+    discard p.send(GuiEvent(kind: evMouseUp, mousePos: Point(x: 20, y: 17)))
+    discard p.send(GuiEvent(kind: evMouseDown, mousePos: Point(x: 20, y: 17)))
+    check p.selectionStart == 0 and p.selectionEnd == p.text.len
+
+  test "scripts cannot read it":
+    let p = pw("hunter2")
+    check p.blockReading
+    check not p.multiline
+
+  test "a click lands between bullets, on a real character boundary":
+    let p = pw("aé👍x")
+    let inner = p.lineRect(p.contentOf.lineHeight)
+    let bullet = measureText("•", p.contentOf.style).width
+    let at = p.indexAt(Point(x: inner.x + bullet * 2.1, y: inner.y + 5))
+    check at == 3                                     # after "aé", before 👍

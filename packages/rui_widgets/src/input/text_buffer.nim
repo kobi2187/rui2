@@ -18,7 +18,7 @@
 ## land inside a character. `maxLength` counts characters, not bytes.
 
 import std/[unicode, strutils, json, options]
-from pango_text import charAttrs, hasRtl, moveCaretVisually
+from pango_text import CharAttrs, charAttrs, hasRtl, moveCaretVisually
 
 proc isContinuation(c: char): bool {.inline.} =
   (ord(c) and 0xC0) == 0x80
@@ -245,10 +245,8 @@ proc selectedText*(b: TextBuffer): string =
 # ============================================================================
 # Words
 #
-# A word is a run of letters, digits and underscores; everything else --
-# spaces, punctuation -- separates words. Classified per rune, so "שלום" and
-# "naïve" are one word each. Pango's PangoLogAttr would add dictionary word
-# breaking for scripts without spaces (Thai, CJK); tracked in issue #44.
+# Where words begin and end is Pango's answer (PangoLogAttr), by the Unicode
+# word rules plus dictionary breaking for the scripts written without spaces.
 # ============================================================================
 
 proc runeAt(text: string, i: int): Rune =
@@ -257,39 +255,83 @@ proc runeAt(text: string, i: int): Rune =
   r
 
 proc isWordRune(r: Rune): bool =
+  ## A letter, digit or underscore: what a typing run (one undo step) is
+  ## made of. Not used for word boundaries, which come from Pango.
   r.isAlpha or (r.int32 < 128 and char(r.int32) in {'0'..'9', '_'})
 
-proc isWordAt(text: string, i: int): bool =
-  i >= 0 and i < text.len and text.runeAt(i).isWordRune
+# Words come from Pango, not from "a run of letters": a word in Thai, Lao or
+# Khmer has no spaces around it, and Pango finds it with a dictionary. Two
+# editor rules go on top. Pango keeps a run of Chinese or Japanese as one
+# word (it has no dictionary for them), so each ideograph and kana is a word
+# of its own -- what editors do without one. And an underscore between word
+# characters joins them, so an identifier like `hello_world` is one word.
+
+proc isCjk(cp: int): bool =
+  cp in 0x3040 .. 0x30FF or      # hiragana, katakana
+  cp in 0x3400 .. 0x4DBF or      # CJK extension A
+  cp in 0x4E00 .. 0x9FFF or      # CJK unified ideographs
+  cp in 0xF900 .. 0xFAFF or      # compatibility ideographs
+  cp in 0x20000 .. 0x3134F       # extensions B onwards
+
+proc wordAttrs(text: string): CharAttrs =
+  ## Pango's word boundaries with the two editor rules applied.
+  result = charAttrs(text)
+  let n = result.byteAt.high                     # codepoints; byteAt has n + 1
+  for k in 0 ..< n:
+    let cp = text.runeAt(result.byteAt[k]).int
+    if cp.isCjk:
+      result.wordStart[k] = true
+      result.wordEnd[k] = k > 0 or result.wordEnd[k]
+      result.wordEnd[k + 1] = true
+    elif cp == ord('_') and k > 0 and k + 1 < n and
+         text.runeAt(result.byteAt[k - 1]).isWordRune and
+         text.runeAt(result.byteAt[k + 1]).isWordRune:
+      result.wordEnd[k] = false
+      result.wordStart[k] = false
+      result.wordStart[k + 1] = false
+      result.wordEnd[k + 1] = false
+
+proc codepointAt(a: CharAttrs, i: int): int =
+  ## Index of the codepoint that starts at or contains byte `i`.
+  var lo = 0
+  var hi = a.byteAt.high
+  while lo < hi:
+    let mid = (lo + hi + 1) div 2
+    if a.byteAt[mid] <= i: lo = mid else: hi = mid - 1
+  lo
 
 proc prevWordStart*(text: string, i: int): int =
-  ## Ctrl+Left: back over any separators, then to the start of the word.
-  result = clamp(i, 0, text.len)
-  while result > 0 and not text.isWordAt(prevBoundary(text, result)):
-    result = prevBoundary(text, result)
-  while result > 0 and text.isWordAt(prevBoundary(text, result)):
-    result = prevBoundary(text, result)
+  ## Ctrl+Left: to the start of the word before the caret (or the one it is
+  ## inside), skipping the spaces and punctuation in between.
+  let a = wordAttrs(text)
+  var k = a.codepointAt(clamp(i, 0, text.len))
+  if a.byteAt[k] >= i and k > 0: dec k
+  while k > 0 and not a.wordStart[k]: dec k
+  a.byteAt[k]
 
 proc nextWordEnd*(text: string, i: int): int =
-  ## Ctrl+Right: over any separators, then to the end of the word.
-  result = clamp(i, 0, text.len)
-  while result < text.len and not text.isWordAt(result):
-    result = nextBoundary(text, result)
-  while result < text.len and text.isWordAt(result):
-    result = nextBoundary(text, result)
+  ## Ctrl+Right: to the end of the word after the caret (or the one it is in).
+  let a = wordAttrs(text)
+  var k = a.codepointAt(clamp(i, 0, text.len)) + 1
+  while k < a.byteAt.high and not a.wordEnd[k]: inc k
+  a.byteAt[min(k, a.byteAt.high)]
 
 proc wordAt*(text: string, i: int): tuple[a, b: int] =
   ## The word around byte offset `i`, for a double-click. On a separator it is
   ## just that one character, which is what a double-click on a space selects.
+  let attrs = wordAttrs(text)
   let at = clamp(i, 0, text.len)
-  if not text.isWordAt(at):
-    if at > 0 and text.isWordAt(prevBoundary(text, at)):
-      return (prevWordStart(text, at), at)          # clicked just past a word
-    return (at, nextBoundary(text, at))
-  var a = at
-  while a > 0 and text.isWordAt(prevBoundary(text, a)):
-    a = prevBoundary(text, a)
-  (a, nextWordEnd(text, at))
+  let k = attrs.codepointAt(at)
+  # The nearest word start at or before the click, and the first end after it.
+  var s = k
+  while s > 0 and not attrs.wordStart[s]: dec s
+  var e = s + 1
+  while e < attrs.byteAt.high and not attrs.wordEnd[e]: inc e
+  if attrs.wordStart[s] and e > k and attrs.wordEnd[min(e, attrs.byteAt.high)]:
+    return (attrs.byteAt[s], attrs.byteAt[e])     # inside a word
+  if k > 0 and attrs.wordEnd[k] and at == attrs.byteAt[k]:
+    return (prevWordStart(text, at), at)          # clicked just past a word
+  (at, nextBoundary(text, at))
 
 proc selectRange*(b: var TextBuffer, a, z: int) =
   ## Select a..z with the caret at z.

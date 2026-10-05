@@ -5,7 +5,7 @@
 
 import rui_core
 import rui_drawing
-import std/options
+import std/[options, strutils]
 # rui_core does not re-export KeyboardKey: its Menu/Down/Up fields collide with
 # the Menu widget and with rui_drawing's ArrowDirection. A widget that reads
 # keys asks for it by name -- which is also what keeps `of Down:` below meaning
@@ -23,6 +23,49 @@ proc themedFieldHeight*(): float32 =
 
 template closedHeight*(w: untyped): float32 =
   (if w.boxHeight > 0: w.boxHeight else: themedFieldHeight())
+
+proc letterMatch(items: openArray[string], event: GuiEvent, after: int): int =
+  ## The next item after `after` that starts with the letter or digit
+  ## pressed (ignoring case), wrapping round; -1 when none does.
+  let k = ord(event.key)
+  if event.mods * {kmCtrl, kmAlt} != {} or
+     not (k in ord('A') .. ord('Z') or k in ord('0') .. ord('9')):
+    return -1
+  let c = chr(k).toLowerAscii
+  for step in 1 .. items.len:
+    let i = (after + step + items.len) mod items.len
+    if items[i].len > 0 and items[i][0].toLowerAscii == c:
+      return i
+  -1
+
+template pick(widget: untyped, index: int) =
+  ## Choose item `index`, telling whoever listens if it changed.
+  block:
+    let i = index
+    if i != widget.selectedIndex:
+      widget.selectedIndex = i
+      if widget.onSelect != nil:
+        widget.onSelect(i)
+    widget.isDirty = true
+
+template setOpen(widget: untyped, open: bool) =
+  ## Show or hide the list. Open, it is a popup: a click anywhere else
+  ## closes it. The list is drawn inside this widget's render texture, so a
+  ## change of size has to re-run layout or it gets clipped away.
+  block:
+    let w = widget
+    if w.isOpen != open:
+      w.isOpen = open
+      w.isDirty = true
+      w.layoutDirty = true
+      if open:
+        w.hoverIndex = w.selectedIndex
+        openPopup(w, scope = w, close = proc() =
+          w.isOpen = false
+          w.isDirty = true
+          w.layoutDirty = true)
+      else:
+        closedPopup(w)
 
 definePrimitive(ComboBox):
   props:
@@ -58,19 +101,11 @@ definePrimitive(ComboBox):
         let offset = event.mousePos.y - (widget.bounds.y + widget.closedHeight)
         let idx = int(offset / widget.itemHeight)
         if idx >= 0 and idx < widget.items.len:
-          widget.selectedIndex = idx
-          widget.isOpen = false
-          widget.isDirty = true
-          widget.layoutDirty = true
-          if widget.onSelect != nil:
-            widget.onSelect(idx)
+          widget.setOpen(false)
+          widget.pick(idx)
           return true
 
-      widget.isOpen = not widget.isOpen
-      widget.isDirty = true
-      # The dropdown is drawn inside this widget's render texture, which is sized
-      # to `bounds`. Opening it has to re-run layout or the list gets clipped away.
-      widget.layoutDirty = true
+      widget.setOpen(not widget.isOpen)
       return true
 
     on_mouse_move:
@@ -85,23 +120,45 @@ definePrimitive(ComboBox):
       return false
 
     on_key_down:
+      # Closed: Up/Down, Home/End and a letter change the choice at once;
+      # Enter, Space, F4 or Alt+Down open the list. Open: Up/Down move the
+      # highlight, Enter picks it, Escape closes without a change.
       if widget.disabled or widget.items.len == 0:
         return false
-      case event.key
-      of Down:
-        widget.selectedIndex = min(widget.items.len - 1, widget.selectedIndex + 1)
-      of Up:
-        widget.selectedIndex = max(0, widget.selectedIndex - 1)
-      of Escape:
-        widget.isOpen = false
+      let n = widget.items.len
+      if widget.isOpen:
+        case event.key
+        of Down: widget.hoverIndex = min(n - 1, max(0, widget.hoverIndex + 1))
+        of Up: widget.hoverIndex = max(0, widget.hoverIndex - 1)
+        of Home: widget.hoverIndex = 0
+        of End: widget.hoverIndex = n - 1
+        of Enter, KpEnter, Space:
+          let chosen = widget.hoverIndex
+          widget.setOpen(false)
+          if chosen >= 0: widget.pick(chosen)
+          return true
+        of Escape, F4:
+          widget.setOpen(false)
+          return true
+        else:
+          let i = letterMatch(widget.items, event, widget.hoverIndex)
+          if i < 0: return false
+          widget.hoverIndex = i
         widget.isDirty = true
-        widget.layoutDirty = true
         return true
+      case event.key
+      of Enter, KpEnter, Space, F4:
+        widget.setOpen(true)
+      of Down:
+        if kmAlt in event.mods: widget.setOpen(true)
+        else: widget.pick(min(n - 1, widget.selectedIndex + 1))
+      of Up: widget.pick(max(0, widget.selectedIndex - 1))
+      of Home: widget.pick(0)
+      of End: widget.pick(n - 1)
       else:
-        return false
-      widget.isDirty = true
-      if widget.onSelect != nil:
-        widget.onSelect(widget.selectedIndex)
+        let i = letterMatch(widget.items, event, widget.selectedIndex)
+        if i < 0: return false
+        widget.pick(i)
       return true
 
   layout:

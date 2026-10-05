@@ -10,6 +10,7 @@ import rui_core
 import rui_drawing
 import menuitem
 import std/options
+from raylib import KeyboardKey
 
 export menuitem
 
@@ -24,10 +25,23 @@ defineWidget(ContextMenu):
     isVisible: bool
     posX: float32
     posY: float32
+    current: int                 # the keyboard's item
 
   actions:
     onOpen(x: float32, y: float32)
     onClose()
+
+  events:
+    on_key_down:
+      # Open, it has the keyboard: Up/Down, Enter, a letter; Escape closes.
+      if not widget.isVisible:
+        return false
+      if event.key == KeyboardKey.Escape:
+        closePopupOf(widget)       # its close proc (declared after the type)
+        return true
+      var current = widget.current
+      result = menuKey(widget.children, current, event)
+      widget.current = current
 
   layout:
     if not widget.isVisible:
@@ -72,11 +86,18 @@ defineWidget(ContextMenu):
     drawThemedBackground(widget.bounds, props)
     drawThemedBorder(widget.bounds, props)
 
+proc close*(widget: ContextMenu)
+
 proc openAt*(widget: ContextMenu, x, y: float32) =
-  ## Pop the menu up with its top-left corner at (x, y).
+  ## Pop the menu up with its top-left corner at (x, y). It takes the
+  ## keyboard, and a click anywhere else closes it.
   widget.posX = x
   widget.posY = y
   widget.isVisible = true
+  widget.focusable = true
+  widget.current = -1
+  highlightItem(widget.children, -1)
+  openPopup(widget, scope = widget, close = proc() = widget.close(), takeFocus = true)
   widget.isDirty = true
   widget.layoutDirty = true
   if widget.onOpen != nil:
@@ -87,6 +108,9 @@ proc close*(widget: ContextMenu) =
   if not widget.isVisible:
     return
   widget.isVisible = false
+  widget.focusable = false
+  highlightItem(widget.children, -1)
+  closedPopup(widget)
   widget.isDirty = true
   widget.layoutDirty = true
   if widget.onClose != nil:
