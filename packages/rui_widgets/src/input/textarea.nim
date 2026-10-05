@@ -36,6 +36,7 @@ export text_buffer
 import ../text_content
 export text_content
 import rui_drawing
+import ../containers/scroll_geometry
 import std/[strutils, options, math, monotimes]
 import std/times except getTime   # raylib's getTime is the clock here
 from std/unicode import `$`, runeLen
@@ -200,7 +201,7 @@ template textRect*(widget: untyped): Rect =
        width: widget.bounds.width - widget.inset * 2,
        height: widget.bounds.height - widget.inset * 2)
 
-template lineRect(widget: untyped, lineH: float32): Rect =
+template lineRect*(widget: untyped, lineH: float32): Rect =
   ## Where the lines start. A single-line field centres its line vertically,
   ## so an input given a height tighter than line + padding still reads as
   ## centred rather than sliding against its bottom edge.
@@ -283,6 +284,7 @@ template writeBack(widget: untyped, buf: TextBuffer, beforeText: string) =
   widget.selectionStart = buf.selStart
   widget.selectionEnd = buf.selEnd
   widget.isDirty = true
+  widget.revealCaret = true          # the caret moved or the text changed
   if widget.text != beforeText:
     # Only a change of text needs a re-measure or an onChange; moving the
     # caret repaints and nothing more.
@@ -400,6 +402,44 @@ proc roomForLine*(text: string, maxLines: int): bool =
   ## Whether Enter may add a line under a `maxLines` limit (-1: no limit).
   maxLines < 0 or lineStarts(text).len < maxLines
 
+template maxScrollY*(widget: untyped, lineH: float32, inner: Rect): float32 =
+  ## How far a multi-line editor's text can scroll: its lines past the view.
+  (if widget.multiline: max(0.0'f32, float32(widget.linesOf.len) * lineH - inner.height)
+   else: 0.0'f32)
+
+const ScrollBarWidth = 4.0'f32
+
+template scrollTrack*(widget: untyped, inner: Rect): Rect =
+  ## Where the vertical scroll bar runs: in the frame's padding beside the
+  ## text when there is room, else over the text's right edge.
+  block:
+    let room = widget.bounds.x + widget.bounds.width - (inner.x + inner.width)
+    let x = if room >= ScrollBarWidth + 2: inner.x + inner.width + (room - ScrollBarWidth) / 2
+            else: inner.x + inner.width - ScrollBarWidth
+    Rect(x: x, y: inner.y, width: ScrollBarWidth, height: inner.height)
+
+template scrollThumb*(widget: untyped, lineH: float32, inner: Rect): Rect =
+  ## The scroll bar's thumb, or an empty rect when everything fits.
+  block:
+    let maxY = widget.maxScrollY(lineH, inner)
+    if maxY <= 0:
+      Rect()
+    else:
+      let track = widget.scrollTrack(inner)
+      let len = thumbLength(track.height, inner.height, inner.height + maxY)
+      Rect(x: track.x, y: track.y + thumbOffset(track.height, len, widget.scrollY, maxY),
+           width: track.width, height: len)
+
+template scrollToThumbAt(widget: untyped, pointerY: float32, lineH: float32, inner: Rect) =
+  ## Drag the thumb so its grabbed point follows the pointer.
+  block:
+    let maxY = widget.maxScrollY(lineH, inner)
+    let thumb = widget.scrollThumb(lineH, inner)
+    let travel = inner.height - thumb.height
+    if travel > 0:
+      widget.scrollY = clamp((pointerY - widget.barGrab - inner.y) / travel * maxY, 0.0'f32, maxY)
+      widget.isDirty = true
+
 template keepCaretInView(widget: untyped, content: TextContent, inner: Rect) =
   ## Scroll so the caret is inside `inner`. Runs while painting, which is when
   ## the caret's pixel position is known; indexAt reads the result.
@@ -424,8 +464,12 @@ template paintEditable(widget: untyped, content: TextContent, inner: Rect) =
   ## Selection, text and caret for editable text, line by line, scrolled and
   ## clipped to `inner`.
   block:
-    if widget.focused:
+    if widget.focused and widget.revealCaret:
       widget.keepCaretInView(content, inner)
+      widget.revealCaret = false
+    # Never scrolled past the content (it may have shrunk, or the box grown).
+    widget.scrollY = clamp(widget.scrollY, 0.0'f32,
+                           widget.maxScrollY(content.lineHeight, inner))
     let lineH = content.lineHeight
     let font = content.style.pangoFont
     let ox = inner.x - widget.scrollX
@@ -515,6 +559,9 @@ definePrimitive(TextArea):
     lastClickAt: MonoTime
     scrollX: float32             # How far the text is scrolled, so the caret
     scrollY: float32             # stays in view
+    revealCaret: bool            # scroll to the caret at the next paint
+    draggingBar: bool            # the scroll bar's thumb is held
+    barGrab: float32             # where on the thumb it was taken
 
   actions:
     onChange(newText: string)
@@ -535,6 +582,22 @@ definePrimitive(TextArea):
     on_mouse_down:
       if not widget.takesInput:
         return false
+      let lineH = widget.contentOf.lineHeight
+      let inner = widget.lineRect(lineH)
+      let thumb = widget.scrollThumb(lineH, inner)
+      if thumb.height > 0:
+        let track = widget.scrollTrack(inner)
+        let hitTrack = Rect(x: track.x - 3, y: track.y, width: track.width + 6,
+                            height: track.height)
+        if hitTrack.contains(event.mousePos.x, event.mousePos.y):
+          # On the thumb: hold it where it was taken. On the track: jump so
+          # the thumb's middle is under the pointer, then hold it there.
+          widget.barGrab = if thumb.contains(thumb.x, event.mousePos.y):
+                             event.mousePos.y - thumb.y
+                           else: thumb.height / 2
+          widget.draggingBar = true
+          widget.scrollToThumbAt(event.mousePos.y, lineH, inner)
+          return true
       let at = widget.indexAt(event.mousePos)
       case widget.countClick(event.timestamp)
       of 2:
@@ -550,16 +613,37 @@ definePrimitive(TextArea):
       return true
 
     on_mouse_move:
+      if widget.draggingBar:
+        let lineH = widget.contentOf.lineHeight
+        widget.scrollToThumbAt(event.mousePos.y, lineH, widget.lineRect(lineH))
+        return true
       if not widget.dragging or not widget.takesInput:
         return false
       widget.edit: buf.dragTo(widget.indexAt(event.mousePos))
       return true
 
     on_mouse_up:
+      if widget.draggingBar:
+        widget.draggingBar = false
+        return true
       if not widget.dragging:
         return false
       widget.dragging = false
       widget.edit: buf.endDrag()
+      return true
+
+    on_mouse_wheel:
+      # Three lines a notch (the user's scroll speed is already in the
+      # delta). At either end the wheel is left to an enclosing scroll view.
+      if not widget.multiline or not widget.editable:
+        return false
+      let lineH = widget.contentOf.lineHeight
+      let maxY = widget.maxScrollY(lineH, widget.lineRect(lineH))
+      let next = clamp(widget.scrollY - event.wheelDelta * lineH * 3, 0.0'f32, maxY)
+      if next == widget.scrollY:
+        return false
+      widget.scrollY = next
+      widget.isDirty = true
       return true
 
     on_char:
@@ -602,6 +686,29 @@ definePrimitive(TextArea):
                                       widget.goalColumn, down = event.key == Down)
         widget.edit: buf.moveCursor(move.index, extend = shiftDown)
         widget.goalColumn = move.goalColumn
+        return true
+
+      of PageUp, PageDown:
+        # A page is the lines in view, less one kept for context. The view
+        # moves with the caret, so the line it was on stays where it was.
+        if not widget.multiline:
+          return false
+        let lineH = widget.contentOf.lineHeight
+        let inner = widget.lineRect(lineH)
+        let rows = max(1, int(inner.height / lineH) - 1)
+        let lines = widget.linesOf
+        let down = event.key == PageDown
+        let goal = if widget.goalColumn >= 0: widget.goalColumn
+                   else: visualColumn(widget.text, lines, widget.cursorPos)
+        let row = visualLineOf(lines, widget.cursorPos) + (if down: rows else: -rows)
+        let target = if row < 0: 0
+                     elif row > lines.high: widget.text.len
+                     else: indexAtVisual(widget.text, lines, row, goal)
+        widget.scrollY = clamp(widget.scrollY + (if down: 1.0'f32 else: -1.0'f32) *
+                               float32(rows) * lineH, 0.0'f32,
+                               widget.maxScrollY(lineH, inner))
+        widget.edit: buf.moveCursor(target, extend = shiftDown)
+        widget.goalColumn = goal
         return true
 
       of Left, Right, Home, End:
@@ -667,6 +774,16 @@ definePrimitive(TextArea):
     if widget.editable and (not showPlaceholder or widget.focused):
       # Over a placeholder this draws only the caret: the text is empty.
       widget.paintEditable(widget.contentOf, inner)
+
+    # The scroll bar, when there is more text than fits: a slim thumb in the
+    # theme's border colour, stronger while held or hovered.
+    if widget.editable and widget.multiline:
+      let thumb = widget.scrollThumb(content.lineHeight, inner)
+      if thumb.height > 0:
+        let props = widget.themeProps(widget.intent, crText)
+        let c = props.borderColor.get(GRAY)
+        drawRoundedRect(thumb, ScrollBarWidth / 2,
+                        c.withAlpha(if widget.draggingBar or widget.hovered: 0.9'f32 else: 0.5'f32))
 
     if widget.disabled:
       drawDisabledOverlay(widget.bounds)

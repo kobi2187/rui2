@@ -511,3 +511,67 @@ suite "wrapping while editing":
     let ta = newTextArea(initialText = Para, wrap = false, fontSize = 14.0)
     ta.bounds = Rect(x: 0, y: 0, width: 160, height: 200)
     check ta.linesOf.len == 1
+
+suite "scrolling a long text":
+  proc longArea(): TextArea =
+    var text = ""
+    for i in 1 .. 40: text.add "line " & $i & "\n"
+    result = newTextArea(initialText = text, fontSize = 14.0, padding = 6.0)
+    result.bounds = Rect(x: 0, y: 0, width: 220, height: 120)
+    result.layout()
+    result.focused = true
+
+  proc send(w: TextArea, e: GuiEvent): bool =
+    var e = e
+    e.timestamp = getMonoTime()
+    w.handleInput(e)
+
+  proc lineH(w: TextArea): float32 = w.contentOf.lineHeight
+
+  test "the wheel scrolls three lines a notch, within the text":
+    let ta = longArea()
+    check ta.send(GuiEvent(kind: evMouseWheel, wheelDelta: -1))
+    check ta.scrollY == ta.lineH * 3
+    for _ in 0 ..< 100: discard ta.send(GuiEvent(kind: evMouseWheel, wheelDelta: -1))
+    let inner = ta.lineRect(ta.lineH)
+    check ta.scrollY == float32(ta.linesOf.len) * ta.lineH - inner.height
+
+  test "at the end the wheel is left to an enclosing scroll view":
+    let ta = longArea()
+    check not ta.send(GuiEvent(kind: evMouseWheel, wheelDelta: 1))   # already at the top
+    let short = newTextArea(initialText = "one line", fontSize = 14.0)
+    short.bounds = Rect(x: 0, y: 0, width: 220, height: 120)
+    check not short.send(GuiEvent(kind: evMouseWheel, wheelDelta: -1))
+
+  test "painting does not undo a wheel scroll; typing brings the caret back":
+    let ta = longArea()
+    discard ta.send(GuiEvent(kind: evMouseWheel, wheelDelta: -3))
+    let scrolled = ta.scrollY
+    check scrolled > 0
+    ta.revealCaret = false
+    check ta.scrollY == scrolled
+    discard ta.send(GuiEvent(kind: evChar, rune: Rune('x')))
+    check ta.revealCaret                                     # next paint scrolls to it
+
+  test "PageDown moves a page of lines and the view with it":
+    let ta = longArea()
+    let rows = max(1, int(ta.lineRect(ta.lineH).height / ta.lineH) - 1)
+    check ta.send(GuiEvent(kind: evKeyDown, key: KeyboardKey.PageDown))
+    check visualLineOf(ta.linesOf, ta.cursorPos) == rows
+    check ta.scrollY == float32(rows) * ta.lineH
+    check ta.send(GuiEvent(kind: evKeyDown, key: KeyboardKey.PageUp))
+    check visualLineOf(ta.linesOf, ta.cursorPos) == 0
+
+  test "dragging the scroll bar's thumb to the bottom shows the end":
+    let ta = longArea()
+    let inner = ta.lineRect(ta.lineH)
+    let thumb = ta.scrollThumb(ta.lineH, inner)
+    check thumb.height > 0 and thumb.height < inner.height
+    let cx = thumb.x + thumb.width / 2
+    check ta.send(GuiEvent(kind: evMouseDown, mousePos: Point(x: cx, y: thumb.y + 2)))
+    check ta.draggingBar
+    discard ta.send(GuiEvent(kind: evMouseMove, mousePos: Point(x: cx, y: 10_000)))
+    check ta.scrollY == ta.maxScrollY(ta.lineH, inner)
+    discard ta.send(GuiEvent(kind: evMouseUp, mousePos: Point(x: cx, y: 10_000)))
+    check not ta.draggingBar
+    check ta.cursorPos == 0                                  # the caret did not move
