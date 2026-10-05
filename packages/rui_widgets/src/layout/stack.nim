@@ -48,6 +48,24 @@ proc place(pinA, pinB, fixed, natural, extent: float32): tuple[pos, size: float3
             else: 0.0'f32
   (pos, size)
 
+proc stackSize[W](widget: W, c: Constraints): Size =
+  ## A Stack's measure: a fixed side is kept; a free one fits the widest /
+  ## tallest plain (non-Positioned) child. An expanding stack offers its
+  ## fixed sides to its children.
+  let pad = widget.padding
+  let expand = widget.fit == StackFit.expand
+  var childC = unbounded()
+  if expand and c.tightWidth: childC = childC.withWidth(c.minWidth - pad.horizontal)
+  if expand and c.tightHeight: childC = childC.withHeight(c.minHeight - pad.vertical)
+  var widest, tallest = 0.0'f32
+  for child in widget.children:
+    if child of Positioned: continue
+    let s = child.measure(childC)
+    widest = max(widest, s.width)
+    tallest = max(tallest, s.height)
+  Size(width: (if c.tightWidth: c.minWidth else: widest + pad.horizontal),
+       height: (if c.tightHeight: c.minHeight else: tallest + pad.vertical))
+
 defineWidget(Stack):
   props:
     alignment: Alignment = AlignmentTopLeft
@@ -62,47 +80,32 @@ defineWidget(Stack):
 
   layout:
     let pad = widget.padding
-    let sized = (widget.bounds.width > 0, widget.bounds.height > 0)
+    let own = widget.stackSize(constraintsOf(widget.bounds))
+    widget.bounds.width = own.width
+    widget.bounds.height = own.height
+    let inner = Size(width: own.width - pad.horizontal, height: own.height - pad.vertical)
     let expand = widget.fit == StackFit.expand
-
-    # Plain children first: they decide the Stack's size when nothing else did.
-    var widest, tallest = 0.0'f32
-    for child in widget.children:
-      if child of Positioned: continue
-      child.bounds.width = if expand and sized[0]: widget.bounds.width - pad.horizontal else: 0.0'f32
-      child.bounds.height = if expand and sized[1]: widget.bounds.height - pad.vertical else: 0.0'f32
-      child.bounds.x = widget.bounds.x + pad.left
-      child.bounds.y = widget.bounds.y + pad.top
-      child.layout()
-      widest = max(widest, child.bounds.width)
-      tallest = max(tallest, child.bounds.height)
-    if not sized[0]: widget.bounds.width = widest + pad.horizontal
-    if not sized[1]: widget.bounds.height = tallest + pad.vertical
-    let inner = (w: widget.bounds.width - pad.horizontal,
-                 h: widget.bounds.height - pad.vertical)
-
     for child in widget.children:
       if child of Positioned:
         let p = Positioned(child)
-        p.bounds = Rect()
-        p.layout()                      # natural size, from its own child
-        let (x, w) = place(p.left, p.right, p.width, p.bounds.width, inner.w)
-        let (y, h) = place(p.top, p.bottom, p.height, p.bounds.height, inner.h)
-        p.bounds = Rect(x: widget.bounds.x + pad.left + x,
-                        y: widget.bounds.y + pad.top + y, width: w, height: h)
-        p.layout()
-      elif expand and (not sized[0] or not sized[1]):
-        # An expanding stack that sized itself: fill now that the size is known.
-        child.bounds = Rect(x: widget.bounds.x + pad.left, y: widget.bounds.y + pad.top,
-                            width: inner.w, height: inner.h)
-        child.layout()
+        let natural = p.measure(unbounded())
+        let (x, w) = place(p.left, p.right, p.width, natural.width, inner.width)
+        let (y, h) = place(p.top, p.bottom, p.height, natural.height, inner.height)
+        p.arrange(Rect(x: widget.bounds.x + pad.left + x,
+                       y: widget.bounds.y + pad.top + y, width: w, height: h))
+      elif expand:
+        child.arrange(Rect(x: widget.bounds.x + pad.left, y: widget.bounds.y + pad.top,
+                           width: inner.width, height: inner.height))
       else:
+        let natural = child.measure(unbounded())
         let off = alignmentOffset(widget.alignment,
-                                  (inner.w - child.bounds.width, inner.h - child.bounds.height))
-        if off.x != 0 or off.y != 0:
-          child.bounds.x = widget.bounds.x + pad.left + off.x
-          child.bounds.y = widget.bounds.y + pad.top + off.y
-          child.layout()
+                                  (inner.width - natural.width, inner.height - natural.height))
+        child.arrange(Rect(x: widget.bounds.x + pad.left + off.x,
+                           y: widget.bounds.y + pad.top + off.y,
+                           width: natural.width, height: natural.height))
+
+method computeSize*(widget: Stack, c: Constraints): Size = widget.stackSize(c)
+method computeSize*(widget: Positioned, c: Constraints): Size = widget.wrapSize(c)
 
 proc newZStack*(padding: float32 = 0.0): Stack =
   ## Layers that all fill the stack -- the pre-Flutter name.

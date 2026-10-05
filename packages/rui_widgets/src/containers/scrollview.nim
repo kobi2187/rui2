@@ -85,12 +85,12 @@ defineWidget(ScrollView):
     var maxY = 0.0f
 
     for child in widget.children:
-      # Position child with scroll offset
-      child.bounds.x = widget.bounds.x + widget.padding - widget.scrollOffsetX
-      child.bounds.y = widget.bounds.y + widget.padding - widget.scrollOffsetY
-
-      # Layout the child recursively
-      child.layout()
+      # The content at its natural size, shifted by the scroll offset. Its
+      # measurement is remembered, so scrolling only moves it.
+      let natural = child.measure(unbounded())
+      child.arrange(Rect(x: widget.bounds.x + widget.padding - widget.scrollOffsetX,
+                         y: widget.bounds.y + widget.padding - widget.scrollOffsetY,
+                         width: natural.width, height: natural.height))
 
       # Track content bounds
       # In the content's own coordinates: the scroll offset is added back, or
