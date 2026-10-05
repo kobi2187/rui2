@@ -101,6 +101,8 @@ template selectRowAt*(widget: untyped, viewIdx: int): bool =
       let rowIdx = widget.filteredIndices[viewIdx]
       updateSelection(widget.selected, rowIdx,
                       event.ctrl)
+      widget.focusRow = viewIdx
+      widget.anchorRow = viewIdx
       widget.isDirty = true
       if widget.onSelect != nil:
         widget.onSelect(widget.selected)
@@ -121,6 +123,8 @@ definePrimitive(DataTable):
     intent: ThemeIntent = Default
 
   state:
+    focusRow: int                # the keyboard's row, in the rows as shown
+    anchorRow: int               # where a Shift range starts
     selected: HashSet[int]       # Indices into `data`, not into the filtered view
     filters: Table[string, Filter]
     sortColumn: string           # Empty means unsorted
@@ -135,6 +139,7 @@ definePrimitive(DataTable):
     onSort(column: string, order: SortOrder)
     onFilter(filters: Table[string, Filter])
     onSelect(selected: HashSet[int])
+    onActivate(row: int)         # Enter on the focus row (a source row index)
 
   init:
     widget.focusable = true
@@ -164,6 +169,10 @@ definePrimitive(DataTable):
         widget.scrollY = newScroll
         widget.isDirty = true
       return true
+
+    on_key_down:
+      let m = metricsOf(widget)
+      return widget.tableKeyDown(widget.filteredIndices, m.rows, event)
 
   layout:
     # Filter, then sort, then cache. Doing this here rather than in render means
@@ -246,6 +255,8 @@ definePrimitive(DataTable):
       drawRowBackground(rowRect, props, viewIdx, widget.alternateRowColor,
                         selected = rowIdx in widget.selected,
                         hovered = viewIdx == widget.hoverRow)
+      if widget.focused and viewIdx == widget.focusRow:
+        drawFocusRing(rowRect, props.borderColor.get(GRAY))   # the keyboard's row
 
       var texts: seq[string] = @[]
       for col in widget.columns:

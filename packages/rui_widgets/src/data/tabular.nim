@@ -13,6 +13,9 @@
 import rui_core
 import virtual_rows
 import table_sorting  # SortOrder
+import ../list_input
+import std/[sets, options]
+from raylib import KeyboardKey
 
 export SortOrder
 
@@ -93,3 +96,47 @@ proc sortIndicatorFor*(order: SortOrder): string =
   of soAscending: "  ^"
   of soDescending: "  v"
   of soNone: ""
+
+template tableKeyDown*(widget: untyped, view: seq[int], rows: RowViewport,
+                       event: GuiEvent): bool =
+  ## The keyboard for DataTable and DataGrid, over the rows as shown (`view`
+  ## maps a shown row to its source row). Arrows, Home/End, PageUp/PageDown
+  ## move a focus row and the selection with it; Shift selects a range,
+  ## Ctrl moves the focus alone; Space toggles the focus row; Ctrl+A selects
+  ## every shown row; Enter activates.
+  block:
+    var handled = true
+    if not widget.focused or view.len == 0:
+      handled = false
+    else:
+      let before = widget.selected
+      widget.focusRow = clamp(widget.focusRow, 0, view.high)
+      if event.ctrl and event.key == KeyboardKey.A:
+        widget.selected.clear()
+        for r in view: widget.selected.incl r
+      elif event.key == KeyboardKey.Space:
+        toggleSelection(widget.selected, view[widget.focusRow])
+        widget.anchorRow = widget.focusRow
+      elif event.key in {KeyboardKey.Enter, KeyboardKey.KpEnter}:
+        if widget.onActivate != nil: widget.onActivate(view[widget.focusRow])
+      else:
+        let page = max(1, int(rows.height / rows.rowHeight) - 1)
+        let moved = nextFocusIndex(event.key, widget.focusRow, view.len, page)
+        if moved.isNone:
+          handled = false
+        else:
+          let to = moved.get
+          widget.focusRow = to
+          if event.shift:
+            widget.selected.clear()
+            for i in min(widget.anchorRow, to) .. max(widget.anchorRow, to):
+              widget.selected.incl view[i]
+          elif not event.ctrl:
+            widget.selected = [view[to]].toHashSet
+            widget.anchorRow = to
+          widget.scrollY = rows.scrollToShow(to, view.len)
+      if handled:
+        widget.isDirty = true
+        if widget.selected != before and widget.onSelect != nil:
+          widget.onSelect(widget.selected)
+    handled

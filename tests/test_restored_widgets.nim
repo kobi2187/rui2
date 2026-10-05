@@ -11,7 +11,8 @@
 
 import std/unittest
 import rui
-import std/[options, json, sets, tables, times, strutils]
+import std/[options, json, sets, tables, times, strutils, monotimes]
+from raylib import KeyboardKey
 
 template checkSizes(w: Widget) =
   ## Every widget must be able to give itself a size.
@@ -665,3 +666,62 @@ suite "ToolBar fits captioned ToolButtons":
     bar.addChild(newToolButton(iconText = "+", size = 20.0))
     bar.layout()
     check bar.bounds.height == 40.0
+
+suite "tables from the keyboard":
+  proc table(n = 30): DataTable =
+    var rows: seq[DataRow] = @[]
+    for i in 0 ..< n:
+      var values = initTable[string, JsonNode]()
+      values["name"] = %("row " & $i)
+      rows.add(DataRow(id: $i, values: values))
+    let cols = @[DataColumn(id: "name", title: "Name", width: 120.0)]
+    result = newDataTable(columns = cols, data = rows, rowHeight = 20,
+                          headerHeight = 20, showFilter = false)
+    result.bounds = Rect(x: 0, y: 0, width: 200, height: 120)   # header + five rows
+    result.layout()
+    result.focused = true
+
+  proc key(w: Widget, k: KeyboardKey, mods: set[KeyMod] = {}): bool =
+    w.handleInput(GuiEvent(kind: evKeyDown, key: k, mods: mods,
+                           timestamp: getMonoTime()))
+
+  test "Down selects the next row; Shift extends; End scrolls to the last":
+    let t = table()
+    discard t.key(KeyboardKey.Down)
+    check t.selected == [1].toHashSet
+    discard t.key(KeyboardKey.Down, {kmShift})
+    discard t.key(KeyboardKey.Down, {kmShift})
+    check t.selected == [1, 2, 3].toHashSet
+    discard t.key(KeyboardKey.End)
+    check t.selected == [29].toHashSet
+    check t.scrollY > 0
+
+  test "the keys work on the rows as shown, filtered and sorted":
+    let t = table(10)
+    t.filters["name"] = Filter(column: "name", kind: fkStartsWith, text: "row 1")
+    t.layout()
+    check t.filteredIndices == @[1]                      # only "row 1" of row 0..9
+    discard t.key(KeyboardKey.Home)
+    check t.selected == [1].toHashSet                    # the source row
+
+  test "Ctrl+A selects every shown row; Enter activates the focus row":
+    let t = table(8)
+    discard t.key(KeyboardKey.A, {kmCtrl})
+    check t.selected.len == 8
+    var activated = -1
+    t.onActivate = proc(r: int) = activated = r
+    discard t.key(KeyboardKey.Down)
+    discard t.key(KeyboardKey.Enter)
+    check activated == 1
+
+  test "a DataGrid answers the same keys":
+    var rows: seq[GridRow]
+    for i in 0 ..< 10: rows.add GridRow(id: $i, values: @[%i])
+    let g = newDataGrid(columns = @[GridColumn(id: "n", title: "N", width: 80)])
+    g.data = rows
+    g.bounds = Rect(x: 0, y: 0, width: 200, height: 150)
+    g.layout()
+    g.focused = true
+    discard g.key(KeyboardKey.Down)
+    discard g.key(KeyboardKey.Down)
+    check g.selected == [2].toHashSet
