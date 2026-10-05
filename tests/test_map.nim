@@ -5,7 +5,8 @@
 ## procs over plain values now, so a table of coordinates is enough.
 
 import std/unittest
-import std/math
+import std/[math, monotimes]
+from raylib import KeyboardKey
 import rui
 import modern/map_projection
 import modern/map_render
@@ -132,3 +133,34 @@ suite "map drawing helpers":
     check Point(x: 0.0, y: 0.0).isVisible(b)
     check Point(x: 100.0, y: 100.0).isVisible(b)
     check not Point(x: 101.0, y: 50.0).isVisible(b)
+
+suite "map: wheel zoom about the pointer, and the keyboard":
+  proc map(): MapWidget =
+    result = newMapWidget(initialCenter = MapCoord(lat: 32.0, lon: 34.8), initialZoom = 6.0)
+    result.bounds = Rect(x: 0, y: 0, width: 400, height: 300)
+    result.layout()
+    result.focused = true
+
+  proc send(w: Widget, e: GuiEvent): bool =
+    var e = e
+    e.timestamp = getMonoTime()
+    w.handleInput(e)
+
+  test "the wheel zooms keeping the place under the pointer still":
+    let m = map()
+    let at = (x: 320.0'f32, y: 80.0'f32)
+    let before = viewOf(m).screenToWorld(at.x, at.y)
+    check m.send(GuiEvent(kind: evMouseWheel, wheelDelta: 2, mousePos: Point(x: at.x, y: at.y)))
+    check m.zoom == 7.0
+    let after = viewOf(m).screenToWorld(at.x, at.y)
+    check abs(after.lat - before.lat) < 1e-3 and abs(after.lon - before.lon) < 1e-3
+
+  test "arrows pan, +/- zoom":
+    let m = map()
+    let lon0 = m.center.lon
+    discard m.send(GuiEvent(kind: evKeyDown, key: KeyboardKey.Right))
+    check m.center.lon > lon0
+    discard m.send(GuiEvent(kind: evKeyDown, key: KeyboardKey.Equal))
+    check m.zoom == 7.0
+    discard m.send(GuiEvent(kind: evKeyDown, key: KeyboardKey.Minus))
+    check m.zoom == 6.0
