@@ -725,3 +725,48 @@ suite "tables from the keyboard":
     discard g.key(KeyboardKey.Down)
     discard g.key(KeyboardKey.Down)
     check g.selected == [2].toHashSet
+
+suite "timeline: panning, zooming, the keyboard":
+  let t0 = dateTime(2026, mJan, 1, 0, 0, 0, zone = utc())
+  proc timeline(): Timeline =
+    let evts = @[
+      TimelineEvent(id: "early", title: "Early", startTime: t0 + 1.hours),
+      TimelineEvent(id: "late", title: "Late", startTime: t0 + 20.hours)]
+    result = newTimeline(events = evts, startTime = t0, endTime = t0 + 24.hours,
+                         scale = tsHour, pixelsPerUnit = 60)
+    result.bounds = Rect(x: 0, y: 0, width: 600, height: 200)
+    result.layout()
+    result.focused = true
+
+  proc send(w: Widget, e: GuiEvent): bool =
+    var e = e
+    e.timestamp = getMonoTime()
+    w.handleInput(e)
+
+  test "it pans only within its range":
+    let t = timeline()
+    check t.send(GuiEvent(kind: evKeyDown, key: KeyboardKey.End))
+    check t.scrollOffset == float32(24 * 60 - 600)
+    check not t.send(GuiEvent(kind: evMouseWheel, wheelDelta: -5))   # already at the end
+    check t.scrollOffset == float32(24 * 60 - 600)
+
+  test "Ctrl+wheel zooms about the pointer, keeping that instant still":
+    let t = timeline()
+    let x = 300.0'f32
+    let before = axisOf(t).pixelToTime(x)
+    check t.send(GuiEvent(kind: evMouseWheel, wheelDelta: 1, mods: {kmCtrl},
+                          mousePos: Point(x: x, y: 50)))
+    check t.pixelsPerUnit == 75
+    check abs((axisOf(t).pixelToTime(x) - before).inSeconds) <= 60
+
+  test "Down selects the next event and brings it into view; Enter opens it":
+    let t = timeline()
+    var opened = ""
+    t.onEventClick = proc(e: TimelineEvent) = opened = e.id
+    discard t.send(GuiEvent(kind: evKeyDown, key: KeyboardKey.Down))
+    discard t.send(GuiEvent(kind: evKeyDown, key: KeyboardKey.Down))
+    check t.selectedEvent == "late"
+    let r = axisOf(t).eventRectFor(1, t.events[1])
+    check r.x >= t.bounds.x and r.x < t.bounds.x + t.bounds.width
+    discard t.send(GuiEvent(kind: evKeyDown, key: KeyboardKey.Enter))
+    check opened == "late"
