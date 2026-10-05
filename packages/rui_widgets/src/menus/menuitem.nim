@@ -6,7 +6,8 @@
 
 import rui_core
 import rui_drawing
-import std/options
+import std/[options, strutils]
+from raylib import KeyboardKey
 
 template rowH(w: untyped): float32 =
   ## This widget's row height: its own prop, else the theme's.
@@ -16,6 +17,18 @@ const
   IconGutter = 20.0'f32
   ShortcutGap = 24.0'f32
   SeparatorHeight = 7.0'f32
+
+template choose*(widget: untyped) =
+  ## What picking the item does, by click or by key: toggle it if it is
+  ## checkable, run it, and close the menu it is in.
+  if widget.checkable:
+    widget.checked = not widget.checked
+    widget.isDirty = true
+    if widget.onToggle != nil:
+      widget.onToggle(widget.checked)
+  closePopupOf(widget)
+  if widget.onClick != nil:
+    widget.onClick()
 
 definePrimitive(MenuItem):
   props:
@@ -32,6 +45,7 @@ definePrimitive(MenuItem):
 
   state:
     checked: bool
+    highlighted: bool            # the keyboard's item in an open menu
 
   actions:
     onClick()
@@ -41,13 +55,7 @@ definePrimitive(MenuItem):
     on_mouse_down:
       if widget.disabled or widget.separator:
         return false
-      if widget.checkable:
-        widget.checked = not widget.checked
-        widget.isDirty = true
-        if widget.onToggle != nil:
-          widget.onToggle(widget.checked)
-      if widget.onClick != nil:
-        widget.onClick()
+      widget.choose()
       return true
 
   layout:
@@ -67,7 +75,7 @@ definePrimitive(MenuItem):
   render:
     let props = currentTheme.getThemeProps(widget.intent,
                                            if widget.disabled: Disabled
-                                           elif widget.hovered: Hovered
+                                           elif widget.hovered or widget.highlighted: Hovered
                                            else: Normal)
 
     if widget.separator:
@@ -105,3 +113,67 @@ definePrimitive(MenuItem):
 
     if widget.disabled:
       drawDisabledOverlay(widget.bounds)
+
+proc selectable*(item: Widget): bool =
+  ## Whether the keyboard may stop on `item`: a MenuItem that is neither a
+  ## separator nor disabled.
+  item of MenuItem and not MenuItem(item).separator and
+    not MenuItem(item).disabled
+
+proc stepItem*(items: openArray[Widget], current, direction: int): int =
+  ## The next selectable item from `current` in `direction` (+1/-1),
+  ## wrapping round; -1 when there is none.
+  if items.len == 0: return -1
+  var i = current
+  for _ in 0 ..< items.len:
+    i = (i + direction + items.len) mod items.len
+    if i < 0: i = items.len - 1
+    if items[i].selectable: return i
+  -1
+
+proc highlightItem*(items: openArray[Widget], index: int) =
+  ## Mark item `index` as the keyboard's, and no other.
+  for i, it in items:
+    if it of MenuItem:
+      let m = MenuItem(it)
+      if m.highlighted != (i == index):
+        m.highlighted = i == index
+        m.isDirty = true
+
+proc itemForLetter*(items: openArray[Widget], letter: char, after: int): int =
+  ## The next selectable item whose text starts with `letter` (ignoring
+  ## case), after `after`, wrapping; -1 when none does.
+  let lower = letter.toLowerAscii
+  for k in 1 .. items.len:
+    let i = (after + k) mod items.len
+    if items[i].selectable and MenuItem(items[i]).text.len > 0 and
+       MenuItem(items[i]).text[0].toLowerAscii == lower:
+      return i
+  -1
+
+proc menuKey*(items: openArray[Widget], current: var int, event: GuiEvent): bool =
+  ## The keys inside an open menu: Up/Down (Home/End) move the highlight,
+  ## skipping separators and disabled items; Enter/Space choose; a letter
+  ## jumps to the item that starts with it. Escape is the owner's: it knows
+  ## what closing means.
+  case event.key
+  of KeyboardKey.Down: current = items.stepItem(current, 1)
+  of KeyboardKey.Up: current = items.stepItem(if current < 0: 0 else: current, -1)
+  of KeyboardKey.Home: current = items.stepItem(-1, 1)
+  of KeyboardKey.End: current = items.stepItem(0, -1)
+  of KeyboardKey.Enter, KeyboardKey.KpEnter, KeyboardKey.Space:
+    if current >= 0 and current < items.len and items[current].selectable:
+      let m = MenuItem(items[current])
+      m.highlighted = false
+      m.choose()
+    return true
+  else:
+    let k = ord(event.key)
+    if k >= ord('A') and k <= ord('Z') and event.mods * {kmCtrl, kmAlt} == {}:
+      let i = items.itemForLetter(chr(k), current)
+      if i < 0: return false
+      current = i
+    else:
+      return false
+  items.highlightItem(current)
+  true

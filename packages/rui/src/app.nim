@@ -16,7 +16,7 @@ export preferences_file
 import system_scheme
 export system_scheme
 from rui_widgets import HelpOverlay, newHelpOverlay, FocusRing, newFocusRing,
-  Toast, newToast
+  Toast, newToast, MenuBar, findMenuBar, openFromKeyboard
 export event_source, event_routing, inspect
 export rui_core
 export event_manager   # Export for users to access eventManager
@@ -667,6 +667,24 @@ proc pressFocused*(app: App, event: GuiEvent): bool =
   else:
     false
 
+proc handleMenuKeys(app: App, event: GuiEvent): bool =
+  ## F10 opens the window's menu bar at its first menu; Alt+letter at the
+  ## menu whose title starts with that letter -- the desktop convention, when
+  ## nothing focused wanted the key first.
+  if event.kind != evKeyDown or app.tree.root == nil:
+    return false
+  let isF10 = event.key == KeyboardKey.F10 and event.mods == {}
+  let k = ord(event.key)
+  let altLetter = event.mods == {kmAlt} and k >= ord('A') and k <= ord('Z')
+  if not (isF10 or altLetter):
+    return false
+  let bar = findMenuBar(app.tree.root)
+  if bar == nil:
+    return false
+  result = bar.openFromKeyboard(if altLetter: chr(k) else: '\0')
+  if result:
+    app.tree.anyDirty = true
+
 proc handleEvent(app: App, event: GuiEvent) =
   ## Route one event. The work is in event_routing.nim; this is the three-way
   ## split between window, pointer and keyboard, and the dirty bookkeeping.
@@ -688,7 +706,7 @@ proc handleEvent(app: App, event: GuiEvent) =
 
   of evKeyDown, evChar:
     if not app.router.routeKeyboard(app.tree.root, event):
-      if not app.pressFocused(event):
+      if not app.pressFocused(event) and not app.handleMenuKeys(event):
         traceEvent "[Event] Keyboard event not handled: ", event.kind
 
   else:
@@ -910,6 +928,11 @@ proc pumpEvents*(app: App) =
 
   # 4. Poll script commands
   app.pollScriptCommands()
+
+  # 5. A popup that opened this frame (a context menu) may want the keyboard.
+  let wantsFocus = takeFocusRequest()
+  if wantsFocus != nil:
+    app.focusManager.setFocus(wantsFocus)
 
 proc stepHeadless*(app: App) =
   ## A frame with the render pass left out: input, routing, layout, hit-test.

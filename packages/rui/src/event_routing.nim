@@ -99,6 +99,11 @@ proc routePointer*(router: EventRouter, event: GuiEvent): bool =
     setPointer(widget, event.mousePos)
     dirty = router.updateHover(widget)
 
+  # A press outside an open menu or dropdown closes it, then goes on to
+  # whatever it landed on -- empty space included.
+  if event.kind == evMouseDown and dismissPopupsOutside(widget):
+    dirty = true
+
   if widget == nil:
     return dirty
 
