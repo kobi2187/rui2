@@ -111,8 +111,6 @@ definePrimitive(MenuBar):
     onMenuClose()
 
   init:
-    # Dropdowns must paint over whatever follows them in the child list.
-    widget.hasOverlay = true
     widget.activeMenuIndex = -1
     widget.hoverIndex = -1
     widget.keyTitle = -1
@@ -120,8 +118,6 @@ definePrimitive(MenuBar):
 
   events:
     on_mouse_down:
-      if event.mousePos.y > widget.bounds.y + barHeightOf(widget):
-        return false   # inside an open dropdown; the MenuItem handles it
 
       let hit = titleSlots(widget.children, widget.bounds.x).slotAt(event.mousePos.x)
       if hit < 0:
@@ -191,7 +187,6 @@ definePrimitive(MenuBar):
        not menu.Menu(widget.children[widget.activeMenuIndex]).isOpen:
       widget.activeMenuIndex = -1
     let slots = titleSlots(widget.children, widget.bounds.x)
-    var dropdownBottom = widget.bounds.y + barHeightOf(widget)
     var stripRight = widget.bounds.x
 
     for slot in slots:
@@ -202,15 +197,13 @@ definePrimitive(MenuBar):
       child.bounds.width = 0        # Menu sizes itself to its widest item
       child.bounds.height = 0
       child.layout()
-
-      if slot.index == widget.activeMenuIndex:
-        dropdownBottom = max(dropdownBottom, child.bounds.y + child.bounds.height)
       stripRight = slot.x + slot.width
 
     if widget.bounds.width <= 0:
       widget.bounds.width = stripRight - widget.bounds.x
-    # Grow to cover whatever dropdown is open, or the strip alone when none is.
-    widget.bounds.height = dropdownBottom - widget.bounds.y
+    # Just the strip: an open dropdown floats on the overlay layer, so
+    # opening it moves nothing below the bar.
+    widget.bounds.height = barHeightOf(widget)
 
   render:
     # Dropdown panels and their items are composited by renderPass.

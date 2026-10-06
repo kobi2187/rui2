@@ -90,8 +90,12 @@ definePrimitive(MenuItem):
     let labelRect = Rect(x: widget.bounds.x + IconGutter, y: widget.bounds.y,
                          width: widget.bounds.width - IconGutter,
                          height: widget.bounds.height)
-    drawMenuItem(labelRect, widget.text, props,
-                 hovered = widget.hovered, hasSubmenu = widget.hasSubmenu)
+    # The keyboard's item reads as selected, across the full row (gutter
+    # included); a pointer over an item, as hovered.
+    let lit = widget.highlighted and not widget.disabled
+    drawSelectionBackground(widget.bounds, props, lit, widget.hovered and not lit)
+    drawMenuItem(labelRect, widget.text, props, selected = lit,
+                 hovered = false, hasSubmenu = widget.hasSubmenu)
 
     let fgColor = props.foregroundColor.get(Color(r: 60, g: 60, b: 60, a: 255))
     let glyphY = widget.bounds.y + (widget.bounds.height - 14.0) / 2

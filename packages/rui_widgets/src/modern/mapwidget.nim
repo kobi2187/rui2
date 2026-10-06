@@ -31,6 +31,34 @@ template viewOf*(widget: untyped): MapView =
     height: widget.bounds.height
   )
 
+template zoomAbout(widget: untyped, newZoom: float, atX, atY: float32) =
+  ## Change the zoom keeping the place under (x, y) under it -- what every
+  ## map does with the wheel. Without a point, about the middle.
+  block:
+    let z = clamp(newZoom, widget.minZoom, widget.maxZoom)
+    if z != widget.zoom:
+      let place = viewOf(widget).screenToWorld(atX, atY)
+      widget.zoom = z
+      let view = viewOf(widget)
+      let nowAt = view.worldToScreen(place)
+      widget.center = view.pannedCenter(widget.center, nowAt.x, nowAt.y, atX, atY)
+      widget.isDirty = true
+      if widget.onZoomChanged != nil:
+        widget.onZoomChanged(z)
+      if widget.onCenterChanged != nil:
+        widget.onCenterChanged(widget.center)
+
+template panBy(widget: untyped, dx, dy: float32) =
+  ## Move the view by (dx, dy) pixels.
+  block:
+    let view = viewOf(widget)
+    let cx = widget.bounds.x + widget.bounds.width / 2
+    let cy = widget.bounds.y + widget.bounds.height / 2
+    widget.center = view.pannedCenter(widget.center, cx, cy, cx - dx, cy - dy)
+    widget.isDirty = true
+    if widget.onCenterChanged != nil:
+      widget.onCenterChanged(widget.center)
+
 definePrimitive(MapWidget):
   props:
     initialCenter: MapCoord = MapCoord(lat: 0.0, lon: 0.0)
@@ -134,13 +162,31 @@ definePrimitive(MapWidget):
     on_mouse_wheel:
       if not widget.enableZoom:
         return false
-      let newZoom = clamp(widget.zoom + float(event.wheelDelta) * 0.5,
-                          widget.minZoom, widget.maxZoom)
-      if newZoom != widget.zoom:
-        widget.zoom = newZoom
-        widget.isDirty = true
-        if widget.onZoomChanged != nil:
-          widget.onZoomChanged(newZoom)
+      widget.zoomAbout(widget.zoom + float(event.wheelDelta) * 0.5,
+                       event.mousePos.x, event.mousePos.y)
+      return true
+
+    on_key_down:
+      # Arrows pan an eighth of the view; +/- zoom about the middle.
+      if not widget.focused:
+        return false
+      let stepX = widget.bounds.width / 8
+      let stepY = widget.bounds.height / 8
+      let midX = widget.bounds.x + widget.bounds.width / 2
+      let midY = widget.bounds.y + widget.bounds.height / 2
+      case event.key
+      of KeyboardKey.Left: (if widget.enablePan: widget.panBy(-stepX, 0) else: return false)
+      of KeyboardKey.Right: (if widget.enablePan: widget.panBy(stepX, 0) else: return false)
+      of KeyboardKey.Up: (if widget.enablePan: widget.panBy(0, -stepY) else: return false)
+      of KeyboardKey.Down: (if widget.enablePan: widget.panBy(0, stepY) else: return false)
+      of KeyboardKey.Equal, KeyboardKey.KpAdd:
+        if not widget.enableZoom: return false
+        widget.zoomAbout(widget.zoom + 1.0, midX, midY)
+      of KeyboardKey.Minus, KeyboardKey.KpSubtract:
+        if not widget.enableZoom: return false
+        widget.zoomAbout(widget.zoom - 1.0, midX, midY)
+      else:
+        return false
       return true
 
   layout:

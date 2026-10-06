@@ -57,6 +57,37 @@ template thumbColor*(widget: untyped): Color =
   Color(r: widget.scrollbarColor.r, g: widget.scrollbarColor.g,
         b: widget.scrollbarColor.b, a: widget.scrollbarColor.a)
 
+template barGeometry*(widget: untyped, vertical: bool):
+    tuple[track, thumb: Rect, maxScroll: float32] =
+  ## One scroll bar's track and thumb, and how far that axis scrolls.
+  block:
+    let bars = scrollBarsFor(widget.extent)
+    if vertical:
+      let track = verticalTrack(widget.bounds, widget.padding,
+                                scrollbarWidthOf(widget), bars)
+      let len = thumbLength(track.height, bars.innerHeight, widget.contentHeight)
+      let maxS = widget.extent.maxScrollY(bars)
+      let off = thumbOffset(track.height, len, widget.scrollOffsetY, maxS)
+      (track, Rect(x: track.x, y: track.y + off, width: track.width, height: len), maxS.float32)
+    else:
+      let track = horizontalTrack(widget.bounds, widget.padding,
+                                  scrollbarWidthOf(widget), bars)
+      let len = thumbLength(track.width, bars.innerWidth, widget.contentWidth)
+      let maxS = widget.extent.maxScrollX(bars)
+      let off = thumbOffset(track.width, len, widget.scrollOffsetX, maxS)
+      (track, Rect(x: track.x + off, y: track.y, width: len, height: track.height), maxS.float32)
+
+template scrollTo(widget: untyped, vertical: bool, value: float) =
+  ## Set one axis's offset, within the content, and re-place the children.
+  block:
+    let bars = scrollBarsFor(widget.extent)
+    if vertical:
+      widget.scrollOffsetY = clamp(value, 0.0, widget.extent.maxScrollY(bars))
+    else:
+      widget.scrollOffsetX = clamp(value, 0.0, widget.extent.maxScrollX(bars))
+    widget.layoutDirty = true
+    widget.isDirty = true
+
 defineWidget(ScrollView):
   props:
     padding: float = 8.0
@@ -69,6 +100,8 @@ defineWidget(ScrollView):
     scrollOffsetY: float
     contentWidth: float
     contentHeight: float
+    dragAxis: int                # 0 none, 1 the vertical thumb, 2 the horizontal
+    dragGrab: float32            # where on the thumb it was taken
 
   layout:
     # Keep the offset inside what the content allowed last time *before* the
@@ -122,13 +155,58 @@ defineWidget(ScrollView):
 
   events:
     on_mouse_wheel:
-      # Scroll vertically with mouse wheel
-      widget.scrollOffsetY -= event.wheelDelta * widget.scrollSpeed
+      # Down the content; with Shift, or when only the horizontal bar shows,
+      # across it. At the end of the travel the wheel is left to an
+      # enclosing scroll view.
+      let bars = scrollBarsFor(widget.extent)
+      let sideways = event.shift or (bars.horizontal and not bars.vertical)
+      let before = if sideways: widget.scrollOffsetX else: widget.scrollOffsetY
+      widget.scrollTo(not sideways, before - event.wheelDelta * widget.scrollSpeed)
+      let after = if sideways: widget.scrollOffsetX else: widget.scrollOffsetY
+      return after != before
 
-      # Trigger layout to re-clamp and reposition children
-      widget.layoutDirty = true
+    on_mouse_down:
+      # The thumb is dragged where it was taken; a press elsewhere on the
+      # track moves a page towards the pointer.
+      let bars = scrollBarsFor(widget.extent)
+      for vertical in [true, false]:
+        if (vertical and not bars.vertical) or (not vertical and not bars.horizontal):
+          continue
+        let g = widget.barGeometry(vertical)
+        if not g.track.contains(event.mousePos.x, event.mousePos.y):
+          continue
+        let along = if vertical: event.mousePos.y else: event.mousePos.x
+        let thumbStart = if vertical: g.thumb.y else: g.thumb.x
+        let thumbLen = if vertical: g.thumb.height else: g.thumb.width
+        if along >= thumbStart and along <= thumbStart + thumbLen:
+          widget.dragAxis = if vertical: 1 else: 2
+          widget.dragGrab = along - thumbStart
+        else:
+          let page = if vertical: bars.innerHeight else: bars.innerWidth
+          let current = if vertical: widget.scrollOffsetY else: widget.scrollOffsetX
+          widget.scrollTo(vertical, current + (if along < thumbStart: -page else: page))
+        return true
+      return false
 
-      return true  # Event handled
+    on_mouse_move:
+      if widget.dragAxis == 0:
+        return false
+      let vertical = widget.dragAxis == 1
+      let g = widget.barGeometry(vertical)
+      let along = if vertical: event.mousePos.y else: event.mousePos.x
+      let start = if vertical: g.track.y else: g.track.x
+      let travel = (if vertical: g.track.height - g.thumb.height
+                    else: g.track.width - g.thumb.width)
+      if travel > 0:
+        widget.scrollTo(vertical, (along - widget.dragGrab - start) / travel * g.maxScroll)
+      return true
+
+    on_mouse_up:
+      if widget.dragAxis == 0:
+        return false
+      widget.dragAxis = 0
+      widget.isDirty = true
+      return true
 
   render:
     drawRectangle(widget.bounds.asRectangle, BackgroundColor)

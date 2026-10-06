@@ -722,7 +722,8 @@ proc rebuildHitTestTree(app: App) =
   app.hitTestSystem.clear()
   if app.tree.root != nil:
     proc insertAll(widget: Widget) =
-      if widget.visible:
+      # A floating widget is on the overlay layer, hit-tested there.
+      if widget.visible and not widget.floating:
         app.hitTestSystem.insertWidget(widget)
         for child in widget.children:
           insertAll(child)

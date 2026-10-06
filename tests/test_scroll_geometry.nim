@@ -7,6 +7,8 @@
 
 import std/unittest
 import containers/scroll_geometry
+import rui
+import std/monotimes
 
 proc extent(cw, ch, vw, vh: float32, sb = 16.0'f32): ScrollExtent =
   ScrollExtent(contentWidth: cw, contentHeight: ch,
@@ -113,3 +115,65 @@ suite "thumb position":
   test "an out-of-range offset is clamped, not extrapolated":
     check thumbOffset(200.0, 50.0, 9999.0, 300.0) == 150.0
     check thumbOffset(200.0, 50.0, -50.0, 300.0) == 0.0
+
+suite "scroll view scrollbars":
+  proc send(w: Widget, e: GuiEvent): bool =
+    var e = e
+    e.timestamp = getMonoTime()
+    w.handleInput(e)
+
+  proc tall(): tuple[sv: ScrollView, col: Flex] =
+    let sv = newScrollView()
+    let col = newVStack(spacing = 0)
+    for i in 0 ..< 60: col.addChild newRectangle().frame(width = 400, height = 20)
+    sv.addChild col
+    sv.bounds = Rect(x: 0, y: 0, width: 200, height: 200)
+    sv.layoutPass()
+    sv.layoutPass()            # the second pass sees the content size
+    (sv, col)
+
+  test "the wheel scrolls down, Shift+wheel across, and the end passes it on":
+    let (sv, _) = tall()
+    check sv.send(GuiEvent(kind: evMouseWheel, wheelDelta: -1))
+    check sv.scrollOffsetY == 20
+    check sv.send(GuiEvent(kind: evMouseWheel, wheelDelta: -1, mods: {kmShift}))
+    check sv.scrollOffsetX == 20
+    check sv.send(GuiEvent(kind: evMouseWheel, wheelDelta: 1, mods: {kmShift}))
+    check sv.scrollOffsetX == 0
+    check not sv.send(GuiEvent(kind: evMouseWheel, wheelDelta: 1, mods: {kmShift}))
+    sv.scrollOffsetY = 0
+    check not sv.send(GuiEvent(kind: evMouseWheel, wheelDelta: 1))   # already at the top
+
+  test "dragging the vertical thumb to the bottom shows the end":
+    let (sv, _) = tall()
+    let g = sv.barGeometry(true)
+    let x = g.thumb.x + g.thumb.width / 2
+    check sv.send(GuiEvent(kind: evMouseDown, mousePos: Point(x: x, y: g.thumb.y + 2)))
+    discard sv.send(GuiEvent(kind: evMouseMove, mousePos: Point(x: x, y: 10_000)))
+    check sv.scrollOffsetY == g.maxScroll
+    discard sv.send(GuiEvent(kind: evMouseUp, mousePos: Point(x: x, y: 10_000)))
+    check sv.dragAxis == 0
+
+  test "a press on the track below the thumb moves a page down":
+    let (sv, _) = tall()
+    let g = sv.barGeometry(true)
+    let x = g.thumb.x + g.thumb.width / 2
+    check sv.send(GuiEvent(kind: evMouseDown,
+                           mousePos: Point(x: x, y: g.track.y + g.track.height - 2)))
+    check sv.scrollOffsetY > 100
+
+  test "in a running app a press on the scroll bar reaches the scroll view":
+    let (sv, _) = tall()
+    let app = newApp(title = "sv", width = 200, height = 200)
+    let source = newListEventSource()
+    app.eventSource = source
+    app.setRootWidget(sv)
+    app.stepHeadless()
+    app.stepHeadless()
+    let g = sv.barGeometry(true)
+    let x = g.thumb.x + g.thumb.width / 2
+    for kind in [evMouseDown, evMouseUp]:
+      source.push GuiEvent(kind: kind, timestamp: getMonoTime(),
+                           mousePos: Point(x: x, y: g.track.y + g.track.height - 2))
+    app.stepHeadless()
+    check sv.scrollOffsetY > 100

@@ -106,6 +106,47 @@ proc toPixel*(l: PlotLayout, x, y: float): tuple[x, y: float32] =
   (float32(mapTo(x, l.xLo, l.xHi, l.area.x, l.area.x + l.area.width)),
    float32(mapTo(y, l.yLo, l.yHi, l.area.y + l.area.height, l.area.y)))
 
+proc nearestPoint*(series: openArray[Series], l: PlotLayout,
+                   x, y: float32): tuple[series, index: int] =
+  ## The data point closest to (x, y) on screen, going by x first -- a
+  ## pointer over a line chart means "the value here" -- then by distance.
+  ## (-1, -1) when there is no data.
+  result = (-1, -1)
+  var best = Inf.float32
+  for i, s in series:
+    for j, p in s.points:
+      let px = l.toPixel(p.x, p.y)
+      let d = abs(px.x - x) * 4 + abs(px.y - y)
+      if d < best:
+        best = d
+        result = (i, j)
+
+template plotFrame*(widget: untyped): tuple[area: Rect, l: PlotLayout, tickStyle: TextStyle,
+                                         titleStyle: TextStyle, lineH, legendH: float32] =
+  ## The plot area inside the margins (tick labels, title, legend), and the
+  ## scales over it. Painting and hover both use this, so a hover lands on
+  ## what was drawn.
+  block:
+    let props = widget.themeProps(widget.intent)
+    let ink = props.foregroundColor.get(BLACK)
+    var tickStyle = props.captionStyle(ink)
+    tickStyle.fontSize = max(10.0'f32, tickStyle.fontSize - 2)   # a little under the text size
+    let titleStyle = props.captionStyle(ink, props.fontSize.get(14.0), action = true)
+    let probe = layoutPlot(widget.series, widget.bounds, widget.includeZero,
+                           widget.yMin, widget.yMax)
+    var widest = 0.0'f32
+    for t in ticksFor(probe.yLo, probe.yHi, probe.yStep):
+      widest = max(widest, measureText(formatTick(t, probe.yStep), tickStyle).width)
+    let lineH = measureText("Ag", tickStyle).height
+    let titleH = if widget.title.len > 0: measureText(widget.title, titleStyle).height + 6 else: 0.0'f32
+    let legendH = if widget.showLegend and widget.series.len > 1: lineH + 8 else: 0.0'f32
+    let area = Rect(x: widget.bounds.x + widest + 12,
+                    y: widget.bounds.y + titleH + 8,
+                    width: max(1.0'f32, widget.bounds.width - widest - 24),
+                    height: max(1.0'f32, widget.bounds.height - titleH - lineH - legendH - 20))
+    (area, layoutPlot(widget.series, area, widget.includeZero, widget.yMin, widget.yMax),
+     tickStyle, titleStyle, lineH, legendH)
+
 definePrimitive(Plot):
   props:
     series: seq[Series] = @[]
@@ -116,7 +157,29 @@ definePrimitive(Plot):
     includeZero: bool = true          # bars and areas start at zero
     yMin: float = NaN                 # NaN: from the data
     yMax: float = NaN
+    showReadout: bool = true          # the value under the pointer
     intent: ThemeIntent = Default
+
+  state:
+    hoverSeries: int                  # the point under the pointer; -1: none
+    hoverIndex: int
+
+  init:
+    widget.hoverSeries = -1
+
+  events:
+    on_mouse_move:
+      if not widget.showReadout:
+        return false
+      let f = widget.plotFrame
+      let inside = f.area.contains(event.mousePos.x, event.mousePos.y)
+      let hit = if inside: nearestPoint(widget.series, f.l, event.mousePos.x, event.mousePos.y)
+                else: (-1, -1)
+      if hit.series != widget.hoverSeries or hit.index != widget.hoverIndex:
+        widget.hoverSeries = hit.series
+        widget.hoverIndex = hit.index
+        widget.isDirty = true
+      return false
 
   layout:
     if widget.bounds.width <= 0:
@@ -128,25 +191,16 @@ definePrimitive(Plot):
     let props = widget.themeProps(widget.intent)
     let ink = props.foregroundColor.get(BLACK)
     let faint = ink.withAlpha(0.18)
-    var tickStyle = props.captionStyle(ink)
-    tickStyle.fontSize = max(10.0'f32, tickStyle.fontSize - 2)     # a little under the text size
-    let titleStyle = props.captionStyle(ink, props.fontSize.get(14.0), action = true)
+    let frame = widget.plotFrame
+    let tickStyle = frame.tickStyle
+    let titleStyle = frame.titleStyle
     let line = max(2.0'f32, props.strokeWidth)
 
     # Margins: room for the y tick labels, the x ones, a title and a legend.
-    let layoutProbe = layoutPlot(widget.series, widget.bounds, widget.includeZero,
-                                 widget.yMin, widget.yMax)
-    var widest = 0.0'f32
-    for t in ticksFor(layoutProbe.yLo, layoutProbe.yHi, layoutProbe.yStep):
-      widest = max(widest, measureText(formatTick(t, layoutProbe.yStep), tickStyle).width)
-    let lineH = measureText("Ag", tickStyle).height
-    let titleH = if widget.title.len > 0: measureText(widget.title, titleStyle).height + 6 else: 0.0'f32
-    let legendH = if widget.showLegend and widget.series.len > 1: lineH + 8 else: 0.0'f32
-    let area = Rect(x: widget.bounds.x + widest + 12,
-                    y: widget.bounds.y + titleH + 8,
-                    width: max(1.0'f32, widget.bounds.width - widest - 24),
-                    height: max(1.0'f32, widget.bounds.height - titleH - lineH - legendH - 20))
-    let l = layoutPlot(widget.series, area, widget.includeZero, widget.yMin, widget.yMax)
+    let area = frame.area
+    let l = frame.l
+    let lineH = frame.lineH
+    let legendH = frame.legendH
 
     if widget.title.len > 0:
       drawStyledText(widget.title, widget.bounds.x + 8, widget.bounds.y + 4, titleStyle)
@@ -228,3 +282,29 @@ definePrimitive(Plot):
         x += lineH
         drawStyledText(s.name, x, y, tickStyle)
         x += measureText(s.name, tickStyle).width + 14
+
+    # The value under the pointer: a crosshair at the point, a dot on it,
+    # and a label with the series and both values, kept inside the plot.
+    if widget.showReadout and widget.hovered and widget.hoverSeries >= 0 and
+       widget.hoverSeries < widget.series.len and
+       widget.hoverIndex < widget.series[widget.hoverSeries].points.len:
+      let s = widget.series[widget.hoverSeries]
+      let p = s.points[widget.hoverIndex]
+      let px = l.toPixel(p.x, p.y)
+      let color = seriesColor(widget.series, widget.hoverSeries)
+      drawLine(px.x, area.y, px.x, area.y + area.height, ink.withAlpha(0.35))
+      drawCircle(Vector2(x: px.x, y: px.y), max(4.5'f32, line * 2) + 1.5, color)
+      let xText = if widget.xLabels.len > 0 and p.x >= 0 and int(p.x) < widget.xLabels.len and
+                     float(int(p.x)) == p.x: widget.xLabels[int(p.x)]
+                  elif p.x == round(p.x): formatTick(p.x, 1.0)     # whole numbers stay whole
+                  else: formatTick(p.x, l.xStep / 10)
+      let label = (if s.name.len > 0: s.name & ": " else: "") & xText & ", " &
+                  formatTick(p.y, l.yStep / 10)
+      let size = measureText(label, tickStyle)
+      var bx = px.x + 10
+      var by = px.y - size.height - 12
+      if bx + size.width + 12 > area.x + area.width: bx = px.x - size.width - 22
+      if by < area.y: by = px.y + 10
+      let box = Rect(x: bx, y: by, width: size.width + 12, height: size.height + 6)
+      drawBox(box, 4, props.backgroundColor.get(WHITE), color, max(1.0'f32, props.strokeWidth))
+      drawStyledText(label, box.x + 6, box.y + 3, tickStyle)

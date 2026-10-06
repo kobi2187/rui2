@@ -1,6 +1,7 @@
 ## Kanban board arithmetic: hit-testing, drop targets and moves.
 
-import std/[unittest, options]
+import std/[unittest, options, monotimes]
+from raylib import KeyboardKey
 import rui
 
 proc board(): seq[KanbanColumn] =
@@ -152,3 +153,54 @@ suite "the widget: dragging cards":
   test "a press on empty space is not ours":
     let b = setup()
     check not b.press(evMouseDown, 650, 380)
+
+suite "kanban from the keyboard":
+  proc keyBoard(): KanbanBoard =
+    result = newKanbanBoard(columns = @[
+      column("Todo", card("a", "A"), card("b", "B"), card("c", "C")),
+      column("Doing", card("d", "D")),
+      column("Done")])
+    result.bounds = Rect(x: 0, y: 0, width: 700, height: 400)
+    result.layout()
+    result.focused = true
+
+  proc key(w: Widget, k: KeyboardKey): bool =
+    w.handleInput(GuiEvent(kind: evKeyDown, key: k, timestamp: getMonoTime()))
+
+  proc ids(b: KanbanBoard, c: int): seq[string] =
+    for card in b.columns[c].cards: result.add card.id
+
+  test "arrows move between cards and columns; Enter opens a card":
+    let b = keyBoard()
+    var opened: seq[string]
+    b.onCardClick = proc(id: string) = opened.add id
+    discard b.key(KeyboardKey.Down)
+    discard b.key(KeyboardKey.Down)
+    check b.focus == (0, 2)
+    discard b.key(KeyboardKey.Right)
+    check b.focus == (1, 0)                              # Doing has one card
+    discard b.key(KeyboardKey.Enter)
+    check opened == @["d"]
+
+  test "Space picks a card up, the arrows carry it, Space drops it":
+    let b = keyBoard()
+    var moves: seq[(string, int, int, int)]
+    b.onMove = proc(id: string, f, t, i: int) = moves.add (id, f, t, i)
+    discard b.key(KeyboardKey.Space)                     # pick up A
+    discard b.key(KeyboardKey.Down)                      # below B
+    check b.ids(0) == @["b", "a", "c"]
+    discard b.key(KeyboardKey.Right)                     # into Doing, same row
+    check b.ids(1) == @["d", "a"]
+    discard b.key(KeyboardKey.Space)
+    check not b.carrying
+    check moves == @[("a", 0, 1, 1)]
+
+  test "Escape puts a carried card back":
+    let b = keyBoard()
+    discard b.key(KeyboardKey.Space)
+    discard b.key(KeyboardKey.Right)
+    discard b.key(KeyboardKey.Right)
+    check b.ids(2) == @["a"]
+    discard b.key(KeyboardKey.Escape)
+    check b.ids(0) == @["a", "b", "c"] and b.ids(2).len == 0
+    check b.focus == (0, 0)

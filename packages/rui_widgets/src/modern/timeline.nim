@@ -30,6 +30,48 @@ template axisOf*(widget: untyped): TimelineAxis =
     eventSpacing: widget.eventSpacing
   )
 
+template maxScrollOf(widget: untyped): float32 =
+  ## How far the view can pan: the whole range less what fits.
+  block:
+    let seconds = float32((widget.endTime - widget.startTime).inSeconds)
+    let width = seconds * widget.pixelsPerUnit / float32(secondsPerUnit(widget.scale))
+    max(0.0'f32, width - widget.bounds.width)
+
+template panTo(widget: untyped, offset: float32) =
+  ## Pan within the range, telling whoever listens.
+  block:
+    let limit = widget.maxScrollOf
+    let o = clamp(float32(offset), 0.0'f32, limit)
+    if o != widget.scrollOffset:
+      widget.scrollOffset = o
+      widget.isDirty = true
+      if widget.onScroll != nil:
+        widget.onScroll(o)
+
+template zoomAt(widget: untyped, factor: float32, atX: float32) =
+  ## Scale the time axis by `factor`, keeping the instant under `atX` where
+  ## it is on screen.
+  block:
+    let anchor = atX - widget.bounds.x + widget.scrollOffset   # content x
+    let next = clamp(widget.pixelsPerUnit * factor, 4.0'f32, 4000.0'f32)
+    let real = next / widget.pixelsPerUnit
+    widget.pixelsPerUnit = next
+    widget.panTo(anchor * real - (atX - widget.bounds.x))
+    widget.isDirty = true
+
+template showEvent(widget: untyped, index: int) =
+  ## Select event `index` and pan so it is in view.
+  block:
+    let evt = widget.events[index]
+    widget.selectedEvent = evt.id
+    let r = axisOf(widget).eventRectFor(index, evt)
+    if r.x < widget.bounds.x:
+      widget.panTo(widget.scrollOffset - (widget.bounds.x - r.x) - 16)
+    elif r.x + min(r.width, widget.bounds.width / 2) > widget.bounds.x + widget.bounds.width:
+      widget.panTo(widget.scrollOffset + (r.x + min(r.width, widget.bounds.width / 2)) -
+                   (widget.bounds.x + widget.bounds.width) + 16)
+    widget.isDirty = true
+
 definePrimitive(Timeline):
   props:
     events: seq[TimelineEvent] = @[]
@@ -75,12 +117,7 @@ definePrimitive(Timeline):
 
     on_mouse_move:
       if widget.isDragging:
-        let newOffset = max(0.0'f32, widget.dragStartX - event.mousePos.x)
-        if newOffset != widget.scrollOffset:
-          widget.scrollOffset = newOffset
-          widget.isDirty = true
-          if widget.onScroll != nil:
-            widget.onScroll(newOffset)
+        widget.panTo(widget.dragStartX - event.mousePos.x)
         return true
 
       let axis = axisOf(widget)
@@ -101,12 +138,43 @@ definePrimitive(Timeline):
       return false
 
     on_mouse_wheel:
-      let newOffset = max(0.0'f32, widget.scrollOffset - event.wheelDelta * 40.0)
-      if newOffset != widget.scrollOffset:
-        widget.scrollOffset = newOffset
-        widget.isDirty = true
-        if widget.onScroll != nil:
-          widget.onScroll(newOffset)
+      # The wheel pans; with Ctrl it zooms about the pointer. At the ends of
+      # the range a plain wheel is left to an enclosing scroll view.
+      if event.ctrl:
+        widget.zoomAt(if event.wheelDelta > 0: 1.25'f32 else: 0.8'f32, event.mousePos.x)
+        return true
+      let before = widget.scrollOffset
+      widget.panTo(widget.scrollOffset - event.wheelDelta * 40.0)
+      return widget.scrollOffset != before
+
+    on_key_down:
+      # Left/Right pan, Home/End to the ends of the range, +/- zoom about
+      # the middle; Up/Down select the previous/next event and bring it into
+      # view; Enter opens the selected one.
+      if not widget.focused:
+        return false
+      let middle = widget.bounds.x + widget.bounds.width / 2
+      var at = -1
+      for i, evt in widget.events:
+        if evt.id == widget.selectedEvent: at = i
+      case event.key
+      of KeyboardKey.Left: widget.panTo(widget.scrollOffset - widget.pixelsPerUnit)
+      of KeyboardKey.Right: widget.panTo(widget.scrollOffset + widget.pixelsPerUnit)
+      of KeyboardKey.Home: widget.panTo(0.0'f32)
+      of KeyboardKey.End: widget.panTo(widget.maxScrollOf)
+      of KeyboardKey.Equal, KeyboardKey.KpAdd: widget.zoomAt(1.25, middle)
+      of KeyboardKey.Minus, KeyboardKey.KpSubtract: widget.zoomAt(0.8, middle)
+      of KeyboardKey.Down, KeyboardKey.Up:
+        if widget.events.len == 0: return false
+        let next = if at < 0: 0
+                   elif event.key == KeyboardKey.Down: min(widget.events.high, at + 1)
+                   else: max(0, at - 1)
+        widget.showEvent(next)
+      of KeyboardKey.Enter, KeyboardKey.KpEnter:
+        if at >= 0 and widget.onEventClick != nil:
+          widget.onEventClick(widget.events[at])
+      else:
+        return false
       return true
 
   layout:

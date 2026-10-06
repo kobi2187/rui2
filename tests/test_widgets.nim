@@ -230,10 +230,10 @@ suite "the DSL init section":
     check bar.activeMenuIndex == -1
     check bar.hoverIndex == -1
 
-  test "MenuBar sorts its dropdowns on top":
-    # Dropdowns must paint over whatever follows them in the child list.
-    let bar = newMenuBar()
-    check bar.hasOverlay
+  test "Menu dropdowns float above everything":
+    # On the overlay layer rather than inside the bar's texture, so they
+    # paint over whatever follows the bar without the bar making room.
+    check newMenu(title = "File").floating
 
   test "init runs after the initialX props have seeded state":
     # Ordering matters: init is where a widget corrects or extends what the

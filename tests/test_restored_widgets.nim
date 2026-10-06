@@ -31,16 +31,19 @@ template checkScriptable(w: Widget, expectedType: string) =
 
 suite "restored basic widgets":
 
-  test "ComboBox seeds selection and grows when open":
+  test "ComboBox seeds selection; its open list floats below it":
     let w = newComboBox(items = @["one", "two", "three"], initialSelectedIndex = 1)
     check w.selectedIndex == 1
     w.checkSizes()
     let closedHeight = w.bounds.height
-    # Opening the list is a layout change, not just a repaint: the dropdown is
-    # drawn inside this widget's render texture, which is sized to its bounds.
+    # The list is on the overlay layer: the box keeps its size, and the list
+    # hangs below it, one row per item.
     w.isOpen = true
     w.layout()
-    check w.bounds.height > closedHeight
+    check w.bounds.height == closedHeight
+    check w.list.floating
+    check w.list.bounds.y == w.bounds.y + closedHeight
+    check w.list.bounds.height == 3 * w.itemHeight
     w.checkScriptable("ComboBox")
 
   test "ComboBox sizes to its widest item":
@@ -265,7 +268,8 @@ suite "restored input and menus":
     check w.bounds.height == 0
     w.checkScriptable("Menu")
 
-  test "MenuBar grows to cover the open dropdown":
+  test "an open dropdown floats on the overlay layer; the bar does not grow":
+    clearOverlays()
     let bar = newMenuBar(barHeight = 28.0)
     let fileMenu = newMenu(title = "File")
     fileMenu.addChild(newMenuItem(text = "Open"))
@@ -273,13 +277,20 @@ suite "restored input and menus":
     bar.addChild(fileMenu)
     bar.layout()
     check bar.bounds.height == 28.0
+    check fileMenu.floating
 
-    # A dropdown is a child, and renderPass composites children into the
-    # parent's bounds-sized texture, so the bar has to make room for it.
+    # Opening it moves nothing below the bar: the dropdown is drawn and
+    # hit-tested on the overlay layer, under the title it hangs from.
     fileMenu.open()
     bar.activeMenuIndex = 0
     bar.layout()
-    check bar.bounds.height > 28.0
+    check bar.bounds.height == 28.0
+    check fileMenu in overlays()
+    let item = fileMenu.children[0]
+    check overlayAt(item.bounds.x + 4, item.bounds.y + 4) == item
+    fileMenu.close()
+    check fileMenu notin overlays()
+    check overlayAt(item.bounds.x + 4, item.bounds.y + 4) == nil
     bar.checkScriptable("MenuBar")
 
   test "ContextMenu positions itself where it is opened":
@@ -725,3 +736,48 @@ suite "tables from the keyboard":
     discard g.key(KeyboardKey.Down)
     discard g.key(KeyboardKey.Down)
     check g.selected == [2].toHashSet
+
+suite "timeline: panning, zooming, the keyboard":
+  let t0 = dateTime(2026, mJan, 1, 0, 0, 0, zone = utc())
+  proc timeline(): Timeline =
+    let evts = @[
+      TimelineEvent(id: "early", title: "Early", startTime: t0 + 1.hours),
+      TimelineEvent(id: "late", title: "Late", startTime: t0 + 20.hours)]
+    result = newTimeline(events = evts, startTime = t0, endTime = t0 + 24.hours,
+                         scale = tsHour, pixelsPerUnit = 60)
+    result.bounds = Rect(x: 0, y: 0, width: 600, height: 200)
+    result.layout()
+    result.focused = true
+
+  proc send(w: Widget, e: GuiEvent): bool =
+    var e = e
+    e.timestamp = getMonoTime()
+    w.handleInput(e)
+
+  test "it pans only within its range":
+    let t = timeline()
+    check t.send(GuiEvent(kind: evKeyDown, key: KeyboardKey.End))
+    check t.scrollOffset == float32(24 * 60 - 600)
+    check not t.send(GuiEvent(kind: evMouseWheel, wheelDelta: -5))   # already at the end
+    check t.scrollOffset == float32(24 * 60 - 600)
+
+  test "Ctrl+wheel zooms about the pointer, keeping that instant still":
+    let t = timeline()
+    let x = 300.0'f32
+    let before = axisOf(t).pixelToTime(x)
+    check t.send(GuiEvent(kind: evMouseWheel, wheelDelta: 1, mods: {kmCtrl},
+                          mousePos: Point(x: x, y: 50)))
+    check t.pixelsPerUnit == 75
+    check abs((axisOf(t).pixelToTime(x) - before).inSeconds) <= 60
+
+  test "Down selects the next event and brings it into view; Enter opens it":
+    let t = timeline()
+    var opened = ""
+    t.onEventClick = proc(e: TimelineEvent) = opened = e.id
+    discard t.send(GuiEvent(kind: evKeyDown, key: KeyboardKey.Down))
+    discard t.send(GuiEvent(kind: evKeyDown, key: KeyboardKey.Down))
+    check t.selectedEvent == "late"
+    let r = axisOf(t).eventRectFor(1, t.events[1])
+    check r.x >= t.bounds.x and r.x < t.bounds.x + t.bounds.width
+    discard t.send(GuiEvent(kind: evKeyDown, key: KeyboardKey.Enter))
+    check opened == "late"

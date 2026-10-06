@@ -31,6 +31,9 @@ defineWidget(ContextMenu):
     onOpen(x: float32, y: float32)
     onClose()
 
+  init:
+    widget.floating = true       # drawn above everything, on the overlay layer
+
   events:
     on_key_down:
       # Open, it has the keyboard: Up/Down, Enter, a letter; Escape closes.
@@ -98,6 +101,7 @@ proc openAt*(widget: ContextMenu, x, y: float32) =
   widget.current = -1
   highlightItem(widget.children, -1)
   openPopup(widget, scope = widget, close = proc() = widget.close(), takeFocus = true)
+  showOverlay(widget, interactive = true)
   widget.isDirty = true
   widget.layoutDirty = true
   if widget.onOpen != nil:
@@ -111,6 +115,7 @@ proc close*(widget: ContextMenu) =
   widget.focusable = false
   highlightItem(widget.children, -1)
   closedPopup(widget)
+  hideOverlay(widget)
   widget.isDirty = true
   widget.layoutDirty = true
   if widget.onClose != nil:

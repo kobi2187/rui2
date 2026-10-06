@@ -19,12 +19,17 @@ import types
 
 var
   layer: seq[Widget]
+  interactive: seq[Widget]   # the overlays a pointer can land on
   layerVersion = 0
   pointerOver: Widget
   pointerAt: Point
 
-proc showOverlay*(widget: Widget) =
-  ## Put `widget` on the overlay layer, above everything already there.
+proc showOverlay*(widget: Widget, interactive = false) =
+  ## Put `widget` on the overlay layer, above everything already there. An
+  ## interactive overlay (a menu, a dropdown) takes the pointer before the
+  ## tree under it does; others (focus rings, toasts) are only seen.
+  if interactive and widget notin overlays.interactive:
+    overlays.interactive.add widget
   if widget notin layer:
     layer.add widget
     widget.layoutDirty = true
@@ -36,6 +41,9 @@ proc hideOverlay*(widget: Widget) =
   if i >= 0:
     layer.delete(i)
     inc layerVersion
+  let k = interactive.find(widget)
+  if k >= 0:
+    interactive.delete(k)
 
 proc overlays*(): seq[Widget] = layer
 
@@ -46,6 +54,7 @@ proc overlayVersion*(): int =
 
 proc clearOverlays*() =
   layer.setLen(0)
+  interactive.setLen(0)
   inc layerVersion
 
 proc setPointer*(over: Widget, at: Point) =
@@ -71,3 +80,23 @@ proc isWithin*(widget, scope: Widget): bool =
 proc containsPointer*(widget: Widget): bool =
   ## Whether the pointer is over this widget or anything inside it.
   pointerOver != nil and pointerOver.isWithin(widget)
+
+proc deepestAt(widget: Widget, x, y: float32): Widget =
+  ## The innermost visible widget under (x, y) in `widget`'s subtree, later
+  ## children over earlier ones; nil when (x, y) is outside it.
+  if not widget.visible or not widget.bounds.contains(x, y):
+    return nil
+  for i in countdown(widget.children.high, 0):
+    let hit = deepestAt(widget.children[i], x, y)
+    if hit != nil:
+      return hit
+  widget
+
+proc overlayAt*(x, y: float32): Widget =
+  ## What the pointer lands on in the interactive overlays, topmost first;
+  ## nil when it lands on none of them.
+  for i in countdown(layer.high, 0):
+    if layer[i] in interactive:
+      let hit = deepestAt(layer[i], x, y)
+      if hit != nil:
+        return hit

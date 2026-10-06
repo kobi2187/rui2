@@ -24,6 +24,52 @@ proc themedFieldHeight*(): float32 =
 template closedHeight*(w: untyped): float32 =
   (if w.boxHeight > 0: w.boxHeight else: themedFieldHeight())
 
+# The open list. It floats on the overlay layer, so opening it moves
+# nothing on the page and it can hang below the box over whatever follows.
+# What it shows comes from its ComboBox (`source`); what happens in it goes
+# back there (`onPick`, `onHover`).
+type ComboSource* = proc(): tuple[items: seq[string], selected, hover: int] {.closure.}
+  ## What an open ComboList shows, asked of its ComboBox when it paints.
+
+definePrimitive(ComboList):
+  props:
+    itemHeight: float32 = 24.0
+    intent: ThemeIntent = Default
+
+  state:
+    source: ComboSource
+    fieldProps: ThemeProps
+
+  actions:
+    onPick(index: int)
+    onHover(index: int)
+
+  init:
+    widget.floating = true
+
+  events:
+    on_mouse_move:
+      let i = int((event.mousePos.y - widget.bounds.y) / widget.itemHeight)
+      if widget.onHover != nil: widget.onHover(i)
+      widget.isDirty = true
+      return true
+
+    on_mouse_down:
+      let i = int((event.mousePos.y - widget.bounds.y) / widget.itemHeight)
+      if widget.onPick != nil: widget.onPick(i)
+      return true
+
+  render:
+    if widget.source == nil: return
+    let s = widget.source()
+    let props = widget.fieldProps
+    drawThemedBackground(widget.bounds, props)
+    for i, item in s.items:
+      drawListItem(Rect(x: widget.bounds.x, y: widget.bounds.y + float32(i) * widget.itemHeight,
+                        width: widget.bounds.width, height: widget.itemHeight),
+                   item, props, selected = i == s.selected, hovered = i == s.hover)
+    drawThemedBorder(widget.bounds, props)
+
 proc letterMatch(items: openArray[string], event: GuiEvent, after: int): int =
   ## The next item after `after` that starts with the letter or digit
   ## pressed (ignoring case), wrapping round; -1 when none does.
@@ -49,23 +95,26 @@ template pick(widget: untyped, index: int) =
     widget.isDirty = true
 
 template setOpen(widget: untyped, open: bool) =
-  ## Show or hide the list. Open, it is a popup: a click anywhere else
-  ## closes it. The list is drawn inside this widget's render texture, so a
-  ## change of size has to re-run layout or it gets clipped away.
+  ## Show or hide the list. Open, it floats on the overlay layer and is a
+  ## popup: a click anywhere else closes it.
   block:
     let w = widget
-    if w.isOpen != open:
-      w.isOpen = open
+    let wanted = open                # evaluated once: it may read isOpen
+    if w.isOpen != wanted:
+      w.isOpen = wanted
       w.isDirty = true
       w.layoutDirty = true
-      if open:
+      if wanted:
         w.hoverIndex = w.selectedIndex
         openPopup(w, scope = w, close = proc() =
           w.isOpen = false
+          hideOverlay(w.list)
           w.isDirty = true
           w.layoutDirty = true)
+        showOverlay(w.list, interactive = true)
       else:
         closedPopup(w)
+        hideOverlay(w.list)
 
 definePrimitive(ComboBox):
   props:
@@ -84,40 +133,36 @@ definePrimitive(ComboBox):
     selectedIndex: int
     isOpen: bool
     hoverIndex: int
+    list: ComboList              # the open list, floating below the box
 
   actions:
     onSelect(index: int)
 
   init:
     widget.focusable = true
+    let box = widget
+    widget.list = newComboList(itemHeight = widget.itemHeight, intent = widget.intent)
+    widget.list.source = proc(): tuple[items: seq[string], selected, hover: int] =
+      (box.items, box.selectedIndex, box.hoverIndex)
+    widget.list.onPick = proc(i: int) =
+      if i >= 0 and i < box.items.len:
+        box.setOpen(false)
+        box.pick(i)
+    widget.list.onHover = proc(i: int) =
+      let h = if i >= 0 and i < box.items.len: i else: -1
+      if h != box.hoverIndex:
+        box.hoverIndex = h
+        box.isDirty = true
+    widget.addChild widget.list
 
   events:
     on_mouse_down:
       if widget.disabled:
         return false
 
-      # A click inside the expanded list picks an item; anywhere else toggles.
-      if widget.isOpen and event.mousePos.y > widget.bounds.y + widget.closedHeight:
-        let offset = event.mousePos.y - (widget.bounds.y + widget.closedHeight)
-        let idx = int(offset / widget.itemHeight)
-        if idx >= 0 and idx < widget.items.len:
-          widget.setOpen(false)
-          widget.pick(idx)
-          return true
-
+      # The box toggles the list; picks in the list arrive from the list.
       widget.setOpen(not widget.isOpen)
       return true
-
-    on_mouse_move:
-      if not widget.isOpen or widget.disabled:
-        return false
-      let offset = event.mousePos.y - (widget.bounds.y + widget.closedHeight)
-      let idx = if offset < 0: -1 else: int(offset / widget.itemHeight)
-      let newHover = if idx >= 0 and idx < widget.items.len: idx else: -1
-      if newHover != widget.hoverIndex:
-        widget.hoverIndex = newHover
-        widget.isDirty = true
-      return false
 
     on_key_down:
       # Closed: Up/Down, Home/End and a letter change the choice at once;
@@ -164,16 +209,26 @@ definePrimitive(ComboBox):
   layout:
     let props = widget.themeProps(widget.intent, crText, disabled = widget.disabled)
     let style = props.captionStyle(BLACK)
-    # Height always covers the popup, so the render texture is big enough for it.
-    widget.bounds.height =
-      if widget.isOpen: widget.closedHeight + float32(widget.items.len) * widget.itemHeight
-      else: widget.closedHeight
+    # Just the box: the open list floats on the overlay layer.
+    widget.bounds.height = widget.closedHeight
     if widget.bounds.width <= 0:
       # Wide enough for the longest item, so opening the list never clips text.
       var widest = measureText(widget.placeholder, style).width
       for item in widget.items:
         widest = max(widest, measureText(item, style).width)
       widget.bounds.width = widest + props.fieldInset * 2 + 24.0   # + arrow gutter
+
+    # The list hangs below the box -- or above it, when the window has no
+    # room below.
+    let listH = float32(widget.items.len) * widget.itemHeight
+    var top = widget.bounds.y + widget.bounds.height
+    if renderView.isSome:
+      let view = renderView.get
+      if top + listH > view.y + view.height and widget.bounds.y - listH >= view.y:
+        top = widget.bounds.y - listH
+    widget.list.bounds = Rect(x: widget.bounds.x, y: top,
+                              width: widget.bounds.width, height: listH)
+    widget.list.itemHeight = widget.itemHeight
 
   render:
     let props = widget.themeProps(widget.intent, crText,
@@ -189,18 +244,11 @@ definePrimitive(ComboBox):
     drawComboBox(boxRect, text, props, widget.isOpen,
                  widget.hovered, widget.focused)
 
-    if widget.isOpen and widget.items.len > 0:
-      # The list overlays whatever is below, so it is drawn after the box.
-      for i, item in widget.items:
-        let itemRect = Rect(
-          x: widget.bounds.x,
-          y: widget.bounds.y + widget.closedHeight + float32(i) * widget.itemHeight,
-          width: widget.bounds.width,
-          height: widget.itemHeight
-        )
-        drawListItem(itemRect, item, props,
-                     selected = i == widget.selectedIndex,
-                     hovered = i == widget.hoverIndex)
+    if widget.isOpen:
+      # The list paints itself on the overlay layer, after the tree: tell
+      # it the field's look and that what it shows may have changed.
+      widget.list.fieldProps = widget.themeProps(widget.intent, crText)
+      widget.list.isDirty = true
 
     if widget.disabled:
       drawDisabledOverlay(boxRect)

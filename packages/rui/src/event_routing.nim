@@ -65,7 +65,10 @@ proc focusTargetFor*(widget: Widget): Widget =
   nil
 
 proc widgetAt(router: EventRouter, event: GuiEvent): Widget =
-  router.hitTest.getWidgetAt(event.mousePos.x, event.mousePos.y)
+  ## An open menu or dropdown sits above the tree, so it is asked first.
+  result = overlayAt(event.mousePos.x, event.mousePos.y)
+  if result == nil:
+    result = router.hitTest.getWidgetAt(event.mousePos.x, event.mousePos.y)
 
 proc updateHover(router: EventRouter, widget: Widget): bool =
   ## Move the hover to `widget`, repainting both sides of the transition.

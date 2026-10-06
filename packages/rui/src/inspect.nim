@@ -157,6 +157,7 @@ proc flagNames(widget: Widget): seq[string] =
     "focused": widget.focused,
     "tabstop": widget.focusable,
     "group": widget.focusGroup,
+    "floating": widget.floating,
   }
   for (name, isSet) in flags:
     if isSet:

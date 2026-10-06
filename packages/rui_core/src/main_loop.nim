@@ -322,7 +322,9 @@ proc renderChildrenFirst(widget: Widget, view: Option[Rect]): bool =
            width: c.width, height: c.height)))
 
   template visit(child: Widget) =
-    if childView.isSome and child.visible and
+    if child.floating:
+      discard                          # painted on the overlay layer
+    elif childView.isSome and child.visible and
        not overlapsView(child.bounds, childView.get()):
       child.culled = true
     else:
@@ -347,7 +349,8 @@ proc compositeChildren(widget: Widget, originalX, originalY: float32) =
   ## relative to this widget's top-left -- which is where bounds.x/y have been
   ## zeroed to for the duration.
   for child in widget.children:
-    if not child.visible or child.culled or child.cachedTexture.isNone:
+    if not child.visible or child.culled or child.floating or
+       child.cachedTexture.isNone:
       continue
     let dest = Rect(x: child.bounds.x - originalX,
                     y: child.bounds.y - originalY,
