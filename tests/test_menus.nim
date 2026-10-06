@@ -175,3 +175,34 @@ suite "combo box":
     check c.isOpen and anyPopupOpen()
     check dismissPopupsOutside(nil)
     check not c.isOpen
+
+suite "floating dropdowns move nothing":
+  test "an open combo box keeps its size, and a click on its list picks":
+    clearPopups()
+    clearOverlays()
+    let combo = newComboBox(items = @["Small", "Medium", "Large"])
+    let below = newButton(text = "below")
+    let col = newColumn(crossAxisAlignment = CrossAxisAlignment.stretch)
+    col.addChild combo
+    col.addChild below
+    let app = newApp(title = "combo", width = 300, height = 300)
+    let source = newListEventSource()
+    app.eventSource = source
+    app.setRootWidget(col)
+    app.stepHeadless()
+    let closed = combo.bounds
+    let belowY = below.bounds.y
+    proc click(x, y: float32) =
+      for kind in [evMouseDown, evMouseUp]:
+        source.push GuiEvent(kind: kind, mousePos: Point(x: x, y: y), timestamp: getMonoTime())
+      app.stepHeadless()
+    click(closed.x + 10, closed.y + 5)                 # open
+    check combo.isOpen
+    check combo.bounds == closed                       # the box did not grow
+    check below.bounds.y == belowY                     # and nothing moved
+    check combo.list in overlays()
+    let l = combo.list.bounds
+    check l.y >= closed.y + closed.height - 0.5        # hangs below the box
+    click(l.x + 10, l.y + combo.itemHeight * 1.5)      # "Medium", over the button
+    check combo.selectedIndex == 1
+    check not combo.isOpen and combo.list notin overlays()

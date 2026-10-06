@@ -27,6 +27,9 @@ defineWidget(Menu):
     onOpen()
     onClose()
 
+  init:
+    widget.floating = true       # drawn above everything, on the overlay layer
+
   layout:
     if not widget.isOpen:
       # Collapsed: no bounds, no visible children, nothing to hit-test.
@@ -73,6 +76,7 @@ proc open*(widget: Menu) =
   widget.isOpen = true
   widget.isDirty = true
   widget.layoutDirty = true
+  showOverlay(widget, interactive = true)
   if widget.onOpen != nil:
     widget.onOpen()
 
@@ -83,5 +87,6 @@ proc close*(widget: Menu) =
   widget.isOpen = false
   widget.isDirty = true
   widget.layoutDirty = true
+  hideOverlay(widget)
   if widget.onClose != nil:
     widget.onClose()

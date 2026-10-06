@@ -31,16 +31,19 @@ template checkScriptable(w: Widget, expectedType: string) =
 
 suite "restored basic widgets":
 
-  test "ComboBox seeds selection and grows when open":
+  test "ComboBox seeds selection; its open list floats below it":
     let w = newComboBox(items = @["one", "two", "three"], initialSelectedIndex = 1)
     check w.selectedIndex == 1
     w.checkSizes()
     let closedHeight = w.bounds.height
-    # Opening the list is a layout change, not just a repaint: the dropdown is
-    # drawn inside this widget's render texture, which is sized to its bounds.
+    # The list is on the overlay layer: the box keeps its size, and the list
+    # hangs below it, one row per item.
     w.isOpen = true
     w.layout()
-    check w.bounds.height > closedHeight
+    check w.bounds.height == closedHeight
+    check w.list.floating
+    check w.list.bounds.y == w.bounds.y + closedHeight
+    check w.list.bounds.height == 3 * w.itemHeight
     w.checkScriptable("ComboBox")
 
   test "ComboBox sizes to its widest item":
@@ -265,7 +268,8 @@ suite "restored input and menus":
     check w.bounds.height == 0
     w.checkScriptable("Menu")
 
-  test "MenuBar grows to cover the open dropdown":
+  test "an open dropdown floats on the overlay layer; the bar does not grow":
+    clearOverlays()
     let bar = newMenuBar(barHeight = 28.0)
     let fileMenu = newMenu(title = "File")
     fileMenu.addChild(newMenuItem(text = "Open"))
@@ -273,13 +277,20 @@ suite "restored input and menus":
     bar.addChild(fileMenu)
     bar.layout()
     check bar.bounds.height == 28.0
+    check fileMenu.floating
 
-    # A dropdown is a child, and renderPass composites children into the
-    # parent's bounds-sized texture, so the bar has to make room for it.
+    # Opening it moves nothing below the bar: the dropdown is drawn and
+    # hit-tested on the overlay layer, under the title it hangs from.
     fileMenu.open()
     bar.activeMenuIndex = 0
     bar.layout()
-    check bar.bounds.height > 28.0
+    check bar.bounds.height == 28.0
+    check fileMenu in overlays()
+    let item = fileMenu.children[0]
+    check overlayAt(item.bounds.x + 4, item.bounds.y + 4) == item
+    fileMenu.close()
+    check fileMenu notin overlays()
+    check overlayAt(item.bounds.x + 4, item.bounds.y + 4) == nil
     bar.checkScriptable("MenuBar")
 
   test "ContextMenu positions itself where it is opened":

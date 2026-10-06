@@ -229,6 +229,12 @@ type
     cursorShape*: CursorShape
       ## The pointer shape while hovering this widget. `csDefault` defers to
       ## the parent, so a composite sets it once for all its parts.
+    floating*: bool
+      ## Drawn and hit-tested on the overlay layer, above everything, rather
+      ## than inside its parent -- a dropdown, a menu, a context menu. It
+      ## keeps its parent (for focus, events bubbling up, and what counts as
+      ## inside it), but the parent neither paints it nor makes room for it,
+      ## so opening it moves nothing. Shown with `showOverlay`.
     culled*: bool
       ## Set by the render pass while the widget is wholly outside what is on
       ## screen: it is skipped, not painted, and keeps whatever dirt it has
