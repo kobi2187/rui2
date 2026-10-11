@@ -29,6 +29,7 @@ import raylib
 
 import tabular
 import tabular_render
+import ../input/textarea
 export datatable_helpers, tabular, tabular_render
 
 template filterHeightOf(w: untyped): float32 =
@@ -108,6 +109,46 @@ template selectRowAt*(widget: untyped, viewIdx: int): bool =
         widget.onSelect(widget.selected)
       true
 
+template applyTypedFilter(widget: untyped, colId: string, text: string) =
+  ## A filter box changed: set that column's filter (live, as typed). A line
+  ## that is not yet a filter (`>` with no number) leaves the old one.
+  block:
+    let parsed = parseFilter(colId, text)
+    if parsed.valid:
+      if parsed.filter.kind == fkNone:
+        widget.filters.del(colId)
+      else:
+        widget.filters[colId] = parsed.filter
+      widget.layoutDirty = true      # filtering happens in layout
+      widget.isDirty = true
+      if widget.onFilter != nil:
+        widget.onFilter(widget.filters)
+
+proc typedFilterHandler[W](table: W, colId: string): proc(t: string) {.closure.} =
+  ## What a filter box does on a change. A proc of its own so each box
+  ## holds its own column: a closure made inside the loop shared one.
+  result = proc(t: string) = table.applyTypedFilter(colId, t)
+
+template ensureEditors(widget: untyped) =
+  ## One TextInput per filterable column, children of the table so they take
+  ## clicks and keys like any other. Created once, then kept in step with
+  ## `filters` (so a filter set from code shows in its box).
+  block:
+    let table = widget
+    for col in table.columns:
+      if not col.filterable or col.id in table.editors:
+        continue
+      let box = newTextInput(placeholder = "Filter", fontSize = 12.0, padding = 3.0)
+      box.onChange = typedFilterHandler(table, col.id)
+      table.editors[col.id] = box
+      table.addChild box
+    for colId, box in table.editors:
+      let wanted = filterText(table.filters.getOrDefault(colId, Filter(column: colId)))
+      if not box.focused and box.text != wanted:
+        box.text = wanted
+        box.cursorPos = wanted.len
+        box.layoutDirty = true
+
 definePrimitive(DataTable):
   props:
     columns: seq[DataColumn] = @[]
@@ -134,6 +175,7 @@ definePrimitive(DataTable):
     visibleStart: int
     visibleEnd: int
     hoverRow: int                # Not `hovered`: Widget already has that (a bool)
+    editors: Table[string, TextInput]  # the filter box above each filterable column
 
   actions:
     onSort(column: string, order: SortOrder)
@@ -175,6 +217,7 @@ definePrimitive(DataTable):
       return widget.tableKeyDown(widget.filteredIndices, m.rows, event)
 
   layout:
+    widget.ensureEditors()
     # Filter, then sort, then cache. Doing this here rather than in render means
     # it runs when the data or the filters change, not once per frame.
     widget.filteredIndices.setLen(0)
@@ -199,6 +242,19 @@ definePrimitive(DataTable):
       widget.bounds.height = m.filterH + m.headerH +
                              float32(widget.visibleRows) * rowHeightOf(widget)
 
+    # The filter boxes sit in the strip above their columns.
+    let stripH = if widget.showFilter: filterHeightOf(widget) else: 0.0'f32
+    var cellX = widget.bounds.x
+    for col in widget.columns:
+      if col.id in widget.editors:
+        let box = widget.editors[col.id]
+        box.visible = widget.showFilter and col.filterable
+        if box.visible:
+          box.arrange(Rect(x: cellX + 2, y: widget.bounds.y + 2,
+                           width: max(0.0'f32, col.width - 4),
+                           height: max(0.0'f32, stripH - 4)))
+      cellX += col.width
+
   render:
     let props = currentTheme.getThemeProps(widget.intent, Normal)
     let headerProps = currentTheme.getThemeProps(widget.intent, Selected)
@@ -218,20 +274,7 @@ definePrimitive(DataTable):
     let fgColor = props.foregroundColor.get(DefaultInkColor)
     let clip = beginClip(widget.bounds)
 
-    # Filter strip: shows the active filter per column. Editing a filter from
-    # the UI is not wired up -- set `filters` from code.
-    if widget.showFilter:
-      var x = widget.bounds.x
-      for col in widget.columns:
-        let cellRect = Rect(x: x, y: widget.bounds.y,
-                            width: col.width, height: filterH)
-        if col.filterable:
-          let filter = widget.filters.getOrDefault(
-            col.id, Filter(column: col.id, kind: fkNone))
-          drawInteractiveBox(cellRect, props)
-          let label = getFilterKindLabel(filter.kind) & " " & getFilterValueText(filter)
-          drawText(label, x + 6.0, widget.bounds.y + 6.0, 10.0, fgColor)
-        x += col.width
+    # The filter strip is the filter boxes (children, composited over this).
 
     # Header row with sort indicators. DataTable tracks its sorted column by
     # id, so it resolves that to an index here; the shared drawing takes the
