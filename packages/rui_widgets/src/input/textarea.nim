@@ -901,3 +901,16 @@ proc newPasswordInput*(initialText = "", placeholder = "Password",
               fontSize = fontSize, maxLength = maxLength, padding = padding,
               disabled = disabled, intent = intent, multiline = false,
               maxLines = 1, secret = true, onChange = onChange, onSubmit = onSubmit)
+
+proc newSearchInput*(initialText = "", placeholder = "Search",
+                     fontSize: float32 = ThemeFontSize, maxLength = -1,
+                     padding: float32 = ThemePadding, disabled = false,
+                     intent = ThemeIntent.Default,
+                     onChange: proc(newText: string) = nil,
+                     onSubmit: proc(text: string) = nil): TextInput =
+  ## One line for a query: `onChange` fires on every edit (filter as you
+  ## type), `onSubmit` on Enter. yui's `search`.
+  newTextArea(initialText = initialText, placeholder = placeholder,
+              fontSize = fontSize, maxLength = maxLength, padding = padding,
+              disabled = disabled, intent = intent, multiline = false,
+              maxLines = 1, onChange = onChange, onSubmit = onSubmit)

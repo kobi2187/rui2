@@ -54,18 +54,17 @@ const elementMap*: seq[ElementMap] = @[
   em("group", "GroupBox", mapRename, "a border and a title around children"),
   em("frame", "GroupBox", mapRename, "alias of group"),
   em("box", "Container", mapRename, "plain container; decoration comes from props"),
-  em("stack", "", mapClash,
-     "yui shows ONE child at a time; rui2's Stack overlays them all",
-     fallback = ""),
-  em("card", "", mapGap, "a Container with elevation and padding", "Container"),
+  em("stack", "IndexedStack", mapClash,
+     "yui shows ONE child at a time; rui2's Stack overlays them all"),
+  em("card", "Card", mapSame),
   em("toolbar", "ToolBar", mapSame),
   em("statusbar", "StatusBar", mapSame),
   em("menubar", "MenuBar", mapSame),
   em("popup", "ContextMenu", mapRename),
   em("dialog", "", mapGap,
      "a modal holding arbitrary children; MessageBox only covers alert/confirm"),
-  em("drawer", "", mapGap, "a side panel that slides in over the content"),
-  em("expander", "", mapGap, "a header that shows and hides its child"),
+  em("drawer", "Drawer", mapSame, "in the flow, not over the content"),
+  em("expander", "Expander", mapSame),
   em("spacer", "Spacer", mapSame),
   em("divider", "Separator", mapRename),
   # -- basic widgets ---------------------------------------------------------
@@ -94,14 +93,14 @@ const elementMap*: seq[ElementMap] = @[
   em("time", "", mapGap, "a time picker"),
   em("color", "", mapGap, "a colour picker"),
   em("autocomplete", "", mapGap, "text input with suggestions", "ComboBox"),
-  em("search", "", mapGap, "text input with a clear button", "TextInput"),
+  em("search", "SearchInput", mapRename, "a TextInput; no clear button yet"),
   em("range", "", mapGap, "two-handled slider", "Slider"),
   # -- data display ----------------------------------------------------------
   em("table", "DataTable", mapClash,
      "rui2's Table/TableRow are a layout grid; the data widget is DataTable"),
   em("tree", "TreeView", mapRename),
   em("list", "ListView", mapRename, "`template:` rows are not supported yet"),
-  em("badge", "", mapGap, "a small count or status chip"),
+  em("badge", "Badge", mapSame),
 ]
 
 const ruiOnly*: seq[string] = @[
@@ -109,7 +108,7 @@ const ruiOnly*: seq[string] = @[
   ## needs an extension element (open question in docs/yui.md).
   "Plot", "Sparkline", "KanbanBoard", "Timeline", "MapWidget", "Rating",
   "SegmentedControl", "Toast", "DataGrid", "ListBox", "ComboList", "DragDropArea",
-  "Dock", "Docked", "FocusScope", "FocusRing", "HelpOverlay", "FileDialog",
+  "Dock", "Docked", "FocusRing", "HelpOverlay", "FileDialog",
   "MessageBox", "Menu", "MenuItem", "ToolButton", "IconButton", "Panel",
   "ScrollBar", "Circle", "Rectangle", "Spinner",
   # layout vocabulary that yui spells as properties (align, grow, padding...)

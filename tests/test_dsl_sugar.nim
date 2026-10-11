@@ -102,3 +102,65 @@ suite "binding arrows":
     first.value = "Bob"
     label.onRefresh()
     check label.text == "Hello, Bob (3)"
+
+suite "widgets yui asks for":
+
+  test "Card pads its child by the theme":
+    let card = ui:
+      Card(padding = 10):
+        Label(text = "x")
+    let inner = card.children[0].measure(unbounded())
+    check card.measure(unbounded()) ==
+          Size(width: inner.width + 20, height: inner.height + 20)
+
+  test "Badge is at least a circle":
+    let one = newBadge(text = "3")
+    let size = one.measure(unbounded())
+    check size.width >= size.height
+    check newBadge(text = "99+").measure(unbounded()).width > size.width
+
+  test "IndexedStack shows one child and is as big as the biggest":
+    let stack = ui:
+      IndexedStack(index = 1):
+        SizedBox(width = 30, height = 10)
+        SizedBox(width = 50, height = 40)
+    stack.bounds = Rect(x: 0, y: 0, width: 0, height: 0)
+    stack.layoutPass()
+    check stack.children[0].visible == false
+    check stack.children[1].visible
+    check stack.bounds.width == 50 and stack.bounds.height == 40
+    IndexedStack(stack).index = 0
+    stack.layoutDirty = true
+    stack.layoutPass()
+    check stack.children[0].visible and not stack.children[1].visible
+
+  test "Expander hides its content and takes no room when collapsed":
+    let open = ui:
+      Expander(title = "More"):
+        SizedBox(width = 80, height = 50)
+    let shut = ui:
+      Expander(title = "More", initialExpanded = false):
+        SizedBox(width = 80, height = 50)
+    let hOpen = open.measure(unbounded()).height
+    open.bounds = Rect(x: 0, y: 0, width: 0, height: 0)
+    open.layoutPass()
+    shut.bounds = Rect(x: 0, y: 0, width: 0, height: 0)
+    shut.layoutPass()
+    check shut.children[0].visible == false
+    check shut.bounds.height < open.bounds.height
+    check open.bounds.height - shut.bounds.height >= 50
+    discard hOpen
+
+  test "Drawer takes its width when open and none when closed":
+    let drawer = ui:
+      Drawer(width = 200, initialOpen = false):
+        Label(text = "Menu")
+    check drawer.measure(unbounded()).width == 0
+    Drawer(drawer).setOpen(true)
+    inc layoutPassNumber                    # a new frame
+    check drawer.measure(unbounded()).width == 200
+
+  test "SearchInput is a one-line TextInput":
+    let search = newSearchInput()
+    check search.placeholder == "Search"
+    check not search.multiline

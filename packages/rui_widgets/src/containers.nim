@@ -22,3 +22,15 @@ export tabcontrol
 
 import containers/toolbar
 export toolbar
+
+import containers/card
+export card
+
+import containers/expander
+export expander
+
+import containers/indexedstack
+export indexedstack
+
+import containers/drawer
+export drawer

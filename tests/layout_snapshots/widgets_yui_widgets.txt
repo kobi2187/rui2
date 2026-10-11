@@ -1,0 +1,30 @@
+Row - @0,0 760x460
+  Drawer - @0,0 180x460
+    Padding - @0,0 180x460
+      Column - @14,14 152x432
+        Label - @14,14 58x23
+        Row - @14,47 90x27
+          Label - @14,49 52x23
+          Badge - @74,47 30x27 clipped=30x27
+        Label - @14,84 42x23
+  Expanded - @180,0 580x460
+    Padding - @180,0 580x460
+      Column - @200,20 540x420
+        Label - @200,20 183x35
+        Row - @200,69 418x39
+          Button - @200,69 83x39 tabstop
+            Rectangle - @200,69 83x39
+            Label - @216,77 51x23
+          TextInput - @293,72 220x32 tabstop
+          Switch - @523,76 95x24 tabstop
+        TextInput - @200,122 220x32 tabstop
+        SegmentedControl - @200,168 127x41 tabstop
+        IndexedStack - @200,223 272x75
+          Card - @200,223 272x75
+            Column - @216,239 240x43
+              Label - @216,239 83x23
+              ProgressBar - @216,268 240x14
+          Label - @200,223 272x75 hidden
+        Expander - @200,312 115x24 tabstop
+          Padding - @0,0 177x31 hidden
+            Checkbox - @0,4 177x23 tabstop

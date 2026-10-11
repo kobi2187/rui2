@@ -67,3 +67,6 @@ export toolbutton
 
 import basic/tooltip
 export tooltip
+
+import basic/badge
+export badge
