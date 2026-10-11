@@ -49,7 +49,7 @@ treeView.onSelect = proc(nodeId: string) =
 root.addChild(treeView)
 
 # DataTable ----------------------------------------------------------------
-root.addChild(newLabel(text = "DataTable (click a header to sort):",
+root.addChild(newLabel(text = "DataTable (click a header to sort; type in a filter box: ann, =ann, ^an, $nn, >5, 5..10, a|b):",
                        fontSize = 14.0).named("t2"))
 var tableRows: seq[DataRow] = @[]
 for (name, role) in [("ada", "engineer"), ("grace", "admiral"),

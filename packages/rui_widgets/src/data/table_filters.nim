@@ -42,25 +42,30 @@ proc hasColumn*(row: DataRow, colId: string): bool =
   colId in row.values
 
 
+# The text filters work on a value as it reads -- a number by its digits --
+# because a filter typed into a search box has no idea what the column holds.
+# Containing is case-blind (what typing "ann" to find "Ann" means); the rest
+# are exact.
+
 proc matchesEquals*(value: JsonNode, target: string): bool =
   ## Check if value equals target string
-  isStringValue(value) and getStringValue(value) == target
+  getStringValue(value) == target
 
 proc matchesContains*(value: JsonNode, substring: string): bool =
-  ## Check if value contains substring
-  isStringValue(value) and substring in getStringValue(value)
+  ## Check if value contains substring, ignoring case
+  substring.toLowerAscii in getStringValue(value).toLowerAscii
 
 proc matchesStartsWith*(value: JsonNode, prefix: string): bool =
   ## Check if value starts with prefix
-  isStringValue(value) and getStringValue(value).startsWith(prefix)
+  getStringValue(value).startsWith(prefix)
 
 proc matchesEndsWith*(value: JsonNode, suffix: string): bool =
   ## Check if value ends with suffix
-  isStringValue(value) and getStringValue(value).endsWith(suffix)
+  getStringValue(value).endsWith(suffix)
 
 proc matchesIn*(value: JsonNode, values: seq[string]): bool =
   ## Check if value is in list
-  isStringValue(value) and getStringValue(value) in values
+  getStringValue(value) in values
 
 # ============================================================================
 # Filter Matching - Numeric Filters
@@ -162,3 +167,72 @@ proc getFilterValueText*(filter: Filter): string =
   of fkNone:
     ""
 
+# ============================================================================
+# Typing a filter
+#
+# One short line per column, the way a search box wants it:
+#
+#   (nothing)   no filter          5..10   between 5 and 10, ends included
+#   ann         contains "ann"     a|b|c   one of "a", "b", "c"
+#   =ann        is exactly "ann"   >5      greater than 5
+#   ^ann        starts with "ann"  <5      less than 5
+#   $ann        ends with "ann"
+#
+# `filterText` writes a filter the same way, so a filter set from code reads
+# back in the box, and what is typed round-trips.
+# ============================================================================
+
+proc parseFilter*(column, text: string): tuple[filter: Filter, valid: bool] =
+  ## The filter a typed line means. `valid` is false for a number the line
+  ## promises but does not have (`>abc`, `3..`); the caller keeps the filter
+  ## it had rather than applying half a thought.
+  let t = text.strip()
+  let none = Filter(column: column, kind: fkNone)
+  if t.len == 0:
+    return (none, true)
+  template number(src: string, v: var float): bool =
+    try:
+      v = parseFloat(src.strip())
+      true
+    except ValueError:
+      false
+  case t[0]
+  of '=': return (Filter(column: column, kind: fkEquals, text: t[1 .. ^1]), true)
+  of '^': return (Filter(column: column, kind: fkStartsWith, text: t[1 .. ^1]), true)
+  of '$': return (Filter(column: column, kind: fkEndsWith, text: t[1 .. ^1]), true)
+  of '>', '<':
+    var v: float
+    if not number(t[1 .. ^1], v):
+      return (none, false)
+    let f = if t[0] == '>': Filter(column: column, kind: fkGreater, value: v)
+            else: Filter(column: column, kind: fkLess, value: v)
+    return (f, true)
+  else:
+    discard
+  let dots = t.find("..")
+  if dots > 0:
+    var lo, hi: float
+    if not (number(t[0 ..< dots], lo) and number(t[dots + 2 .. ^1], hi)):
+      return (none, false)
+    return (Filter(column: column, kind: fkBetween, min: min(lo, hi), max: max(lo, hi)), true)
+  if '|' in t:
+    var values: seq[string]
+    for part in t.split('|'):
+      values.add part.strip()
+    return (Filter(column: column, kind: fkIn, values: values), true)
+  (Filter(column: column, kind: fkContains, text: t), true)
+
+proc filterText*(filter: Filter): string =
+  ## The line that means `filter` (see `parseFilter`).
+  proc num(v: float): string =
+    if v == float(int(v)): $int(v) else: $v
+  case filter.kind
+  of fkNone: ""
+  of fkEquals: "=" & filter.text
+  of fkContains: filter.text
+  of fkStartsWith: "^" & filter.text
+  of fkEndsWith: "$" & filter.text
+  of fkGreater: ">" & num(filter.value)
+  of fkLess: "<" & num(filter.value)
+  of fkBetween: num(filter.min) & ".." & num(filter.max)
+  of fkIn: filter.values.join("|")

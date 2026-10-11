@@ -4,5 +4,7 @@ VStack root @0,0 760x620
   TreeView tree @16,87 300x132 tabstop
   Label t2 @16,231 728x23
   DataTable table @16,266 360x164 tabstop
+    TextInput - @18,268 156x22 tabstop
+    TextInput - @178,268 196x22 tabstop
   Label t3 @16,442 728x23
   DataGrid grid @16,477 728x160 tabstop

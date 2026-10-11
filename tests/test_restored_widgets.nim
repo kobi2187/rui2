@@ -11,7 +11,7 @@
 
 import std/unittest
 import rui
-import std/[options, json, sets, tables, times, strutils, monotimes]
+import std/[options, json, sets, tables, times, strutils, monotimes, unicode]
 from raylib import KeyboardKey
 
 template checkSizes(w: Widget) =
@@ -781,3 +781,86 @@ suite "timeline: panning, zooming, the keyboard":
     check r.x >= t.bounds.x and r.x < t.bounds.x + t.bounds.width
     discard t.send(GuiEvent(kind: evKeyDown, key: KeyboardKey.Enter))
     check opened == "late"
+
+suite "typing a table filter":
+  test "each line means what the help says":
+    check parseFilter("c", "").filter.kind == fkNone
+    let contains = parseFilter("c", "ann").filter
+    check contains.kind == fkContains and contains.text == "ann" and contains.column == "c"
+    let equals = parseFilter("c", "=ann").filter
+    check equals.kind == fkEquals and equals.text == "ann"
+    check parseFilter("c", "^an").filter.kind == fkStartsWith
+    check parseFilter("c", "$nn").filter.kind == fkEndsWith
+    let greater = parseFilter("c", ">5").filter
+    check greater.kind == fkGreater and greater.value == 5.0
+    check parseFilter("c", "< 2.5").filter.value == 2.5
+    let between = parseFilter("c", "10..5").filter       # either order
+    check between.kind == fkBetween and between.min == 5.0 and between.max == 10.0
+    check parseFilter("c", "a|b | c").filter.values == @["a", "b", "c"]
+
+  test "half a thought is not a filter":
+    check not parseFilter("c", ">").valid
+    check not parseFilter("c", ">abc").valid
+    check not parseFilter("c", "3..").valid
+    check parseFilter("c", "  ").valid                  # blank clears
+
+  test "a filter reads back as the line that makes it":
+    for line in ["", "ann", "=ann", "^an", "$nn", ">5", "<2.5", "5..10", "a|b|c"]:
+      check filterText(parseFilter("c", line).filter) == line
+
+  test "text filters see numbers by their digits, and contains ignores case":
+    check matchesFilter(%1250, Filter(column: "c", kind: fkContains, text: "25"))
+    check matchesFilter(%"Annabel", Filter(column: "c", kind: fkContains, text: "NAB"))
+    check not matchesFilter(%"Annabel", Filter(column: "c", kind: fkStartsWith, text: "nab"))
+
+  proc peopleTable(): DataTable =
+    var rows: seq[DataRow] = @[]
+    for (name, age) in [("Ann", 31), ("Bob", 45), ("Annabel", 52), ("Cy", 28)]:
+      var values = initTable[string, JsonNode]()
+      values["name"] = %name
+      values["age"] = %age
+      rows.add DataRow(id: name, values: values)
+    result = newDataTable(columns = @[
+      DataColumn(id: "name", title: "Name", width: 140.0, filterable: true),
+      DataColumn(id: "age", title: "Age", width: 80.0, filterable: true)], data = rows)
+    result.bounds = Rect(x: 0, y: 0, width: 220, height: 220)
+    result.layout()
+    result.layout()
+
+  proc type(box: TextInput, text: string) =
+    box.focused = true
+    box.edit: buf.selectAll()
+    discard box.handleInput(GuiEvent(kind: evKeyDown, key: KeyboardKey.Delete,
+                                     timestamp: getMonoTime()))
+    for r in text.runes:
+      discard box.handleInput(GuiEvent(kind: evChar, rune: r, timestamp: getMonoTime()))
+
+  test "there is a box in the strip above each filterable column":
+    let t = peopleTable()
+    check t.editors.len == 2
+    check t.editors["name"].bounds.x < t.editors["age"].bounds.x
+    check t.editors["name"].bounds.y >= t.bounds.y and
+          t.editors["name"].bounds.y + t.editors["name"].bounds.height <= t.bounds.y + 26
+
+  test "typing in a box filters the rows live":
+    let t = peopleTable()
+    var told = 0
+    t.onFilter = proc(f: tables.Table[string, Filter]) = inc told
+    t.editors["name"].type("ann")
+    t.layout()
+    check t.filteredIndices == @[0, 2]                    # Ann and Annabel
+    t.editors["age"].type(">40")
+    t.layout()
+    check t.filteredIndices == @[2]                       # Annabel
+    check told > 0
+    t.editors["age"].type("")
+    t.layout()
+    check t.filteredIndices == @[0, 2]
+    check "age" notin t.filters
+
+  test "a filter set from code shows in its box":
+    let t = peopleTable()
+    t.filters["name"] = Filter(column: "name", kind: fkStartsWith, text: "C")
+    t.layout()
+    check t.editors["name"].text == "^C"
+    check t.filteredIndices == @[3]
