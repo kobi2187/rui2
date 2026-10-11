@@ -41,6 +41,7 @@ VStack - @0,0 760x740
     TableRow - @24,280 712x41
       Label - @24,289 54x23
       ComboBox - @90,280 646x41 tabstop
+        ComboList - @90,321 646x72 floating
   Separator - @24,337 712x1
   Row - @24,354 712x89
     VStack - @24,354 235x89
