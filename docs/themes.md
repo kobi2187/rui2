@@ -110,7 +110,8 @@ themeManager.register("mine", mine)
 beside this one (`name.yaml`, `.yml`, `.json`) -- and everything else in the
 file is laid over it, property by property. Chains work (`a` extends `b`
 extends `daylight`). A `brand:` section replaces `extends`, and `base` /
-`states` still override it.
+`states` still override it. Merging is per property: a child that sets only
+`hint: {background: ...}` or one `metrics` value keeps the rest of its parent's.
 
 Mistakes are errors, never silent defaults, and they name the file:
 

@@ -737,3 +737,71 @@ suite "theme: files are validated, inheritance is checked":
     check leaf.getThemeProps().cornerRadius.get == 1.0     # its own
     check leaf.getThemeProps().borderWidth.get == 5.0      # mid's
     check leaf.getThemeProps().backgroundColor.get == hex"#FFFFFF"   # daylight's
+
+
+suite "theme: inheritance":
+  ## A theme that `extends` another starts as a copy of it and changes only
+  ## what it says; the parent is never touched, and chains compose.
+
+  proc parentTheme(): Theme =
+    result = newTheme("parent")
+    result.base[Default] = ThemeProps(cornerRadius: some(9.0'f32),
+                                      borderWidth: some(2.0'f32))
+    result.states[Default][Hovered] =
+      ThemeProps(backgroundColor: some(Color(r: 1, g: 2, b: 3, a: 255)))
+    result.metrics.controlHeight = some(40.0'f32)
+    result.hint = HintStyle(borderWidth: some(5.0'f32), uppercase: some(false))
+    result.statePreference[crPointer] = spFocusFirst
+
+  proc registry(): proc(name: string): Theme =
+    result = proc(name: string): Theme =
+      case name
+      of "parent": parentTheme()
+      of "child":
+        parseTheme("""{"name": "child", "extends": "parent",
+                       "base": {"default": {"cornerRadius": 3}}}""",
+                   tffJson, proc(n: string): Theme = parentTheme())
+      else: raise newException(ValueError, "no theme " & name)
+
+  test "an extending theme keeps what it does not mention":
+    let find = registry()
+    let child = parseTheme("""{"name": "c", "extends": "parent",
+        "base": {"default": {"cornerRadius": 3}}}""", tffJson, find)
+    check child.base[Default].cornerRadius.get == 3.0     # overridden
+    check child.base[Default].borderWidth.get == 2.0      # inherited
+    check child.states[Default][Hovered].backgroundColor.get.b == 3
+    check child.controlHeight == 40.0
+    check child.statePreference[crPointer] == spFocusFirst
+
+  test "a state override replaces only the properties it names":
+    let child = parseTheme("""{"name": "c", "extends": "parent",
+        "states": {"default": {"hovered": {"borderColor": "#00ff00"}}}}""",
+        tffJson, registry())
+    check child.states[Default][Hovered].borderColor.get.g == 255
+    check child.states[Default][Hovered].backgroundColor.get.b == 3  # still the parent's
+
+  test "metrics and hint merge field by field":
+    let child = parseTheme("""{"name": "c", "extends": "parent",
+        "metrics": {"rowHeight": 30},
+        "hint": {"background": "#102030"}}""", tffJson, registry())
+    check child.metrics.rowHeight.get == 30.0
+    check child.metrics.controlHeight.get == 40.0             # parent's
+    check child.hint.background.get.b == 0x30
+    check child.hint.borderWidth.get == 5.0                   # parent's
+    check child.hint.uppercase.get == false                   # parent's
+
+  test "the parent is not changed by its child":
+    let find = registry()
+    let before = find("parent")
+    discard find("child")
+    let after = find("parent")
+    check after.base[Default].cornerRadius.get == before.base[Default].cornerRadius.get
+    check after.base[Default].cornerRadius.get == 9.0
+
+  test "three levels compose, the nearest ancestor winning":
+    let find = registry()
+    let grandchild = parseTheme("""{"name": "g", "extends": "child",
+        "base": {"default": {"padding": {"all": 7}}}}""", tffJson, find)
+    check grandchild.base[Default].cornerRadius.get == 3.0    # the child's
+    check grandchild.base[Default].borderWidth.get == 2.0     # the parent's
+    check grandchild.base[Default].padding.isSome             # its own
