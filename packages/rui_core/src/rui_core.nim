@@ -5,6 +5,7 @@
 
 import types;              export types
 import link;               export link
+import store;              export store
 import main_loop;          export main_loop
 import widget_dsl;         export widget_dsl
 import widget_dsl_helpers; export widget_dsl_helpers
@@ -21,3 +22,4 @@ import clipboard;         export clipboard
 import modifiers;         export modifiers
 import overlays;          export overlays
 import popups;            export popups
+import yui_names;          export yui_names
