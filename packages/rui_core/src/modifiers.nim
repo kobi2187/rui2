@@ -34,6 +34,10 @@ proc frame*[T: Widget](widget: T, width = 0.0'f32, height = 0.0'f32,
   widget.layoutDirty = true
   widget
 
+proc size*[T: Widget](widget: T, width, height: float32): T =
+  ## yui's `size: 120x40`: `.size(120, 40)` is `.frame(width = 120, height = 40)`.
+  widget.frame(width = width, height = height)
+
 proc unframe*[T: Widget](widget: T): T =
   ## Drop every size request and limit: size to content again. A dimension
   ## that came from a request is cleared too, or the size it left behind
