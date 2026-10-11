@@ -28,8 +28,8 @@ fails to compile if the table names a widget that does not exist.
 ## Elements
 
 Kinds: **same** (same job, same name), **rename**, **clash** (the name exists
-on both sides with different meanings), **gap** (no rui2 widget yet; a
-*stand-in* is a lesser widget the loader may use, and says so).
+on both sides with different meanings), **gap** (no rui2 widget yet; the table
+has none left, but the loader still reports one if a row regresses).
 
 | yui | rui2 | kind | note |
 |---|---|---|---|
@@ -57,9 +57,9 @@ on both sides with different meanings), **gap** (no rui2 widget yet; a
 | file | FilePicker | rename | drawn, never native |
 | table | DataTable | clash | our `Table` is a layout grid |
 | tree, list | TreeView, ListView | rename | list `template:` not supported yet |
-| icon | (IconButton) | gap | |
-| date, time, color, dialog | | gap | no stand-in; the loader errors |
-| autocomplete, range | (ComboBox), (Slider) | gap | stand-ins |
+| icon, dialog, autocomplete | Icon, Dialog, Autocomplete | same | |
+| date, time, color | DatePicker, TimePicker, ColorPicker | rename | values are text: `2026-10-11`, `14:30`, `#3366cc` |
+| range | RangeSlider | rename | |
 
 rui2 widgets with no yui element (Plot, KanbanBoard, Timeline, MapWidget,
 Sparkline, Rating, SegmentedControl, Toast, DataGrid, ...) can only be
@@ -109,8 +109,7 @@ references need the work in #46.
 
 `loadYui(path): Widget` (element table + properties + `Store` + an action
 registry), a `rui2` target for `yui generate`, `toYui(widget)`, and a
-round-trip conformance test. Widget gaps stay in #53: date, time and colour
-pickers, a general modal Dialog, autocomplete, range, icon.
+round-trip conformance test. Every yui element now has a rui2 widget.
 
 ## Questions for yui's author
 

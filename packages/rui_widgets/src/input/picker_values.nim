@@ -169,3 +169,79 @@ proc toColor*(hsv: Hsv, alpha: uint8 = 255): Color =
   else: (r, g, b) = (c, 0.0'f32, x)
   Color(r: uint8(round((r + m) * 255)), g: uint8(round((g + m) * 255)),
         b: uint8(round((b + m) * 255)), a: alpha)
+
+# ---------------------------------------------------------------------------
+# Calendar popup geometry: one place decides where things are, and both the
+# drawing and the pointer go through it.
+
+const
+  CalCellW* = 34.0'f32
+  CalCellH* = 28.0'f32
+  CalHeaderH* = 32.0'f32
+  CalWeekdayH* = 22.0'f32
+  CalWidth* = CalCellW * 7
+  CalHeight* = CalHeaderH + CalWeekdayH + CalCellH * 6
+
+type
+  CalHitKind* = enum calNone, calPrevMonth, calNextMonth, calDay
+  CalHit* = object
+    kind*: CalHitKind
+    cell*: int           ## 0..41, for calDay
+
+proc calCellRect*(popup: Rect, cell: int): Rect =
+  Rect(x: popup.x + float32(cell mod 7) * CalCellW,
+       y: popup.y + CalHeaderH + CalWeekdayH + float32(cell div 7) * CalCellH,
+       width: CalCellW, height: CalCellH)
+
+proc calPrevRect*(popup: Rect): Rect =
+  Rect(x: popup.x, y: popup.y, width: CalCellW, height: CalHeaderH)
+
+proc calNextRect*(popup: Rect): Rect =
+  Rect(x: popup.x + popup.width - CalCellW, y: popup.y, width: CalCellW,
+       height: CalHeaderH)
+
+proc calHit*(popup: Rect, x, y: float32): CalHit =
+  if not popup.contains(x, y): return CalHit(kind: calNone)
+  if calPrevRect(popup).contains(x, y): return CalHit(kind: calPrevMonth)
+  if calNextRect(popup).contains(x, y): return CalHit(kind: calNextMonth)
+  let gridTop = popup.y + CalHeaderH + CalWeekdayH
+  if y < gridTop: return CalHit(kind: calNone)
+  let col = int((x - popup.x) / CalCellW)
+  let row = int((y - gridTop) / CalCellH)
+  if col in 0 .. 6 and row in 0 .. 5:
+    CalHit(kind: calDay, cell: row * 7 + col)
+  else:
+    CalHit(kind: calNone)
+
+# ---------------------------------------------------------------------------
+# Colour popup geometry
+
+const
+  ColPad* = 8.0'f32
+  ColSvW* = 220.0'f32
+  ColSvH* = 150.0'f32
+  ColHueH* = 18.0'f32
+  ColLabelH* = 20.0'f32
+  ColWidth* = ColSvW + ColPad * 2
+  ColHeight* = ColPad + ColSvH + ColPad + ColHueH + ColPad + ColLabelH + ColPad
+
+proc colSvRect*(popup: Rect): Rect =
+  Rect(x: popup.x + ColPad, y: popup.y + ColPad, width: ColSvW, height: ColSvH)
+
+proc colHueRect*(popup: Rect): Rect =
+  Rect(x: popup.x + ColPad, y: popup.y + ColPad + ColSvH + ColPad,
+       width: ColSvW, height: ColHueH)
+
+proc svAt*(popup: Rect, x, y: float32, hue: float32): Hsv =
+  ## The colour under (x, y) in the saturation/value square: saturation grows
+  ## to the right, value falls going down. Clamped to the square.
+  let r = colSvRect(popup)
+  Hsv(h: hue, s: clamp((x - r.x) / r.width, 0.0'f32, 1.0'f32),
+      v: 1 - clamp((y - r.y) / r.height, 0.0'f32, 1.0'f32))
+
+proc hueAt*(popup: Rect, x: float32): float32 =
+  let r = colHueRect(popup)
+  clamp((x - r.x) / r.width, 0.0'f32, 1.0'f32) * 359.999'f32
+
+proc inset*(r: Rect, by: float32): Rect =
+  Rect(x: r.x + by, y: r.y + by, width: r.width - by * 2, height: r.height - by * 2)

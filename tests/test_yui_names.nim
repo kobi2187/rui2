@@ -44,14 +44,18 @@ suite "element table":
     check isRuiOnly("Plot")
     check yuiElement("nonsense").isNone
 
-  test "clashes are flagged, gaps fall back where a stand-in is honest":
+  test "nothing in the table is a gap any more":
+    for row in elementMap: check row.kind != mapGap
+
+  test "clashes are flagged, and every element resolves":
     check yuiElement("spinner").get.kind == mapClash
     check yuiElement("table").get.kind == mapClash
     check widgetFor("spinner").get == "NumberInput"
     check widgetFor("stack").get == "IndexedStack"
-    check widgetFor("icon").get == "IconButton"          # a gap with a stand-in
-    check widgetFor("dialog").isNone                     # a gap without one
-    check widgetFor("autocomplete").get == "ComboBox"
+    check widgetFor("icon").get == "Icon"
+    check widgetFor("dialog").get == "Dialog"
+    check widgetFor("autocomplete").get == "Autocomplete"
+    check widgetFor("nonsense").isNone
 
 suite "element keys":
 
