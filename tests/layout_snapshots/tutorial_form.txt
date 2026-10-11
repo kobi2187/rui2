@@ -11,6 +11,7 @@ Padding - @0,0 520x420
       TableRow - @24,176 472x41
         Label - @24,185 54x23
         ComboBox - @90,176 406x41 tabstop
+          ComboList - @90,217 406x72 floating
     Checkbox - @24,229 472x23 tabstop
     Row - @24,264 472x39
       Button - @325,264 171x39 tabstop
