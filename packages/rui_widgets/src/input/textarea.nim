@@ -228,11 +228,21 @@ template inset*(widget: untyped): float32 =
    elif widget.padding >= 0: widget.padding
    else: currentTheme.getThemeProps(widget.intent).fieldInset)
 
+template clearGutter*(widget: untyped): float32 =
+  ## Room kept at the right of a `clearable` field for its × button.
+  (if widget.clearable: max(widget.bounds.height * 0.7'f32, 18.0'f32) else: 0.0'f32)
+
+template clearRect*(widget: untyped): Rect =
+  ## The × button of a `clearable` field: a square against the right edge.
+  Rect(x: widget.bounds.x + widget.bounds.width - widget.bounds.height,
+       y: widget.bounds.y, width: widget.bounds.height,
+       height: widget.bounds.height)
+
 template textRect*(widget: untyped): Rect =
   ## The area inside the chrome that text is drawn into.
   Rect(x: widget.bounds.x + widget.inset,
        y: widget.bounds.y + widget.inset,
-       width: widget.bounds.width - widget.inset * 2,
+       width: widget.bounds.width - widget.inset * 2 - widget.clearGutter,
        height: widget.bounds.height - widget.inset * 2)
 
 template lineRect*(widget: untyped, lineH: float32): Rect =
@@ -604,6 +614,7 @@ definePrimitive(TextArea):
     maxLength: int = -1          ## Characters; -1 for unlimited
     maxLines: int = -1           ## Lines Enter may create; -1 for unlimited
     framed: bool = true          ## Draw the input box, and pad inside it
+    clearable: bool = false      ## An x at the right empties the field; so does Escape
     padding: float32 = ThemePadding  ## Inside the frame; < 0: the theme's
     visibleLines: int = 5        ## Height, in lines, when multiline and editable
     disabled: bool = false
@@ -646,6 +657,10 @@ definePrimitive(TextArea):
     on_mouse_down:
       if not widget.takesInput:
         return false
+      if widget.clearable and widget.text.len > 0 and
+         widget.clearRect.contains(event.mousePos.x, event.mousePos.y):
+        widget.edit: buf.selectAll(); discard buf.deleteSelection()
+        return true
       let lineH = widget.contentOf.lineHeight
       let inner = widget.lineRect(lineH)
       let thumb = widget.scrollThumb(lineH, inner)
@@ -743,6 +758,13 @@ definePrimitive(TextArea):
           widget.edit: discard buf.insert("\n", widget.maxLength)
         elif widget.onSubmit != nil:
           widget.onSubmit(widget.text)
+        return true
+
+      of Escape:
+        # A clearable field empties itself; otherwise Escape is someone else's.
+        if not (widget.clearable and widget.text.len > 0):
+          return false
+        widget.edit: buf.selectAll(); discard buf.deleteSelection()
         return true
 
       of Up, Down:
@@ -853,6 +875,14 @@ definePrimitive(TextArea):
         drawRoundedRect(thumb, ScrollBarWidth / 2,
                         c.withAlpha(if widget.draggingBar or widget.hovered: 0.9'f32 else: 0.5'f32))
 
+    if widget.clearable and widget.text.len > 0:
+      let box = widget.clearRect
+      let c = widget.themeProps(widget.intent, crText).borderColor.get(GRAY)
+      let r = box.height / 7
+      let mid = Point(x: box.x + box.width / 2, y: box.y + box.height / 2)
+      drawLine(mid.x - r, mid.y - r, mid.x + r, mid.y + r, c, 2)
+      drawLine(mid.x - r, mid.y + r, mid.x + r, mid.y - r, c, 2)
+
     if widget.disabled:
       drawDisabledOverlay(widget.bounds)
 
@@ -909,8 +939,15 @@ proc newSearchInput*(initialText = "", placeholder = "Search",
                      onChange: proc(newText: string) = nil,
                      onSubmit: proc(text: string) = nil): TextInput =
   ## One line for a query: `onChange` fires on every edit (filter as you
-  ## type), `onSubmit` on Enter. yui's `search`.
+  ## type), `onSubmit` on Enter, an x (or Escape) clears it. yui's `search`.
   newTextArea(initialText = initialText, placeholder = placeholder,
               fontSize = fontSize, maxLength = maxLength, padding = padding,
               disabled = disabled, intent = intent, multiline = false,
-              maxLines = 1, onChange = onChange, onSubmit = onSubmit)
+              maxLines = 1, clearable = true, onChange = onChange, onSubmit = onSubmit)
+
+proc replaceText*(widget: TextArea, text: string) =
+  ## Replace everything with `text`, caret at the end, as one undoable edit
+  ## that fires `onChange` like typing would.
+  widget.edit:
+    buf.selectAll()
+    discard buf.insert(text, widget.maxLength)
