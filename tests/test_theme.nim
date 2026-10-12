@@ -12,7 +12,7 @@
 
 import std/unittest
 import rui
-import std/[json, tables, strutils, options, os]
+import std/[json, tables, strutils, options, os, monotimes, times]
 
 suite "theme: registry and switching":
 
@@ -344,6 +344,9 @@ suite "the visual-state ladder":
           visualState(false, false, true, true, slPointerFirst)
 
 suite "themeProps reads the widget's own flags":
+  setup: animationsEnabled = false      # these read the settled state, not a point in a fade
+  teardown: animationsEnabled = true
+
 
   test "it uses hovered and focused from the base Widget fields":
     let w = newButton(text = "x")
@@ -364,6 +367,9 @@ suite "themeProps reads the widget's own flags":
     check pressed != disabled
 
 suite "the theme owns the hover-or-focus preference":
+  setup: animationsEnabled = false      # these read the settled state, not a point in a fade
+  teardown: animationsEnabled = true
+
   ## A widget says what it is (crText / crPointer); which of hover and focus
   ## wins is the theme's call, read from the in-memory currentTheme on every
   ## lookup -- never re-read from the theme file.
@@ -805,3 +811,327 @@ suite "theme: inheritance":
     check grandchild.base[Default].cornerRadius.get == 3.0    # the child's
     check grandchild.base[Default].borderWidth.get == 2.0     # the parent's
     check grandchild.base[Default].padding.isSome             # its own
+
+
+suite "theme: writing a theme back out":
+  ## `toYaml` is the inverse of `parseTheme`: what a theme sets comes back as the
+  ## same theme, so a theme made in code (or by a brand spec) can be saved.
+
+  proc noExtends(name: string): Theme = newTheme(name)
+
+  proc same(a, b: Theme): bool =
+    a.name == b.name and a.base == b.base and a.states == b.states and
+    a.metrics == b.metrics and a.hint == b.hint and a.animation == b.animation and
+    a.statePreference == b.statePreference
+
+  test "every brand theme round-trips through YAML and through JSON":
+    for (key, theme) in brandThemes():
+      let viaYaml = parseTheme(toYaml(theme), tffYaml, noExtends)
+      check same(theme, viaYaml)
+      let viaJson = parseTheme(toJsonText(theme), tffJson, noExtends)
+      check same(theme, viaJson)
+
+  test "every registered theme round-trips, the legacy five included":
+    let tm = newThemeManager()
+    for name in tm.listThemes():
+      let theme = tm.get(name)
+      check same(theme, parseTheme(toYaml(theme), tffYaml, noExtends))
+
+  test "a hand-built theme round-trips, including padding forms and effects":
+    var t = newTheme("Hand Made")
+    t.version = "1.2.0"
+    t.base[Default] = ThemeProps(
+      backgroundColor: some(Color(r: 1, g: 2, b: 3, a: 255)),
+      borderColor: some(Color(r: 9, g: 8, b: 7, a: 128)),
+      cornerRadius: some(2.5'f32), borderWidth: some(0.0'f32),
+      padding: some(edgeInsetsLTRB(1, 2, 3, 4)),
+      fontWeight: some(SemiBold), uppercase: some(true),
+      dropShadowOffset: some((3.0'f32, 3.0'f32)),
+      bevelStyle: some(Raised), gradientDirection: some(theme_types.Radial))
+    t.base[Info] = ThemeProps(padding: some(edgeInsetsSymmetric(12, 4)))
+    t.base[Danger] = ThemeProps(padding: some(edgeInsets(6)), fontFamily: some("Fira Sans"))
+    t.states[Default][Hovered] = ThemeProps(backgroundColor: some(Color(r: 10, g: 20, b: 30, a: 255)))
+    t.metrics.controlHeight = some(38.0'f32)
+    t.hint = HintStyle(borderWidth: some(3.0'f32), uppercase: some(false))
+    t.statePreference[crPointer] = spFocusFirst
+    t.animation.durationFast = some(80.0'f32)
+    t.animation.defaultEasing = some(EaseInOut)
+    check same(t, parseTheme(toYaml(t), tffYaml, noExtends))
+
+  test "only what is set is written":
+    var t = newTheme("Tiny")
+    t.base[Default] = ThemeProps(cornerRadius: some(3.0'f32))
+    let text = toYaml(t)
+    check text == "name: Tiny\nbase:\n  default:\n    cornerRadius: 3\n"
+
+  test "an offset that cannot be written is an error, not a silent change":
+    var t = newTheme("Skew")
+    t.base[Default] = ThemeProps(dropShadowOffset: some((1.0'f32, 2.0'f32)))
+    expect ValueError: discard toYaml(t)
+
+  test "the motion section is a real part of the format":
+    let t = parseTheme("name: M\nanimation:\n  durationFast: 0\n  defaultEasing: easeOut\n",
+                       tffYaml, noExtends)
+    check t.animation.durationFast.get == 0
+    check t.transitionSeconds == 0                  # 0 makes every change instant
+    check t.animation.defaultEasing.get == EaseOut
+    expect ValueError:
+      discard parseTheme("name: M\nanimation:\n  durationFastt: 0\n", tffYaml, noExtends)
+    expect ValueError:
+      discard parseTheme("name: M\nanimation:\n  defaultEasing: wobble\n", tffYaml, noExtends)
+
+  test "a derived theme's file keeps the parent's values (extends is not written)":
+    let tm = newThemeManager()
+    for (key, theme) in brandThemes(): tm.register(key, theme)
+    var mine = tm.derive("daylight", "Mine")
+    mine.base[Default].cornerRadius = some(0.0'f32)
+    check same(mine, parseTheme(toYaml(mine), tffYaml, noExtends))
+
+
+suite "theme: describe":
+
+  proc noExtends(name: string): Theme = newTheme(name)
+
+  test "describeChange names each property that differs, nested and unset included":
+    var parent = newTheme("p")
+    parent.base[Default] = ThemeProps(cornerRadius: some(4.0'f32))
+    var child = parent
+    child.name = "c"
+    child.base[Default].cornerRadius = some(0.0'f32)
+    child.base[Default].borderWidth = some(2.0'f32)
+    child.states[Default][Hovered] = ThemeProps(hoverColor: some(Color(r: 255, g: 0, b: 0, a: 255)))
+    let lines = describeChange(parent, child)
+    check "base.default.cornerRadius: 4 -> 0" in lines
+    check "base.default.borderWidth: (unset) -> 2" in lines
+    check "states.default.hovered.hoverColor: (unset) -> \"#ff0000\"" in lines
+    check lines.len == 3
+    check describeChange(parent, parent).len == 0
+
+  test "a chain of files is described level by level":
+    let dir = getTempDir() / "rui_theme_describe"
+    createDir(dir)
+    defer: removeDir(dir)
+    writeFile(dir / "leaf.yaml", "name: leaf\nextends: mid\nbase:\n  default:\n    cornerRadius: 1\n")
+    writeFile(dir / "mid.yaml", "name: mid\nextends: daylight\nbase:\n  default:\n    borderWidth: 5\n")
+    let tm = newThemeManager()
+    discard tm.loadFromFile(dir / "leaf.yaml")
+    let text = tm.describe("leaf")
+    check text.startsWith("leaf (extends mid)\n")
+    check "base.default.cornerRadius: " in text and "-> 1\n" in text
+    check "mid (extends daylight)\n" in text
+    check "base.default.borderWidth: " in text and "-> 5\n" in text
+    check text.endsWith("daylight\n")
+
+  test "derive records the parent; a theme with none is just named":
+    let tm = newThemeManager()
+    var mine = tm.derive("daylight", "Mine")
+    mine.base[Default].cornerRadius = some(0.0'f32)
+    tm.register("mine", mine)
+    check mine.parent == "daylight"
+    check tm.describe("mine").startsWith("mine (extends daylight)\n  base.default.cornerRadius")
+    check tm.describe("daylight") == "daylight\n"
+    check tm.describe("nowhere") == "nowhere (not registered)\n"
+
+
+suite "theme: contrast":
+
+  test "the arithmetic: black on white is 21, a colour on itself is 1":
+    let white = Color(r: 255, g: 255, b: 255, a: 255)
+    let black = Color(r: 0, g: 0, b: 0, a: 255)
+    check abs(contrastRatio(black, white) - 21.0) < 0.01
+    check abs(contrastRatio(white, white) - 1.0) < 0.001
+    check abs(contrastRatio(Color(r: 119, g: 119, b: 119, a: 255), white) - 4.48) < 0.02
+    check over(Color(r: 0, g: 0, b: 0, a: 128), white).r in 126'u8 .. 128'u8
+
+  test "the high-contrast themes meet AAA for every caption and a 3:1 focus ring":
+    let tm = newThemeManager()
+    for name in ["contrast", "contrast-dark"]:
+      let problems = contrastProblems(tm.get(name), textRatio = 7.0, uiRatio = 3.0)
+      check problems.len == 0
+      for p in problems: echo "  ", name, ": ", p
+
+  test "every shipped theme keeps its resting captions readable (3:1) and its ring visible":
+    let tm = newThemeManager()
+    var brands: seq[string]
+    for (key, _) in brandThemes(): brands.add key
+    for name in tm.listThemes():
+      for p in contrastProblems(tm.get(name), textRatio = 3.0, uiRatio = 1.5):
+        # The five older themes predate the focus-ring rule: captions only.
+        if "normal" in p.where or ("focus ring" in p.where and name in brands):
+          checkpoint name & ": " & $p
+          fail()
+
+  test "a theme with a washed-out caption is reported, with where and by how much":
+    var t = newTheme("Faint")
+    t.base[Default] = ThemeProps(backgroundColor: some(Color(r: 255, g: 255, b: 255, a: 255)),
+                                 foregroundColor: some(Color(r: 200, g: 200, b: 200, a: 255)))
+    let problems = contrastProblems(t)
+    check problems.len > 0
+    check "default / normal: caption" in problems[0].where
+    check problems[0].ratio < 2 and problems[0].needed == 4.5
+
+  test "contrast themes round-trip through a file like any other":
+    let tm = newThemeManager()
+    let t = tm.get("contrast-dark")
+    let back = parseTheme(toYaml(t), tffYaml, proc(n: string): Theme = newTheme(n))
+    check back.base == t.base and back.states == t.states
+
+
+suite "theme: hot reload":
+
+  proc writeTheme(path, radius: string, extra = "") =
+    writeFile(path, "name: live\nbase:\n  default:\n    cornerRadius: " & radius & "\n" & extra)
+
+  test "saving the file produces the new theme; an unchanged file produces nothing":
+    let dir = getTempDir() / "rui_theme_watch"
+    createDir(dir)
+    defer: removeDir(dir)
+    let path = dir / "live.yaml"
+    writeTheme(path, "3")
+    let tm = newThemeManager()
+    check tm.loadFromFile(path).base[Default].cornerRadius.get == 3
+    let watch = watchTheme(path)
+    check tm.reloaded(watch).isNone
+    sleep(1100)                                         # a new modification time
+    writeTheme(path, "9")
+    let again = tm.reloaded(watch)
+    check again.isSome and again.get.base[Default].cornerRadius.get == 9
+    check tm.get("live").base[Default].cornerRadius.get == 9      # the registry follows
+    check tm.reloaded(watch).isNone
+
+  test "a broken save keeps the last theme, says why once, and a fixed save recovers":
+    let dir = getTempDir() / "rui_theme_watch2"
+    createDir(dir)
+    defer: removeDir(dir)
+    let path = dir / "live.yaml"
+    writeTheme(path, "3")
+    let tm = newThemeManager()
+    discard tm.loadFromFile(path)
+    let watch = watchTheme(path)
+    sleep(1100)
+    writeTheme(path, "9", "  corner_radius: 4\n")       # a key the format does not have
+    check tm.reloaded(watch).isNone
+    check "corner_radius" in watch.lastError
+    check tm.reloaded(watch).isNone                      # the same breakage: not retried
+    check tm.get("live").base[Default].cornerRadius.get == 3
+    sleep(1100)
+    writeTheme(path, "7")
+    check tm.reloaded(watch).get.base[Default].cornerRadius.get == 7
+    check watch.lastError == ""
+
+  test "a theme it extends, beside it, is watched too":
+    let dir = getTempDir() / "rui_theme_watch3"
+    createDir(dir)
+    defer: removeDir(dir)
+    writeFile(dir / "wparent.yaml", "name: wparent\nbase:\n  default:\n    cornerRadius: 2\n")
+    writeFile(dir / "child.yaml", "name: childlive\nextends: wparent\nbase:\n  default:\n    borderWidth: 1\n")
+    let tm = newThemeManager()
+    check tm.loadFromFile(dir / "child.yaml").base[Default].cornerRadius.get == 2
+    let watch = watchTheme(dir / "child.yaml")
+    sleep(1100)
+    writeFile(dir / "wparent.yaml", "name: wparent\nbase:\n  default:\n    cornerRadius: 8\n")
+    let fresh = tm.reloaded(watch)
+    check fresh.isSome
+    check fresh.get.base[Default].cornerRadius.get == 8     # the parent's new value
+    check fresh.get.base[Default].borderWidth.get == 1      # the child's own
+
+  test "an App with watchTheme restyles itself when the file is saved":
+    let dir = getTempDir() / "rui_theme_watch4"
+    createDir(dir)
+    defer: removeDir(dir)
+    let path = dir / "live.yaml"
+    writeTheme(path, "3")
+    let saved = currentTheme
+    defer: setCurrentTheme(saved)
+    let app = newApp(title = "t", width = 300, height = 200)
+    app.setRootWidget(newVStack())
+    app.watchTheme(path)
+    check currentTheme.base[Default].cornerRadius.get == 3
+    sleep(1100)
+    writeTheme(path, "11")
+    app.pollThemeWatch(getMonoTime() + initDuration(seconds = 2))
+    check currentTheme.base[Default].cornerRadius.get == 11
+    check app.tree.root.isDirty                        # and the tree repaints
+
+
+suite "theme: state changes fade":
+
+  setup:
+    animationsEnabled = true
+  teardown:
+    animationsEnabled = true
+
+  proc fadeTheme(ms: float32): Theme =
+    var t = newTheme("Fade")
+    t.base[Default] = ThemeProps(backgroundColor: some(Color(r: 0, g: 0, b: 0, a: 255)))
+    t.states[Default][Hovered] = ThemeProps(backgroundColor: some(Color(r: 200, g: 100, b: 50, a: 255)))
+    t.animation.durationFast = some(ms)
+    t
+
+  test "mixColors moves colours, and takes everything else from the target":
+    let a = ThemeProps(backgroundColor: some(Color(r: 0, g: 0, b: 0, a: 255)),
+                       borderWidth: some(1.0'f32))
+    let b = ThemeProps(backgroundColor: some(Color(r: 100, g: 200, b: 50, a: 255)),
+                       borderWidth: some(3.0'f32))
+    let half = mixColors(a, b, 0.5)
+    check half.backgroundColor.get == Color(r: 50, g: 100, b: 25, a: 255)
+    check half.borderWidth.get == 3.0                     # sizes do not blend
+    check mixColors(a, b, 1.0).backgroundColor == b.backgroundColor
+
+  test "hovering starts a fade: the first frames are between the colours, then it settles":
+    let saved = currentTheme
+    defer: setCurrentTheme(saved)
+    setCurrentTheme(fadeTheme(120))
+    let w = newButton(text = "x")
+    check w.themeProps(Default).backgroundColor.get.r == 0       # first look: settled
+    w.hovered = true
+    let mid = w.themeProps(Default).backgroundColor.get
+    check mid.r < 200                                   # not there yet
+    check w.fadeActive
+    sleep(200)
+    check w.themeProps(Default).backgroundColor.get.r == 200      # arrived
+    check not w.fadeActive
+
+  test "a theme with durationFast 0 snaps":
+    let saved = currentTheme
+    defer: setCurrentTheme(saved)
+    setCurrentTheme(fadeTheme(0))
+    let w = newButton(text = "x")
+    discard w.themeProps(Default)
+    w.hovered = true
+    check w.themeProps(Default).backgroundColor.get.r == 200
+    check not w.fadeActive
+
+  test "switching theme lands at once, without a fade":
+    let saved = currentTheme
+    defer: setCurrentTheme(saved)
+    setCurrentTheme(fadeTheme(120))
+    let w = newButton(text = "x")
+    discard w.themeProps(Default)
+    w.hovered = true
+    discard w.themeProps(Default)                       # fading
+    setCurrentTheme(fadeTheme(120))                     # a theme switch bumps settleEpoch
+    check w.themeProps(Default).backgroundColor.get.r == 200
+    check not w.fadeActive
+
+  test "reduced motion (animationsEnabled = false) never fades":
+    let saved = currentTheme
+    defer: setCurrentTheme(saved)
+    setCurrentTheme(fadeTheme(120))
+    animationsEnabled = false
+    let w = newButton(text = "x")
+    discard w.themeProps(Default)
+    w.hovered = true
+    check w.themeProps(Default).backgroundColor.get.r == 200
+
+  test "a disposed widget leaves no fade behind":
+    let saved = currentTheme
+    defer: setCurrentTheme(saved)
+    setCurrentTheme(fadeTheme(120))
+    let w = newButton(text = "x")
+    discard w.themeProps(Default)
+    w.hovered = true
+    discard w.themeProps(Default)
+    check w.fadeActive
+    disposeTree(w)
+    check not w.fadeActive

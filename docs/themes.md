@@ -126,3 +126,25 @@ Mistakes are errors, never silent defaults, and they name the file:
 YAML or JSON, chosen by extension. `ThemeManager.addSearchPath(dir)` makes
 `loadTheme("acme")` look there for `acme.yaml`. Examples:
 `examples/themes/light.yaml`, `examples/themes/dark.yaml`.
+
+
+## Writing a theme out, describing it, checking it
+
+- `toYaml(theme)` / `toJsonText(theme)` write the theme as a file that
+  `parseTheme` reads back to the same theme (every shipped theme is a test of
+  it). Only what is set is written, so the file of a derived theme names what it
+  changed; `extends` is not written, because a Theme no longer carries its
+  parent's values separately. A `dropShadowOffset` with different right/down
+  values cannot be written and says so.
+- `themeManager.describe("leaf")` prints what each level of an inheritance chain
+  changed, nearest first (`describeChange(parent, child)` is the pure form).
+- The file format has an `animation:` section: `durationFast` (ms; what the
+  widgets use for state fades, 0 for instant), `durationNormal`, `durationSlow`
+  and `defaultEasing`.
+- `contrastProblems(theme, textRatio = 4.5, uiRatio = 3.0)` lists every caption
+  under the ratio (per intent and state) and every focus ring that does not stand
+  out from the window behind it. The `contrast` and `contrast-dark` themes
+  (black on white, white on black; hover and selection invert; 2 px outlines;
+  3 px ring) pass it at AAA, 7:1. The other shipped themes keep resting captions
+  above 3:1; their pressed/selected tints and soft focus rings are below AA --
+  choose a contrast theme where that matters.

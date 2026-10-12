@@ -77,6 +77,9 @@ type
     eventSource*: EventSource
     router*: EventRouter
 
+    themeWatch: ThemeWatch           # the theme file being hot-reloaded, if any
+    themeWatchChecked: MonoTime
+
     # Per-frame hook
     onFrame*: proc() {.closure.}
       ## Called once per frame, before events are collected.
@@ -362,6 +365,29 @@ proc setTheme*(app: App, name: string) =
   app.tree.anyDirty = true
   app.tree.isDirty = true
   app.tree.root.markSubtreeDirty()
+
+proc watchTheme*(app: App, path: string) =
+  ## Use the theme in `path` and keep it live: save the file (or a theme file it
+  ## extends, beside it) and the running app restyles itself within a second. A
+  ## file with a mistake is reported on stderr and leaves the last good theme in
+  ## place. For authors; ship `app.setTheme("...")` as usual.
+  let theme = app.themeManager.loadFromFile(path)
+  app.setTheme(theme)
+  app.themeWatch = watchTheme(path)
+  app.themeWatchChecked = getMonoTime()
+
+proc pollThemeWatch*(app: App, now = getMonoTime()) =
+  ## The hot-reload check, at most twice a second.
+  if app.themeWatch == nil or app.tree.root == nil: return
+  if now - app.themeWatchChecked < initDuration(milliseconds = 500): return
+  app.themeWatchChecked = now
+  let before = app.themeWatch.lastError
+  let fresh = app.themeManager.reloaded(app.themeWatch)
+  if fresh.isSome:
+    app.setTheme(fresh.get)
+  elif app.themeWatch.lastError.len > 0 and app.themeWatch.lastError != before:
+    stderr.writeLine "rui: theme reload failed, keeping the last good one: " &
+                     app.themeWatch.lastError
 
 proc useThemes*(app: App, light, dark: string) =
   ## Declare the application's light and dark themes (by registered name) and
@@ -953,6 +979,7 @@ proc stepHeadless*(app: App) =
   ## This is the whole pipeline apart from the one part that needs a window, and
   ## it is what makes the frame testable at all -- before the event-source seam,
   ## `run` read raylib directly and there was nothing to call.
+  app.pollThemeWatch()
   app.pumpEvents()
   app.refreshLayout()
 
@@ -960,6 +987,7 @@ proc step*(app: App): bool {.discardable.} =
   ## One frame of the pipeline, without the window or the loop around it.
   ## Needs a GL context, because it paints. Returns whether anything was
   ## painted.
+  app.pollThemeWatch()
   app.pumpEvents()
   if runPollers():                  # a data source brought rows in from its worker
     app.tree.anyDirty = true

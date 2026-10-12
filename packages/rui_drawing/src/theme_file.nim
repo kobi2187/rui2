@@ -13,7 +13,7 @@
 ## Colors in files are hex strings ("#rrggbb" / "#rrggbbaa") or rgb(r,g,b).
 ## The `*File` types hold them as strings; `toThemeProps` converts.
 
-import std/[tables, options, json, strutils, parseutils, editdistance]
+import std/[tables, options, json, strutils, parseutils, editdistance, sequtils]
 import yaml
 import yaml/tojson
 import theme_sys_core
@@ -105,6 +105,13 @@ type
     rowHeight: Option[float32]
     scrollbarThickness: Option[float32]
 
+  AnimationFile* {.sparse.} = object
+    ## Motion: how long a colour takes to change when a control's state does
+    ## (`fast`, the one the widgets use), and the longer two for the author's own
+    ## animations. Milliseconds; 0 makes changes instant.
+    durationFast, durationNormal, durationSlow: Option[float32]
+    defaultEasing: Option[string]
+
   BrandFile* {.sparse.} = object
     ## A `brand:` section: the same choices as `BrandSpec`, colours as strings.
     ## Everything is optional; what is left out takes the spec's own default.
@@ -132,6 +139,7 @@ type
       ## role ("text" / "pointer") -> "focus" / "hover"
     metrics: Option[MetricsFile]
     hint: Option[HintFile]
+    animation: Option[AnimationFile]
     brand: Option[BrandFile]
       ## A whole theme from a handful of brand choices (see brand_themes.nim).
       ## It replaces `extends`; `base` and `states` still override it.
@@ -202,6 +210,17 @@ proc parsePreference*(s: string): StatePreference =
   of "default": spRoleDefault
   else: raise newException(ValueError, "Unknown state preference: " & s &
                            " (expected focus, hover or default)")
+
+proc parseEasingName*(s: string): AnimationEasing =
+  case s.toLowerAscii()
+  of "linear": Linear
+  of "easein": EaseIn
+  of "easeout": EaseOut
+  of "easeinout": EaseInOut
+  of "bounce": Bounce
+  of "elastic": Elastic
+  else: raise newException(ValueError, "Unknown easing: " & s &
+    " (expected linear, easeIn, easeOut, easeInOut, bounce or elastic)")
 
 proc toThemeProps*(fp: ThemePropsFile): ThemeProps =
   ## Convert file props (string colors) to runtime ThemeProps (Color objects)
@@ -314,6 +333,8 @@ proc toTheme*(tf: ThemeFile, resolver: proc(name: string): Theme): Theme =
     resolver(tf.`extends`.get())
   else:
     newTheme()
+  if tf.`extends`.isSome and tf.brand.isNone:
+    result.parent = tf.`extends`.get()
   if tf.name.isSome:
     result.name = tf.name.get()
   if tf.version.isSome:
@@ -354,6 +375,15 @@ proc toTheme*(tf: ThemeFile, resolver: proc(name: string): Theme): Theme =
     inherit fontSize
     inherit fontFamily
     inherit uppercase
+  if tf.animation.isSome:
+    let a = tf.animation.get()
+    template takeMotion(field: untyped) =
+      if a.field.isSome: result.animation.field = a.field
+    takeMotion durationFast
+    takeMotion durationNormal
+    takeMotion durationSlow
+    if a.defaultEasing.isSome:
+      result.animation.defaultEasing = some(parseEasingName(a.defaultEasing.get()))
   if tf.metrics.isSome:
     let m = tf.metrics.get()
     template take(field: untyped) =
@@ -427,6 +457,8 @@ proc validateThemeNode*(root: JsonNode) =
     checkKeys(root["hint"], "hint", fieldNames(HintFile))
   if root.hasKey("metrics"):
     checkKeys(root["metrics"], "metrics", fieldNames(MetricsFile))
+  if root.hasKey("animation"):
+    checkKeys(root["animation"], "animation", fieldNames(AnimationFile))
   if root.hasKey("brand"):
     checkKeys(root["brand"], "brand", fieldNames(BrandFile))
 
@@ -450,3 +482,210 @@ proc parseTheme*(content: string, format: ThemeFileFormat,
                  resolver: proc(name: string): Theme): Theme =
   ## Text straight to a `Theme`. The whole adapter in one call.
   toTheme(parseThemeFile(content, format), resolver)
+
+
+# ============================================================================
+# Theme -> file: the other direction
+#
+# What `parseTheme` reads, `toYaml` writes: only what the theme sets, so the
+# file of a derived theme names what it changed. Brand-derived themes come out
+# as the base/states tables they were expanded into (the `brand:` shorthand is
+# a way to *write* a theme, not part of one). Not written: `extends` (a Theme
+# no longer knows its parent), and the unused branding fields.
+# ============================================================================
+
+proc formatColor*(c: Color): string =
+  ## "#rrggbb", or "#rrggbbaa" when not opaque.
+  result = "#" & toHex(int(c.r), 2).toLowerAscii & toHex(int(c.g), 2).toLowerAscii &
+           toHex(int(c.b), 2).toLowerAscii
+  if c.a != 255: result.add toHex(int(c.a), 2).toLowerAscii
+
+proc num(v: float32): JsonNode =
+  ## Whole numbers as integers, so the file reads `borderWidth: 2`.
+  if v == float32(int(v)): newJInt(int(v)) else: newJFloat(float(v))
+
+proc propsToJson*(p: ThemeProps): JsonNode =
+  result = newJObject()
+  template color(key: string, field: Option[Color]) =
+    if field.isSome: result[key] = newJString(formatColor(field.get))
+  template number(key: string, field: Option[float32]) =
+    if field.isSome: result[key] = num(field.get)
+  color "backgroundColor", p.backgroundColor
+  color "foregroundColor", p.foregroundColor
+  color "borderColor", p.borderColor
+  color "pressedColor", p.pressedColor
+  color "hoverColor", p.hoverColor
+  color "activeColor", p.activeColor
+  color "focusColor", p.focusColor
+  color "focusRingColor", p.focusRingColor
+  color "focusGlowColor", p.focusGlowColor
+  color "highlightColor", p.highlightColor
+  color "shadowColor", p.shadowColor
+  color "darkShadowColor", p.darkShadowColor
+  color "gradientStart", p.gradientStart
+  color "gradientEnd", p.gradientEnd
+  color "glowColor", p.glowColor
+  color "dropShadowColor", p.dropShadowColor
+  number "borderWidth", p.borderWidth
+  number "cornerRadius", p.cornerRadius
+  number "fontSize", p.fontSize
+  number "spacing", p.spacing
+  number "focusRingWidth", p.focusRingWidth
+  number "focusGlowRadius", p.focusGlowRadius
+  number "glowRadius", p.glowRadius
+  number "insetShadowDepth", p.insetShadowDepth
+  number "insetShadowOpacity", p.insetShadowOpacity
+  number "dropShadowBlur", p.dropShadowBlur
+  if p.fontFamily.isSome: result["fontFamily"] = newJString(p.fontFamily.get)
+  if p.fontWeight.isSome:
+    result["fontWeight"] = newJString(case p.fontWeight.get
+      of Light: "light"
+      of Regular: "regular"
+      of Medium: "medium"
+      of SemiBold: "semibold"
+      of Bold: "bold"
+      of ExtraBold: "extrabold")
+  if p.uppercase.isSome: result["uppercase"] = newJBool(p.uppercase.get)
+  if p.dropShadowOffset.isSome:
+    let o = p.dropShadowOffset.get
+    if o.x != o.y:
+      raise newException(ValueError,
+        "dropShadowOffset " & $o.x & "," & $o.y & " cannot be written: the theme " &
+        "format has one offset for right and down")
+    result["dropShadowOffset"] = num(o.x)
+  if p.padding.isSome:
+    let e = p.padding.get
+    result["padding"] =
+      if e.top == e.bottom and e.left == e.right and e.top == e.left:
+        %*{"all": num(e.top)}
+      elif e.top == e.bottom and e.left == e.right:
+        %*{"horizontal": num(e.left), "vertical": num(e.top)}
+      else:
+        %*{"left": num(e.left), "top": num(e.top), "right": num(e.right),
+           "bottom": num(e.bottom)}
+  if p.bevelStyle.isSome:
+    result["bevelStyle"] = newJString(($p.bevelStyle.get).toLowerAscii)
+  if p.gradientDirection.isSome:
+    result["gradientDirection"] = newJString(($p.gradientDirection.get).toLowerAscii)
+
+const IntentNames = ["default", "info", "success", "warning", "danger"]
+const StateNames = ["normal", "disabled", "hovered", "pressed", "focused",
+                    "selected", "dragover"]
+
+proc themeToJson*(theme: Theme): JsonNode =
+  ## The theme as the document `parseTheme` reads.
+  result = newJObject()
+  result["name"] = newJString(theme.name)
+  if theme.version.len > 0: result["version"] = newJString(theme.version)
+  var base = newJObject()
+  for intent in ThemeIntent:
+    let props = propsToJson(theme.base.getOrDefault(intent, ThemeProps()))
+    if props.len > 0: base[IntentNames[ord(intent)]] = props
+  if base.len > 0: result["base"] = base
+  var states = newJObject()
+  for intent in ThemeIntent:
+    var byState = newJObject()
+    if intent in theme.states:
+      for state in ThemeState:
+        if state in theme.states[intent]:
+          let props = propsToJson(theme.states[intent][state])
+          if props.len > 0: byState[StateNames[ord(state)]] = props
+    if byState.len > 0: states[IntentNames[ord(intent)]] = byState
+  if states.len > 0: result["states"] = states
+  var prefs = newJObject()
+  for role in ControlRole:
+    case theme.statePreference[role]
+    of spFocusFirst: prefs[(if role == crText: "text" else: "pointer")] = newJString("focus")
+    of spHoverFirst: prefs[(if role == crText: "text" else: "pointer")] = newJString("hover")
+    of spRoleDefault: discard
+  if prefs.len > 0: result["statePreference"] = prefs
+  let m = theme.metrics
+  var metrics = newJObject()
+  template metric(field: untyped) =
+    if m.field.isSome: metrics[astToStr(field)] = num(m.field.get)
+  metric controlHeight
+  metric indicatorSize
+  metric trackThickness
+  metric thumbSize
+  metric progressHeight
+  metric rowHeight
+  metric scrollbarThickness
+  if metrics.len > 0: result["metrics"] = metrics
+  let h = theme.hint
+  var hint = newJObject()
+  if h.background.isSome: hint["background"] = newJString(formatColor(h.background.get))
+  if h.foreground.isSome: hint["foreground"] = newJString(formatColor(h.foreground.get))
+  if h.border.isSome: hint["border"] = newJString(formatColor(h.border.get))
+  if h.borderWidth.isSome: hint["borderWidth"] = num(h.borderWidth.get)
+  if h.fontSize.isSome: hint["fontSize"] = num(h.fontSize.get)
+  if h.fontFamily.isSome: hint["fontFamily"] = newJString(h.fontFamily.get)
+  if h.uppercase.isSome: hint["uppercase"] = newJBool(h.uppercase.get)
+  if hint.len > 0: result["hint"] = hint
+  let a = theme.animation
+  var motion = newJObject()
+  if a.durationFast.isSome: motion["durationFast"] = num(a.durationFast.get)
+  if a.durationNormal.isSome: motion["durationNormal"] = num(a.durationNormal.get)
+  if a.durationSlow.isSome: motion["durationSlow"] = num(a.durationSlow.get)
+  if a.defaultEasing.isSome:
+    let name = $a.defaultEasing.get
+    motion["defaultEasing"] = newJString(name[0 .. 0].toLowerAscii & name[1 .. ^1])
+  if motion.len > 0: result["animation"] = motion
+
+proc yamlScalar(node: JsonNode): string =
+  case node.kind
+  of JString:
+    let s = node.getStr
+    # Quote anything YAML could read as something other than this string.
+    let plain = s.len > 0 and s[0] in {'a' .. 'z', 'A' .. 'Z'} and
+                s.allIt(it in {'a' .. 'z', 'A' .. 'Z', '0' .. '9', ' ', '-', '_'}) and
+                s.toLowerAscii notin ["true", "false", "yes", "no", "null", "on", "off"]
+    if plain: s else: escapeJson(s)
+  of JBool: $node.getBool
+  of JInt: $node.getInt
+  of JFloat: $node.getFloat
+  else: "null"
+
+proc emitYaml(node: JsonNode, indent: int, result: var string) =
+  let pad = repeat(' ', indent)
+  for key, value in node:
+    if value.kind == JObject:
+      result.add pad & key & ":\n"
+      emitYaml(value, indent + 2, result)
+    else:
+      result.add pad & key & ": " & yamlScalar(value) & "\n"
+
+proc toYaml*(theme: Theme): string =
+  ## The theme as a YAML file that `parseTheme` reads back to the same theme.
+  emitYaml(themeToJson(theme), 0, result)
+
+proc toJsonText*(theme: Theme): string = pretty(themeToJson(theme))
+
+
+# ============================================================================
+# describe: what a theme changed
+# ============================================================================
+
+proc diffJson(a, b: JsonNode, path: string, lines: var seq[string]) =
+  ## Every leaf where `b` differs from `a`, as "path: was -> now".
+  proc show(n: JsonNode): string =
+    if n == nil: "(unset)" else: yamlScalar(n)
+  if (a != nil and a.kind == JObject) or (b != nil and b.kind == JObject):
+    var keys: seq[string]
+    for src in [a, b]:
+      if src != nil and src.kind == JObject:
+        for k, _ in src:
+          if k notin keys: keys.add k
+    for k in keys:
+      let av = if a != nil and a.kind == JObject and a.hasKey(k): a[k] else: nil
+      let bv = if b != nil and b.kind == JObject and b.hasKey(k): b[k] else: nil
+      diffJson(av, bv, (if path.len > 0: path & "." else: "") & k, lines)
+  elif a != b:
+    lines.add path & ": " & show(a) & " -> " & show(b)
+
+proc describeChange*(parent, child: Theme): seq[string] =
+  ## What `child` sets differently from `parent`, one line per property:
+  ## `base.default.cornerRadius: 4 -> 0`, `states.default.hovered.hoverColor: (unset) -> #ff0000`.
+  var a = themeToJson(parent)
+  var b = themeToJson(child)
+  a.delete("name"); b.delete("name")
+  diffJson(a, b, "", result)

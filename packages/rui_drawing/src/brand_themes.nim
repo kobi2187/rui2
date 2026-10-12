@@ -60,6 +60,8 @@ type
     scrollbarThickness*: float32  ## 12 if unset
     transitionMs*: float32    ## colour fade on hover/press/focus; 120 if unset
     noTransitions*: bool      ## every state change is instant
+    highContrast*: bool       ## hover, press and selection invert (ink on surface becomes
+                              ## surface on ink) and the focus ring is the opaque accent
 
 # ----------------------------------------------------------------------------
 # Colour arithmetic
@@ -114,6 +116,14 @@ proc stateProps(spec: BrandSpec, base: ThemeProps, hue: Color,
                 state: ThemeState): ThemeProps =
   ## How an intent looks hovered, pressed, focused or disabled.
   let bg = base.backgroundColor.get(spec.surface)
+  if spec.highContrast:
+    case state
+    of Hovered, Pressed, Selected:
+      return ThemeProps(backgroundColor: some(spec.text),
+                        foregroundColor: some(spec.surface))
+    of Focused:
+      return ThemeProps(borderColor: some(spec.border), focusRingColor: some(spec.accent))
+    else: discard
   case state
   of Hovered:
     ThemeProps(backgroundColor: some(mix(bg, hue, 0.08)))
@@ -227,6 +237,13 @@ proc brandTheme*(spec: BrandSpec): Theme =
   result.base[Info] = primary
   result.states[Info][Hovered] = ThemeProps(backgroundColor: some(mix(s.accent, shadeTo, 0.10)))
   result.states[Info][Pressed] = ThemeProps(backgroundColor: some(mix(s.accent, shadeTo, 0.20)))
+  # Selected keeps the caption of the solid accent, so its background must stay
+  # dark enough for it (it was left a pale tint under white text).
+  if not s.highContrast:
+    result.states[Info][Selected] = ThemeProps(backgroundColor: some(mix(s.accent, shadeTo, 0.30)))
+  else:
+    result.states[Info][Hovered] = stateProps(s, primary, s.accent, Hovered)
+    result.states[Info][Pressed] = stateProps(s, primary, s.accent, Pressed)
 
 # ----------------------------------------------------------------------------
 # The brands that ship
@@ -312,6 +329,27 @@ proc hairlineSpec*(): BrandSpec =
             indicatorSize: 14, trackThickness: 2, thumbSize: 12,
             progressHeight: 6, rowHeight: 22, scrollbarThickness: 8)
 
+proc contrastSpec*(): BrandSpec =
+  ## For anyone who needs the strongest edges: black on white, ink outlines two
+  ## pixels thick, a three-pixel focus ring, bold captions. Every caption meets
+  ## WCAG AAA (7:1).
+  BrandSpec(name: "Contrast", accent: hex"#0033CC", onAccent: hex"#FFFFFF",
+            canvas: hex"#FFFFFF", surface: hex"#FFFFFF",
+            text: hex"#000000", border: hex"#000000", radius: 4,
+            borderWidth: 2, focusRingWidth: 3, boldCaptions: true,
+            info: hex"#003A8C", success: hex"#005A1E", warning: hex"#6B3F00",
+            danger: hex"#8A0000", highContrast: true)
+
+proc contrastDarkSpec*(): BrandSpec =
+  ## The same on black: white text and outlines, a yellow accent.
+  BrandSpec(name: "Contrast Dark", dark: true, accent: hex"#FFD400",
+            onAccent: hex"#000000",
+            canvas: hex"#000000", surface: hex"#000000",
+            text: hex"#FFFFFF", border: hex"#FFFFFF", radius: 4,
+            borderWidth: 2, focusRingWidth: 3, boldCaptions: true,
+            info: hex"#7DC0FF", success: hex"#6BFF9A", warning: hex"#FFD400",
+            danger: hex"#FF8A8A", highContrast: true)
+
 proc brandThemes*(): seq[tuple[key: string, theme: Theme]] =
   ## Every shipped brand, by registry name.
   @[("daylight", brandTheme(daylightSpec())),
@@ -323,4 +361,6 @@ proc brandThemes*(): seq[tuple[key: string, theme: Theme]] =
     ("ember", brandTheme(emberSpec())),
     ("graphite", brandTheme(graphiteSpec())),
     ("punch", brandTheme(punchSpec())),
-    ("hairline", brandTheme(hairlineSpec()))]
+    ("hairline", brandTheme(hairlineSpec())),
+    ("contrast", brandTheme(contrastSpec())),
+    ("contrast-dark", brandTheme(contrastDarkSpec()))]
