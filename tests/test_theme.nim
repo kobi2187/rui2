@@ -344,6 +344,9 @@ suite "the visual-state ladder":
           visualState(false, false, true, true, slPointerFirst)
 
 suite "themeProps reads the widget's own flags":
+  setup: animationsEnabled = false      # these read the settled state, not a point in a fade
+  teardown: animationsEnabled = true
+
 
   test "it uses hovered and focused from the base Widget fields":
     let w = newButton(text = "x")
@@ -364,6 +367,9 @@ suite "themeProps reads the widget's own flags":
     check pressed != disabled
 
 suite "the theme owns the hover-or-focus preference":
+  setup: animationsEnabled = false      # these read the settled state, not a point in a fade
+  teardown: animationsEnabled = true
+
   ## A widget says what it is (crText / crPointer); which of hover and focus
   ## wins is the theme's call, read from the in-memory currentTheme on every
   ## lookup -- never re-read from the theme file.
@@ -1046,3 +1052,86 @@ suite "theme: hot reload":
     app.pollThemeWatch(getMonoTime() + initDuration(seconds = 2))
     check currentTheme.base[Default].cornerRadius.get == 11
     check app.tree.root.isDirty                        # and the tree repaints
+
+
+suite "theme: state changes fade":
+
+  setup:
+    animationsEnabled = true
+  teardown:
+    animationsEnabled = true
+
+  proc fadeTheme(ms: float32): Theme =
+    var t = newTheme("Fade")
+    t.base[Default] = ThemeProps(backgroundColor: some(Color(r: 0, g: 0, b: 0, a: 255)))
+    t.states[Default][Hovered] = ThemeProps(backgroundColor: some(Color(r: 200, g: 100, b: 50, a: 255)))
+    t.animation.durationFast = some(ms)
+    t
+
+  test "mixColors moves colours, and takes everything else from the target":
+    let a = ThemeProps(backgroundColor: some(Color(r: 0, g: 0, b: 0, a: 255)),
+                       borderWidth: some(1.0'f32))
+    let b = ThemeProps(backgroundColor: some(Color(r: 100, g: 200, b: 50, a: 255)),
+                       borderWidth: some(3.0'f32))
+    let half = mixColors(a, b, 0.5)
+    check half.backgroundColor.get == Color(r: 50, g: 100, b: 25, a: 255)
+    check half.borderWidth.get == 3.0                     # sizes do not blend
+    check mixColors(a, b, 1.0).backgroundColor == b.backgroundColor
+
+  test "hovering starts a fade: the first frames are between the colours, then it settles":
+    let saved = currentTheme
+    defer: setCurrentTheme(saved)
+    setCurrentTheme(fadeTheme(120))
+    let w = newButton(text = "x")
+    check w.themeProps(Default).backgroundColor.get.r == 0       # first look: settled
+    w.hovered = true
+    let mid = w.themeProps(Default).backgroundColor.get
+    check mid.r < 200                                   # not there yet
+    check w.fadeActive
+    sleep(200)
+    check w.themeProps(Default).backgroundColor.get.r == 200      # arrived
+    check not w.fadeActive
+
+  test "a theme with durationFast 0 snaps":
+    let saved = currentTheme
+    defer: setCurrentTheme(saved)
+    setCurrentTheme(fadeTheme(0))
+    let w = newButton(text = "x")
+    discard w.themeProps(Default)
+    w.hovered = true
+    check w.themeProps(Default).backgroundColor.get.r == 200
+    check not w.fadeActive
+
+  test "switching theme lands at once, without a fade":
+    let saved = currentTheme
+    defer: setCurrentTheme(saved)
+    setCurrentTheme(fadeTheme(120))
+    let w = newButton(text = "x")
+    discard w.themeProps(Default)
+    w.hovered = true
+    discard w.themeProps(Default)                       # fading
+    setCurrentTheme(fadeTheme(120))                     # a theme switch bumps settleEpoch
+    check w.themeProps(Default).backgroundColor.get.r == 200
+    check not w.fadeActive
+
+  test "reduced motion (animationsEnabled = false) never fades":
+    let saved = currentTheme
+    defer: setCurrentTheme(saved)
+    setCurrentTheme(fadeTheme(120))
+    animationsEnabled = false
+    let w = newButton(text = "x")
+    discard w.themeProps(Default)
+    w.hovered = true
+    check w.themeProps(Default).backgroundColor.get.r == 200
+
+  test "a disposed widget leaves no fade behind":
+    let saved = currentTheme
+    defer: setCurrentTheme(saved)
+    setCurrentTheme(fadeTheme(120))
+    let w = newButton(text = "x")
+    discard w.themeProps(Default)
+    w.hovered = true
+    discard w.themeProps(Default)
+    check w.fadeActive
+    disposeTree(w)
+    check not w.fadeActive

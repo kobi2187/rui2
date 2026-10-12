@@ -288,6 +288,10 @@ type
     onBlur*: proc() {.closure.}        # Called when widget loses focus
 
     # Data binding
+    lastThemeState*: uint8
+      ## The visual state `themeProps` last returned for this widget plus one (0:
+      ## never asked), so a change of state can fade instead of snap.
+    themeFadeEpoch*: int
     disposers*: seq[proc() {.closure.}]
       ## Run by `disposeTree` when the widget leaves the tree for good: how it
       ## lets go of everything that holds a reference to it (a Link's dependent
