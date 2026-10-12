@@ -20,7 +20,7 @@
 
 import std/[json, options, strutils, tables]
 import raylib
-import types, script_bridge
+import types, script_bridge, layout, yui_names
 
 type
   YuiHandler* = proc (args: JsonNode) {.closure.}
@@ -149,6 +149,14 @@ template yuiAssign*(dst: untyped, node: JsonNode): bool =
     node.kind == JString and parseEnumName(node.getStr(), dst)
   elif dst is seq[string]:
     textList(node, dst)
+  elif dst is EdgeInsets:
+    (block:
+      let insets = if node.kind == JString: parseCssInsets(node.getStr())
+                   elif node.kind in {JInt, JFloat}:
+                     some(EdgeInsets.all(node.getFloat().float32))
+                   else: none(EdgeInsets)
+      if insets.isSome: dst = insets.get
+      insets.isSome)
   elif dst is Color:
     node.kind == JString and (block:
       let c = parseHexColor(node.getStr())

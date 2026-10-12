@@ -105,11 +105,56 @@ references need the work in #46.
 - the parser takes any token containing `x` for a size, so `label next` is
   misread; `parseYuiKey` requires digits on both sides (`120x40`).
 
-## Still to build (issue #61)
+## Loading a file: `loadYui`
 
-`loadYui(path): Widget` (element table + properties + `Store` + an action
-registry), a `rui2` target for `yui generate`, `toYui(widget)`, and a
-round-trip conformance test. Every yui element now has a rui2 widget.
+```nim
+let store = newStore()
+var actions: YuiActions
+actions["save/0"] = proc (args: JsonNode) = echo "saved"
+let doc = loadYui("settings.yui", store, actions)
+for w in doc.warnings: stderr.writeLine w
+let app = newApp(doc.title, doc.width, doc.height)
+app.setRootWidget(doc.root)
+```
+
+(`examples/widgets/yui_app.nim` + `examples/yui/settings.yui` is the whole thing.)
+
+The loader has no per-widget code. Every `definePrimitive` / `defineWidget`
+registers itself in `widget_registry` (constructor, every prop and state field
+as a JSON-coercing setter, every action as a handler attacher), so an element
+is: yui table row -> widget name -> blueprint -> `create`, `setProp`, `attach`.
+
+| In the file | What happens |
+|---|---|
+| `app: "Title"` / `{title, width, height, size: 800x600}` | `doc.title`, `doc.width`, `doc.height` |
+| `import_theme: path` | `doc.themePath`, for the host to load |
+| `state:` | declared in `store` by value type (bool/int/float/string); names the host declared first keep their value |
+| `view:` | one element, or several (wrapped in a Column) |
+| `button 120x40 "Save"` | text goes to the first of `text`, `title`, `caption`, `label`; `WxH` is `.size`; `grid 3x2` is `crossAxisCount` |
+| `children:` | child elements; for `tab`, each `tab "Title"` child is a page |
+| `bind <-> x`, `-> x`, `<- x` (also `bind: "<-> x"`) | the widget's `checked`, else `value`, else `text`, tied to the store entry |
+| `"Hello, {name}"` in text or any property | pushed into the property, kept current |
+| `visible: "{busy}"` / `"{!busy}"`, `enabled:` | bound flag |
+| `on_click: save/0` | the action registered as `save/0`; `Button.onClick` etc. Several sources (bind + on_change) share one action |
+| `width`, `height`, `size`, `grow`, `align`, `justify`, `spacing`, `padding`, `margin`, `id` | as in the table above; padding on a widget with no `padding` prop and `margin` wrap it in a Padding box |
+| `min`, `max`, `options`, `dividerPosition` | renamed to `minValue`, `maxValue`, `items`, `initialRatio` |
+| any other key | a prop or state field of the widget, ignoring case and underscores; values may be `16px`, `#3366cc`, enum names, lists of strings |
+
+### What goes wrong, and how you hear about it
+
+A file that is not YAML, has no `view:`, or whose `view:` builds nothing raises
+`YuiLoadError`. Everything else is a **warning** in `doc.warnings`, written as
+`path: message` (`view[0].children[1].on_click: no handler registered for
+action 'nothing/0'`), and the rest of the tree still loads. Warned, never
+silently dropped: unknown elements and properties (with a "did you mean"),
+values that do not fit, undeclared state names, missing handlers (also checked
+against the file's own `actions:` list up front), an action registered under
+another arity, `state:` lists and objects, `theme`/`font`/`color`/`background`/
+`border`/`shrink`/`wrap`, and `$token` references.
+
+Not done yet: `toYui`, round-trip tests, `list` `template:` rows, expressions
+beyond `{name}` / `{!name}`, live reload (`app.watchYui`), and the rui2 target
+inside the yui generator.
 
 ## Questions for yui's author
 

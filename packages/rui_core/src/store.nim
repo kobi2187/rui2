@@ -34,6 +34,7 @@ type
     getText: proc(): string {.closure.}
     setText: proc(text: string): bool {.closure.}
     observe: proc(f: proc() {.closure.}) {.closure.}
+    bindWidget: proc(widget: Widget, apply: proc(text: string) {.closure.}) {.closure.}
 
   TypedEntry[T] = ref object of StoreEntry
     link: Link[T]
@@ -76,6 +77,8 @@ proc declare*[T](store: Store, name: string, initial: T): Link[T] =
   entry.getText = proc(): string = scalarText(link.value)
   entry.setText = proc(text: string): bool = scalarParse(link, text)
   entry.observe = proc(f: proc() {.closure.}) = link.observers.add f
+  entry.bindWidget = proc(widget: Widget, apply: proc(text: string) {.closure.}) =
+    link.bindTo(widget, proc(v: T) = apply(scalarText(v)))
   store.entries[name] = RootRef(entry)
   store.order.add name
   link
@@ -114,6 +117,14 @@ proc setText*(store: Store, name: string, text: string): bool =
 
 proc typeName*(store: Store, name: string): string = store.entry(name).typeName
 
+proc bindText*(store: Store, name: string, widget: Widget,
+               apply: proc(text: string) {.closure.}) =
+  ## Keep `widget` in step with `name`: `apply` gets the value as text now and
+  ## on every change, and the widget is repainted. The type-blind sibling of
+  ## `Link.bindTo`, for a name that came from a file. Unbound when the widget
+  ## is disposed.
+  store.entry(name).bindWidget(widget, apply)
+
 # ---------------------------------------------------------------------------
 # Interpolation: "Hello, {name}"
 
@@ -139,6 +150,12 @@ proc pieces(pattern: string): seq[Piece] =
     else:
       literal.add ch; inc i
   if literal.len > 0: result.add (literal, false)
+
+proc mentions*(pattern: string): seq[string] =
+  ## The names a pattern refers to, in order of appearance: `"{a} and {b}"`
+  ## gives `@["a", "b"]`.
+  for p in pieces(pattern):
+    if p.isName: result.add p.text
 
 proc format*(store: Store, pattern: string): string =
   ## Fill `{name}` with each entry's text. An unknown name raises.

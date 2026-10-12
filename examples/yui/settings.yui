@@ -1,0 +1,46 @@
+# A settings window, described in yui. Run with:
+#   nim c -r -d:useGraphics examples/widgets/yui_app.nim [examples/yui/settings.yui]
+app: {title: "Settings (yui)", size: 640x460}
+
+state:
+  name: "Ada"
+  notifications: true
+  volume: 40
+  busy: false
+
+view:
+  - column:
+      padding: 24px
+      spacing: 14
+      align: start
+      children:
+        - label "Hello, {name}!"
+        - row:
+            spacing: 12
+            children:
+              - label "Name"
+              - input: {bind <-> name, placeholder: "Your name", size: 240x32}
+        - checkbox "Notifications": {bind <-> notifications}
+        - row:
+            spacing: 12
+            children:
+              - label "Volume {volume}"
+              - slider: {bind <-> volume, min: 0, max: 100, size: 240x28}
+        - tab:
+            size: 480x140
+            children:
+              - tab "General":
+                  children:
+                    - label "General settings go here."
+                    - checkbox "Remember me"
+              - tab "Advanced":
+                  children:
+                    - label "Advanced settings."
+        - row:
+            spacing: 8
+            children:
+              - button "Save": {on_click: save/0}
+              - button "Reset": {on_click: reset/0}
+              - label "Working...": {visible: "{busy}"}
+
+actions: [save/0, reset/0]
