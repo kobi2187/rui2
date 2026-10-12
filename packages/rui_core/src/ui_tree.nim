@@ -58,7 +58,8 @@
 ##   hook a widget fires on user change (`onChange`, `onToggle`) is chained, so
 ##   a handler you wrote yourself still runs. A string with `{link}` in it,
 ##   `Label(text = -> "Hello, {name} ({n})")`, follows every Link it names.
-##   `Store` (store.nim) supplies Links by name for these.
+##   `Store` (store.nim) supplies Links by name for these. `items = -> seq` and
+##   `rows = -> seq` take a `LinkSeq` and follow it edit by edit.
 
 import macros, std/strutils
 import types
@@ -189,6 +190,12 @@ proc bindStatements(w: NimNode, field: string, arrow: Arrow,
       result.add newCall(ident("bindTo"), link, w, apply)
     if links.len == 0:
       result.add newAssignment(fieldAccess, newLit(operand.strVal))
+    return
+  if field in ["items", "rows"] and arrow == arrowToWidget:
+    # A list: `ListView(items = -> source)` shows a RowSource (or follows a
+    # LinkSeq) without copying it.
+    result.add newCall(ident(if field == "items": "bindItems" else: "bindRows"),
+                       w, operand)
     return
   if arrow in {arrowBoth, arrowToWidget}:
     let v = genSym(nskParam, "v")

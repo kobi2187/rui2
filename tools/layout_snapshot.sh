@@ -12,7 +12,7 @@ export RUI_PREFERENCES=/nonexistent/rui-preferences.yaml
 # Text is measured by Pango: the same fonts everywhere, or every Label moves.
 export FONTCONFIG_FILE="$PWD/tools/fontconfig/fonts.conf"
 DEP=""
-for pkg in naylib yaml; do
+for pkg in naylib yaml db_connector; do
   p="$(nimble path "$pkg" 2>/dev/null | tail -1)"; [ -n "$p" ] && DEP="$DEP --path:$p"
 done
 export NIMFLAGS="--hints:off --warnings:off -d:useGraphics $DEP"
