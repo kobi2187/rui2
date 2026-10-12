@@ -12,6 +12,7 @@
 ##
 ##   visual clock                 ms since start, presented frame count
 ##   visual frames                step / present timings over the last frames
+##   visual perf [reset]          per-phase timers (-d:ruiPerf builds only)
 ##   visual hash [fresh]          hash and mean colour of the selector's rectangle
 ##   visual shot [file] [fresh]   that rectangle as a PNG
 ##   visual arm                   remember the rectangle's pixels now
@@ -29,6 +30,7 @@
 import std/[monotimes, times, options, strutils, os, algorithm, tables]
 import raylib
 import script_manager
+import rui_core
 
 type
   FrameStat = object
@@ -227,6 +229,14 @@ proc answer*(probe: VisualProbe, selector, what: string): VisualReply =
     ok("ms=" & ms3(probe.ms(getMonoTime())) & " frame=" & $probe.presented)
   of "frames":
     probe.framesReply()
+  of "perf":
+    # Per-phase timers; only present in a build with -d:ruiPerf.
+    if parts.len > 1 and parts[1] == "reset":
+      perfReset()
+      ok("perf reset")
+    else:
+      let report = perfReport()
+      if perfOn: ok(report) else: fail(report)
   of "hash":
     waitForShot(probe, fresh, proc(): VisualReply = probe.pixelsReply(sel, "", false))
   of "shot":

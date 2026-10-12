@@ -9,6 +9,7 @@
 #   PROBE_OUT=dir                     where shots and logs go (default /tmp/gallery_probe)
 #   PROBE_LATENCY_MS=250              the slowest acceptable repaint (check mode)
 #   PROBE_IDLE_FRAMES=20              most frames an idle tab may present in 1.5 s
+#   PROBE_PERF=1                      build with -d:ruiPerf and print per-phase timers
 #
 # Timing is measured inside the app (see docs/visual-testing.md), so the numbers do
 # not include this script's file polling. Needs Xvfb; builds the gallery with
@@ -30,7 +31,8 @@ for pkg in naylib yaml db_connector; do
 done
 rm -rf "$OUT"; mkdir -p "$OUT"
 BIN="$OUT/gallery"
-nim c --hints:off --warnings:off -d:useGraphics -d:ruiInspect -d:ruiTestKeys $DEP_PATHS \
+PERF_FLAG=""; [ -n "${PROBE_PERF:-}" ] && PERF_FLAG="-d:ruiPerf"
+nim c --hints:off --warnings:off -d:useGraphics -d:ruiInspect -d:ruiTestKeys $PERF_FLAG $DEP_PATHS \
     --nimcache:/tmp/rui2_tests/nc_probe -o:"$BIN" examples/gallery/gallery.nim \
     >"$OUT/build.log" 2>&1 || { echo "gallery did not build"; tail -20 "$OUT/build.log"; exit 2; }
 
@@ -122,6 +124,14 @@ esac
 echo
 echo "== frame timings =="
 send "1 * visual frames" | sed 's/^1 /   /'
+if [ -n "${PROBE_PERF:-}" ]; then
+  echo
+  echo "== per-phase timers while the ticker runs (us: avg/p95/max per presented frame) =="
+  send "1 tabs write activeTab=7" "2 * visual stable 300 4000" "3 live.run custom:toggle" "4 * visual perf reset" >/dev/null
+  sleep 4
+  send "1 * visual perf" | sed 's/^1 //' | tr ' ' '\n' | sed 's/^/   /'
+  send "1 live.run custom:toggle" >/dev/null
+fi
 echo
 echo "screenshots and logs: $OUT"
 if [ "$MODE" = "check" ]; then

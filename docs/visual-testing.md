@@ -80,6 +80,39 @@ It reports, per tab, the frames presented in 1.5 s of doing nothing (should be
 (min / avg / max over several runs); then confirms an unchanging label really
 reports no change. Thresholds: `PROBE_LATENCY_MS` (250), `PROBE_IDLE_FRAMES` (20).
 
+## Per-phase timers (`-d:ruiPerf`)
+
+`visual frames` splits a frame into step and present only. Build with
+`-d:ruiPerf` (a separate flag; the timers are `when`-ed out of ordinary and
+`-d:ruiInspect` builds, so no clock is read) and ask `visual perf`:
+
+```
+presented=57 idle=185 sampled=56 phEvents=21/54/73 phScript=14/29/65 phPoll=5/8/25
+phLayout=1001/1359/3545 phTexAlloc=2728/4511/5138 phRender=2410/3423/5008
+phCompose=5962/7649/9408 phScreen=7307/9051/9525 phReadback=9405/12734/12962
+phSwap=1172/1203/7692 pcPainted/frame=8.8 pcTextures/frame=8.8 first{...}
+```
+
+Each `phX=avg/p95/max` is microseconds per presented frame. The phases are
+disjoint: `events`, `script`, `poll` (theme watch, data sources, repaint timers),
+`layout`, `texalloc` (freeing and creating widget render textures), `render`
+(what widgets draw), `compose` (blitting child textures into the parent's),
+`screen` (root and overlays to the window), `readback` (the probe's framebuffer
+read, so you can see its cost and subtract it), `swap` (`endDrawing`: swap, input
+poll, frame-rate wait) and `idle` (blocked, in idle frames). Counters:
+`pcPainted` widgets repainted and `pcTextures` textures created, per frame.
+`first{...}` is the first presented frame alone, which carries the warm-up.
+`visual perf reset` starts a new sample. Without the flag the verb says so.
+
+`PROBE_PERF=1 tools/gallery_probe.sh` builds with it and prints the table while
+the Live ticker runs. The call sites are `perfTime(phase): body` in `app.nim`
+and `main_loop.nim`; `rui_core/perf.nim` is the bookkeeping.
+
+First reading (software GL, ticker running, ~9 widgets repainted per frame):
+compose, screen and readback are the big three, then texture alloc and render.
+Every repaint frees and recreates the widget's render texture
+(`texalloc` ~2.7 ms per frame), which is the first thing to try reusing.
+
 ## What it found
 
 The first run showed every tab presenting 60 frames a second while idle: a

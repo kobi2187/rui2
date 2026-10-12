@@ -9,7 +9,7 @@
 ## - Parent composites children's textures into its own
 ## - Cached Texture2D is reused when widget is clean
 
-import types
+import types, perf
 import std/[algorithm, math, options]
 import raylib
 import rlgl
@@ -399,8 +399,12 @@ proc compositeChildren(widget: Widget, originalX, originalY: float32) =
 
 proc renderToTexture(widget: Widget) =
   ## Paint this widget and its children into a fresh cached texture.
-  freeWidgetTexture(widget)
-  let renderTex = createWidgetTexture(widget)
+  var renderTex: RenderTexture2D
+  perfTime(phTexAlloc):
+    freeWidgetTexture(widget)
+    renderTex = createWidgetTexture(widget)
+  perfCount(pcPainted)
+  perfCount(pcTextures)
 
   beginTextureMode(renderTex)
   clearBackground(Color(r: 0, g: 0, b: 0, a: 0))   # Transparent background
@@ -413,13 +417,15 @@ proc renderToTexture(widget: Widget) =
   let originalY = widget.bounds.y
   widget.bounds.x = 0
   widget.bounds.y = 0
-  paintingIntoTexture:
-    widget.render()
+  perfTime(phRender):
+    paintingIntoTexture:
+      widget.render()
   widget.bounds.x = originalX
   widget.bounds.y = originalY
 
-  compositingTextures:
-    compositeChildren(widget, originalX, originalY)
+  perfTime(phCompose):
+    compositingTextures:
+      compositeChildren(widget, originalX, originalY)
 
   endTextureMode()
   widget.cachedTexture = some(renderTex)

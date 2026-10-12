@@ -24,4 +24,5 @@ import clipboard;         export clipboard
 import modifiers;         export modifiers
 import overlays;          export overlays
 import popups;            export popups
+import perf;              export perf
 import yui_names;          export yui_names

@@ -819,8 +819,9 @@ proc updateLayoutAndRender(app: App): bool =
   ## presenting at all.
   if app.tree.root == nil:
     return false
-  app.refreshLayout()
-  app.syncFocusRings()
+  perfTime(phLayout):
+    app.refreshLayout()
+    app.syncFocusRings()
   # What the window shows: anything wholly outside it is not painted until it
   # scrolls into view.
   renderView = some(Rect(x: 0, y: 0, width: getScreenWidth().float32,
@@ -886,22 +887,25 @@ proc renderFrame(app: App) =
   ## The whole tree is already painted by this point -- renderPass built each
   ## widget's texture and composited them upward -- so this is one blit plus
   ## whatever the window itself draws over it.
-  beginDrawing()
-  # The window surround follows the active theme rather than a hardcoded
-  # RayWhite, so a dark theme does not leave a light border around the UI.
-  clearBackground(currentTheme.canvasColor())
+  perfTime(phScreen):
+    beginDrawing()
+    # The window surround follows the active theme rather than a hardcoded
+    # RayWhite, so a dark theme does not leave a light border around the UI.
+    clearBackground(currentTheme.canvasColor())
 
-  app.compositeRoot()
-  if app.beingScripted:
-    drawScriptingIndicator()
+    app.compositeRoot()
+    if app.beingScripted:
+      drawScriptingIndicator()
   if app.probe != nil and app.probe.enabled:
-    app.probe.capture()         # exactly what is about to be presented
+    perfTime(phReadback):
+      app.probe.capture()       # exactly what is about to be presented
 
   when defined(debugUI):
     drawText("FPS: " & $app.currentFPS, 10'i32, 10'i32, 16'i32, DarkGray)
     drawText("Events: " & $app.eventManager.queueLength, 10'i32, 30'i32, 16'i32, DarkGray)
 
-  endDrawing()
+  perfTime(phSwap):
+    endDrawing()
 
 # ============================================================================
 # Scripting Support
@@ -972,19 +976,21 @@ proc pumpEvents*(app: App) =
   if app.onFrame != nil:
     app.onFrame()
 
-  # 1. Collect events from this frame's source
-  app.collectEvents()
+  perfTime(phEvents):
+    # 1. Collect events from this frame's source
+    app.collectEvents()
 
-  # 2. Process event patterns (coalescing)
-  app.eventManager.update()
+    # 2. Process event patterns (coalescing)
+    app.eventManager.update()
 
-  # 3. Process events with time budget
-  discard app.eventManager.processEvents(
-    app.eventManager.currentBudget,
-    proc(event: GuiEvent) = app.handleEvent(event))
+    # 3. Process events with time budget
+    discard app.eventManager.processEvents(
+      app.eventManager.currentBudget,
+      proc(event: GuiEvent) = app.handleEvent(event))
 
   # 4. Poll script commands
-  app.pollScriptCommands()
+  perfTime(phScript):
+    app.pollScriptCommands()
 
   # 5. A popup that opened this frame (a context menu) may want the keyboard.
   let wantsFocus = takeFocusRequest()
@@ -1005,13 +1011,15 @@ proc step*(app: App): bool {.discardable.} =
   ## One frame of the pipeline, without the window or the loop around it.
   ## Needs a GL context, because it paints. Returns whether anything was
   ## painted.
-  app.pollThemeWatch()
+  perfTime(phPoll):
+    app.pollThemeWatch()
   app.pumpEvents()
-  if runPollers():                  # a data source brought rows in from its worker
-    app.tree.anyDirty = true
-  if fireDueRepaints():
-    app.tree.anyDirty = true
-  app.pruneToasts()
+  perfTime(phPoll):
+    if runPollers():                # a data source brought rows in from its worker
+      app.tree.anyDirty = true
+    if fireDueRepaints():
+      app.tree.anyDirty = true
+    app.pruneToasts()
   app.updateLayoutAndRender()
 
 proc countFrame(app: App) =
@@ -1055,10 +1063,12 @@ proc idleUntilNextFrame(app: App, frameStart: MonoTime) =
     let cap = if app.scriptManager != nil:
                 some(initDuration(nanoseconds = 1_000_000_000 div max(1, app.window.fps)))
               else: none(Duration)
-    blockForEvents(idleWaitFor(now, nextRepaint(), app.lastPresent + app.idleRefresh, cap))
+    perfTime(phIdle):
+      blockForEvents(idleWaitFor(now, nextRepaint(), app.lastPresent + app.idleRefresh, cap))
   else:
     app.idleRecentlyPolled = true
-    pollInputEvents()
+    perfTime(phIdle):
+      pollInputEvents()
 
 let profileFrames = getEnv("RUI_PROFILE").len > 0
   ## `RUI_PROFILE=1 ./app` prints one line per presented frame to stderr:
@@ -1113,8 +1123,10 @@ proc run*(app: App, maxFrames: int = -1) =
       app.lastPresent = frameStart
       app.countFrame()
       app.idleRecentlyPolled = false
+      when perfOn: perfEndFrame(true)
     else:
       app.idleUntilNextFrame(frameStart)
+      when perfOn: perfEndFrame(false)
     app.lastFrameTime = frameStart
 
 # ============================================================================
