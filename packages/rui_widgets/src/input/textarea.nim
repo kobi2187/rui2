@@ -116,25 +116,52 @@ type VisualLine* = tuple[start, stop: int, dir: TextDir]
   ## is its paragraph's direction: a wrapped line is laid out in that, not in
   ## whatever its own first letter suggests.
 
-var linesMemo: tuple[text, font: string, width: float32, lines: seq[VisualLine]]
+type LinesMemo = tuple[text, font: string, width: float32, lines: seq[VisualLine]]
+
+var linesMemos: seq[LinesMemo]     # most recently used last
+var breaksMemo: Table[string, seq[int]]
+  ## Where each paragraph breaks, by paragraph: an edit changes one paragraph, so
+  ## only that one goes back to Pango. Wrapping a 3000-paragraph document took
+  ## ~90 ms per keystroke when every paragraph was re-laid-out every time.
+
+proc breaksOf(paragraph, font: string, width: int32): seq[int] =
+  let key = font & "\x00" & $width & "\x00" & paragraph
+  if key in breaksMemo: return breaksMemo[key]
+  result = softBreaks(paragraph, font, width)
+  if breaksMemo.len >= 20000: breaksMemo.clear()
+  breaksMemo[key] = result
+const linesMemoSize = 8
+  ## Several editors on screen ask in turn. One slot made each repaint of one
+  ## recompute the lines of another: a 3000-line document cost seconds a frame
+  ## whenever a one-line field sat beside it.
 
 proc visualLines*(text, font: string, wrapWidth: float32): seq[VisualLine] =
   ## The lines `text` is drawn as, wrapped at `wrapWidth` pixels (0: no
-  ## wrapping). Remembered for the last text, as the editor asks per key.
-  if linesMemo.lines.len > 0 and linesMemo.text == text and
-     linesMemo.font == font and linesMemo.width == wrapWidth:
-    return linesMemo.lines
+  ## wrapping). Remembered for the last few texts, as the editor asks per key.
+  for i in countdown(linesMemos.high, 0):
+    if linesMemos[i].width == wrapWidth and linesMemos[i].text.len == text.len and
+       linesMemos[i].font == font and linesMemos[i].text == text:
+      result = linesMemos[i].lines
+      if i != linesMemos.high:                      # now the most recent
+        let hit = linesMemos[i]
+        linesMemos.delete(i)
+        linesMemos.add hit
+      return
   let hard = lineStarts(text)
   for i, start in hard:
-    let stop = lineEnd(text, i)
+    # the end of line i is where line i+1 starts, less its newline -- read from
+    # `hard`, not recomputed: `lineEnd` rescans the whole text, which made this
+    # quadratic in the number of lines
+    let stop = if i + 1 < hard.len: hard[i + 1] - 1 else: text.len
     let dir = paragraphDir(text[start ..< stop])
     if wrapWidth > 0 and stop > start:
-      let breaks = softBreaks(text[start ..< stop], font, int32(wrapWidth))
+      let breaks = breaksOf(text[start ..< stop], font, int32(wrapWidth))
       for k, b in breaks:
         result.add (start + b, (if k + 1 < breaks.len: start + breaks[k + 1] else: stop), dir)
     else:
       result.add (start, stop, dir)
-  linesMemo = (text, font, wrapWidth, result)
+  linesMemos.add (text, font, wrapWidth, result)
+  if linesMemos.len > linesMemoSize: linesMemos.delete(0)
 
 proc visualLineOf*(lines: openArray[VisualLine], index: int): int =
   ## The line a byte offset is drawn on. At a soft break the caret belongs to

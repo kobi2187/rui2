@@ -59,6 +59,10 @@ const
   perfWindow = 600
 
 var
+  inputStamp: MonoTime
+  haveInput: bool
+  inputSamples: seq[int64]     # ns from an input event reaching the app to the frame that showed it
+  inputNoPaint: int            # input that painted nothing
   current: PerfFrame
   recent: seq[PerfFrame]       # presented frames after the first, newest last
   firstFrame: PerfFrame
@@ -81,9 +85,22 @@ template perfCount*(counter: PerfCounter, n = 1) =
 proc perfAdd*(phase: PerfPhase, ns: int64) =
   current.ns[phase] += ns
 
+proc perfInput*(at: MonoTime) =
+  ## An input event reached the app at `at` (the earliest one this frame counts).
+  if not haveInput:
+    inputStamp = at
+    haveInput = true
+
 proc perfEndFrame*(presented: bool) =
   ## Close the current frame's books. Idle frames only count; presented ones are
   ## kept for the report.
+  if haveInput:
+    if presented:
+      inputSamples.add (getMonoTime() - inputStamp).inNanoseconds
+      if inputSamples.len > perfWindow: inputSamples.delete(0)
+    else:
+      inc inputNoPaint
+    haveInput = false
   if presented:
     inc presentedTotal
     var f = current
@@ -104,6 +121,9 @@ proc perfReset*() =
   haveFirst = false
   presentedTotal = 0
   idleTotal = 0
+  inputSamples.setLen(0)
+  inputNoPaint = 0
+  haveInput = false
 
 proc perfFrames*(): seq[PerfFrame] = recent
 
@@ -135,6 +155,8 @@ proc perfReport*(): string =
     var total = 0
     for f in recent: total += f.count[c]
     parts.add $c & "/frame=" & (if recent.len > 0: formatFloat(total / recent.len, ffDecimal, 1) else: "0")
+  parts.add "input{n=" & $inputSamples.len & " us=" & stats(inputSamples) &
+            " nopaint=" & $inputNoPaint & "}"
   if haveFirst:
     var first: seq[string]
     for ph in PerfPhase:

@@ -335,6 +335,9 @@ proc overlapsView*(bounds, view: Rect): bool =
   bounds.x < view.x + view.width and bounds.x + bounds.width > view.x and
   bounds.y < view.y + view.height and bounds.y + bounds.height > view.y
 
+var renderPassNumber = 0
+  ## Counts render passes; a widget repainted in this one carries it in `paintPass`.
+
 proc renderPassIn(widget: Widget, view: Option[Rect]): bool
 
 proc renderChildrenFirst(widget: Widget, view: Option[Rect],
@@ -368,10 +371,10 @@ proc renderChildrenFirst(widget: Widget, view: Option[Rect],
       if child.culled:
         child.culled = false
         result = true                  # back in view: re-composite it
-      let wasDirty = child.isDirty and child.visible
       if renderPassIn(child, childView):
         result = true
-      if wasDirty: changed.add child.damage
+      if child.paintPass == renderPassNumber and child.visible:
+        changed.add child.damage       # it was repainted just now, whoever marked it
 
   if widget.hasOverlay and widget.children.len > 1:
     var sortedChildren = widget.children
@@ -485,6 +488,8 @@ proc renderToTexture(widget: Widget, changed: seq[Rect], partialOk: bool) =
     region = partialRegion(widget, changed)
     if region.isNone:                    # changed children outside the widget
       widget.isDirty = false
+      widget.paintPass = renderPassNumber
+      widget.damage = Rect()
       return
   widget.paintSig = sig
   ensureTextureFor(widget)
@@ -528,6 +533,7 @@ proc renderToTexture(widget: Widget, changed: seq[Rect], partialOk: bool) =
     rlgl.disableScissorTest()
   endTextureMode()
   widget.isDirty = false
+  widget.paintPass = renderPassNumber
   widget.damage = if region.isSome:
                     Rect(x: originalX + repainted.x, y: originalY + repainted.y,
                          width: repainted.width, height: repainted.height)
@@ -558,6 +564,7 @@ proc renderPassIn(widget: Widget, view: Option[Rect]): bool =
 proc renderPass*(widget: Widget) =
   ## Render dirty widgets to textures, bottom-up, skipping what is off screen
   ## when `renderView` is set. The root is never culled.
+  inc renderPassNumber
   discard renderPassIn(widget, renderView)
 
 # ============================================================================

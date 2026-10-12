@@ -494,6 +494,10 @@ proc collectEvents(app: App) =
   ## and run a frame with no window at all. This used to read raylib directly
   ## from here, which is why the frame pipeline had no headless tests.
   for event in app.eventSource.poll():
+    when perfOn:
+      if event.kind in {evKeyDown, evChar, evMouseDown, evMouseUp, evMouseMove,
+                        evMouseWheel}:
+        perfInput(event.timestamp)
     app.eventManager.addEvent(event)
 
 # ============================================================================

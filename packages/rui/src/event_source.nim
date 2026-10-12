@@ -67,20 +67,65 @@ proc motionEvents(dest: var seq[GuiEvent], at: Point) =
   let wheelMove = getMouseWheelMove()
   if wheelMove != 0:
     dest.add(GuiEvent(kind: evMouseWheel, priority: epNormal,
-                      timestamp: getMonoTime(),
+                      timestamp: getMonoTime(), mousePos: at,
                       # The user's scroll speed, applied once here so every
                       # scrolling widget agrees.
                       wheelDelta: wheelMove * prefs.scrollSpeed))
 
+# Mouse buttons, from GLFW's own callback.
+#
+# raylib answers `isMouseButtonPressed` by comparing the button's state now with
+# its state at the last poll. A press and a release that both land between two
+# polls -- a trackpad tap is a few milliseconds long; so is any click that arrives
+# while the app is busy painting -- leave the two states equal, and the click
+# never happened. The callback sees every transition, in order, with the pointer
+# where it was at that moment.
+type
+  ButtonEvent = tuple[down: bool, at: Point, stamp: MonoTime]
+  GlfwMouseCb = proc (window: pointer, button, action, mods: cint) {.cdecl.}
+
+proc glfwSetMouseButtonCallback(window: pointer, cb: GlfwMouseCb): GlfwMouseCb
+  {.importc: "glfwSetMouseButtonCallback", cdecl.}
+proc glfwGetCurrentContext(): pointer {.importc: "glfwGetCurrentContext", cdecl.}
+proc glfwGetCursorPos(window: pointer, x, y: ptr cdouble)
+  {.importc: "glfwGetCursorPos", cdecl.}
+
+var
+  buttonQueue: seq[ButtonEvent]
+  raylibMouseCb: GlfwMouseCb
+  buttonHooked: bool
+
+proc onMouseButton(window: pointer, button, action, mods: cint) {.cdecl.} =
+  if raylibMouseCb != nil:
+    raylibMouseCb(window, button, action, mods)      # raylib keeps its own state
+  if button == 0 and action in [0.cint, 1.cint]:      # GLFW_MOUSE_BUTTON_LEFT; release / press
+    var x, y: cdouble
+    glfwGetCursorPos(window, addr x, addr y)
+    buttonQueue.add (action == 1, Point(x: x.float32, y: y.float32), getMonoTime())
+
+proc hookMouseButtons() =
+  if buttonHooked: return
+  let window = glfwGetCurrentContext()     # the GLFWwindow (raylib's own handle is the X11 one)
+  if window == nil: return
+  raylibMouseCb = glfwSetMouseButtonCallback(window, onMouseButton)
+  buttonHooked = true
+
 proc buttonEvents(dest: var seq[GuiEvent], at: Point) =
   ## epHigh because their order matters and they must not be coalesced away --
   ## a press and a release in the same frame is a click.
-  if isMouseButtonPressed(MouseButton.Left):
-    dest.add(GuiEvent(kind: evMouseDown, priority: epHigh,
-                      timestamp: getMonoTime(), mousePos: at))
-  if isMouseButtonReleased(MouseButton.Left):
-    dest.add(GuiEvent(kind: evMouseUp, priority: epHigh,
-                      timestamp: getMonoTime(), mousePos: at))
+  hookMouseButtons()
+  if not buttonHooked:                       # no window to hook: raylib's polling
+    if isMouseButtonPressed(MouseButton.Left):
+      dest.add(GuiEvent(kind: evMouseDown, priority: epHigh,
+                        timestamp: getMonoTime(), mousePos: at))
+    if isMouseButtonReleased(MouseButton.Left):
+      dest.add(GuiEvent(kind: evMouseUp, priority: epHigh,
+                        timestamp: getMonoTime(), mousePos: at))
+    return
+  for b in buttonQueue:
+    dest.add(GuiEvent(kind: (if b.down: evMouseDown else: evMouseUp), priority: epHigh,
+                      timestamp: b.stamp, mousePos: b.at))
+  buttonQueue.setLen(0)
 
 proc dropEvents(dest: var seq[GuiEvent], at: Point) =
   ## Files dropped on the window from the OS. One event for the whole drop,

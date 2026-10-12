@@ -58,15 +58,20 @@ defineWidget(Button):
                              align = TextAlign.Center))
 
   events:
+    # The look of each state is applied in `layout`, so a change of state has to
+    # ask for one -- repainting alone drew the old colours: a hovered button did
+    # not light up, and a pressed one did not sink, until something else laid it out.
     on_mouse_down:
       if not widget.disabled:
         widget.isPressed = true
+        widget.layoutDirty = true
         return true
       return false
 
     on_mouse_up:
       if widget.isPressed and not widget.disabled:
         widget.isPressed = false
+        widget.layoutDirty = true
         if widget.onClick != nil:
           widget.onClick()
         return true
@@ -80,7 +85,10 @@ defineWidget(Button):
                    mouseX <= widget.bounds.x + widget.bounds.width and
                    mouseY >= widget.bounds.y and
                    mouseY <= widget.bounds.y + widget.bounds.height
-      widget.isHovered = isOver
+      if widget.isHovered != isOver:
+        widget.isHovered = isOver
+        widget.layoutDirty = true
+        widget.markDirtyToRoot()
       return false
 
   layout:

@@ -372,6 +372,11 @@ proc menusTab(g: Gallery): Widget =
 # ---------------------------------------------------------------------------
 # the live pane
 
+proc bigDoc(): string =
+  var lines: seq[string]
+  for i in 0 ..< 3000: lines.add "line " & $i & ": the quick brown fox jumps over the lazy dog"
+  lines.join("\n")
+
 proc liveTab(g: Gallery, store: Store): Widget =
   let echoText = store.declare("liveText", "type here")
   let tick = store.declare("liveTick", 0)
@@ -404,6 +409,9 @@ proc liveTab(g: Gallery, store: Store): Widget =
         Embed(live.bar).size(220, 16)
         Embed(live.spark).size(220, 32)
       Embed(live.log).size(560, 130)
+      Label(text = "A long document (3000 lines): typing at the end is the slow case")
+      Embed(newTextArea(initialText = bigDoc(), visibleLines = 10, fontSize = 14.0)
+              .named("live.doc")).size(700, 220)
 
 proc stepLive*(g: Gallery, now = getMonoTime()) =
   ## Advance the ticker if it is running and due. Called once per frame.

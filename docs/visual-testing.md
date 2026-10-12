@@ -146,6 +146,39 @@ other fixed costs: `screen` (the whole-window blit, 1.5-2.4 ms, 6 ms when
 everything changes) and `swap` (~1-1.5 ms). Resizing reallocates every texture
 (`texal`). Text is not the problem: 0-3 cache misses per frame.
 
+## Real input: `tools/input_latency.sh`
+
+The scripting verbs bypass the input path, so they cannot say how typing and the
+mouse *feel*. `tools/input_latency.sh` sends real X events with `xdotool` to the
+gallery under Xvfb (keys, clicks, hover, wheel) and reports, per scenario, the
+time from "xdotool started" to "the frame that showed the change was read back",
+next to the app's own figure (`input{n us=avg/p95/max}` in `visual perf`: from the
+moment it polled the events to the frame that showed them). It checks that a click
+really focused the field first, because a keyboard scenario in an unfocused field
+measures the caret blinking.
+
+First readings (software GL): typing in a one-line field ~20 ms; in a 3000-line
+document ~29 ms; click to label ~44 ms (xdotool's own start-up is ~15 ms of it);
+mouse wheel on a list ~10 ms.
+
+What real input found (all fixed):
+
+- **A 3000-line TextArea took ~1.6 s per frame.** The visual-line list was cached
+  for one text only, and rebuilt with a rescan per line (quadratic) whenever two
+  editors alternated; now several texts are remembered, each line's end is read
+  once, and wrapped paragraphs are cached per paragraph.
+- **Typed text showed up a frame (up to a caret blink) late.** A key press marks
+  only the field dirty; its ancestors were re-composited only when something else
+  repainted them. A parent now re-composites whenever a child repainted under it.
+- **Fast clicks were lost.** raylib answers "was it pressed" by comparing button
+  state between two polls; a press and release inside one poll (a trackpad tap, or
+  any click while a frame is painting) left no trace. Left-button transitions now
+  come from GLFW's callback, in order.
+- **The mouse wheel scrolled nothing under the pointer.** Wheel events carried no
+  position, so they were routed to whatever sits at (0, 0).
+- **A button never lit up on hover or press.** The colours are applied in
+  `layout`, and the state handlers asked only for a repaint.
+
 ## What it found
 
 The first run showed every tab presenting 60 frames a second while idle: a
