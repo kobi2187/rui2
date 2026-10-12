@@ -10,7 +10,7 @@
 ## - Cached Texture2D is reused when widget is clean
 
 import types, perf
-import std/[algorithm, math, options]
+import std/[algorithm, math, options, hashes]
 import raylib
 import rlgl
 from rlgl import setBlendFactorsSeparate, BlendFactor, BlendFuncOrEq
@@ -337,7 +337,8 @@ proc overlapsView*(bounds, view: Rect): bool =
 
 proc renderPassIn(widget: Widget, view: Option[Rect]): bool
 
-proc renderChildrenFirst(widget: Widget, view: Option[Rect]): bool =
+proc renderChildrenFirst(widget: Widget, view: Option[Rect],
+                         changed: var seq[Rect]): bool =
   ## Bottom-up: a parent composites its children's cached textures, so those
   ## have to exist before it paints. Returns whether any descendant came back
   ## into view, in which case this widget has to composite again even though
@@ -367,8 +368,10 @@ proc renderChildrenFirst(widget: Widget, view: Option[Rect]): bool =
       if child.culled:
         child.culled = false
         result = true                  # back in view: re-composite it
+      let wasDirty = child.isDirty and child.visible
       if renderPassIn(child, childView):
         result = true
+      if wasDirty: changed.add child.damage
 
   if widget.hasOverlay and widget.children.len > 1:
     var sortedChildren = widget.children
@@ -380,7 +383,8 @@ proc renderChildrenFirst(widget: Widget, view: Option[Rect]): bool =
     for child in widget.children:
       visit(child)
 
-proc compositeChildren(widget: Widget, originalX, originalY: float32) =
+proc compositeChildren(widget: Widget, originalX, originalY: float32,
+                       only = none(Rect)) =
   ## Blit each child's cached texture into this widget's, in coordinates
   ## relative to this widget's top-left -- which is where bounds.x/y have been
   ## zeroed to for the duration.
@@ -391,22 +395,111 @@ proc compositeChildren(widget: Widget, originalX, originalY: float32) =
     let dest = Rect(x: child.bounds.x - originalX,
                     y: child.bounds.y - originalY,
                     width: child.bounds.width, height: child.bounds.height)
+    if only.isSome and not overlapsView(dest, only.get()):
+      continue                         # a partial update: this one is outside it
+    perfCount(pcBlits)
+    perfCount(pcBlitPixels, int(dest.width * dest.height))
     if widget.childClip.isSome:
       drawRenderTexturePart(child.cachedTexture.get(), dest,
                             widget.childClip.get())
     else:
       drawRenderTexture(child.cachedTexture.get(), dest.x, dest.y)
 
-proc renderToTexture(widget: Widget) =
-  ## Paint this widget and its children into a fresh cached texture.
-  var renderTex: RenderTexture2D
+var partialRepaint* = true
+  ## Repaint only the damaged area of a widget whose children repainted, instead
+  ## of clearing and re-blitting all of it. Off: every repaint is a
+  ## full one (for comparing, and for finding a bug that only the partial path has).
+
+proc paintSignature(widget: Widget): int =
+  ## What a partial update must not outlive: the children (which ones, in what
+  ## order, where, drawn or not) and the widget's own size and viewport.
+  var h: Hash = 0
+  h = h !& hash(widget.children.len)
+  h = h !& hash(widget.bounds.width) !& hash(widget.bounds.height)
+  if widget.childClip.isSome:
+    let c = widget.childClip.get
+    h = h !& hash(c.x) !& hash(c.y) !& hash(c.width) !& hash(c.height)
+  for child in widget.children:
+    h = h !& hash(child.id) !& hash(child.bounds.x) !& hash(child.bounds.y) !&
+        hash(child.bounds.width) !& hash(child.bounds.height) !&
+        hash(child.visible) !& hash(child.culled) !& hash(child.floating) !&
+        hash(child.zIndex) !& hash(child.cachedTexture.isSome)
+  !$h
+
+proc textureFits(widget: Widget): bool =
+  widget.cachedTexture.isSome and
+    widget.cachedTexture.get.texture.width == max(1, widget.bounds.width.int32) and
+    widget.cachedTexture.get.texture.height == max(1, widget.bounds.height.int32)
+
+proc ensureTextureFor(widget: Widget) =
+  ## Give `widget` a render texture of its current size, keeping the one it has
+  ## when that already fits. Repainting used to free and recreate it every time:
+  ## a framebuffer and a texture of the widget's whole area, per repaint, per
+  ## ancestor -- megabytes a frame for a ticking label. The content is cleared
+  ## before painting either way, so a reused texture shows nothing stale.
+  if textureFits(widget): return
   perfTime(phTexAlloc):
     freeWidgetTexture(widget)
-    renderTex = createWidgetTexture(widget)
-  perfCount(pcPainted)
+    widget.cachedTexture = some(createWidgetTexture(widget))
   perfCount(pcTextures)
 
-  beginTextureMode(renderTex)
+proc unionOf(rects: seq[Rect]): Rect =
+  result = rects[0]
+  for r in rects:
+    let x0 = min(result.x, r.x)
+    let y0 = min(result.y, r.y)
+    let x1 = max(result.x + result.width, r.x + r.width)
+    let y1 = max(result.y + result.height, r.y + r.height)
+    result = Rect(x: x0, y: y0, width: x1 - x0, height: y1 - y0)
+
+proc partialRegion(widget: Widget, changed: seq[Rect]): Option[Rect] =
+  ## The widget-local rectangle to repaint instead of the whole texture: what
+  ## the changed children damaged, a pixel wider each way (blits are rounded to
+  ## whole pixels), inside the texture. none: nothing to repaint.
+  let damage = unionOf(changed)
+  let texW = widget.bounds.width
+  let texH = widget.bounds.height
+  let lx = max(0'f32, floor(damage.x - widget.bounds.x) - 1)
+  let ly = max(0'f32, floor(damage.y - widget.bounds.y) - 1)
+  let rx = min(texW, ceil(damage.x + damage.width - widget.bounds.x) + 1)
+  let ry = min(texH, ceil(damage.y + damage.height - widget.bounds.y) + 1)
+  if rx <= lx or ry <= ly: return none(Rect)
+  some(Rect(x: lx, y: ly, width: rx - lx, height: ry - ly))
+
+proc renderToTexture(widget: Widget, changed: seq[Rect], partialOk: bool) =
+  ## Paint this widget and its children into its cached texture.
+  ##
+  ## When the widget itself did not change (`ownDirty` is false: it is dirty only
+  ## because a child repainted), nothing about its children's arrangement did
+  ## (`paintSig`), and its texture still fits, only the area the changed children
+  ## cover is redone: scissor to it, clear it, draw the widget's own `render`
+  ## (clipped to it by the GPU) and blit the children that reach into it. The
+  ## blend is per pixel, so the result is identical to a full repaint, at the
+  ## cost of the damaged area instead of the widget's whole.
+  let sig = paintSignature(widget)
+  var region = none(Rect)
+  if partialRepaint and partialOk and not widget.ownDirty and changed.len > 0 and
+     widget.paintSig == sig and textureFits(widget):
+    region = partialRegion(widget, changed)
+    if region.isNone:                    # changed children outside the widget
+      widget.isDirty = false
+      return
+  widget.paintSig = sig
+  ensureTextureFor(widget)
+  perfCount(pcPainted)
+  let repainted = region.get(Rect(x: 0, y: 0, width: widget.bounds.width,
+                                  height: widget.bounds.height))
+  perfCount(pcPixels, int(repainted.width * repainted.height))
+
+  beginTextureMode(widget.cachedTexture.get())
+  if region.isSome:
+    # scissor boxes count from the bottom of the framebuffer, textures included
+    rlgl.drawRenderBatchActive()
+    rlgl.enableScissorTest()
+    rlgl.scissor(repainted.x.int32,
+                 int32(widget.cachedTexture.get.texture.height.float32 -
+                       (repainted.y + repainted.height)),
+                 repainted.width.int32, repainted.height.int32)
   clearBackground(Color(r: 0, g: 0, b: 0, a: 0))   # Transparent background
 
   # `render` draws at widget.bounds, and the texture's origin is the widget's
@@ -425,11 +518,18 @@ proc renderToTexture(widget: Widget) =
 
   perfTime(phCompose):
     compositingTextures:
-      compositeChildren(widget, originalX, originalY)
+      compositeChildren(widget, originalX, originalY,
+        region)                       # widget-local, like each child's `dest`
 
+  if region.isSome:
+    rlgl.drawRenderBatchActive()
+    rlgl.disableScissorTest()
   endTextureMode()
-  widget.cachedTexture = some(renderTex)
   widget.isDirty = false
+  widget.damage = if region.isSome:
+                    Rect(x: originalX + repainted.x, y: originalY + repainted.y,
+                         width: repainted.width, height: repainted.height)
+                  else: widget.bounds
 
 proc renderPassIn(widget: Widget, view: Option[Rect]): bool =
   ## Render dirty widgets to textures, bottom-up.
@@ -440,11 +540,17 @@ proc renderPassIn(widget: Widget, view: Option[Rect]): bool =
   ## widget below came back into view (see renderChildrenFirst).
   if not widget.visible:
     return false
-  let revealed = renderChildrenFirst(widget, view)
+  var changed: seq[Rect]
+  let revealed = renderChildrenFirst(widget, view, changed)
   if revealed:
     widget.isDirty = true
+  if changed.len > 0:
+    # A child repainted, so this widget's texture is out of date whether or not
+    # anyone marked it: whoever set the child dirty by hand (a script's write,
+    # say) did not walk up to the root. Dirty through a child, not changed itself.
+    widget.isDirtyFlag = true
   if widget.isDirty:
-    renderToTexture(widget)
+    renderToTexture(widget, changed, partialOk = not revealed)
   revealed
 
 proc renderPass*(widget: Widget) =

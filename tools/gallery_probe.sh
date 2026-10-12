@@ -133,6 +133,37 @@ if [ -n "${PROBE_PERF:-}" ]; then
   send "1 live.run custom:toggle" >/dev/null
 fi
 echo
+echo "== repainting only the damaged area gives the same pixels as repainting everything =="
+sequence_hashes() {  # sequence_hashes ENV... : same scripted session, window hash after each step
+  local dir="$OUT/script_seq" pid cmds=() n=0
+  rm -rf "$dir"
+  env "$@" DISPLAY="$DISP" "$BIN" --script "$dir" >"$OUT/app_seq.log" 2>&1 &
+  pid=$!
+  for _ in $(seq 1 100); do [ -d "$dir" ] && break; sleep 0.1; done
+  sleep 2
+  add() { n=$((n+1)); cmds+=("$n $1"); n=$((n+1)); cmds+=("$n * visual stable 120 3000"); n=$((n+1)); cmds+=("$n * visual hash"); }
+  for t in 0 1 2 3 4 5 6 7; do add "tabs write activeTab=$t"; done
+  for _ in 1 2 3; do add "live.bump invoke"; done
+  add "live.input write abc"
+  add "tabs write activeTab=1"; add "input.text write Zed"; add "input.slider write 77"
+  add "tabs write activeTab=0"; add "basics.check custom:toggle"; add "basics.switch custom:toggle"
+  rm -f "$dir/responses.txt"
+  printf '%s\n' "${cmds[@]}" > "$dir/commands.tmp" && mv "$dir/commands.tmp" "$dir/commands.txt"
+  for _ in $(seq 1 600); do
+    [ -f "$dir/responses.txt" ] && [ ! -f "$dir/commands.txt" ] && break; sleep 0.1
+  done
+  grep "hash=" "$dir/responses.txt" | sed 's/.*hash=\([0-9a-f]*\).*/\1/'
+  kill "$pid" 2>/dev/null; wait "$pid" 2>/dev/null
+}
+kill $APID 2>/dev/null; wait $APID 2>/dev/null
+A=$(sequence_hashes X=1); B=$(sequence_hashes RUI_NO_PARTIAL=1)
+if [ -n "$A" ] && [ "$A" = "$B" ]; then
+  pass "$(echo "$A" | wc -l) window hashes match"
+else
+  fail "partial and full repaint produced different pixels"
+fi
+
+echo
 echo "screenshots and logs: $OUT"
 if [ "$MODE" = "check" ]; then
   [ "$FAILS" -eq 0 ] && { echo "gallery probe: all thresholds met"; exit 0; }

@@ -194,6 +194,8 @@ proc newApp*(title = "RUI Application",
   result.router = newEventRouter(result.hitTestSystem, result.focusManager,
                                  result.hoverTracker)
   wakeHook = wakeMainLoop
+  if getEnv("RUI_NO_PARTIAL").len > 0:
+    partialRepaint = false        # repaint whole widgets only: to compare against
   # A widget disposed while focused, hovered or under the pointer must not stay
   # referenced from here (the last App created owns the hook).
   let focus = result.focusManager

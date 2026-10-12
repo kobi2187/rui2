@@ -290,8 +290,8 @@ proc doWrite(widget: Widget, desc: ScriptDescriptor, params: JsonNode): JsonNode
 
   # A written field almost always changes what is drawn and how big it is, and
   # a script has no other way to say so.
-  widget.isDirty = true
   widget.layoutDirty = true
+  widget.markDirtyToRoot()
   if name == desc.defaultField and desc.notify != nil:
     desc.notify(widget)
   ok()
@@ -308,7 +308,7 @@ proc doToggle(widget: Widget, desc: ScriptDescriptor): Option[JsonNode] =
   let now = desc.toggle(widget)
   if now.isNone:
     return none(JsonNode)
-  widget.isDirty = true
+  widget.markDirtyToRoot()
   some(ok("checked", %now.get()))
 
 proc doInvoke(widget: Widget, desc: ScriptDescriptor, wanted: string): JsonNode =
@@ -318,7 +318,7 @@ proc doInvoke(widget: Widget, desc: ScriptDescriptor, wanted: string): JsonNode 
   if not widget.enabled:
     return fail("Widget is disabled")
   let fired = desc.actions[idx].invoke(widget)
-  widget.isDirty = true
+  widget.markDirtyToRoot()
   result = ok("invoked", %wanted)
   if not fired:
     # The action exists, nothing is listening. Reporting that as a failure would

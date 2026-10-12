@@ -25,7 +25,12 @@
 ##   swap     endDrawing: buffer swap, input poll, and the frame-rate wait
 ##   idle     blocked waiting for input or a timer (an idle frame)
 ##
-## plus counters: widgets repainted, textures created.
+## and two *nested* ones, already counted inside layout / render (so do not add
+## them up): textmeasure (Pango measuring a string not seen before) and
+## textraster (rasterising it and uploading the glyph texture).
+##
+## plus counters: widgets repainted, textures created, pixels of textures
+## painted, child blits and their pixels, text cache hits and misses.
 ##
 ## `perfReport` summarises the recent presented frames as one line (`visual
 ## perf` in the scripting protocol), the very first presented frame separately,
@@ -37,10 +42,12 @@ import std/[monotimes, times, algorithm, strutils]
 type
   PerfPhase* = enum
     phEvents, phScript, phPoll, phLayout, phTexAlloc, phRender, phCompose,
-    phScreen, phReadback, phSwap, phIdle
+    phScreen, phReadback, phSwap, phIdle,
+    phTextMeasure, phTextRaster      # nested: already inside layout / render
 
   PerfCounter* = enum
-    pcPainted, pcTextures
+    pcPainted, pcTextures, pcPixels, pcBlits, pcBlitPixels,
+    pcTextHit, pcTextMiss, pcMeasureMiss
 
   PerfFrame* = object
     ns*: array[PerfPhase, int64]
