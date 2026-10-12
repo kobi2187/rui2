@@ -24,6 +24,11 @@ var
   pointerOver: Widget
   pointerAt: Point
 
+var onPointerPress*: proc(target: Widget) {.closure.}
+  ## SPIKE: called by the router with the widget a press landed on, before the
+  ## press is delivered -- how a window raises itself when anything inside it is
+  ## clicked, including children that consume the click.
+
 proc showOverlay*(widget: Widget, interactive = false) =
   ## Put `widget` on the overlay layer, above everything already there. An
   ## interactive overlay (a menu, a dropdown) takes the pointer before the

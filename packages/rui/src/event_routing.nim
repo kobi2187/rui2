@@ -111,6 +111,7 @@ proc routePointer*(router: EventRouter, event: GuiEvent): bool =
     return dirty
 
   if event.kind == evMouseDown:
+    if onPointerPress != nil: onPointerPress(widget)      # SPIKE
     router.focus.requestFocus(focusTargetFor(widget))
 
   discard widget.dispatchBubbling(event)

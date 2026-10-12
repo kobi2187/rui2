@@ -183,7 +183,11 @@ proc anyChildDirty*(widget: Widget): bool =
     return true
 
   for child in widget.children:
-    if not child.culled and child.anyChildDirty():
+    # A floating child is painted by the overlay layer, which asks it for
+    # itself. Counting it here made a hidden one (a closed ComboBox's list) keep
+    # its parent dirty for ever, since nothing clears a dirty flag on a widget
+    # that is never painted: the whole window repainted at 60 fps.
+    if not child.culled and not child.floating and child.anyChildDirty():
       return true
 
   return false

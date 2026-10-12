@@ -288,6 +288,10 @@ type
     onBlur*: proc() {.closure.}        # Called when widget loses focus
 
     # Data binding
+    disposers*: seq[proc() {.closure.}]
+      ## SPIKE: run by `disposeTree` when the widget leaves the tree for good --
+      ## how a widget lets go of everything that holds a reference to it
+      ## (a Link's dependent set, ...).
     onRefresh*: proc() {.closure.}
       ## Invoked by the layout pass when the widget is dirty, before layout()
       ## runs. This is what makes Link[T] binding actually change what is on
@@ -767,9 +771,15 @@ proc treeDepth*(widget: Widget): int =
     inc result
     w = w.parent
 
+proc unregisterWidgetLater(tree: WidgetTree, widget: Widget)
+
 proc registerWidget*(tree: WidgetTree, widget: Widget) =
   ## Register a widget in the widget tree
   ## Adds to both numeric ID map and string ID map (if stringId is set)
+  if widget.id notin tree.widgetMap:
+    # SPIKE: the tree must forget the widget when it is disposed, or every
+    # closed window stays reachable from widgetMap forever.
+    widget.disposers.add proc() = tree.unregisterWidgetLater(widget)
   tree.widgetMap[widget.id] = widget
   if widget.stringId.len > 0:
     tree.widgetsByStringId[widget.stringId] = widget
@@ -779,6 +789,9 @@ proc unregisterWidget*(tree: WidgetTree, widget: Widget) =
   tree.widgetMap.del(widget.id)
   if widget.stringId.len > 0:
     tree.widgetsByStringId.del(widget.stringId)
+
+proc unregisterWidgetLater(tree: WidgetTree, widget: Widget) =
+  tree.unregisterWidget(widget)
 
 proc setWidgetStringId*(tree: WidgetTree, widget: Widget, id: string) =
   ## Set a widget's string ID and register it in the tree

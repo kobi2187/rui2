@@ -4,6 +4,7 @@
 ## Each function does ONE thing clearly
 
 import macros
+import rlgl
 import std/strutils
 export strutils  # generated code uses toLowerAscii / cmpIgnoreStyle
 import types
@@ -531,6 +532,27 @@ macro defineWidget*(name: untyped, body: untyped): untyped =
 # ============================================================================
 # Utilities
 # ============================================================================
+
+proc removeChild*(parent: Widget, child: Widget) =
+  ## SPIKE: take `child` out of the tree. Does not dispose it.
+  let i = parent.children.find(child)
+  if i < 0: return
+  parent.children.delete(i)
+  child.parent = nil
+  noteStructureChanged()
+  parent.layoutDirty = true
+  parent.isDirty = true
+
+proc disposeTree*(widget: Widget) =
+  ## SPIKE: release `widget` and everything under it: run each disposer (links
+  ## forget the widget), drop the refresh hook and the cached texture.
+  for child in widget.children: disposeTree(child)
+  for dispose in widget.disposers: dispose()
+  widget.disposers.setLen(0)
+  widget.onRefresh = nil
+  if widget.cachedTexture.isSome:
+    rlgl.unloadTexture(widget.cachedTexture.get.texture.id)     # EXPERIMENT
+  widget.cachedTexture = none(RenderTexture2D)
 
 proc addChild*(parent: Widget, child: Widget) =
   ## Add child widget to parent.
