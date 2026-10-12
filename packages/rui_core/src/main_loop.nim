@@ -197,7 +197,9 @@ proc anyChildLayoutDirty*(widget: Widget): bool =
     return true
 
   for child in widget.children:
-    if child.anyChildLayoutDirty():
+    # A hidden child (an inactive tab page) is never laid out by the pass, so
+    # its flag would stay set and keep the whole tree "dirty" for ever.
+    if child.visible and child.anyChildLayoutDirty():
       return true
 
   return false
@@ -213,7 +215,11 @@ proc anyChildDirty*(widget: Widget): bool =
     # itself. Counting it here made a hidden one (a closed ComboBox's list) keep
     # its parent dirty for ever, since nothing clears a dirty flag on a widget
     # that is never painted: the whole window repainted at 60 fps.
-    if not child.culled and not child.floating and child.anyChildDirty():
+    #
+    # Likewise a hidden one -- an inactive tab page -- which renderPass skips:
+    # it is painted when it is shown, and until then its dirt is nobody's.
+    if child.visible and not child.culled and not child.floating and
+       child.anyChildDirty():
       return true
 
   return false

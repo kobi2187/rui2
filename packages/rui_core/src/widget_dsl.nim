@@ -424,6 +424,28 @@ proc writableFieldNames(sections: WidgetSections):
       result.default = "text"
       break
 
+const changeHandlers = ["onChange", "onToggle", "onSelect", "onTabChanged", "onRate"]
+
+proc notifyNode(typeName: NimNode, sections: WidgetSections, firstState: string): NimNode =
+  ## `proc (w: Widget) = discard fireAction(T(w).onChange, T(w).text)` for each
+  ## change handler that takes the widget's first state field: what a script's
+  ## `write` calls so that whatever is bound to the widget hears about it.
+  ## nil when there is none. Built by hand so `w` is one symbol throughout.
+  if firstState.len == 0: return newNilLit()
+  var firstType = ""
+  for st in sections.state:
+    if st.name.strVal == firstState: firstType = repr(st.typ)
+  var body = newStmtList()
+  for a in sections.actions:
+    if a.name in changeHandlers and a.params.len == 1 and repr(a.params[0].typ) == firstType:
+      let w = newCall(typeName, ident("w"))
+      body.add nnkDiscardStmt.newTree(newCall(ident("fireAction"),
+        newDotExpr(w, ident(a.name)), newDotExpr(copyNimTree(w), ident(firstState))))
+  if body.len == 0: return newNilLit()
+  nnkLambda.newTree(newEmptyNode(), newEmptyNode(), newEmptyNode(),
+    nnkFormalParams.newTree(newEmptyNode(), newIdentDefs(ident("w"), ident("Widget"))),
+    nnkPragma.newTree(ident("closure")), newEmptyNode(), body)
+
 proc buildScriptActionMethod(name: NimNode, sections: WidgetSections): NimNode =
   ## Emit a ScriptDescriptor for this widget, plus a one-line
   ## handleScriptAction that hands it to the runtime dispatcher.
@@ -449,6 +471,7 @@ proc buildScriptActionMethod(name: NimNode, sections: WidgetSections): NimNode =
     actions.add(scriptActionNode(typeName, a, names.firstState))
 
   let defaultField = names.default
+  let notify = notifyNode(typeName, sections, names.firstState)
 
   let descName = ident($name & "ScriptDescriptor")
   let typeLit = newLit($name)
@@ -460,6 +483,7 @@ proc buildScriptActionMethod(name: NimNode, sections: WidgetSections): NimNode =
       fields: @`fields`,
       actions: @`actions`,
       defaultField: `defaultLit`,
+      notify: `notify`,
       getText: (proc (w: Widget): string {.closure.} = textOrEmpty(`typeName`(w))),
       toggle: (proc (w: Widget): Option[bool] {.closure.} =
                  flipIfCheckable(`typeName`(w))))

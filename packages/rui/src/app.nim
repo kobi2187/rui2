@@ -11,6 +11,8 @@ import event_source
 import idle_wait
 import event_routing
 import inspect
+import visual
+export visual
 import preferences_file
 export preferences_file
 import system_scheme
@@ -27,7 +29,7 @@ export theme_manager  # Export theme manager
 export script_manager # Export script manager
 export hittest_system # Export hit test system
 import raylib
-import std/[monotimes, times, os]
+import std/[monotimes, times, os, options]
 
 # ============================================================================
 # Application State
@@ -45,6 +47,7 @@ type
     focusManager*: FocusManager
     hoverTracker*: HoverTracker
     scriptManager*: ScriptManager
+    probe*: VisualProbe           # screen read-back and frame timings (-d:ruiInspect)
     hitTestSystem*: HitTestSystem
 
     # Internal state
@@ -168,6 +171,7 @@ proc newApp*(title = "RUI Application",
     focusManager: newFocusManager(),
     hoverTracker: newHoverTracker(),
     scriptManager: nil,  # Created when scripting is enabled
+    probe: nil,
     hitTestSystem: newHitTestSystem(),
     themeManager: newThemeManager(),  # Registers built-in themes, sets light as default
     lastFrameTime: getMonoTime(),
@@ -327,6 +331,16 @@ proc enableScripting*(app: App, scriptDir: string) =
   when defined(ruiInspect):
     app.scriptManager.onInspect = proc(selector, what: string): Option[string] =
       app.answerInspect(selector, what)
+    app.probe = newVisualProbe(scriptDir / "shots")
+    app.probe.rectOf = proc(selector: string): Option[tuple[x, y, w, h: int]] =
+      if selector == "*":
+        return some((0, 0, getScreenWidth().int, getScreenHeight().int))
+      let widget = app.tree.findWidget(selector)
+      if widget.isNone: return none(tuple[x, y, w, h: int])
+      let r = widget.get().visibleRect
+      some((r.x.int, r.y.int, r.width.int, r.height.int))
+    app.scriptManager.onVisual = proc(selector, what: string): VisualReply =
+      app.probe.answer(selector, what)
 
   when defined(ruiTestKeys):
     app.scriptManager.onKey = proc(keyName: string): bool =
@@ -880,6 +894,8 @@ proc renderFrame(app: App) =
   app.compositeRoot()
   if app.beingScripted:
     drawScriptingIndicator()
+  if app.probe != nil and app.probe.enabled:
+    app.probe.capture()         # exactly what is about to be presented
 
   when defined(debugUI):
     drawText("FPS: " & $app.currentFPS, 10'i32, 10'i32, 16'i32, DarkGray)
@@ -1014,6 +1030,8 @@ proc shouldPresent(app: App, painted: bool, now: MonoTime): bool =
   ## refresh.
   if painted or not app.idleWhenClean:
     return true
+  if app.probe != nil and app.probe.wantPresent:
+    return true
   let indicator = app.beingScripted
   if indicator != app.indicatorShown:
     app.indicatorShown = indicator
@@ -1085,6 +1103,9 @@ proc run*(app: App, maxFrames: int = -1) =
     app.applyCursor()
     if app.shouldPresent(painted, frameStart):
       app.renderFrame()       # 6. Composite to screen
+      if app.probe != nil:
+        app.probe.notePresented((stepped - frameStart).inMicroseconds.int,
+                                (getMonoTime() - stepped).inMicroseconds.int, painted)
       if profileFrames:
         stderr.writeLine "frame: step " & $((stepped - frameStart).inMicroseconds) &
           "us, present " & $((getMonoTime() - stepped).inMicroseconds) &
