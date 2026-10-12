@@ -805,3 +805,78 @@ suite "theme: inheritance":
     check grandchild.base[Default].cornerRadius.get == 3.0    # the child's
     check grandchild.base[Default].borderWidth.get == 2.0     # the parent's
     check grandchild.base[Default].padding.isSome             # its own
+
+
+suite "theme: writing a theme back out":
+  ## `toYaml` is the inverse of `parseTheme`: what a theme sets comes back as the
+  ## same theme, so a theme made in code (or by a brand spec) can be saved.
+
+  proc noExtends(name: string): Theme = newTheme(name)
+
+  proc same(a, b: Theme): bool =
+    a.name == b.name and a.base == b.base and a.states == b.states and
+    a.metrics == b.metrics and a.hint == b.hint and a.animation == b.animation and
+    a.statePreference == b.statePreference
+
+  test "every brand theme round-trips through YAML and through JSON":
+    for (key, theme) in brandThemes():
+      let viaYaml = parseTheme(toYaml(theme), tffYaml, noExtends)
+      check same(theme, viaYaml)
+      let viaJson = parseTheme(toJsonText(theme), tffJson, noExtends)
+      check same(theme, viaJson)
+
+  test "every registered theme round-trips, the legacy five included":
+    let tm = newThemeManager()
+    for name in tm.listThemes():
+      let theme = tm.get(name)
+      check same(theme, parseTheme(toYaml(theme), tffYaml, noExtends))
+
+  test "a hand-built theme round-trips, including padding forms and effects":
+    var t = newTheme("Hand Made")
+    t.version = "1.2.0"
+    t.base[Default] = ThemeProps(
+      backgroundColor: some(Color(r: 1, g: 2, b: 3, a: 255)),
+      borderColor: some(Color(r: 9, g: 8, b: 7, a: 128)),
+      cornerRadius: some(2.5'f32), borderWidth: some(0.0'f32),
+      padding: some(edgeInsetsLTRB(1, 2, 3, 4)),
+      fontWeight: some(SemiBold), uppercase: some(true),
+      dropShadowOffset: some((3.0'f32, 3.0'f32)),
+      bevelStyle: some(Raised), gradientDirection: some(theme_types.Radial))
+    t.base[Info] = ThemeProps(padding: some(edgeInsetsSymmetric(12, 4)))
+    t.base[Danger] = ThemeProps(padding: some(edgeInsets(6)), fontFamily: some("Fira Sans"))
+    t.states[Default][Hovered] = ThemeProps(backgroundColor: some(Color(r: 10, g: 20, b: 30, a: 255)))
+    t.metrics.controlHeight = some(38.0'f32)
+    t.hint = HintStyle(borderWidth: some(3.0'f32), uppercase: some(false))
+    t.statePreference[crPointer] = spFocusFirst
+    t.animation.durationFast = some(80.0'f32)
+    t.animation.defaultEasing = some(EaseInOut)
+    check same(t, parseTheme(toYaml(t), tffYaml, noExtends))
+
+  test "only what is set is written":
+    var t = newTheme("Tiny")
+    t.base[Default] = ThemeProps(cornerRadius: some(3.0'f32))
+    let text = toYaml(t)
+    check text == "name: Tiny\nbase:\n  default:\n    cornerRadius: 3\n"
+
+  test "an offset that cannot be written is an error, not a silent change":
+    var t = newTheme("Skew")
+    t.base[Default] = ThemeProps(dropShadowOffset: some((1.0'f32, 2.0'f32)))
+    expect ValueError: discard toYaml(t)
+
+  test "the motion section is a real part of the format":
+    let t = parseTheme("name: M\nanimation:\n  durationFast: 0\n  defaultEasing: easeOut\n",
+                       tffYaml, noExtends)
+    check t.animation.durationFast.get == 0
+    check t.transitionSeconds == 0                  # 0 makes every change instant
+    check t.animation.defaultEasing.get == EaseOut
+    expect ValueError:
+      discard parseTheme("name: M\nanimation:\n  durationFastt: 0\n", tffYaml, noExtends)
+    expect ValueError:
+      discard parseTheme("name: M\nanimation:\n  defaultEasing: wobble\n", tffYaml, noExtends)
+
+  test "a derived theme's file keeps the parent's values (extends is not written)":
+    let tm = newThemeManager()
+    for (key, theme) in brandThemes(): tm.register(key, theme)
+    var mine = tm.derive("daylight", "Mine")
+    mine.base[Default].cornerRadius = some(0.0'f32)
+    check same(mine, parseTheme(toYaml(mine), tffYaml, noExtends))
