@@ -222,3 +222,6 @@ proc bindItems*(list: ListBox, source: LinkSeq[string]) =
   let adapter = newLinkSeqSource(source)
   list.bindSource(adapter)
   list.disposers.add proc() = adapter.close()      # the adapter is this list's own
+
+proc bindItems*(list: ListBox, source: RowSource) = list.bindSource(source)
+  ## `ui:` spelling: `ListBox(items = -> source)`.

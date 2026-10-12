@@ -42,6 +42,10 @@ proc passes(s: MemorySource, row: int): bool =
     case f.op
     of foContains:
       if f.text.toLowerAscii notin text.toLowerAscii: return false
+    of foStartsWith:
+      if not text.toLowerAscii.startsWith(f.text.toLowerAscii): return false
+    of foEndsWith:
+      if not text.toLowerAscii.endsWith(f.text.toLowerAscii): return false
     of foEquals:
       if text != f.text: return false
     of foGreater, foLess, foGreaterEq, foLessEq:

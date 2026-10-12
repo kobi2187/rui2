@@ -961,6 +961,8 @@ proc step*(app: App): bool {.discardable.} =
   ## Needs a GL context, because it paints. Returns whether anything was
   ## painted.
   app.pumpEvents()
+  if runPollers():                  # a data source brought rows in from its worker
+    app.tree.anyDirty = true
   if fireDueRepaints():
     app.tree.anyDirty = true
   app.pruneToasts()

@@ -262,3 +262,6 @@ proc bindItems*(list: ListView, source: LinkSeq[string]) =
   let adapter = newLinkSeqSource(source)
   list.bindSource(adapter)
   list.disposers.add proc() = adapter.close()      # the adapter is this list's own
+
+proc bindItems*(list: ListView, source: RowSource) = list.bindSource(source)
+  ## `ui:` spelling: `ListView(items = -> source)`.

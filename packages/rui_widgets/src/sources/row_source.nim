@@ -33,7 +33,8 @@ type
 
   SortDir* = enum sdNone, sdAscending, sdDescending
 
-  FilterOp* = enum foContains, foEquals, foGreater, foLess, foGreaterEq, foLessEq
+  FilterOp* = enum foContains, foStartsWith, foEndsWith, foEquals, foGreater, foLess,
+                   foGreaterEq, foLessEq
 
   ColumnFilter* = object
     column*: string

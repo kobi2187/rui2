@@ -271,6 +271,10 @@ proc whereClause(r: SqliteReader, args: var seq[string]): string =
     of foContains:
       parts.add col & " LIKE ? ESCAPE '\\'"
       args.add "%" & f.text.replace("\\", "\\\\").replace("%", "\\%").replace("_", "\\_") & "%"
+    of foStartsWith, foEndsWith:
+      parts.add col & " LIKE ? ESCAPE '\\'"
+      let esc = f.text.replace("\\", "\\\\").replace("%", "\\%").replace("_", "\\_")
+      args.add (if f.op == foStartsWith: esc & "%" else: "%" & esc)
     of foEquals:
       parts.add col & " = ?"
       args.add f.text

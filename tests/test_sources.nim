@@ -1,7 +1,9 @@
 ## Row sources: the column page, the in-memory table, and the poll/listen contract.
 
-import std/[unittest, sets, strutils]
+import std/[unittest, sets, strutils, os, monotimes]
+import db_connector/db_sqlite
 import rui
+from raylib import KeyboardKey
 import ../packages/rui_widgets/src/sources/column_page
 
 suite "ColumnPage":
@@ -35,6 +37,24 @@ suite "ColumnPage":
     for i in 0 ..< 1000: p.addRow [$i, "n" & $i, "", $(i * 7)]
     for i in [0, 1, 499, 999]:
       check p.cell(i, 0) == $i and p.cell(i, 1) == "n" & $i and p.cell(i, 3) == $(i * 7)
+
+let srcDir = getTempDir() / "rui_sources_tests"
+createDir srcDir
+
+proc fixtureFile(name, content: string): string =
+  result = srcDir / name
+  writeFile(result, content)
+
+proc makeTestDb(name: string): string =
+  result = srcDir / name
+  removeFile(result)
+  let db = open(result, "", "", "")
+  db.exec(sql"CREATE TABLE people (id INTEGER, name TEXT, city TEXT)")
+  db.exec(sql"BEGIN")
+  for i in 0 ..< 100:
+    db.exec(sql"INSERT INTO people VALUES (?, ?, ?)", i, "p" & $i, (if i mod 4 == 0: "Rome" else: "Oslo"))
+  db.exec(sql"COMMIT")
+  db.close()
 
 proc fruit(): MemorySource =
   newMemorySource(@["name", "qty"], @[@["pear", "10"], @["Apple", "9"],
@@ -134,3 +154,87 @@ suite "listening":
     list.bindSource(s)
     let state = list.getScriptableState()
     check state["source"]["rows"].getInt == 4
+
+suite "DataTable over a source":
+
+  proc press(x, y: float32): GuiEvent =
+    GuiEvent(kind: evMouseDown, mousePos: Point(x: x, y: y), timestamp: getMonoTime())
+
+  proc key(k: KeyboardKey): GuiEvent =
+    GuiEvent(kind: evKeyDown, key: k, timestamp: getMonoTime())
+
+  proc settled(table: DataTable) =
+    inc layoutPassNumber
+    table.bounds = Rect(x: 0, y: 0, width: 360, height: 200)
+    table.layoutDirty = true
+    table.layoutPass()
+
+  test "columns are made from the source, and nothing is copied":
+    let s = fruit()
+    let table = newDataTable()
+    table.bindSource(s)
+    check table.columns.len == 2 and table.columns[0].id == "name"
+    check table.data.len == 0 and table.viewCount == 4
+    check table.columns[0].sortable and table.columns[0].filterable   # a MemorySource can
+
+  test "a header click sorts through the source":
+    let s = fruit()
+    let table = newDataTable(showFilter = false)
+    table.bindSource(s)
+    table.settled()
+    let header = table.bounds.y + 14
+    discard table.handleInput(press(table.bounds.x + 20, header))      # the name column
+    check s.cell(0, 0) == "Apple"
+    discard table.handleInput(press(table.bounds.x + 20, header))
+    check s.cell(0, 0) == "pear"                                       # descending
+
+  test "a file source cannot sort: the header does nothing":
+    var text = ""
+    for i in 0 ..< 50: text.add "row " & $i & "\n"
+    let s = newLinesSource(fixtureFile("cantsort.txt", text), smInline)
+    let table = newDataTable(showFilter = false)
+    table.bindSource(s)
+    check not table.columns[0].sortable
+    table.settled()
+    discard table.handleInput(press(table.bounds.x + 20, table.bounds.y + 14))
+    s.want(0, 5)
+    check s.cell(0, 0) == "row 0" and table.sortColumn == ""
+
+  test "typing in a filter box filters through the source":
+    let s = fruit()
+    let table = newDataTable()
+    table.bindSource(s)
+    table.settled()
+    table.editors["name"].onChange("an")
+    check s.count == 1 and table.viewCount == 1
+
+  test "a selected row stays on its row across an append; a sort voids it":
+    let s = fruit()
+    let table = newDataTable()
+    table.bindSource(s)
+    table.selected = toHashSet([2])
+    s.append ["kiwi", "5"]
+    check table.selected == toHashSet([2]) and table.viewCount == 5
+    s.sortBy("qty", sdAscending)
+    check table.selected.len == 0
+
+  test "keyboard moves through the rows and selects by position":
+    let s = fruit()
+    let table = newDataTable(showFilter = false)
+    table.bindSource(s)
+    table.settled()
+    table.focused = true
+    discard table.handleInput(key(KeyboardKey.Down))
+    discard table.handleInput(key(KeyboardKey.Down))
+    check table.focusRow == 2 and table.selected == toHashSet([2])
+    discard table.handleInput(key(KeyboardKey.End))
+    check table.focusRow == 3
+
+  test "a SQLite table in a DataTable: sort and filter reach the database":
+    let s = newSqliteSource(makeTestDb("dt.db"), "people", smInline)
+    let table = newDataTable()
+    table.bindSource(s)
+    table.settled()
+    check table.viewCount == 100
+    table.editors["city"].onChange("rome")
+    check table.viewCount < 100 and s.canFilter
