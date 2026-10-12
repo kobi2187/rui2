@@ -532,6 +532,17 @@ macro defineWidget*(name: untyped, body: untyped): untyped =
 # Utilities
 # ============================================================================
 
+proc removeChild*(parent: Widget, child: Widget) =
+  ## Take `child` out of the tree. It stays alive and can be added elsewhere;
+  ## when it is finished with for good, `disposeTree` it too.
+  let i = parent.children.find(child)
+  if i < 0: return
+  parent.children.delete(i)
+  child.parent = nil
+  noteStructureChanged()
+  parent.layoutDirty = true
+  parent.isDirty = true
+
 proc addChild*(parent: Widget, child: Widget) =
   ## Add child widget to parent.
   ##
