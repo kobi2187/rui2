@@ -164,4 +164,7 @@ definePrimitive(TimePicker):
                 3, props.activeColor.get(Color(r: 80, g: 120, b: 255, a: 60)).withAlpha(0.3'f32),
                 Color(r: 0, g: 0, b: 0, a: 0), 0)
       drawStyledText(piece, x, y, style)
-      x += widths[i] + (if i == 0: colon * 2 else: (if i == 1: colon * 2 else: 0.0'f32))
+      x += widths[i]
+      if i < 2:
+        if i == 0: drawStyledText(":", x + colon / 2, y, style)
+        x += colon * 2
