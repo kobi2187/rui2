@@ -43,11 +43,37 @@ proc createWidgetTexture*(widget: Widget): RenderTexture2D =
     texture: Texture(id: tex, width: width, height: height, mipmaps: 1,
                      format: PixelFormat.UncompressedR8g8b8a8))
 
+var onDispose*: proc(widget: Widget) {.closure.}
+  ## Called once with the root of every `disposeTree`, so whatever keeps its own
+  ## references (the App's focus manager) can let go of anything inside it.
+
 proc freeWidgetTexture*(widget: Widget) =
   ## Free the cached render texture if present.
   ## Resetting the Option destroys the held RenderTexture (naylib RAII).
   if widget.cachedTexture.isSome:
+    # The colour attachment is a texture `createWidgetTexture` made by hand, and
+    # releasing the RenderTexture frees only its framebuffer: unload the texture
+    # too, or every repaint leaks one.
+    rlgl.unloadTexture(widget.cachedTexture.get.texture.id)
     widget.cachedTexture = none(RenderTexture2D)
+
+proc freeTextureTree*(widget: Widget) =
+  ## Free the cached textures of `widget` and everything under it.
+  for child in widget.children: freeTextureTree(child)
+  freeWidgetTexture(widget)
+
+proc disposeTree*(widget: Widget) =
+  ## Release `widget` and everything under it for good: run each disposer (links
+  ## forget it, the tree forgets its ids), drop the refresh hook and the cached
+  ## textures. Call after `removeChild`; the widget is not usable afterwards.
+  if onDispose != nil: onDispose(widget)
+  proc release(w: Widget) =
+    for child in w.children: release(child)
+    for dispose in w.disposers: dispose()
+    w.disposers.setLen(0)
+    w.onRefresh = nil
+    freeWidgetTexture(w)
+  release(widget)
 
 # ----------------------------------------------------------------------------
 # Blending

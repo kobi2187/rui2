@@ -194,6 +194,7 @@ proc bindTo*[T](link: Link[T], widget: Widget,
   ##
   ## `apply` also runs once immediately, so the widget starts in sync.
   link.addDependent(widget)
+  widget.disposers.add proc() = link.removeDependent(widget)
 
   let existing = widget.onRefresh
   widget.onRefresh = proc() =
