@@ -132,7 +132,7 @@ RUI2 targets the [naylib](https://github.com/planetis-m/naylib) raylib binding.
 ```bash
 git clone https://github.com/kobi2187/rui2
 cd rui2
-nimble install naylib yaml
+nimble install naylib yaml db_connector
 ```
 
 Dependencies:
