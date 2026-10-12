@@ -171,6 +171,9 @@ proc newColumn*(mainAxisAlignment = MainAxisAlignment.start,
                    mainAxisSize, spacing, padding)
   result.kindName = "Column"
 
+registerVariant("Row", "Flex", proc (): Widget = Widget(newRow()))
+registerVariant("Column", "Flex", proc (): Widget = Widget(newColumn()))
+
 proc newVStack*(spacing: float32 = 8.0, padding: float32 = 0.0): Flex =
   ## A Column that stretches its children across -- the pre-Flutter name.
   result = newFlex(Axis.vertical, MainAxisAlignment.start,

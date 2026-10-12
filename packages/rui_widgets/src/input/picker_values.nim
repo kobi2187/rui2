@@ -111,23 +111,7 @@ proc parseTime*(text: string): Option[int] =
 # ---------------------------------------------------------------------------
 # Colours
 
-proc parseHexColor*(text: string): Option[Color] =
-  ## "#rgb", "#rrggbb" or "#rrggbbaa", with or without the '#'.
-  var t = text.strip()
-  if t.startsWith("#"): t = t[1 .. ^1]
-  if t.len notin [3, 6, 8]: return none(Color)
-  if t.len == 3:
-    var wide = ""
-    for ch in t: wide.add ch; wide.add ch
-    t = wide
-  try:
-    let r = parseHexInt(t[0 .. 1])
-    let g = parseHexInt(t[2 .. 3])
-    let b = parseHexInt(t[4 .. 5])
-    let a = if t.len == 8: parseHexInt(t[6 .. 7]) else: 255
-    some(Color(r: uint8(r), g: uint8(g), b: uint8(b), a: uint8(a)))
-  except ValueError:
-    none(Color)
+# parseHexColor lives in rui_core/widget_registry (documents set colours too).
 
 proc formatHexColor*(c: Color): string =
   ## "#rrggbb", or "#rrggbbaa" when not opaque.

@@ -10,10 +10,12 @@ import types
 import link
 import widget_dsl_helpers
 import script_bridge
+import widget_registry
 
 export types
 export link
 export script_bridge  # generated descriptors name ScriptDescriptor / scriptField
+export widget_registry  # generated registrations name WidgetBlueprint / yuiAssign
 
 # ============================================================================
 # Section Parsing - Collect All Definitions
@@ -479,6 +481,87 @@ proc buildScriptActionMethod(name: NimNode, sections: WidgetSections): NimNode =
     newEmptyNode(), newEmptyNode(), methodBody)
 
 
+# ============================================================================
+# Registry Generation -- widgets by name (widget_registry.nim)
+# ============================================================================
+
+proc seededBy(stateName: string, sections: WidgetSections): string =
+  var names: seq[string] = @[]
+  for p in sections.props: names.add p.name.strVal
+  seedingPropFor(stateName, names)
+
+proc propSetterNode(typeName: NimNode, field: string, alsoSets: string): NimNode =
+  ## `scriptField("max", proc (w, v): bool = yuiAssign(T(w).max, v))`; a seeding
+  ## prop (`initialChecked`) sets its state field (`checked`) too, so a document
+  ## that says `initialChecked: true` -- or `checked: true` -- gets a checked box.
+  let fIdent = ident(field)
+  if alsoSets.len == 0:
+    return quote do:
+      scriptField(`field`, proc (w: Widget, v: JsonNode): bool {.closure.} =
+        yuiAssign(`typeName`(w).`fIdent`, v))
+  let sIdent = ident(alsoSets)
+  quote do:
+    scriptField(`field`, proc (w: Widget, v: JsonNode): bool {.closure.} =
+      result = yuiAssign(`typeName`(w).`fIdent`, v)
+      if result: discard yuiAssign(`typeName`(w).`sIdent`, v))
+
+proc actionAttachNode(typeName: NimNode, action: ActionDef): NimNode =
+  ## `BlueprintAction(name: "onToggle", arity: 1, attach: proc (w, h) = ...)`,
+  ## where the attached closure turns its arguments into a JSON array for `h`.
+  var argList = nnkBracket.newTree()
+  var lambdaParams = nnkFormalParams.newTree(newEmptyNode())
+  for param in action.params:
+    argList.add newCall(ident("argJson"), ident(param.name))
+    lambdaParams.add newIdentDefs(ident(param.name), param.typ)
+  var json = newCall(ident("jsonArgs"))
+  for a in argList: json.add a
+  let handler = nnkLambda.newTree(
+    newEmptyNode(), newEmptyNode(), newEmptyNode(), lambdaParams,
+    nnkPragma.newTree(ident("closure")), newEmptyNode(),
+    newStmtList(newCall(ident("h"), json)))
+  let assign = nnkAsgn.newTree(
+    newDotExpr(newCall(typeName, ident("w")), ident(action.name)), handler)
+  let attach = nnkLambda.newTree(
+    newEmptyNode(), newEmptyNode(), newEmptyNode(),
+    nnkFormalParams.newTree(newEmptyNode(),
+      newIdentDefs(ident("w"), ident("Widget")),
+      newIdentDefs(ident("h"), ident("YuiHandler"))),
+    nnkPragma.newTree(ident("closure")), newEmptyNode(), newStmtList(assign))
+  nnkObjConstr.newTree(ident("BlueprintAction"),
+    nnkExprColonExpr.newTree(ident("name"), newLit(action.name)),
+    nnkExprColonExpr.newTree(ident("arity"), newLit(action.params.len)),
+    nnkExprColonExpr.newTree(ident("attach"), attach))
+
+proc buildRegistration(name: NimNode, sections: WidgetSections): NimNode =
+  let typeName = makeWidgetTypeName(name)
+  let ctor = makeConstructorName(name)
+  var props = nnkBracket.newTree()
+  for p in sections.props:
+    let own = p.name.strVal
+    var seeds = ""
+    for st in sections.state:
+      if seededBy(st.name.strVal, sections) == own: seeds = st.name.strVal
+    props.add propSetterNode(typeName, own, seeds)
+  for st in sections.state:
+    props.add propSetterNode(typeName, st.name.strVal, "")
+  var actions = nnkBracket.newTree()
+  for a in sections.actions:
+    if a.returnType.strVal == "void":
+      actions.add actionAttachNode(typeName, a)
+  # A prop with no default (`text: string`) is a required constructor argument.
+  var call = newCall(ctor)
+  for p in sections.props:
+    if p.default.isEmpty:
+      call.add nnkExprEqExpr.newTree(ident(p.name.strVal),
+                                     newCall(ident("default"), p.typ))
+  let typeLit = newLit($name)
+  quote do:
+    registerWidget(WidgetBlueprint(
+      typeName: `typeLit`,
+      create: proc (): Widget {.closure.} = Widget(`call`),
+      props: @`props`,
+      actions: @`actions`))
+
 macro definePrimitive*(name: untyped, body: untyped): untyped =
   ## Define a primitive widget - clean, composable implementation
   result = newStmtList()
@@ -502,6 +585,7 @@ macro definePrimitive*(name: untyped, body: untyped): untyped =
   result.add(buildGetTypeNameMethod(name, sections))  # Auto-generate type name
   result.add(buildScriptStateMethod(name, sections))   # Scripting bridge
   result.add(buildScriptActionMethod(name, sections))  # Scripting bridge
+  result.add(buildRegistration(name, sections))        # Widgets by name
 
 # ============================================================================
 # Main Macro - defineWidget
@@ -527,6 +611,7 @@ macro defineWidget*(name: untyped, body: untyped): untyped =
   result.add(buildGetTypeNameMethod(name, sections))    # Auto-generate type name
   result.add(buildScriptStateMethod(name, sections))    # Scripting bridge
   result.add(buildScriptActionMethod(name, sections))   # Scripting bridge
+  result.add(buildRegistration(name, sections))         # Widgets by name
 
 # ============================================================================
 # Utilities
