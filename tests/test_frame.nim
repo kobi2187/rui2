@@ -287,3 +287,20 @@ suite "tooltips, through the real router":
     tip.refreshTip(getMonoTime())
     check overlays().len == 0
     check not tip.hovering
+
+
+suite "a closed popup does not keep the window repainting":
+
+  test "a ComboBox's hidden list is not the page's dirt":
+    # The list is floating and never painted until the box opens, so nothing
+    # cleared its dirty flag; counted as the root's own, it made every frame
+    # repaint (a ComboBox cost a core at idle).
+    let root = newVStack()
+    let combo = newComboBox(items = @["a", "b"])
+    root.addChild combo
+    let (app, _) = headlessApp(root)
+    app.stepHeadless()
+    root.isDirty = false
+    combo.isDirty = false
+    check combo.list.isDirty
+    check not root.anyChildDirty()
