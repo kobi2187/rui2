@@ -11,6 +11,8 @@ import event_source
 import idle_wait
 import event_routing
 import inspect
+import visual
+export visual
 import preferences_file
 export preferences_file
 import system_scheme
@@ -27,7 +29,7 @@ export theme_manager  # Export theme manager
 export script_manager # Export script manager
 export hittest_system # Export hit test system
 import raylib
-import std/[monotimes, times, os]
+import std/[monotimes, times, os, options]
 
 # ============================================================================
 # Application State
@@ -45,6 +47,7 @@ type
     focusManager*: FocusManager
     hoverTracker*: HoverTracker
     scriptManager*: ScriptManager
+    probe*: VisualProbe           # screen read-back and frame timings (-d:ruiInspect)
     hitTestSystem*: HitTestSystem
 
     # Internal state
@@ -168,6 +171,7 @@ proc newApp*(title = "RUI Application",
     focusManager: newFocusManager(),
     hoverTracker: newHoverTracker(),
     scriptManager: nil,  # Created when scripting is enabled
+    probe: nil,
     hitTestSystem: newHitTestSystem(),
     themeManager: newThemeManager(),  # Registers built-in themes, sets light as default
     lastFrameTime: getMonoTime(),
@@ -190,6 +194,8 @@ proc newApp*(title = "RUI Application",
   result.router = newEventRouter(result.hitTestSystem, result.focusManager,
                                  result.hoverTracker)
   wakeHook = wakeMainLoop
+  if getEnv("RUI_NO_PARTIAL").len > 0:
+    partialRepaint = false        # repaint whole widgets only: to compare against
   # A widget disposed while focused, hovered or under the pointer must not stay
   # referenced from here (the last App created owns the hook).
   let focus = result.focusManager
@@ -327,6 +333,16 @@ proc enableScripting*(app: App, scriptDir: string) =
   when defined(ruiInspect):
     app.scriptManager.onInspect = proc(selector, what: string): Option[string] =
       app.answerInspect(selector, what)
+    app.probe = newVisualProbe(scriptDir / "shots")
+    app.probe.rectOf = proc(selector: string): Option[tuple[x, y, w, h: int]] =
+      if selector == "*":
+        return some((0, 0, getScreenWidth().int, getScreenHeight().int))
+      let widget = app.tree.findWidget(selector)
+      if widget.isNone: return none(tuple[x, y, w, h: int])
+      let r = widget.get().visibleRect
+      some((r.x.int, r.y.int, r.width.int, r.height.int))
+    app.scriptManager.onVisual = proc(selector, what: string): VisualReply =
+      app.probe.answer(selector, what)
 
   when defined(ruiTestKeys):
     app.scriptManager.onKey = proc(keyName: string): bool =
@@ -805,8 +821,9 @@ proc updateLayoutAndRender(app: App): bool =
   ## presenting at all.
   if app.tree.root == nil:
     return false
-  app.refreshLayout()
-  app.syncFocusRings()
+  perfTime(phLayout):
+    app.refreshLayout()
+    app.syncFocusRings()
   # What the window shows: anything wholly outside it is not painted until it
   # scrolls into view.
   renderView = some(Rect(x: 0, y: 0, width: getScreenWidth().float32,
@@ -872,20 +889,25 @@ proc renderFrame(app: App) =
   ## The whole tree is already painted by this point -- renderPass built each
   ## widget's texture and composited them upward -- so this is one blit plus
   ## whatever the window itself draws over it.
-  beginDrawing()
-  # The window surround follows the active theme rather than a hardcoded
-  # RayWhite, so a dark theme does not leave a light border around the UI.
-  clearBackground(currentTheme.canvasColor())
+  perfTime(phScreen):
+    beginDrawing()
+    # The window surround follows the active theme rather than a hardcoded
+    # RayWhite, so a dark theme does not leave a light border around the UI.
+    clearBackground(currentTheme.canvasColor())
 
-  app.compositeRoot()
-  if app.beingScripted:
-    drawScriptingIndicator()
+    app.compositeRoot()
+    if app.beingScripted:
+      drawScriptingIndicator()
+  if app.probe != nil and app.probe.enabled:
+    perfTime(phReadback):
+      app.probe.capture()       # exactly what is about to be presented
 
   when defined(debugUI):
     drawText("FPS: " & $app.currentFPS, 10'i32, 10'i32, 16'i32, DarkGray)
     drawText("Events: " & $app.eventManager.queueLength, 10'i32, 30'i32, 16'i32, DarkGray)
 
-  endDrawing()
+  perfTime(phSwap):
+    endDrawing()
 
 # ============================================================================
 # Scripting Support
@@ -956,19 +978,21 @@ proc pumpEvents*(app: App) =
   if app.onFrame != nil:
     app.onFrame()
 
-  # 1. Collect events from this frame's source
-  app.collectEvents()
+  perfTime(phEvents):
+    # 1. Collect events from this frame's source
+    app.collectEvents()
 
-  # 2. Process event patterns (coalescing)
-  app.eventManager.update()
+    # 2. Process event patterns (coalescing)
+    app.eventManager.update()
 
-  # 3. Process events with time budget
-  discard app.eventManager.processEvents(
-    app.eventManager.currentBudget,
-    proc(event: GuiEvent) = app.handleEvent(event))
+    # 3. Process events with time budget
+    discard app.eventManager.processEvents(
+      app.eventManager.currentBudget,
+      proc(event: GuiEvent) = app.handleEvent(event))
 
   # 4. Poll script commands
-  app.pollScriptCommands()
+  perfTime(phScript):
+    app.pollScriptCommands()
 
   # 5. A popup that opened this frame (a context menu) may want the keyboard.
   let wantsFocus = takeFocusRequest()
@@ -989,13 +1013,15 @@ proc step*(app: App): bool {.discardable.} =
   ## One frame of the pipeline, without the window or the loop around it.
   ## Needs a GL context, because it paints. Returns whether anything was
   ## painted.
-  app.pollThemeWatch()
+  perfTime(phPoll):
+    app.pollThemeWatch()
   app.pumpEvents()
-  if runPollers():                  # a data source brought rows in from its worker
-    app.tree.anyDirty = true
-  if fireDueRepaints():
-    app.tree.anyDirty = true
-  app.pruneToasts()
+  perfTime(phPoll):
+    if runPollers():                # a data source brought rows in from its worker
+      app.tree.anyDirty = true
+    if fireDueRepaints():
+      app.tree.anyDirty = true
+    app.pruneToasts()
   app.updateLayoutAndRender()
 
 proc countFrame(app: App) =
@@ -1013,6 +1039,8 @@ proc shouldPresent(app: App, painted: bool, now: MonoTime): bool =
   ## the others are the scripting indicator appearing or going, and the idle
   ## refresh.
   if painted or not app.idleWhenClean:
+    return true
+  if app.probe != nil and app.probe.wantPresent:
     return true
   let indicator = app.beingScripted
   if indicator != app.indicatorShown:
@@ -1037,10 +1065,12 @@ proc idleUntilNextFrame(app: App, frameStart: MonoTime) =
     let cap = if app.scriptManager != nil:
                 some(initDuration(nanoseconds = 1_000_000_000 div max(1, app.window.fps)))
               else: none(Duration)
-    blockForEvents(idleWaitFor(now, nextRepaint(), app.lastPresent + app.idleRefresh, cap))
+    perfTime(phIdle):
+      blockForEvents(idleWaitFor(now, nextRepaint(), app.lastPresent + app.idleRefresh, cap))
   else:
     app.idleRecentlyPolled = true
-    pollInputEvents()
+    perfTime(phIdle):
+      pollInputEvents()
 
 let profileFrames = getEnv("RUI_PROFILE").len > 0
   ## `RUI_PROFILE=1 ./app` prints one line per presented frame to stderr:
@@ -1085,6 +1115,9 @@ proc run*(app: App, maxFrames: int = -1) =
     app.applyCursor()
     if app.shouldPresent(painted, frameStart):
       app.renderFrame()       # 6. Composite to screen
+      if app.probe != nil:
+        app.probe.notePresented((stepped - frameStart).inMicroseconds.int,
+                                (getMonoTime() - stepped).inMicroseconds.int, painted)
       if profileFrames:
         stderr.writeLine "frame: step " & $((stepped - frameStart).inMicroseconds) &
           "us, present " & $((getMonoTime() - stepped).inMicroseconds) &
@@ -1092,8 +1125,10 @@ proc run*(app: App, maxFrames: int = -1) =
       app.lastPresent = frameStart
       app.countFrame()
       app.idleRecentlyPolled = false
+      when perfOn: perfEndFrame(true)
     else:
       app.idleUntilNextFrame(frameStart)
+      when perfOn: perfEndFrame(false)
     app.lastFrameTime = frameStart
 
 # ============================================================================

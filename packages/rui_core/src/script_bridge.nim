@@ -58,6 +58,11 @@ type
     actions*: seq[ScriptAction]
     defaultField*: string
       ## Written when a script says `write <value>` with no field name.
+    notify*: proc(widget: Widget) {.closure.}
+      ## Tells the widget's change handler (`onChange`, `onToggle`, `onSelect`...)
+      ## about the value just written, as if a person had made the edit. nil
+      ## when the widget has none. Without it a script's `write` changed the
+      ## widget and nothing bound to it: the echo label stayed behind the input.
     getText*: proc(widget: Widget): string {.closure.}
       ## nil when the widget has no text to read.
     toggle*: proc(widget: Widget): Option[bool] {.closure.}
@@ -168,6 +173,10 @@ template flipIfCheckable*(w: untyped): Option[bool] =
     w.checked = not w.checked
     discard fireAction(w.onToggle, w.checked)
     some(w.checked)
+  elif compiles((w.on = not w.on)):         # Switch
+    w.on = not w.on
+    discard fireAction(w.onToggle, w.on)
+    some(w.on)
   else:
     none(bool)
 
@@ -281,8 +290,10 @@ proc doWrite(widget: Widget, desc: ScriptDescriptor, params: JsonNode): JsonNode
 
   # A written field almost always changes what is drawn and how big it is, and
   # a script has no other way to say so.
-  widget.isDirty = true
   widget.layoutDirty = true
+  widget.markDirtyToRoot()
+  if name == desc.defaultField and desc.notify != nil:
+    desc.notify(widget)
   ok()
 
 proc doToggle(widget: Widget, desc: ScriptDescriptor): Option[JsonNode] =
@@ -297,7 +308,7 @@ proc doToggle(widget: Widget, desc: ScriptDescriptor): Option[JsonNode] =
   let now = desc.toggle(widget)
   if now.isNone:
     return none(JsonNode)
-  widget.isDirty = true
+  widget.markDirtyToRoot()
   some(ok("checked", %now.get()))
 
 proc doInvoke(widget: Widget, desc: ScriptDescriptor, wanted: string): JsonNode =
@@ -307,7 +318,7 @@ proc doInvoke(widget: Widget, desc: ScriptDescriptor, wanted: string): JsonNode 
   if not widget.enabled:
     return fail("Widget is disabled")
   let fired = desc.actions[idx].invoke(widget)
-  widget.isDirty = true
+  widget.markDirtyToRoot()
   result = ok("invoked", %wanted)
   if not fired:
     # The action exists, nothing is listening. Reporting that as a failure would

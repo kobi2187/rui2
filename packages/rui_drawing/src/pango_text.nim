@@ -32,6 +32,8 @@ import std/[tables, hashes, math, unicode, options]
 import std/times as stdtimes  # raylib also exports stdtimes.getTime()
 import raylib
 import pango_binding
+import perf
+import std/monotimes
 
 export fontDescString
 export CairoAntialias, CairoSubpixelOrder, CairoHintStyle
@@ -239,7 +241,9 @@ proc measure*(text: string, font: string, wrapWidth: int32 = -1,
     result = measureOld[key]
   else:
     inc measureMisses
-    result = measureUncached(text, font, wrapWidth, markup, dir)
+    perfCount(pcMeasureMiss)
+    perfTime(phTextMeasure):
+      result = measureUncached(text, font, wrapWidth, markup, dir)
 
   if measureCache.len >= maxMeasureEntries:
     swap(measureOld, measureCache)     # the old generation is dropped
@@ -498,11 +502,14 @@ proc getGlyphs(text, font: string, wrapWidth: int32,
                      markup: markup, dir: dir)
   if key in cache:
     inc cacheHits
+    perfCount(pcTextHit)
     cache[key].lastUsed = stdtimes.getTime()
     return addr cache[key]
 
   inc cacheMisses
+  perfCount(pcTextMiss)
   let m = measure(text, font, wrapWidth, markup, dir)
+  let rasterStart = when perfOn: getMonoTime() else: default(MonoTime)
   let w = max(1'i32, m.width.int32)
   let h = max(1'i32, m.height.int32)
 
@@ -521,6 +528,7 @@ proc getGlyphs(text, font: string, wrapWidth: int32,
                             baseline: m.baseline, lastUsed: stdtimes.getTime(),
                             memoryBytes: bytes)
   cacheMemoryBytes += bytes
+  when perfOn: perfAdd(phTextRaster, (getMonoTime() - rasterStart).inNanoseconds)
   addr cache[key]
 
 # ---------------------------------------------------------------------------

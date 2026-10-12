@@ -133,7 +133,7 @@ if [ "$MODE" = "quick" ] || [ "$MODE" = "isolated" ] || [ "$MODE" = "full" ]; th
 fi
 
 if [ "$MODE" = "examples" ] || [ "$MODE" = "full" ]; then
-  ls examples/*.nim examples/widgets/*.nim examples/baby/*.nim examples/tutorial/*.nim 2>/dev/null \
+  ls examples/*.nim examples/gallery/gallery.nim examples/widgets/*.nim examples/baby/*.nim examples/tutorial/*.nim 2>/dev/null \
     | xargs -P "$JOBS" -I{} bash -c 'example_compile {}' | sort | tally "examples compile"
 fi
 
@@ -156,6 +156,15 @@ if [ "$MODE" = "ui" ] || [ "$MODE" = "full" ]; then
     else
       echo "  FAIL  pango_showcase (did not compile)"
       FAIL=$((FAIL+1)); FAILED_NAMES+=("pango_showcase build")
+    fi
+    # The gallery through the scripting protocol: a screenshot of every tab, idle
+    # frames, and repaint latency. See docs/visual-testing.md.
+    if ./tools/gallery_probe.sh check >/tmp/rt_probe.log 2>&1; then
+      echo "  PASS  gallery probe (screenshots, idle, repaint latency)"
+      PASS=$((PASS+1))
+    else
+      echo "  FAIL  gallery probe"; tail -25 /tmp/rt_probe.log | sed 's/^/        /'
+      FAIL=$((FAIL+1)); FAILED_NAMES+=("gallery_probe")
     fi
   else
     echo "  SKIP  Xvfb not installed"

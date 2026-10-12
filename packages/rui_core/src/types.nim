@@ -258,11 +258,23 @@ type
       ## when the stack does. See `rui_core/flex.nim`.
 
     # Dirty flags
-    isDirty*: bool             # Needs re-render
+    isDirtyFlag*: bool         # Needs re-render (read and written as `isDirty`)
+    ownDirty*: bool
+      ## Dirty because the widget itself changed, as opposed to only because a
+      ## descendant did. Setting `isDirty = true` by hand says "I changed";
+      ## `markDirtyToRoot` says it for the widget it starts at and not for its
+      ## ancestors. A widget that is dirty only through its children can be
+      ## repainted in the changed area alone (main_loop `renderToTexture`).
     layoutDirty*: bool         # Needs layout calculation
 
     # Rendering
     cachedTexture*: Option[RenderTexture2D]  # Cached render target for this widget
+    paintSig*: int
+      ## What its children looked like -- count, order, bounds, visibility -- when
+      ## it was last painted. A partial repaint is allowed only while it still does.
+    damage*: Rect
+      ## The part of the widget (screen coordinates) its last repaint redrew: all
+      ## of it, or just the area a child changed in. What the parent re-blits.
     childClip*: Option[Rect]
       ## Clip composited children to this rectangle, in coordinates relative to
       ## this widget's own top-left corner.
@@ -512,6 +524,14 @@ var nextWidgetId {.global.} = 0
 proc newWidgetId*(): WidgetId =
   result = WidgetId(nextWidgetId)
   inc nextWidgetId
+
+proc isDirty*(widget: Widget): bool {.inline.} = widget.isDirtyFlag
+
+proc `isDirty=`*(widget: Widget, dirty: bool) {.inline.} =
+  ## "This widget changed" (or, false, "it is painted"): so it must be repainted
+  ## whole. See `ownDirty`.
+  widget.isDirtyFlag = dirty
+  widget.ownDirty = dirty
 
 proc initWidgetBase*(widget: Widget) =
   ## Bring a freshly allocated widget up to "exists and will be drawn".
@@ -836,9 +856,11 @@ proc markDirtyToRoot*(widget: Widget) =
   ## dirty parent simply re-composites its children's caches (rebuilding only the
   ## dirty ones). This keeps the changed texture flowing to the screen while
   ## untouched subtrees are not redrawn.
-  var w = widget
+  if widget == nil: return
+  widget.isDirty = true
+  var w = widget.parent
   while w != nil:
-    w.isDirty = true
+    w.isDirtyFlag = true       # dirty through a child, not changed itself
     w = w.parent
 
 

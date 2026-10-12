@@ -31,6 +31,11 @@ type
                 # UI's own data, which is why it is gated separately from the
                 # public verbs. Only honoured by a host built with
                 # -d:ruiInspect; see ScriptManager.onInspect.
+    ctVisual    # Test-only: what the screen actually showed, and how fast
+                # ("1 clock visual shot out.png", "2 clock visual change 500").
+                # Screenshots, pixel hashes, frame timings, and waits that
+                # span frames. Honoured by a host built with -d:ruiInspect;
+                # see ScriptManager.onVisual.
 
   TextCommand* = object
     ## Parsed text command from commands.txt
@@ -48,6 +53,8 @@ type
       keyName*: string      # Nim KeyboardKey name: Tab, Down, Enter, A, ...
     of ctInspect:
       what*: string         # visible | render | hit <x> <y> | tree | settle
+    of ctVisual:
+      visual*: string       # shot [file] | hash | arm | change [ms] | stable [quietMs [ms]] | clock | frames
 
   TextResponse* = object
     ## Response to write to responses.txt
@@ -123,6 +130,17 @@ proc parseCommand*(line: string): Option[TextCommand] =
       selector: selector,
       cmdType: ctInspect,
       what: parts[3]
+    ))
+  elif cmdStr == "visual":
+    # "<id> <selector> visual <what args>". `*` (or `window`) is the whole
+    # window; any other selector is that widget's rectangle on screen.
+    if parts.len < 4:
+      return none(TextCommand)
+    return some(TextCommand(
+      id: id,
+      selector: selector,
+      cmdType: ctVisual,
+      visual: parts[3]
     ))
   elif cmdStr.startsWith("custom:"):
     let customCmd = cmdStr[7..^1]  # Skip "custom:"
@@ -283,6 +301,10 @@ proc translateToAction*(cmd: TextCommand, widgetType: string): (string, JsonNode
     # have no widget to address, and the rest are answered by the host rather
     # than by the widget. Present so the case is exhaustive.
     return ("inspect", %*{"what": cmd.what})
+
+  of ctVisual:
+    # Answered by the host, never by a widget; present so the case is exhaustive.
+    return ("visual", %*{"what": cmd.visual})
 
   of ctCustom:
     # Passed through verbatim: "custom:toggle" -> action "toggle".

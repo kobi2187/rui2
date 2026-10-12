@@ -18,6 +18,24 @@ type
     cfJson    # JSON format (commands.json / responses.json)
     cfText    # Text format (commands.txt / responses.txt)
 
+  VisualReply* = object
+    ## What the host says to a `visual` command. Either an answer now, or a
+    ## `wait` the manager calls once per frame until it yields one -- how a
+    ## command can span frames ("did the pane change within 500ms?") without
+    ## blocking the loop that has to paint the change.
+    ok*: bool
+    value*: string
+    wait*: proc(): Option[VisualReply] {.closure.}
+
+  TextBatch = ref object
+    ## A commands.txt being executed one command at a time, so that a waiting
+    ## command can pause it and let frames run.
+    commands: seq[TextCommand]
+    next: int
+    responses: seq[TextResponse]
+    waiting: proc(): Option[VisualReply] {.closure.}
+    waitingId: string
+
   ScriptManager* = ref object
     ## Manages file-based scripting communication
     workDir*: string               # Directory for command/response files
@@ -68,6 +86,14 @@ type
       ## A closure rather than a direct reference, for the same reason `onKey`
       ## is one: rui_scripting would otherwise need to know about layout,
       ## hit-testing and the frame loop to answer.
+
+    onVisual*: proc(selector: string, what: string): VisualReply
+      ## Answer a `visual` command: screenshots, pixel hashes, frame timings and
+      ## waits that span frames. **Test-only**, set by `App.enableScripting`
+      ## under `-d:ruiInspect`, for the same reasons as `onInspect`. A closure,
+      ## so rui_scripting need not know about windows or pixels.
+
+    batch: TextBatch               # the text command file being executed, if any
 
     pollInterval*: float64         # Seconds between polls (default: 1.0)
     lastPoll*: float64             # Last poll timestamp
@@ -321,11 +347,63 @@ proc processMessage(sm: ScriptManager, msg: ScriptMessage): ScriptMessage =
 # Polling
 # ============================================================================
 
+proc answerVisual(sm: ScriptManager, cmd: TextCommand): VisualReply =
+  if sm.onVisual == nil:
+    return VisualReply(ok: false,
+      value: "Visual inspection not available: build with -d:ruiInspect")
+  sm.onVisual(cmd.selector, cmd.visual)
+
+proc finishBatch(sm: ScriptManager) =
+  let b = sm.batch
+  sm.batch = nil
+  writeResponseFile(sm.responsePathText, b.responses)
+  sm.cleanupCommandFile(cfText)
+  sm.releaseLock()
+
+proc advanceBatch(sm: ScriptManager) =
+  ## Run the commands of the current text batch until one has to wait.
+  let b = sm.batch
+  try:
+    while true:
+      if b.waiting != nil:
+        let reply = b.waiting()
+        if reply.isNone: return                     # not yet: next frame
+        if reply.get.wait != nil:                   # answered with another wait
+          b.waiting = reply.get.wait
+          continue
+        b.responses.add(if reply.get.ok: newValueResponse(b.waitingId, reply.get.value)
+                        else: newFailResponse(b.waitingId, reply.get.value))
+        b.waiting = nil
+      if b.next >= b.commands.len:
+        sm.finishBatch()
+        return
+      let cmd = b.commands[b.next]
+      inc b.next
+      if cmd.cmdType == ctVisual:
+        let reply = sm.answerVisual(cmd)
+        if reply.wait != nil:
+          b.waiting = reply.wait
+          b.waitingId = cmd.id
+        else:
+          b.responses.add(if reply.ok: newValueResponse(cmd.id, reply.value)
+                          else: newFailResponse(cmd.id, reply.value))
+      else:
+        b.responses.add(sm.processTextCommand(cmd))
+  except CatchableError as e:
+    b.responses.add(newFailResponse("0", "Error: " & e.msg))
+    sm.finishBatch()
+
 proc poll*(sm: ScriptManager) =
   ## Poll for command files and process them
   ## Called from main application loop
 
   if not sm.enabled:
+    return
+
+  # A batch paused on a waiting command is resumed every frame, whatever the
+  # poll interval: its clock is the frame, not the file.
+  if sm.batch != nil:
+    sm.advanceBatch()
     return
 
   let now = epochTime()
@@ -351,15 +429,9 @@ proc poll*(sm: ScriptManager) =
     case format
     of cfText:
       # Process text format
-      let commands = parseCommandFile(sm.commandPathText)
-      var responses: seq[TextResponse] = @[]
-
-      for cmd in commands:
-        let resp = sm.processTextCommand(cmd)
-        responses.add(resp)
-
-      # Write all responses
-      writeResponseFile(sm.responsePathText, responses)
+      sm.batch = TextBatch(commands: parseCommandFile(sm.commandPathText))
+      sm.advanceBatch()
+      return           # the batch cleans up and releases the lock when it ends
 
     of cfJson:
       # Process JSON format (single command)
