@@ -28,6 +28,7 @@ from std/algorithm import sort
 import raylib
 
 import tabular
+import ../seq_follow
 import tabular_render
 import ../input/textarea
 export datatable_helpers, tabular, tabular_render
@@ -314,3 +315,25 @@ definePrimitive(DataTable):
 
     endClip(clip)
     drawThemedBorder(widget.bounds, props, widget.focused)
+
+proc bindRows*(table: DataTable, source: LinkSeq[DataRow]) =
+  ## Show `source` as the table's data and follow its edits one by one.
+  ## Selection is kept against source rows, so it stays on the rows it was on
+  ## through inserts, removals and moves; filtering and sorting are redone on
+  ## the next layout as they always are.
+  table.data = source.toSeq
+  table.layoutDirty = true
+  source.attach(table, proc(change: SeqChange) =
+    change.apply(table.data, source)
+    var place = RowPlace(selection: table.selected, focus: 0, hover: table.hoverRow,
+                         anchor: 0, scrollY: table.scrollY)
+    # focus and anchor are positions in the filtered view, which the next
+    # layout rebuilds; only the selection is carried by source index.
+    let lost = place.followEdit(change, table.data.len, rowHeightOf(table),
+                                table.bounds.height)
+    table.selected = place.selection
+    table.hoverRow = -1
+    table.scrollY = place.scrollY
+    table.layoutDirty = true
+    table.isDirty = true
+    if lost and table.onSelect != nil: table.onSelect(table.selected))

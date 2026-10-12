@@ -13,6 +13,7 @@ import rui_core
 import rui_drawing
 import ../virtual_rows
 import ../list_input
+import ../seq_follow
 import std/[options, sets]
 
 import raylib
@@ -180,3 +181,21 @@ definePrimitive(ListBox):
     drawThemedBorder(widget.bounds, props, widget.focused)
     if widget.disabled:
       drawDisabledOverlay(widget.bounds)
+
+proc bindItems*(list: ListBox, source: LinkSeq[string]) =
+  ## Show `source` and follow its edits (see ListView.bindItems).
+  list.items = source.toSeq
+  list.totalItemCount = -1
+  list.layoutDirty = true
+  source.attach(list, proc(change: SeqChange) =
+    change.apply(list.items, source)
+    var place = RowPlace(selection: list.selection, focus: list.focusIndex,
+                         hover: list.hoverIndex, anchor: list.focusIndex,
+                         scrollY: list.scrollY)
+    let lost = place.followEdit(change, list.items.len, rowH(list), list.bounds.height)
+    list.selection = place.selection
+    list.focusIndex = place.focus
+    list.hoverIndex = place.hover
+    list.scrollY = place.scrollY
+    list.isDirty = true
+    if lost and list.onSelect != nil: list.onSelect(list.selection))
