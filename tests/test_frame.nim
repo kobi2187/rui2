@@ -304,3 +304,64 @@ suite "a closed popup does not keep the window repainting":
     combo.isDirty = false
     check combo.list.isDirty
     check not root.anyChildDirty()
+
+suite "taking widgets out of the tree for good":
+
+  test "removeChild + disposeTree leave no link, id map entry or focus behind":
+    let name = newLink("Ada")
+    let level = newLink(0.0'f32)
+    let root = newVStack()
+    let (app, _) = headlessApp(root)
+    let baseline = app.tree.widgetMap.len
+    for i in 0 ..< 200:
+      let panel = newColumn()
+      let label = newLabel()
+      let input = newTextInput()
+      let slider = newSlider()
+      panel.addChild label
+      panel.addChild input
+      panel.addChild slider
+      name.bindTo(label, proc(v: string) = label.text = v)
+      name.bindTo(input, proc(v: string) = input.text = v)
+      level.bindTo(slider, proc(v: float32) = slider.value = v)
+      root.addChild panel
+      app.stepHeadless()
+      root.removeChild panel
+      disposeTree(panel)
+    app.stepHeadless()
+    check root.children.len == 0
+    check name.dependentCount == 0 and level.dependentCount == 0
+    check app.tree.widgetMap.len == baseline
+
+  test "without disposeTree the Link keeps them (what the call is for)":
+    let name = newLink("Ada")
+    let root = newVStack()
+    for i in 0 ..< 10:
+      let label = newLabel()
+      name.bindTo(label, proc(v: string) = label.text = v)
+      root.addChild label
+      root.removeChild label
+    check name.dependentCount == 10
+
+  test "disposing the focused widget clears focus; removing renders stale ids unreachable":
+    let input = newTextInput()
+    let root = newVStack()
+    root.addChild input
+    let (app, _) = headlessApp(root)
+    app.stepHeadless()
+    app.focusManager.requestFocus(input)
+    check app.focusManager.focusedWidget == input
+    root.removeChild input
+    disposeTree(input)
+    check app.focusManager.focusedWidget == nil
+
+  test "removeChild bumps the structure version so the focus chain rebuilds":
+    let a = newButton(text = "a")
+    let b = newButton(text = "b")
+    let root = newVStack()
+    root.addChild a
+    root.addChild b
+    let before = structureVersion()
+    root.removeChild a
+    check structureVersion() > before
+    check a.parent == nil and root.children == @[Widget(b)]

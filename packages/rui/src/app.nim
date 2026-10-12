@@ -186,6 +186,17 @@ proc newApp*(title = "RUI Application",
   # reaches for either sees the same focus.
   result.router = newEventRouter(result.hitTestSystem, result.focusManager,
                                  result.hoverTracker)
+  # A widget disposed while focused, hovered or under the pointer must not stay
+  # referenced from here (the last App created owns the hook).
+  let focus = result.focusManager
+  let hover = result.hoverTracker
+  onDispose = proc(gone: Widget) =
+    if focus.focusedWidget != nil and focus.focusedWidget.isWithin(gone):
+      focus.clearFocus()
+    if hover.hovered != nil and hover.hovered.isWithin(gone):
+      discard hover.setHover(nil)
+    if pointerWidget() != nil and pointerWidget().isWithin(gone):
+      setPointer(nil, pointerPos())
   # ThemeManager already set "light" as default and updated the global.
 
 proc setStore*(app: App, store: Store) =
@@ -1020,7 +1031,13 @@ proc run*(app: App, maxFrames: int = -1) =
     writeFile(dump, inspectTree(app.tree.root))
     return
   app.openWindow()
-  defer: closeWindow()
+  defer:
+    # Textures are freed through the GL context, which closeWindow tears down:
+    # released afterwards they crash (SIGSEGV in `=destroy`).
+    if app.tree.root != nil: freeTextureTree(app.tree.root)
+    for overlay in overlays(): freeTextureTree(overlay)
+    clearTextCache()                  # glyph textures are global, freed the same way
+    closeWindow()
   app.announce()
 
   var framesRun = 0
