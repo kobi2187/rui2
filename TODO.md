@@ -71,6 +71,6 @@ Legend: **P0** blocks real apps · **P1** expected of any modern toolkit ·
 | Release (CI on Windows/macOS, v0.2.0) | [#55](https://github.com/kobi2187/rui2/issues/55) |
 | Accessibility (parked) | [#56](https://github.com/kobi2187/rui2/issues/56) |
 | yui: a 1:1 mapping between `.yui` files and `ui:` | [#61](https://github.com/kobi2187/rui2/issues/61) |
-| In-app windows (parked, opt-in module) | [#67](https://github.com/kobi2187/rui2/issues/67) |
+| In-app windows (`rui_windows`, opt-in module) | [#67](https://github.com/kobi2187/rui2/issues/67) |
 | Split into repos / publish to Nimble | [#35](https://github.com/kobi2187/rui2/issues/35), [#36](https://github.com/kobi2187/rui2/issues/36) |
 

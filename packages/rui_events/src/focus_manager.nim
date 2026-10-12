@@ -210,6 +210,12 @@ proc hasFocus*(fm: FocusManager, widget: Widget): bool =
 # Tab Navigation
 # ============================================================================
 
+var focusScope*: Widget
+  ## When set, Tab and Shift+Tab move only among the widgets inside it -- a
+  ## window that keeps the keyboard to itself. nil: the whole tree. Module-level
+  ## like the overlay layer, set by whoever owns the scope (see rui_windows) and
+  ## cleared when it goes away.
+
 proc navigationLevel(fm: FocusManager, rootWidget: Widget): Widget =
   ## The level Tab navigates: one step outside whatever group the focus is in.
   ## At the top level that is the root itself.
@@ -217,7 +223,7 @@ proc navigationLevel(fm: FocusManager, rootWidget: Widget): Widget =
   if inner == nil:
     return rootWidget
   let outer = enclosingGroup(inner)
-  if outer == nil: rootWidget else: outer
+  if outer == nil or not outer.isWithin(rootWidget): rootWidget else: outer
 
 proc nextLanding(entries: openArray[Widget], current: Widget,
                  delta: int): Widget =
@@ -252,7 +258,7 @@ proc moveAcross(fm: FocusManager, rootWidget: Widget, delta: int) =
   ## deeply it is nested.
   fm.ensureFocusChain(rootWidget)
 
-  let level = fm.navigationLevel(rootWidget)
+  let level = fm.navigationLevel(if focusScope != nil: focusScope else: rootWidget)
   let entries = focusEntries(level)
   if entries.len == 0:
     return
