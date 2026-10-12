@@ -1,0 +1,20 @@
+VStack - @0,0 900x600
+  Column - @0,0 900x74
+    Label - @0,0 278x23
+    Button - @0,35 148x39 tabstop
+      Rectangle - @0,35 148x39
+      Label - @16,43 116x23
+  Window - @76,110 300x260 floating
+    Column - @84,146 284x216
+      Label - @84,146 93x23
+      TextInput - @84,177 220x30 tabstop
+      Slider - @84,215 220x28 tabstop
+      DatePicker - @84,251 163x41 tabstop
+        CalendarPopup - @84,292 238x222 floating
+  Window - @112,140 300x260 floating
+    Column - @120,176 284x216
+      Label - @120,176 93x23
+      TextInput - @120,207 220x30 focused tabstop
+      Slider - @120,245 220x28 tabstop
+      DatePicker - @120,281 163x41 tabstop
+        CalendarPopup - @120,322 238x222 floating

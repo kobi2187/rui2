@@ -66,6 +66,8 @@ proc focusTargetFor*(widget: Widget): Widget =
 
 proc widgetAt(router: EventRouter, event: GuiEvent): Widget =
   ## An open menu or dropdown sits above the tree, so it is asked first.
+  if pointerCapture() != nil and event.kind in {evMouseMove, evMouseUp}:
+    return pointerCapture()
   result = overlayAt(event.mousePos.x, event.mousePos.y)
   if result == nil:
     result = router.hitTest.getWidgetAt(event.mousePos.x, event.mousePos.y)
@@ -107,6 +109,9 @@ proc routePointer*(router: EventRouter, event: GuiEvent): bool =
   if event.kind == evMouseDown and dismissPopupsOutside(widget):
     dirty = true
 
+  if event.kind == evMouseDown and onPointerPress != nil:
+    onPointerPress(widget)
+
   if widget == nil:
     return dirty
 
@@ -114,6 +119,7 @@ proc routePointer*(router: EventRouter, event: GuiEvent): bool =
     router.focus.requestFocus(focusTargetFor(widget))
 
   discard widget.dispatchBubbling(event)
+  if event.kind == evMouseUp: releasePointer()
 
   # A move that did not change the hover changes nothing to repaint; a press,
   # release or wheel always might -- a press state, a scroll offset.

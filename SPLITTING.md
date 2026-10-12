@@ -21,7 +21,8 @@ rui_core
   ├─ rui_drawing      (→ rui_core)
   ├─ rui_scripting    (→ rui_core)
   │     rui_widgets   (→ rui_core, rui_drawing)
-  └─ rui              (→ all of the above)
+  ├─ rui_windows      (→ rui_core, rui_drawing, rui_events; optional, not in `rui`)
+  └─ rui              (→ all of the above except rui_windows)
 ```
 
 `rui_hittest`, `rui_events`, `rui_drawing`, `rui_scripting` are mutually
@@ -33,7 +34,7 @@ You have the `gh` CLI and push access. For each package, in dependency order:
 
 ```bash
 # from the monorepo root, on a clean committed tree
-PKG=rui_core   # then rui_hittest, rui_events, rui_drawing, rui_scripting, rui_widgets, rui
+PKG=rui_core   # then rui_hittest, rui_events, rui_drawing, rui_scripting, rui_widgets, rui_windows, rui
 
 git subtree split --prefix=packages/$PKG -b split/$PKG
 gh repo create kobi2187/$PKG --public

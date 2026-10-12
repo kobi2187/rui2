@@ -24,6 +24,23 @@ var
   pointerOver: Widget
   pointerAt: Point
 
+var
+  onPointerPress*: proc(target: Widget) {.closure.}
+    ## Called by the router with the widget a press landed on (nil: empty space),
+    ## before the press is delivered. How a window raises itself when anything
+    ## inside it is clicked -- including a child that consumes the click -- and
+    ## stands down when the page is. nil costs one check.
+  captured: Widget
+
+proc capturePointer*(widget: Widget) =
+  ## Until `releasePointer` (or the next button release), moves and releases go
+  ## to `widget` wherever the pointer is: a drag that outruns its widget keeps
+  ## working.
+  captured = widget
+
+proc releasePointer*() = captured = nil
+proc pointerCapture*(): Widget = captured
+
 proc showOverlay*(widget: Widget, interactive = false) =
   ## Put `widget` on the overlay layer, above everything already there. An
   ## interactive overlay (a menu, a dropdown) takes the pointer before the

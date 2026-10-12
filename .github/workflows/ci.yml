@@ -39,7 +39,7 @@ jobs:
           set -euo pipefail
           PATHS="--path:$(nimble path naylib | tail -1) --path:$(nimble path yaml | tail -1)"
           rc=0
-          for p in rui_core rui_hittest rui_events rui_drawing rui_scripting rui_widgets rui; do
+          for p in rui_core rui_hittest rui_events rui_drawing rui_scripting rui_widgets rui rui_windows; do
             nim check --hints:off --warnings:off $PATHS "packages/$p/src/$p.nim" || rc=1
           done
           exit $rc

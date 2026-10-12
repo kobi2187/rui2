@@ -1,0 +1,10 @@
+version     = "0.2.0"
+author      = "RUI2 Contributors"
+description = "RUI2 windows: movable, resizable, closable in-app windows on the overlay layer (optional; not part of the rui barrel)."
+srcDir      = "src"
+license     = "MIT"
+
+requires "nim >= 2.0.0"
+requires "https://github.com/kobi2187/rui_core >= 0.2.0"
+requires "https://github.com/kobi2187/rui_drawing >= 0.2.0"
+requires "https://github.com/kobi2187/rui_events >= 0.2.0"

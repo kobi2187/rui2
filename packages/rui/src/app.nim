@@ -199,6 +199,8 @@ proc newApp*(title = "RUI Application",
       focus.clearFocus()
     if hover.hovered != nil and hover.hovered.isWithin(gone):
       discard hover.setHover(nil)
+    if pointerCapture() != nil and pointerCapture().isWithin(gone):
+      releasePointer()
     if pointerWidget() != nil and pointerWidget().isWithin(gone):
       setPointer(nil, pointerPos())
   # ThemeManager already set "light" as default and updated the global.
