@@ -1,6 +1,6 @@
 VStack gallery @0,0 1000x720
-  TabControl tabs @0,0 1000x584 tabstop
-    VStack - @0,30 1000x554
+  TabControl tabs @0,0 1000x619 tabstop
+    VStack - @0,30 1000x589
       Column basics @12,42 976x319
         Label - @12,42 97x32
         Wrap - @12,86 689x35
@@ -56,7 +56,7 @@ VStack gallery @0,0 1000x720
           Separator - @406,320 1x24
           ProgressBar basics.progress @425,320 160x23
           Spinner - @603,320 94x28 tabstop
-    VStack - @0,30 1000x554 hidden
+    VStack - @0,30 1000x589 hidden
       Column input @12,42 976x368
         Label - @12,42 153x32
         Wrap - @12,84 806x32
@@ -84,7 +84,7 @@ VStack gallery @0,0 1000x720
             ComboList - @357,228 200x0 floating
         Label - @12,247 397x23
         TextArea input.area @12,280 520x130 tabstop
-    VStack - @0,30 1000x554 hidden
+    VStack - @0,30 1000x589 hidden
       Column pickers @12,42 976x434
         Wrap - @12,42 340x41
           Label - @12,42 43x23
@@ -102,7 +102,7 @@ VStack gallery @0,0 1000x720
           Label - @276,148 84x23
         Label - @12,201 204x23
         FilePicker pickers.files @12,236 600x240 tabstop
-    VStack - @0,30 1000x554 hidden
+    VStack - @0,30 1000x589 hidden
       Column layout @12,42 976x494
         Wrap - @12,42 838x90
           Panel layout.panel @12,42 160x70
@@ -196,7 +196,7 @@ VStack gallery @0,0 1000x720
               Label - @788,415 29x87
             Label - @817,415 231x87
         StatusBar layout.status @12,512 149x24
-    VStack - @0,30 1000x554 hidden
+    VStack - @0,30 1000x589 hidden
       Row data @12,42 976x469
         Column - @12,42 260x469
           Label - @12,42 81x23
@@ -212,7 +212,7 @@ VStack gallery @0,0 1000x720
             TextInput - @430,75 156x22 tabstop
           Label - @288,271 82x23
           DataGrid data.grid @288,302 320x160 tabstop
-    VStack - @0,30 1000x554 hidden
+    VStack - @0,30 1000x589 hidden
       Column graphics @12,42 976x530
         Wrap - @12,42 824x190
           Plot graphics.plot @12,42 300x190
@@ -231,7 +231,7 @@ VStack gallery @0,0 1000x720
             ProgressBar - @556,532 140x14
           ImageWidget graphics.image @708,412 96x48
           DragDropArea graphics.drop @816,412 160x100 tabstop
-    VStack - @0,30 1000x554 hidden
+    VStack - @0,30 1000x589 hidden
       VStack menus @12,42 976x266
         MenuBar menus.bar @12,42 976x28 tabstop
           Menu menus.file @12,70 0x0 floating
@@ -256,8 +256,8 @@ VStack gallery @0,0 1000x720
           ContextMenu menus.context @28,292 0x0 floating
             MenuItem - @0,0 68x24 hidden
             MenuItem - @0,0 83x24 hidden
-    VStack - @0,30 1000x554 hidden
-      Column live @12,42 976x302
+    VStack - @0,30 1000x589 hidden
+      Column live @12,42 976x565
         Label - @12,42 757x29
         Wrap - @12,81 470x32
           Label - @12,81 42x23
@@ -274,6 +274,8 @@ VStack gallery @0,0 1000x720
           ProgressBar live.bar @231,172 220x16
           Sparkline live.spark @463,172 220x32
         Label live.log @12,214 560x130
+        Label - @12,354 599x23
+        TextArea live.doc @12,387 700x220 tabstop
   MessageBox menus.messagebox @0,0 0x0
   FileDialog menus.filedialog @0,0 0x0
   Dialog menus.dialog @0,0 0x0 hidden tabstop
