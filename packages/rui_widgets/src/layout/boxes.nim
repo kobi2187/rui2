@@ -55,6 +55,33 @@ defineWidget(ConstrainedBox):
   layout:
     wrapChild(widget)
 
+# ----------------------------------------------------------------------------
+# Spacing modifiers
+#
+# `Button(text = "Save").margin(8)` is `Padding(padding = ...): Button(...)`
+# without the nesting. They return the Padding they put around the widget, so
+# later modifiers in a chain (`.flex`, `.frame`) apply to the whole padded box.
+# For an undecorated widget `margin` and `padding` are the same thing; to pad
+# inside a painted background use Container's own `padding` and `color`.
+# ----------------------------------------------------------------------------
+
+proc wrapped(widget: Widget, insets: EdgeInsets): Padding =
+  result = newPadding(padding = insets)
+  result.addChild widget
+
+proc margin*(widget: Widget, insets: EdgeInsets): Padding = widget.wrapped(insets)
+proc margin*(widget: Widget, all: float32): Padding = widget.wrapped(EdgeInsets.all(all))
+proc margin*(widget: Widget, css: string): Padding =
+  ## CSS shorthand as in yui: "16px", "8px 16px", "1px 2px 3px 4px".
+  let insets = parseCssInsets(css)
+  if insets.isNone:
+    raise newException(ValueError, "not a padding value: '" & css & "'")
+  widget.wrapped(insets.get)
+
+proc padding*(widget: Widget, insets: EdgeInsets): Padding = widget.wrapped(insets)
+proc padding*(widget: Widget, all: float32): Padding = widget.wrapped(EdgeInsets.all(all))
+proc padding*(widget: Widget, css: string): Padding = widget.margin(css)
+
 proc alignedSize(widget: Widget, c: Constraints): Size =
   ## Align's measure: a fixed side is kept, a free one is the child's.
   var natural = Size()

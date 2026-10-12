@@ -67,3 +67,12 @@ export toolbutton
 
 import basic/tooltip
 export tooltip
+
+import basic/badge
+export badge
+
+import basic/icon
+export icon
+
+import basic/rangeslider
+export rangeslider

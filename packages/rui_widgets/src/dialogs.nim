@@ -19,3 +19,6 @@ export filepicker
 
 import dialogs/helpoverlay
 export helpoverlay
+
+import dialogs/dialog
+export dialog

@@ -339,10 +339,21 @@ proc toTheme*(tf: ThemeFile, resolver: proc(name: string): Theme): Theme =
       result.statePreference[parseRoleName(role)] = parsePreference(pref)
   if tf.hint.isSome:
     let h = tf.hint.get()
-    result.hint = HintStyle(
+    # Field by field: a child that only recolours the badge keeps the border,
+    # size and type its parent chose.
+    let own = HintStyle(
       background: optColor(h.background), foreground: optColor(h.foreground),
       border: optColor(h.border), borderWidth: h.borderWidth,
       fontSize: h.fontSize, fontFamily: h.fontFamily, uppercase: h.uppercase)
+    template inherit(field: untyped) =
+      if own.field.isSome: result.hint.field = own.field
+    inherit background
+    inherit foreground
+    inherit border
+    inherit borderWidth
+    inherit fontSize
+    inherit fontFamily
+    inherit uppercase
   if tf.metrics.isSome:
     let m = tf.metrics.get()
     template take(field: untyped) =

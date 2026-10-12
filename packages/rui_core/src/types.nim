@@ -335,10 +335,10 @@ type
       ## The value before the transaction's first change to this link.
 
   Store* = ref object of RootObj
-    # User defines fields with Link[T] types
-    # Example:
-    # counter*: Link[int]
-    # username*: Link[string]
+    ## Subclass it and declare fields of type Link[T] (`counter*: Link[int]`),
+    ## or use it as it is: a bag of named, typed Links (see store.nim).
+    entries*: Table[string, RootRef]   # name -> store.nim's entry
+    order*: seq[string]                # names in declaration order
 
 # ============================================================================
 # Event Types

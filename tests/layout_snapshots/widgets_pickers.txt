@@ -1,0 +1,36 @@
+Stack - @0,0 760x520
+  Padding - @0,0 398x388
+    Column - @24,24 350x340
+      Label - @24,24 130x38
+      Row - @24,76 334x41
+        Label - @24,85 37x23
+        DatePicker - @73,76 163x41 tabstop
+          CalendarPopup - @73,117 238x222 floating
+        Label - @248,85 110x23
+      Row - @24,131 230x41
+        Label - @24,140 54x23
+        TimePicker - @90,131 98x41 tabstop
+        Label - @200,140 54x23
+      Row - @24,186 350x41
+        Label - @24,195 62x23
+        ColorPicker - @98,186 180x41 tabstop
+          ColorPopup - @98,227 236x220 floating
+        Label - @290,195 84x23
+      Row - @24,241 248x32
+        Label - @24,245 36x23
+        Autocomplete - @72,241 200x32
+          TextInput - @72,241 200x32 tabstop
+          ComboList - @72,273 200x0 floating
+      Row - @24,287 297x28
+        Label - @24,289 45x23
+        RangeSlider - @81,287 240x28 tabstop
+      Row - @24,329 278x35
+        TextInput - @24,330 240x32 tabstop
+        Icon - @276,329 26x35
+  Dialog - @0,0 0x0 hidden tabstop
+    Column - @-144,-37 288x105
+      Label - @-127,-37 255x23
+      Checkbox - @-82,-4 164x23 tabstop
+      Button - @-41,28 82x39 tabstop
+        Rectangle - @-41,28 82x39
+        Label - @-25,36 50x23
