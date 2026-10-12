@@ -20,6 +20,23 @@ from raylib import KeyboardKey
 export SortOrder
 
 type
+  RowView* = object
+    ## The rows as shown, by position: for a source-backed table the identity
+    ## (the source does the ordering), otherwise a map into the data. No copy.
+    count*: int
+    map*: ptr seq[int]
+
+proc rowView*(map: var seq[int]): RowView = RowView(count: map.len, map: addr map)
+proc identityView*(count: int): RowView = RowView(count: count)
+proc len*(v: RowView): int = v.count
+proc high*(v: RowView): int = v.count - 1
+proc `[]`*(v: RowView, i: int): int = (if v.map == nil: i else: v.map[][i])
+iterator items*(v: RowView): int =
+  ## Capped: "select all" over a hundred million rows would be a set of a
+  ## hundred million ints.
+  for i in 0 ..< min(v.count, 1_000_000): yield v[i]
+
+type
   BandMetrics* = object
     ## Where the horizontal bands of a tabular widget sit.
     ##
@@ -97,7 +114,7 @@ proc sortIndicatorFor*(order: SortOrder): string =
   of soDescending: "  v"
   of soNone: ""
 
-template tableKeyDown*(widget: untyped, view: seq[int], rows: RowViewport,
+template tableKeyDown*(widget: untyped, view: untyped, rows: RowViewport,
                        event: GuiEvent): bool =
   ## The keyboard for DataTable and DataGrid, over the rows as shown (`view`
   ## maps a shown row to its source row). Arrows, Home/End, PageUp/PageDown

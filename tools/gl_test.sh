@@ -6,7 +6,7 @@ set -eu
 cd "$(dirname "$0")/.."
 SRC="$1"
 DEP_PATHS=""
-for pkg in naylib yaml; do
+for pkg in naylib yaml db_connector; do
   p="$(nimble path "$pkg" 2>/dev/null | tail -1)"
   [ -n "${p:-}" ] && [ -d "$p" ] && DEP_PATHS="$DEP_PATHS --path:$p"
 done

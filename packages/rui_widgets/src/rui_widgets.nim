@@ -14,5 +14,6 @@ import containers;  export containers   # scrollview, groupbox, panel, radiogrou
 import input;       export input        # textinput
 import menus;       export menus        # menuitem, menu, menubar, contextmenu
 import dialogs;     export dialogs      # messagebox, filedialog, filepicker
+import sources;     export sources      # RowSource, MemorySource: where lists and tables get rows
 import data;        export data         # treeview, datatable, datagrid
 import modern;      export modern       # canvas, dragdroparea, timeline, mapwidget

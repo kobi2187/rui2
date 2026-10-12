@@ -1,0 +1,13 @@
+Padding - @0,0 1000x520
+  Column - @16,16 968x488
+    Label - @16,16 442x35
+    Row - @16,61 1091x407
+      Column - @16,61 270x407
+        Label - @16,61 160x23
+        ListView - @16,88 270x380 tabstop
+      Column - @298,61 345x407
+        Label - @298,61 345x23
+        DataTable - @298,88 300x380 tabstop
+      Column - @655,61 452x407
+        Label - @655,61 452x23
+        DataTable - @655,88 360x380 tabstop

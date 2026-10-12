@@ -34,10 +34,10 @@ runs:
       uses: actions/cache@v4
       with:
         path: ~/.nimble/pkgs2
-        key: nimble-${{ runner.os }}-naylib-25.42-yaml-2.2-v1
+        key: nimble-${{ runner.os }}-naylib-25.42-yaml-2.2-dbc-v2
     - name: Install Nimble packages
       shell: bash
-      run: nimble install -y "naylib@>=25.42.0" "yaml@>=2.2.0" >/dev/null
+      run: nimble install -y "naylib@>=25.42.0" "yaml@>=2.2.0" db_connector >/dev/null
 
     # Nim regenerates C for every module but only recompiles the .c files whose
     # text changed, so a restored nimcache turns a 37 s build into about 6 s.

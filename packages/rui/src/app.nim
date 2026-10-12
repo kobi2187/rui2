@@ -189,6 +189,7 @@ proc newApp*(title = "RUI Application",
   # reaches for either sees the same focus.
   result.router = newEventRouter(result.hitTestSystem, result.focusManager,
                                  result.hoverTracker)
+  wakeHook = wakeMainLoop
   # A widget disposed while focused, hovered or under the pointer must not stay
   # referenced from here (the last App created owns the hook).
   let focus = result.focusManager
@@ -988,6 +989,8 @@ proc step*(app: App): bool {.discardable.} =
   ## painted.
   app.pollThemeWatch()
   app.pumpEvents()
+  if runPollers():                  # a data source brought rows in from its worker
+    app.tree.anyDirty = true
   if fireDueRepaints():
     app.tree.anyDirty = true
   app.pruneToasts()

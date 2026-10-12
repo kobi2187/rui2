@@ -192,7 +192,8 @@ proc bindStatements(w: NimNode, field: string, arrow: Arrow,
       result.add newAssignment(fieldAccess, newLit(operand.strVal))
     return
   if field in ["items", "rows"] and arrow == arrowToWidget:
-    # A list: `ListView(items = -> todos)` follows a LinkSeq edit by edit.
+    # A list: `ListView(items = -> source)` shows a RowSource (or follows a
+    # LinkSeq) without copying it.
     result.add newCall(ident(if field == "items": "bindItems" else: "bindRows"),
                        w, operand)
     return
