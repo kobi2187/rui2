@@ -945,6 +945,14 @@ proc newSearchInput*(initialText = "", placeholder = "Search",
               disabled = disabled, intent = intent, multiline = false,
               maxLines = 1, clearable = true, onChange = onChange, onSubmit = onSubmit)
 
+# The names a document knows these by: the same widget, built differently.
+registerVariant("Label", "TextArea", proc (): Widget = Widget(newLabel()))
+registerVariant("TextInput", "TextArea", proc (): Widget = Widget(newTextInput()))
+registerVariant("PasswordInput", "TextArea",
+                proc (): Widget = Widget(newPasswordInput()))
+registerVariant("SearchInput", "TextArea",
+                proc (): Widget = Widget(newSearchInput()))
+
 proc replaceText*(widget: TextArea, text: string) =
   ## Replace everything with `text`, caret at the end, as one undoable edit
   ## that fires `onChange` like typing would.
