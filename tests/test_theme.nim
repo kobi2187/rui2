@@ -880,3 +880,92 @@ suite "theme: writing a theme back out":
     var mine = tm.derive("daylight", "Mine")
     mine.base[Default].cornerRadius = some(0.0'f32)
     check same(mine, parseTheme(toYaml(mine), tffYaml, noExtends))
+
+
+suite "theme: describe":
+
+  proc noExtends(name: string): Theme = newTheme(name)
+
+  test "describeChange names each property that differs, nested and unset included":
+    var parent = newTheme("p")
+    parent.base[Default] = ThemeProps(cornerRadius: some(4.0'f32))
+    var child = parent
+    child.name = "c"
+    child.base[Default].cornerRadius = some(0.0'f32)
+    child.base[Default].borderWidth = some(2.0'f32)
+    child.states[Default][Hovered] = ThemeProps(hoverColor: some(Color(r: 255, g: 0, b: 0, a: 255)))
+    let lines = describeChange(parent, child)
+    check "base.default.cornerRadius: 4 -> 0" in lines
+    check "base.default.borderWidth: (unset) -> 2" in lines
+    check "states.default.hovered.hoverColor: (unset) -> \"#ff0000\"" in lines
+    check lines.len == 3
+    check describeChange(parent, parent).len == 0
+
+  test "a chain of files is described level by level":
+    let dir = getTempDir() / "rui_theme_describe"
+    createDir(dir)
+    defer: removeDir(dir)
+    writeFile(dir / "leaf.yaml", "name: leaf\nextends: mid\nbase:\n  default:\n    cornerRadius: 1\n")
+    writeFile(dir / "mid.yaml", "name: mid\nextends: daylight\nbase:\n  default:\n    borderWidth: 5\n")
+    let tm = newThemeManager()
+    discard tm.loadFromFile(dir / "leaf.yaml")
+    let text = tm.describe("leaf")
+    check text.startsWith("leaf (extends mid)\n")
+    check "base.default.cornerRadius: " in text and "-> 1\n" in text
+    check "mid (extends daylight)\n" in text
+    check "base.default.borderWidth: " in text and "-> 5\n" in text
+    check text.endsWith("daylight\n")
+
+  test "derive records the parent; a theme with none is just named":
+    let tm = newThemeManager()
+    var mine = tm.derive("daylight", "Mine")
+    mine.base[Default].cornerRadius = some(0.0'f32)
+    tm.register("mine", mine)
+    check mine.parent == "daylight"
+    check tm.describe("mine").startsWith("mine (extends daylight)\n  base.default.cornerRadius")
+    check tm.describe("daylight") == "daylight\n"
+    check tm.describe("nowhere") == "nowhere (not registered)\n"
+
+
+suite "theme: contrast":
+
+  test "the arithmetic: black on white is 21, a colour on itself is 1":
+    let white = Color(r: 255, g: 255, b: 255, a: 255)
+    let black = Color(r: 0, g: 0, b: 0, a: 255)
+    check abs(contrastRatio(black, white) - 21.0) < 0.01
+    check abs(contrastRatio(white, white) - 1.0) < 0.001
+    check abs(contrastRatio(Color(r: 119, g: 119, b: 119, a: 255), white) - 4.48) < 0.02
+    check over(Color(r: 0, g: 0, b: 0, a: 128), white).r in 126'u8 .. 128'u8
+
+  test "the high-contrast themes meet AAA for every caption and a 3:1 focus ring":
+    let tm = newThemeManager()
+    for name in ["contrast", "contrast-dark"]:
+      let problems = contrastProblems(tm.get(name), textRatio = 7.0, uiRatio = 3.0)
+      check problems.len == 0
+      for p in problems: echo "  ", name, ": ", p
+
+  test "every shipped theme keeps its resting captions readable (3:1) and its ring visible":
+    let tm = newThemeManager()
+    var brands: seq[string]
+    for (key, _) in brandThemes(): brands.add key
+    for name in tm.listThemes():
+      for p in contrastProblems(tm.get(name), textRatio = 3.0, uiRatio = 1.5):
+        # The five older themes predate the focus-ring rule: captions only.
+        if "normal" in p.where or ("focus ring" in p.where and name in brands):
+          checkpoint name & ": " & $p
+          fail()
+
+  test "a theme with a washed-out caption is reported, with where and by how much":
+    var t = newTheme("Faint")
+    t.base[Default] = ThemeProps(backgroundColor: some(Color(r: 255, g: 255, b: 255, a: 255)),
+                                 foregroundColor: some(Color(r: 200, g: 200, b: 200, a: 255)))
+    let problems = contrastProblems(t)
+    check problems.len > 0
+    check "default / normal: caption" in problems[0].where
+    check problems[0].ratio < 2 and problems[0].needed == 4.5
+
+  test "contrast themes round-trip through a file like any other":
+    let tm = newThemeManager()
+    let t = tm.get("contrast-dark")
+    let back = parseTheme(toYaml(t), tffYaml, proc(n: string): Theme = newTheme(n))
+    check back.base == t.base and back.states == t.states

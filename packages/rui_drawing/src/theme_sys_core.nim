@@ -167,6 +167,7 @@ type
   Theme* = object
     name*: string
     version*: string  # Semantic version (e.g., "1.0.0")
+    parent*: string   # The registered theme this one was derived from or `extends`; "" for none
     # Base colors and properties for each intent
     base*: Table[ThemeIntent, ThemeProps]
     # State overrides for each intent

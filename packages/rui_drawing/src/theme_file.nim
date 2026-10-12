@@ -333,6 +333,8 @@ proc toTheme*(tf: ThemeFile, resolver: proc(name: string): Theme): Theme =
     resolver(tf.`extends`.get())
   else:
     newTheme()
+  if tf.`extends`.isSome and tf.brand.isNone:
+    result.parent = tf.`extends`.get()
   if tf.name.isSome:
     result.name = tf.name.get()
   if tf.version.isSome:
@@ -657,3 +659,33 @@ proc toYaml*(theme: Theme): string =
   emitYaml(themeToJson(theme), 0, result)
 
 proc toJsonText*(theme: Theme): string = pretty(themeToJson(theme))
+
+
+# ============================================================================
+# describe: what a theme changed
+# ============================================================================
+
+proc diffJson(a, b: JsonNode, path: string, lines: var seq[string]) =
+  ## Every leaf where `b` differs from `a`, as "path: was -> now".
+  proc show(n: JsonNode): string =
+    if n == nil: "(unset)" else: yamlScalar(n)
+  if (a != nil and a.kind == JObject) or (b != nil and b.kind == JObject):
+    var keys: seq[string]
+    for src in [a, b]:
+      if src != nil and src.kind == JObject:
+        for k, _ in src:
+          if k notin keys: keys.add k
+    for k in keys:
+      let av = if a != nil and a.kind == JObject and a.hasKey(k): a[k] else: nil
+      let bv = if b != nil and b.kind == JObject and b.hasKey(k): b[k] else: nil
+      diffJson(av, bv, (if path.len > 0: path & "." else: "") & k, lines)
+  elif a != b:
+    lines.add path & ": " & show(a) & " -> " & show(b)
+
+proc describeChange*(parent, child: Theme): seq[string] =
+  ## What `child` sets differently from `parent`, one line per property:
+  ## `base.default.cornerRadius: 4 -> 0`, `states.default.hovered.hoverColor: (unset) -> #ff0000`.
+  var a = themeToJson(parent)
+  var b = themeToJson(child)
+  a.delete("name"); b.delete("name")
+  diffJson(a, b, "", result)

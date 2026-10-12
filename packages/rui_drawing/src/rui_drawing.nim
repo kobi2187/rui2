@@ -8,6 +8,7 @@ import theme_types;        export theme_types
 import theme_sys_core;     export theme_sys_core
 import theme_state;        export theme_state   # the visual-state ladder, once
 import theme_manager;      export theme_manager
+import theme_check;        export theme_check   # contrast ratios, contrastProblems
 import builtin_themes;     export builtin_themes
 import widget_primitives;  export widget_primitives
 import pango_binding;       export pango_binding   # Pango/Cairo FFI

@@ -161,6 +161,7 @@ proc derive*(tm: ThemeManager, baseName: string, newName: string = ""): Theme =
     raise newException(ValueError, "Unknown base theme: " & baseName &
       ". Registered: " & tm.listThemes().join(", "))
   result = tm.registry[baseName]
+  result.parent = baseName
   result.name = if newName.len > 0: newName else: result.name & " (derived)"
 
 # ============================================================================
@@ -183,8 +184,13 @@ proc makeResolver(tm: ThemeManager, dir: string,
     for ext in [".yaml", ".yml", ".json"]:
       let siblingPath = dir / name & ext
       if fileExists(siblingPath):
-        return parseTheme(readFile(siblingPath), formatFor(ext),
-                          tm.makeResolver(dir, chain & name))
+        let sibling = parseTheme(readFile(siblingPath), formatFor(ext),
+                                 tm.makeResolver(dir, chain & name))
+        # A named theme in its own right: registered, so `describe` can find
+        # it as the parent of what extends it.
+        if sibling.name.len > 0 and sibling.name notin tm.registry:
+          tm.register(sibling.name, sibling)
+        return sibling
     raise newException(ValueError, "theme extends '" & name &
       "', which is neither a registered theme nor a file named " & name &
       ".yaml / .yml / .json beside it. Registered: " & tm.listThemes().join(", "))
@@ -239,3 +245,32 @@ proc loadTheme*(tm: ThemeManager, nameOrPath: string): Theme =
 proc loadAndSet*(tm: ThemeManager, nameOrPath: string) =
   ## Load a theme and set it as current.
   tm.setTheme(tm.loadTheme(nameOrPath))
+
+
+proc describe*(tm: ThemeManager, name: string): string =
+  ## What each level of a theme's inheritance chain changed, nearest first:
+  ##
+  ##     leaf (extends mid)
+  ##       base.default.cornerRadius: 4 -> 1
+  ##     mid (extends daylight)
+  ##       base.default.borderWidth: 1 -> 5
+  ##     daylight
+  ##
+  ## Stops at a theme with no parent, or whose parent is not registered.
+  var current = name
+  var seen: seq[string]
+  while current.len > 0 and current notin seen:
+    seen.add current
+    if current notin tm.registry:
+      result.add current & " (not registered)\n"
+      break
+    let theme = tm.registry[current]
+    let parent = theme.parent
+    if parent.len == 0 or parent notin tm.registry:
+      result.add current & (if parent.len > 0: " (extends " & parent & ", not registered)" else: "") & "\n"
+      break
+    result.add current & " (extends " & parent & ")\n"
+    let lines = describeChange(tm.registry[parent], theme)
+    if lines.len == 0: result.add "  (nothing)\n"
+    for line in lines: result.add "  " & line & "\n"
+    current = parent
