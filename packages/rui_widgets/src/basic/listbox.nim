@@ -14,6 +14,7 @@ import rui_drawing
 import ../virtual_rows
 import ../list_input
 import ../seq_follow
+import ../sources
 import std/[options, sets]
 
 import raylib
@@ -33,7 +34,8 @@ template totalItems*(widget: untyped): int =
   ## Rows the list claims to have. With lazy loading that is more than the rows
   ## currently in `items`, which is what makes the scrollbar the right length
   ## before the tail has been fetched.
-  (if widget.totalItemCount >= 0: widget.totalItemCount else: widget.items.len)
+  (if widget.source != nil: widget.source.count
+   elif widget.totalItemCount >= 0: widget.totalItemCount else: widget.items.len)
 
 template viewportOf*(widget: untyped): RowViewport =
   ## A template, not a proc: the ListBox type does not exist until the macro
@@ -53,6 +55,7 @@ definePrimitive(ListBox):
 
   state:
     selection: HashSet[int]
+    source: RowSource            # where the rows come from, instead of `items`
     scrollY: float32
     visibleStart: int
     visibleEnd: int
@@ -144,7 +147,7 @@ definePrimitive(ListBox):
     if widget.bounds.width <= 0:
       let style = TextStyle(fontFamily: "", fontSize: 12.0, color: BLACK,
                             bold: false, italic: false, underline: false)
-      var widest = 0.0'f32
+      var widest = if widget.source != nil: 240.0'f32 else: 0.0'f32
       for item in widget.items:
         widest = max(widest, measureText(item, style).width)
       widget.bounds.width = widest + 16.0
@@ -160,7 +163,8 @@ definePrimitive(ListBox):
     widget.visibleStart = visible.a
     widget.visibleEnd = visible.b
 
-    if widget.onLoadMore != nil and visible.b >= widget.items.len - LoadAheadItems:
+    if widget.source == nil and widget.onLoadMore != nil and
+       visible.b >= widget.items.len - LoadAheadItems:
       let needCount = min(LoadBatchSize, total - widget.items.len)
       if needCount > 0:
         widget.onLoadMore(widget.items.len, needCount)
@@ -168,10 +172,19 @@ definePrimitive(ListBox):
     drawThemedBackground(widget.bounds, props)
 
     let clip = beginClip(widget.bounds)
+    let pendingProps = currentTheme.getThemeProps(widget.intent, Disabled)
+    if widget.source != nil and visible.b >= visible.a:
+      widget.source.want(visible.a, visible.b)
     for itemIdx in visible:
       let itemRect = Rect(x: widget.bounds.x, y: v.rowTop(itemIdx),
                           width: widget.bounds.width, height: itemH)
-      let text = if itemIdx < widget.items.len: widget.items[itemIdx] else: "Loading..."
+      if widget.source != nil and widget.source.rowState(itemIdx) == rsPending:
+        # Known to exist, not here yet: a placeholder in the theme's disabled look.
+        drawListItem(itemRect, "...", pendingProps)
+        continue
+      let text = if widget.source != nil: widget.source.text(itemIdx)
+                 elif itemIdx < widget.items.len: widget.items[itemIdx]
+                 else: "Loading..."
       drawListItem(itemRect, text, props,
                    selected = itemIdx in widget.selection,
                    hovered = itemIdx == widget.hoverIndex,
@@ -182,20 +195,30 @@ definePrimitive(ListBox):
     if widget.disabled:
       drawDisabledOverlay(widget.bounds)
 
-proc bindItems*(list: ListBox, source: LinkSeq[string]) =
-  ## Show `source` and follow its edits (see ListView.bindItems).
-  list.items = source.toSeq
-  list.totalItemCount = -1
+proc bindSource*(list: ListBox, source: RowSource) =
+  ## Show the rows of `source`, asking it only for the ones on screen. Rows it
+  ## has not got yet are drawn as placeholders in the theme's disabled look.
+  ## Edits it reports keep the selection, focus and scroll position on the rows
+  ## they were on.
+  list.source = source
+  list.items = @[]
+  list.selection.clear()
   list.layoutDirty = true
   source.attach(list, proc(change: SeqChange) =
-    change.apply(list.items, source)
     var place = RowPlace(selection: list.selection, focus: list.focusIndex,
                          hover: list.hoverIndex, anchor: list.focusIndex,
                          scrollY: list.scrollY)
-    let lost = place.followEdit(change, list.items.len, rowH(list), list.bounds.height)
+    let lost = place.followEdit(change, source.count, rowH(list), list.bounds.height)
     list.selection = place.selection
     list.focusIndex = place.focus
     list.hoverIndex = place.hover
+
     list.scrollY = place.scrollY
     list.isDirty = true
     if lost and list.onSelect != nil: list.onSelect(list.selection))
+
+proc bindItems*(list: ListBox, source: LinkSeq[string]) =
+  ## Show a LinkSeq, following its edits one by one (nothing is copied).
+  let adapter = newLinkSeqSource(source)
+  list.bindSource(adapter)
+  list.disposers.add proc() = adapter.close()      # the adapter is this list's own
