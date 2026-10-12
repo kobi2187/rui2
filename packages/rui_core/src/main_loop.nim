@@ -398,7 +398,9 @@ proc compositeChildren(widget: Widget, originalX, originalY: float32,
     if only.isSome and not overlapsView(dest, only.get()):
       continue                         # a partial update: this one is outside it
     perfCount(pcBlits)
-    perfCount(pcBlitPixels, int(dest.width * dest.height))
+    when perfOn:                       # what the blit can touch: clipped to a partial update
+      let reach = if only.isSome: intersect(dest, only.get()) else: dest
+      perfCount(pcBlitPixels, int(reach.width * reach.height))
     if widget.childClip.isSome:
       drawRenderTexturePart(child.cachedTexture.get(), dest,
                             widget.childClip.get())

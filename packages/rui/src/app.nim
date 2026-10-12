@@ -341,6 +341,11 @@ proc enableScripting*(app: App, scriptDir: string) =
       if widget.isNone: return none(tuple[x, y, w, h: int])
       let r = widget.get().visibleRect
       some((r.x.int, r.y.int, r.width.int, r.height.int))
+    app.probe.resizeTo = proc(width, height: int) =
+      setWindowSize(width.int32, height.int32)
+      if app.tree.root != nil:
+        app.tree.root.layoutDirty = true
+        app.tree.root.isDirty = true
     app.scriptManager.onVisual = proc(selector, what: string): VisualReply =
       app.probe.answer(selector, what)
 

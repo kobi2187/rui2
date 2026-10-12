@@ -166,6 +166,15 @@ if [ "$MODE" = "ui" ] || [ "$MODE" = "full" ]; then
       echo "  FAIL  gallery probe"; tail -25 /tmp/rt_probe.log | sed 's/^/        /'
       FAIL=$((FAIL+1)); FAILED_NAMES+=("gallery_probe")
     fi
+    # How much the frame paints in a few kinds of work (pixels, widgets): a repaint
+    # that stops being partial shows up here long before anyone feels it.
+    if ./tools/perf_scenarios.sh check >/tmp/rt_perf.log 2>&1; then
+      echo "  PASS  perf scenarios (paint per frame within limits)"
+      PASS=$((PASS+1))
+    else
+      echo "  FAIL  perf scenarios"; tail -25 /tmp/rt_perf.log | sed 's/^/        /'
+      FAIL=$((FAIL+1)); FAILED_NAMES+=("perf_scenarios")
+    fi
   else
     echo "  SKIP  Xvfb not installed"
   fi

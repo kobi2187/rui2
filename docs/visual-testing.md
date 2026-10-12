@@ -113,6 +113,39 @@ compose, screen and readback are the big three, then texture alloc and render.
 Every repaint frees and recreates the widget's render texture
 (`texalloc` ~2.7 ms per frame), which is the first thing to try reusing.
 
+## Scenarios
+
+`tools/perf_scenarios.sh` drives the gallery through kinds of work and prints one
+row each (average microseconds per presented frame; `paint` widgets repainted,
+`kpix` thousand pixels of texture painted, `blitK` thousand pixels blitted into
+parents). `check` fails when a scenario paints far more than it should, and runs
+in `run_tests.sh ui`.
+
+```
+scenario           frames  paint kpix/fr blitK/fr | layout  texal render compose screen   swap
+idle (3 s)              2    0.0       0       0 |     32      0      0      0    425    937
+ticker 20/s            77    9.0     595     730 |    841      1   2143   3413   2384    912
+echo label             59    7.0     106     132 |    835      0   1083   1735   1502   1379
+type in TextArea       59    5.0     348     424 |    587      0   1373   2156   2073   1467
+scroll 10k ListView    59    6.0     210     250 |    527      0    794   2119   1601   1335
+scroll ScrollView      59    7.1     327     414 |    961      4    473   2612   2034   1385
+scroll DataTable       59    6.0     378     454 |    563      0    936   2760   1954   1376
+switch tabs (junk)     59    2.9    1246    1860 |    443    108    718   1850   6137   1370
+resize window          59    3.0    1906    1770 |    676    853     18   4310   6479   2540
+```
+
+What the table says (software GL): the damaged-area repaint works -- a changed
+label paints ~100k pixels where the window is 720k -- yet `compose` stays at
+1.5-3.4 ms. It does not follow the pixel count; it follows the number of widgets
+repainted (5-9 per frame, one framebuffer switch and flush each). Five of those
+are containers that draw nothing (the page holder, a Column, a Wrap, the tab
+holder, the root): each exists only to re-composite its children into a texture
+that is then composited again. Letting render-less containers have no texture,
+and their parent composite their descendants directly, is the next step. The
+other fixed costs: `screen` (the whole-window blit, 1.5-2.4 ms, 6 ms when
+everything changes) and `swap` (~1-1.5 ms). Resizing reallocates every texture
+(`texal`). Text is not the problem: 0-3 cache misses per frame.
+
 ## What it found
 
 The first run showed every tab presenting 60 frames a second while idle: a
