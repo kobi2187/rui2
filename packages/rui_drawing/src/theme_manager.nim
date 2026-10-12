@@ -47,7 +47,7 @@
 ##            which is what they used to do, despite a comment claiming
 ##            otherwise.
 
-import std/[tables, os, strutils]
+import std/[tables, os, strutils, sets, options, times, hashes]
 import theme_sys_core
 import theme_types
 import theme_file
@@ -74,6 +74,7 @@ type
   ThemeManager* = ref object
     current*: Theme
     registry: Table[string, Theme]
+    fileThemes: HashSet[string]   # registered from a file: a reload replaces them
     searchPaths*: seq[string]
 
 proc newThemeManager*(): ThemeManager =
@@ -82,6 +83,7 @@ proc newThemeManager*(): ThemeManager =
   result = ThemeManager(
     current: newTheme("Default"),
     registry: initTable[string, Theme](),
+    fileThemes: initHashSet[string](),
     searchPaths: @[]
   )
   result.registry["light"] = createLightTheme()
@@ -179,7 +181,7 @@ proc makeResolver(tm: ThemeManager, dir: string,
     if name in chain:
       raise newException(ValueError, "theme extends itself: " &
         (chain & name).join(" -> "))
-    if name in tm.registry:
+    if name in tm.registry and name notin tm.fileThemes:
       return tm.derive(name)
     for ext in [".yaml", ".yml", ".json"]:
       let siblingPath = dir / name & ext
@@ -188,8 +190,10 @@ proc makeResolver(tm: ThemeManager, dir: string,
                                  tm.makeResolver(dir, chain & name))
         # A named theme in its own right: registered, so `describe` can find
         # it as the parent of what extends it.
-        if sibling.name.len > 0 and sibling.name notin tm.registry:
+        if sibling.name.len > 0 and (sibling.name notin tm.registry or
+                                     sibling.name in tm.fileThemes):
           tm.register(sibling.name, sibling)
+          tm.fileThemes.incl sibling.name
         return sibling
     raise newException(ValueError, "theme extends '" & name &
       "', which is neither a registered theme nor a file named " & name &
@@ -209,8 +213,9 @@ proc loadFromFile*(tm: ThemeManager, path: string): Theme =
   # Auto-register under filename if not already registered
   let regName = if result.name.len > 0: result.name
                 else: path.splitFile().name
-  if regName notin tm.registry:
-    tm.register(regName, result)
+  if regName notin tm.registry or regName in tm.fileThemes:
+    tm.register(regName, result)       # a file's theme is replaced when the file is loaded again
+    tm.fileThemes.incl regName
 
 proc registryResolver(tm: ThemeManager): proc(name: string): Theme =
   ## Resolve `extends` against the registry only -- no sibling-file lookup,
@@ -274,3 +279,48 @@ proc describe*(tm: ThemeManager, name: string): string =
     if lines.len == 0: result.add "  (nothing)\n"
     for line in lines: result.add "  " & line & "\n"
     current = parent
+
+
+# ============================================================================
+# Hot reload
+# ============================================================================
+
+type ThemeWatch* = ref object
+  ## A theme file being watched: change it (or a sibling theme file it extends)
+  ## and `reloaded` hands back the new theme.
+  path*: string
+  signature: int64
+  lastError*: string
+  failedSignature: int64
+
+proc signatureOf(path: string): int64 =
+  ## Changes when the file, or any theme file beside it, is written.
+  result = 0
+  let dir = parentDir(path)
+  for file in walkDir(if dir.len > 0: dir else: "."):
+    if file.kind in {pcFile, pcLinkToFile}:
+      let ext = file.path.splitFile().ext.toLowerAscii
+      if ext in [".yaml", ".yml", ".json"]:
+        let t = getLastModificationTime(file.path)
+        result = result xor int64(hash((file.path, t.toUnix, t.nanosecond)))
+
+proc watchTheme*(path: string): ThemeWatch =
+  ThemeWatch(path: path, signature: signatureOf(path))
+
+proc reloaded*(tm: ThemeManager, watch: ThemeWatch): Option[Theme] =
+  ## The theme again, if its files changed since the last look and now parse.
+  ## A file with a mistake is not an error to the caller: the previous theme
+  ## stays, `watch.lastError` says why, and the same broken state is reported
+  ## once, not on every look.
+  let now = signatureOf(watch.path)
+  if now == watch.signature: return none(Theme)
+  if now == watch.failedSignature: return none(Theme)
+  try:
+    let theme = tm.loadFromFile(watch.path)
+    watch.signature = now
+    watch.lastError = ""
+    return some(theme)
+  except CatchableError as e:
+    watch.failedSignature = now
+    watch.lastError = e.msg
+    return none(Theme)

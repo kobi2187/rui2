@@ -12,7 +12,7 @@
 
 import std/unittest
 import rui
-import std/[json, tables, strutils, options, os]
+import std/[json, tables, strutils, options, os, monotimes, times]
 
 suite "theme: registry and switching":
 
@@ -969,3 +969,80 @@ suite "theme: contrast":
     let t = tm.get("contrast-dark")
     let back = parseTheme(toYaml(t), tffYaml, proc(n: string): Theme = newTheme(n))
     check back.base == t.base and back.states == t.states
+
+
+suite "theme: hot reload":
+
+  proc writeTheme(path, radius: string, extra = "") =
+    writeFile(path, "name: live\nbase:\n  default:\n    cornerRadius: " & radius & "\n" & extra)
+
+  test "saving the file produces the new theme; an unchanged file produces nothing":
+    let dir = getTempDir() / "rui_theme_watch"
+    createDir(dir)
+    defer: removeDir(dir)
+    let path = dir / "live.yaml"
+    writeTheme(path, "3")
+    let tm = newThemeManager()
+    check tm.loadFromFile(path).base[Default].cornerRadius.get == 3
+    let watch = watchTheme(path)
+    check tm.reloaded(watch).isNone
+    sleep(1100)                                         # a new modification time
+    writeTheme(path, "9")
+    let again = tm.reloaded(watch)
+    check again.isSome and again.get.base[Default].cornerRadius.get == 9
+    check tm.get("live").base[Default].cornerRadius.get == 9      # the registry follows
+    check tm.reloaded(watch).isNone
+
+  test "a broken save keeps the last theme, says why once, and a fixed save recovers":
+    let dir = getTempDir() / "rui_theme_watch2"
+    createDir(dir)
+    defer: removeDir(dir)
+    let path = dir / "live.yaml"
+    writeTheme(path, "3")
+    let tm = newThemeManager()
+    discard tm.loadFromFile(path)
+    let watch = watchTheme(path)
+    sleep(1100)
+    writeTheme(path, "9", "  corner_radius: 4\n")       # a key the format does not have
+    check tm.reloaded(watch).isNone
+    check "corner_radius" in watch.lastError
+    check tm.reloaded(watch).isNone                      # the same breakage: not retried
+    check tm.get("live").base[Default].cornerRadius.get == 3
+    sleep(1100)
+    writeTheme(path, "7")
+    check tm.reloaded(watch).get.base[Default].cornerRadius.get == 7
+    check watch.lastError == ""
+
+  test "a theme it extends, beside it, is watched too":
+    let dir = getTempDir() / "rui_theme_watch3"
+    createDir(dir)
+    defer: removeDir(dir)
+    writeFile(dir / "wparent.yaml", "name: wparent\nbase:\n  default:\n    cornerRadius: 2\n")
+    writeFile(dir / "child.yaml", "name: childlive\nextends: wparent\nbase:\n  default:\n    borderWidth: 1\n")
+    let tm = newThemeManager()
+    check tm.loadFromFile(dir / "child.yaml").base[Default].cornerRadius.get == 2
+    let watch = watchTheme(dir / "child.yaml")
+    sleep(1100)
+    writeFile(dir / "wparent.yaml", "name: wparent\nbase:\n  default:\n    cornerRadius: 8\n")
+    let fresh = tm.reloaded(watch)
+    check fresh.isSome
+    check fresh.get.base[Default].cornerRadius.get == 8     # the parent's new value
+    check fresh.get.base[Default].borderWidth.get == 1      # the child's own
+
+  test "an App with watchTheme restyles itself when the file is saved":
+    let dir = getTempDir() / "rui_theme_watch4"
+    createDir(dir)
+    defer: removeDir(dir)
+    let path = dir / "live.yaml"
+    writeTheme(path, "3")
+    let saved = currentTheme
+    defer: setCurrentTheme(saved)
+    let app = newApp(title = "t", width = 300, height = 200)
+    app.setRootWidget(newVStack())
+    app.watchTheme(path)
+    check currentTheme.base[Default].cornerRadius.get == 3
+    sleep(1100)
+    writeTheme(path, "11")
+    app.pollThemeWatch(getMonoTime() + initDuration(seconds = 2))
+    check currentTheme.base[Default].cornerRadius.get == 11
+    check app.tree.root.isDirty                        # and the tree repaints
