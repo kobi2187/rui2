@@ -1,4 +1,4 @@
-# RUI2 — Reactive UI Framework for Nim
+# RUI2 — Raylib UI Framework for Nim
 
 **Fast, lightweight, immediate-mode-with-caching GUI toolkit for Nim, built on raylib.**
 
