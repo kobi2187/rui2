@@ -28,6 +28,7 @@ type
     store*: Store
     live*: LivePane
     dialogs*: seq[Widget]        ## modal widgets that are not in the tree until shown
+    themePicker*: ComboBox       ## the header's theme dropdown; the app fills it and reacts to it
 
   LivePane* = ref object
     ## The pane whose job is to change: what a latency test watches.
@@ -469,7 +470,7 @@ proc stepLive*(g: Gallery, now = getMonoTime()) =
 
 # ---------------------------------------------------------------------------
 
-proc buildGallery*(only = -1): Gallery =
+proc buildGallery*(only = -1, themes: seq[string] = @[]): Gallery =
   ## `only` >= 0 builds just that tab (the others are empty pages): for finding
   ## which widget is the one misbehaving.
   result = Gallery(store: newStore())
@@ -493,6 +494,14 @@ proc buildGallery*(only = -1): Gallery =
   g.tabs = tabs
   let root = newVStack(spacing = 0.0, padding = 0.0)
   root.stringId = "gallery"
+  # A header above the tabs: switch the whole gallery's theme from a dropdown.
+  g.themePicker = newComboBox(items = themes, initialSelectedIndex = 0).named("theme.picker")
+  let header = ui:
+    Padding(padding = EdgeInsets.all(6.0)).named("header"):
+      Row(spacing = 8.0, crossAxisAlignment = CrossAxisAlignment.center):
+        Label(text = "Theme")
+        Embed(g.themePicker)
+  root.addChild(header)
   root.addChild(tabs)
   g.root = root
   for d in g.dialogs: root.addChild(d)
