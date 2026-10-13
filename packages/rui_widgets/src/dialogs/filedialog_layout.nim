@@ -15,7 +15,6 @@ type
     fdDirectory         # Choose a directory
 
 const
-  TitleBarHeight* = 30.0'f32
   RowHeight* = 20.0'f32
   ButtonWidth* = 80.0'f32
   ButtonHeight* = 30.0'f32

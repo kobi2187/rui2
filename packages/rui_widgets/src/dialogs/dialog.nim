@@ -84,17 +84,7 @@ definePrimitive(Dialog):
 
   render:
     if not widget.isOpen: return
-    drawRect(widget.bounds, Color(r: 0, g: 0, b: 0, a: 128))
-    let props = currentTheme.getThemeProps(Default, Normal)
-    let panel = panelRectOf(widget)
-    drawShadow(panel, Shadow(offsetX: 3.0, offsetY: 3.0, blur: 0.0, spread: 0.0,
-                             color: Color(r: 0, g: 0, b: 0, a: 60)))
-    drawThemedBackground(panel, props)
-    drawThemedBorder(panel, props)
-    let titleRect = Rect(x: panel.x, y: panel.y, width: panel.width, height: TitleBarHeight)
-    let titleProps = currentTheme.getThemeProps(Default, Selected)
-    drawThemedBackground(titleRect, titleProps)
-    drawThemedPaddedText(widget.title, titleRect, titleProps, selected = true)
+    discard drawModalFrame(widget.bounds, panelRectOf(widget), widget.title)
 
 proc show*(widget: Dialog) =
   widget.isOpen = true

@@ -31,7 +31,6 @@ type
   DialogButton* = tuple[label: string, res: MessageBoxResult, rect: Rect]
 
 const
-  TitleBarHeight* = 30.0'f32
   ButtonWidth* = 80.0'f32
   ButtonHeight* = 30.0'f32
   ButtonGap* = 10.0'f32
