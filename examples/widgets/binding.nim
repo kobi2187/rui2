@@ -13,10 +13,6 @@ import std/[options, os]
 
 let app = newApp("RUI2 - Link[T] data binding", 520, 400)
 
-proc named[T](x: T, id: string): T =
-  x.stringId = id
-  x
-
 let root = newVStack(spacing = 12.0, padding = 20.0).named("root")
 
 let count = newLink(0)

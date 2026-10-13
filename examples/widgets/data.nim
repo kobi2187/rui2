@@ -15,10 +15,6 @@ import std/[options, os, json, tables, sets, strutils]
 
 let app = newApp("RUI2 - Data widgets", 760, 620)
 
-proc named[T](x: T, id: string): T =
-  x.stringId = id
-  x
-
 let root = newVStack(spacing = 12.0, padding = 16.0).named("root")
 let summary = newLabel(text = "nothing selected", fontSize = 15.0).named("summary")
 root.addChild(summary)

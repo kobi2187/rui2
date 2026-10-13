@@ -12,10 +12,6 @@ import std/[options, os]
 
 let app = newApp("RUI2 - Icon and tool buttons", 520, 400)
 
-proc named[T](x: T, id: string): T =
-  x.stringId = id
-  x
-
 let root = newVStack(spacing = 12.0, padding = 20.0).named("root")
 let summary = newLabel(text = "no action yet", fontSize = 15.0).named("summary")
 root.addChild(summary)

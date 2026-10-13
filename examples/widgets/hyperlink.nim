@@ -11,10 +11,6 @@ import std/[options, os]
 
 let app = newApp("RUI2 - Hyperlink", 460, 260)
 
-proc named[T](x: T, id: string): T =
-  x.stringId = id
-  x
-
 let root = newVStack(spacing = 12.0, padding = 20.0).named("root")
 
 let note = newLabel(text = "Nothing opened yet", fontSize = 15.0).named("note")

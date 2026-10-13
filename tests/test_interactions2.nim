@@ -364,3 +364,13 @@ suite "the canonical counter example":
     r.click(row.children[1]); check label.text == "Count: 1"
     r.click(row.children[1]); check label.text == "Count: 2"
     r.click(row.children[0]); check label.text == "Count: 1"
+
+suite "text replaced from outside":
+  test "a caret left past the end of replaced text does not break typing":
+    let t = newTextInput(initialText = "hello")
+    let r = newRig(stack(t))
+    r.click(t)
+    r.key(End)                      # caret at 5
+    t.text = ""                     # a binding, a script, the app clearing the field
+    r.typeText("ab")
+    check t.text == "ab"

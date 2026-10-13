@@ -92,3 +92,10 @@ proc clickMod*(r: Rig, x, y: float32, mods: set[KeyMod]) =
   var d = ev(evMouseDown, x, y); d.mods = mods
   var u = ev(evMouseUp, x, y); u.mods = mods
   r.src.push ev(evMouseMove, x, y); r.src.push d; r.src.push u; r.frame()
+
+proc byId*(root: Widget, id: string): Widget =
+  ## The widget `.named(id)` somewhere under `root`, or nil.
+  if root.stringId == id: return root
+  for c in root.children:
+    let hit = byId(c, id)
+    if hit != nil: return hit

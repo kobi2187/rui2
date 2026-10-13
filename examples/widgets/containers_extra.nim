@@ -12,10 +12,6 @@ import std/[options, os]
 
 let app = newApp("RUI2 - Panels and tabs", 620, 600)
 
-proc named[T](x: T, id: string): T =
-  x.stringId = id
-  x
-
 let root = newVStack(spacing = 12.0, padding = 16.0).named("root")
 let summary = newLabel(text = "tab 1", fontSize = 15.0).named("summary")
 root.addChild(summary)

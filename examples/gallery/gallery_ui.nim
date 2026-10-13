@@ -14,10 +14,6 @@ import rui
 import raylib as rl
 import std/[options, json, tables, sets, strutils, times, monotimes, math, os]
 
-proc named*[T](x: T, id: string): T =
-  x.stringId = id
-  x
-
 proc newEmbed*(w: Widget): Widget = w
   ## `Embed(existing)` puts a widget built elsewhere into a `ui:` tree.
 
