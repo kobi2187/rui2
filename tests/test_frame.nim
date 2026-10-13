@@ -63,6 +63,7 @@ suite "events reach widgets":
     source.push(at(evMouseDown, 20.0, 10.0))
     source.push(at(evMouseUp, 20.0, 10.0))
     app.stepHeadless()
+    app.stepHeadless()      # a slow first frame can spend the event budget on the press alone
 
     check fired == 1
 
