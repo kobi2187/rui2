@@ -44,16 +44,6 @@ template viewportOf*(widget: untyped): RowViewport =
   rowViewport(top = widget.bounds.y, height = widget.bounds.height,
               rowHeight = rowH(widget), scrollY = widget.scrollY)
 
-template barTrack(widget: untyped): Rect =
-  ## The scroll bar's track: down the right edge, the full height.
-  Rect(x: widget.bounds.x + widget.bounds.width - currentTheme.scrollbarThickness,
-       y: widget.bounds.y, width: currentTheme.scrollbarThickness,
-       height: widget.bounds.height)
-
-template barShown(widget: untyped): bool =
-  widget.showScrollbar and viewportOf(widget).contentHeight(widget.totalItems) >
-    widget.bounds.height
-
 definePrimitive(ListView):
   props:
     items: seq[string] = @[]
@@ -74,9 +64,7 @@ definePrimitive(ListView):
     hoverIndex: int
     focusIndex: int              # the keyboard's row
     anchorIndex: int             # where a Shift range starts
-    barDragging: bool            # the scroll bar's thumb is held
-    barGrab: float32             # where on the thumb it was taken
-    barHover: bool               # the pointer is over the bar
+    vbar: VBar                   # the scroll bar's drag and hover
 
   actions:
     onSelect(selection: HashSet[int])
@@ -88,7 +76,7 @@ definePrimitive(ListView):
     widget.focusable = true
     # The pointer leaving the widget is not a move the widget ever hears.
     widget.onPointerLeave = proc() =
-      widget.hoverIndex = -1; widget.barHover = false
+      widget.hoverIndex = -1; widget.vbar.hover = false
       widget.markDirtyToRoot()
     widget.hoverIndex = -1       # nothing is under the pointer yet
 
@@ -96,70 +84,31 @@ definePrimitive(ListView):
     on_mouse_wheel:
       if widget.disabled:
         return false
-      let v = viewportOf(widget)
-      let total = widget.totalItems
-      let newScroll = v.scrolledBy(event.wheelDelta, total)
-      if newScroll != widget.scrollY:
-        widget.scrollY = newScroll
-        widget.isDirty = true
-
-      if v.nearEnd(total) and widget.onScrollNearEnd != nil:
+      if widget.rowsWheel(viewportOf(widget), widget.totalItems, event.wheelDelta,
+                          widget.scrollY) and widget.onScrollNearEnd != nil:
         widget.onScrollNearEnd()
       return true
 
     on_mouse_move:
       if widget.disabled:
         return false
-      if widget.barDragging:
-        let v = viewportOf(widget)
-        widget.scrollY = barDragTo(widget.barTrack, v.contentHeight(widget.totalItems),
-                                   widget.bounds.height, widget.barGrab, event.mousePos.y)
-        widget.isDirty = true
-        return true
-      let overBar = widget.barShown and widget.barTrack.contains(event.mousePos.x, event.mousePos.y)
-      if overBar != widget.barHover:
-        widget.barHover = overBar
-        widget.isDirty = true
-      if overBar:
-        if widget.hoverIndex != -1:
-          widget.hoverIndex = -1
-          widget.isDirty = true
-        return false
-      let newHover = viewportOf(widget).rowAt(event.mousePos.y, widget.totalItems)
-      if newHover != widget.hoverIndex:
-        widget.hoverIndex = newHover
+      let at = widget.rowsMove(widget.vbar, widget.scrollY, widget.barTrack,
+                               viewportOf(widget), widget.totalItems, event.mousePos)
+      if at.taken: return true
+      if at.row != widget.hoverIndex:
+        widget.hoverIndex = at.row
         widget.isDirty = true
       return false
 
     on_mouse_up:
-      if widget.barDragging:
-        widget.barDragging = false
-        widget.isDirty = true
-        return true
-      return false
+      return widget.rowsUp(widget.vbar)
 
     on_mouse_down:
       if widget.disabled:
         return false
-      if widget.barShown:
-        let v = viewportOf(widget)
-        let content = v.contentHeight(widget.totalItems)
-        let press = barPress(widget.barTrack, content, widget.bounds.height,
-                             widget.scrollY, event.mousePos)
-        case press.kind
-        of bpThumb:
-          widget.barDragging = true
-          widget.barGrab = press.grab
-          capturePointer(widget)          # the drag follows the pointer off the bar
-          widget.isDirty = true
-          return true
-        of bpPageUp, bpPageDown:
-          let page = max(widget.bounds.height - rowH(widget), rowH(widget))
-          widget.scrollY = v.clampScroll(widget.scrollY +
-            (if press.kind == bpPageUp: -page else: page), widget.totalItems)
-          widget.isDirty = true
-          return true
-        of bpNone: discard
+      if widget.rowsDown(widget.vbar, widget.scrollY, widget.barTrack,
+                         viewportOf(widget), widget.totalItems, event.mousePos):
+        return true
       let idx = viewportOf(widget).rowAt(event.mousePos.y, widget.totalItems)
       if idx < 0:
         return false
@@ -281,19 +230,8 @@ definePrimitive(ListView):
                    focused = widget.focused and itemIdx == widget.focusIndex)
     endClip(clip)
 
-    if widget.showScrollbar and totalHeight > viewHeight:
-      let barRect = Rect(
-        x: widget.bounds.x + widget.bounds.width - currentTheme.scrollbarThickness,
-        y: widget.bounds.y,
-        width: currentTheme.scrollbarThickness,
-        height: viewHeight
-      )
-      drawScrollbar(barRect, totalHeight, viewHeight, widget.scrollY, props)
-      if widget.barDragging or widget.barHover:     # the thumb, strengthened
-        let thumb = thumbRect(barRect, totalHeight, viewHeight, widget.scrollY)
-        drawRoundedRect(Rect(x: thumb.x + 1, y: thumb.y, width: thumb.width - 2,
-                             height: thumb.height), (thumb.width - 2) / 2,
-                        props.borderColor.get(GRAY).withAlpha(0.45'f32))
+    if widget.showScrollbar:
+      widget.vbar.drawBar(widget.barTrack, totalHeight, viewHeight, widget.scrollY, props)
 
     drawThemedBorder(widget.bounds, props, widget.focused)
     if widget.disabled:

@@ -239,45 +239,30 @@ definePrimitive(DataTable):
 
   events:
     on_mouse_up:
-      if widget.vbar.barUp():
-        widget.isDirty = true
-        return true
-      return false
+      return widget.rowsUp(widget.vbar)
 
     on_mouse_down:
       let m = metricsOf(widget)
-      let page = max(m.viewHeight - m.rowHeight, m.rowHeight)
-      if widget.vbar.barDown(barTrackOf(widget, m), m.rows.contentHeight(viewCount(widget)), m.viewHeight,
-                             page, widget.scrollY, event.mousePos):
-        if widget.vbar.dragging: capturePointer(widget)
-        widget.isDirty = true
+      if widget.rowsDown(widget.vbar, widget.scrollY, barTrackOf(widget, m), m.rows,
+                         viewCount(widget), event.mousePos):
         return true
       if m.overHeader(event.mousePos.y):
         return widget.sortByColumnAt(event.mousePos.x)
-      return widget.selectRowAt(
-        m.rows.rowAt(event.mousePos.y, viewCount(widget)))
+      return widget.selectRowAt(m.rows.rowAt(event.mousePos.y, viewCount(widget)))
 
     on_mouse_move:
       let m = metricsOf(widget)
-      let barWas = widget.vbar.hover
-      if widget.vbar.barMove(barTrackOf(widget, m), m.rows.contentHeight(viewCount(widget)), m.viewHeight,
-                             widget.scrollY, event.mousePos):
-        widget.isDirty = true
-        return true
-      if widget.vbar.hover != barWas: widget.isDirty = true
-      let newHover = if widget.vbar.hover: -1
-                     else: m.rows.rowAt(event.mousePos.y, viewCount(widget))
-      if newHover != widget.hoverRow:
-        widget.hoverRow = newHover
+      let at = widget.rowsMove(widget.vbar, widget.scrollY, barTrackOf(widget, m),
+                               m.rows, viewCount(widget), event.mousePos)
+      if at.taken: return true
+      if at.row != widget.hoverRow:
+        widget.hoverRow = at.row
         widget.isDirty = true
       return false
 
     on_mouse_wheel:
       let m = metricsOf(widget)
-      let newScroll = m.rows.scrolledBy(event.wheelDelta, viewCount(widget))
-      if newScroll != widget.scrollY:
-        widget.scrollY = newScroll
-        widget.isDirty = true
+      discard widget.rowsWheel(m.rows, viewCount(widget), event.wheelDelta, widget.scrollY)
       return true
 
     on_key_down:

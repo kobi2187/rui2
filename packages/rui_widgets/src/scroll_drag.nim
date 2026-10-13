@@ -12,6 +12,7 @@
 
 import rui_core
 import containers/scroll_geometry
+import virtual_rows
 
 type BarPress* = enum
   bpNone      ## not on the bar
@@ -104,3 +105,57 @@ proc drawBar*(bar: VBar, track: Rect, contentH, viewH, scrollY: float32,
     drawRoundedRect(Rect(x: thumb.x + 1, y: thumb.y, width: thumb.width - 2,
                          height: thumb.height), (thumb.width - 2) / 2,
                     props.borderColor.get(GRAY).withAlpha(0.45'f32))
+
+# ---------------------------------------------------------------------------
+# What every scrolling row list does with the pointer
+# ---------------------------------------------------------------------------
+##
+## ListView, ListBox, TreeView, DataTable and DataGrid each keep `scrollY` and a
+## `vbar: VBar` and call these from their mouse handlers; the geometry (which
+## rows, where the bar is) is the only thing each supplies.
+
+template barTrack*(widget: untyped): Rect =
+  ## The scroll bar's track: down the right edge, the full height.
+  Rect(x: widget.bounds.x + widget.bounds.width - currentTheme.scrollbarThickness,
+       y: widget.bounds.y, width: currentTheme.scrollbarThickness,
+       height: widget.bounds.height)
+
+proc rowsWheel*(w: Widget, vp: RowViewport, total: int, delta: float32,
+                scrollY: var float32): bool =
+  ## A wheel notch. True when the list is now near its end (to fetch more).
+  let moved = vp.scrolledBy(delta, total)
+  if moved != scrollY:
+    scrollY = moved
+    w.isDirty = true
+  vp.nearEnd(total)
+
+proc rowsMove*(w: Widget, bar: var VBar, scrollY: var float32, track: Rect,
+               vp: RowViewport, total: int, p: Point): tuple[taken: bool, row: int] =
+  ## A pointer move. `taken`: a thumb drag used it (the widget does nothing more).
+  ## Otherwise `row` is the row under the pointer, or -1 over the bar or off the rows.
+  let content = vp.contentHeight(total)
+  let hoverWas = bar.hover
+  if bar.barMove(track, content, vp.height, scrollY, p):
+    w.isDirty = true
+    return (true, -1)
+  if bar.hover != hoverWas: w.isDirty = true
+  (false, if bar.hover: -1 else: vp.rowAt(p.y, total))
+
+proc rowsDown*(w: Widget, bar: var VBar, scrollY: var float32, track: Rect,
+               vp: RowViewport, total: int, p: Point): bool =
+  ## A press. True when it landed on the scroll bar (thumb: a drag begins and the
+  ## widget holds the pointer; track: a page).
+  let content = vp.contentHeight(total)
+  let page = max(vp.height - vp.rowHeight, vp.rowHeight)
+  if bar.barDown(track, content, vp.height, page, scrollY, p):
+    if bar.dragging: capturePointer(w)
+    w.isDirty = true
+    return true
+  false
+
+proc rowsUp*(w: Widget, bar: var VBar): bool =
+  ## A release. True when it ended a thumb drag.
+  if bar.barUp():
+    w.isDirty = true
+    return true
+  false

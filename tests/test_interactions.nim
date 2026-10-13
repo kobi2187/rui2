@@ -303,7 +303,7 @@ suite "ListView":
     let x = l.bounds.x + l.bounds.width - 4
     r.drag(x, l.bounds.y + 12, x, l.bounds.y + 60)
     check l.scrollY > 0
-    check not l.barDragging
+    check not l.vbar.dragging
   test "hover tracks rows and clears on leave":
     let (r, l) = rig()
     r.moveTo(l.bounds.x + 20, l.bounds.y + rowH * 1.5)

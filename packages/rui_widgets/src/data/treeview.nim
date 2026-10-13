@@ -48,12 +48,6 @@ template setExpanded(widget: untyped, node: TreeNode, open: bool) =
     else:
       if widget.onCollapse != nil: widget.onCollapse(node.id)
 
-template barTrack(widget: untyped): Rect =
-  ## The scroll bar's track: down the right edge, the full height.
-  Rect(x: widget.bounds.x + widget.bounds.width - currentTheme.scrollbarThickness,
-       y: widget.bounds.y, width: currentTheme.scrollbarThickness,
-       height: widget.bounds.height)
-
 definePrimitive(TreeView):
   props:
     rootNode: TreeNode = nil
@@ -87,18 +81,11 @@ definePrimitive(TreeView):
 
   events:
     on_mouse_up:
-      if widget.vbar.barUp():
-        widget.isDirty = true
-        return true
-      return false
+      return widget.rowsUp(widget.vbar)
 
     on_mouse_down:
-      let content = viewportOf(widget).contentHeight(widget.flatNodes.len)
-      let page = max(widget.bounds.height - rowH(widget), rowH(widget))
-      if widget.vbar.barDown(widget.barTrack, content, widget.bounds.height, page,
-                             widget.scrollY, event.mousePos):
-        if widget.vbar.dragging: capturePointer(widget)
-        widget.isDirty = true
+      if widget.rowsDown(widget.vbar, widget.scrollY, widget.barTrack,
+                         viewportOf(widget), widget.flatNodes.len, event.mousePos):
         return true
       let idx = viewportOf(widget).rowAt(event.mousePos.y, widget.flatNodes.len)
       if idx < 0:
@@ -125,27 +112,18 @@ definePrimitive(TreeView):
       return true
 
     on_mouse_move:
-      let content = viewportOf(widget).contentHeight(widget.flatNodes.len)
-      let barWas = widget.vbar.hover
-      if widget.vbar.barMove(widget.barTrack, content, widget.bounds.height,
-                             widget.scrollY, event.mousePos):
-        widget.isDirty = true
-        return true
-      if widget.vbar.hover != barWas: widget.isDirty = true
-      let idx = if widget.vbar.hover: -1
-                else: viewportOf(widget).rowAt(event.mousePos.y, widget.flatNodes.len)
-      let newHover = if idx >= 0: widget.flatNodes[idx].node.id else: ""
+      let at = widget.rowsMove(widget.vbar, widget.scrollY, widget.barTrack,
+                               viewportOf(widget), widget.flatNodes.len, event.mousePos)
+      if at.taken: return true
+      let newHover = if at.row >= 0: widget.flatNodes[at.row].node.id else: ""
       if newHover != widget.hoveredId:
         widget.hoveredId = newHover
         widget.isDirty = true
       return false
 
     on_mouse_wheel:
-      let newScroll = viewportOf(widget).scrolledBy(event.wheelDelta,
-                                                    widget.flatNodes.len)
-      if newScroll != widget.scrollY:
-        widget.scrollY = newScroll
-        widget.isDirty = true
+      discard widget.rowsWheel(viewportOf(widget), widget.flatNodes.len,
+                               event.wheelDelta, widget.scrollY)
       return true
 
     on_key_down:

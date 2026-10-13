@@ -44,12 +44,6 @@ template viewportOf*(widget: untyped): RowViewport =
   rowViewport(top = widget.bounds.y, height = widget.bounds.height,
               rowHeight = rowH(widget), scrollY = widget.scrollY)
 
-template barTrack(widget: untyped): Rect =
-  ## The scroll bar's track: down the right edge, the full height.
-  Rect(x: widget.bounds.x + widget.bounds.width - currentTheme.scrollbarThickness,
-       y: widget.bounds.y, width: currentTheme.scrollbarThickness,
-       height: widget.bounds.height)
-
 definePrimitive(ListBox):
   props:
     items: seq[string] = @[]
@@ -89,53 +83,30 @@ definePrimitive(ListBox):
     on_mouse_wheel:
       if widget.disabled:
         return false
-      let v = viewportOf(widget)
-      let total = widget.totalItems
-      let newScroll = v.scrolledBy(event.wheelDelta, total)
-      if newScroll != widget.scrollY:
-        widget.scrollY = newScroll
-        widget.isDirty = true
-
-      if v.nearEnd(total) and widget.onScrollNearEnd != nil:
+      if widget.rowsWheel(viewportOf(widget), widget.totalItems, event.wheelDelta,
+                          widget.scrollY) and widget.onScrollNearEnd != nil:
         widget.onScrollNearEnd()
       return true
 
     on_mouse_move:
       if widget.disabled:
         return false
-      let content = viewportOf(widget).contentHeight(widget.totalItems)
-      let barWas = widget.vbar.hover
-      if widget.vbar.barMove(widget.barTrack, content, widget.bounds.height,
-                             widget.scrollY, event.mousePos):
-        widget.isDirty = true
-        return true
-      if widget.vbar.hover != barWas: widget.isDirty = true
-      if widget.vbar.hover:
-        if widget.hoverIndex != -1:
-          widget.hoverIndex = -1
-          widget.isDirty = true
-        return false
-      let newHover = viewportOf(widget).rowAt(event.mousePos.y, widget.totalItems)
-      if newHover != widget.hoverIndex:
-        widget.hoverIndex = newHover
+      let at = widget.rowsMove(widget.vbar, widget.scrollY, widget.barTrack,
+                               viewportOf(widget), widget.totalItems, event.mousePos)
+      if at.taken: return true
+      if at.row != widget.hoverIndex:
+        widget.hoverIndex = at.row
         widget.isDirty = true
       return false
 
     on_mouse_up:
-      if widget.vbar.barUp():
-        widget.isDirty = true
-        return true
-      return false
+      return widget.rowsUp(widget.vbar)
 
     on_mouse_down:
       if widget.disabled:
         return false
-      let content = viewportOf(widget).contentHeight(widget.totalItems)
-      let page = max(widget.bounds.height - rowH(widget), rowH(widget))
-      if widget.vbar.barDown(widget.barTrack, content, widget.bounds.height, page,
-                             widget.scrollY, event.mousePos):
-        if widget.vbar.dragging: capturePointer(widget)
-        widget.isDirty = true
+      if widget.rowsDown(widget.vbar, widget.scrollY, widget.barTrack,
+                         viewportOf(widget), widget.totalItems, event.mousePos):
         return true
       let idx = viewportOf(widget).rowAt(event.mousePos.y, widget.totalItems)
       if idx < 0:
