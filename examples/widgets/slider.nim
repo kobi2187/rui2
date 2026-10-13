@@ -11,10 +11,6 @@ import std/[options, os]
 
 let app = newApp("RUI2 - Slider and ProgressBar", 520, 320)
 
-proc named[T](x: T, id: string): T =
-  x.stringId = id
-  x
-
 let root = newVStack(spacing = 12.0, padding = 20.0).named("root")
 
 # One Link, two widgets: the slider writes it, the readout and the bar read it.

@@ -12,10 +12,6 @@ import std/[options, os, strutils]
 
 let app = newApp("RUI2 - Numeric input", 560, 420)
 
-proc named[T](x: T, id: string): T =
-  x.stringId = id
-  x
-
 let root = newVStack(spacing = 14.0, padding = 20.0).named("root")
 let summary = newLabel(text = "", fontSize = 15.0).named("summary")
 root.addChild(summary)

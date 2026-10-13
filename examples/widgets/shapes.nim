@@ -11,10 +11,6 @@ import std/[options, os]
 
 let app = newApp("RUI2 - Rectangle and Circle", 460, 320)
 
-proc named[T](x: T, id: string): T =
-  x.stringId = id
-  x
-
 let root = newVStack(spacing = 12.0, padding = 20.0).named("root")
 
 root.addChild(newLabel(text = "Rectangles and circles", fontSize = 16.0).named("title"))

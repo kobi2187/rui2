@@ -1,0 +1,15 @@
+VStack - @0,0 420x360
+  Label - @20,20 380x35
+  Table - @20,67 380x75
+    TableRow - @20,67 380x41
+      Label - @20,76 92x23
+      TextInput nickname @124,67 276x41 tabstop
+    TableRow - @20,118 380x24
+      Label - @20,118 92x23
+      Slider volume @124,118 276x24 tabstop
+  Checkbox notifications @20,154 380x23 tabstop
+  Checkbox sounds @20,189 380x23 tabstop
+  Label summary @20,224 380x23
+  Button reset @20,259 380x39 tabstop
+    Rectangle - @20,259 380x39
+    Label - @36,267 348x23

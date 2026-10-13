@@ -11,7 +11,7 @@ proc newMockWidget(name: string, parent: Widget = nil): Widget =
     id: newWidgetId(),
     visible: true,
     enabled: true,
-    isDirty: false,
+    isDirtyFlag: false,
     layoutDirty: false,
     parent: parent
   )

@@ -8,30 +8,26 @@
 > rely on anything.
 
 RUI2 builds UIs from plain Nim: describe the widget tree with `ui:`, hold
-state in `Link[T]`, let layout primitives place everything, and pick a branded
+declare state in a `state:` block, let layout primitives place everything, and pick a branded
 theme. A two-pass layout/render loop caches each widget to a texture, redraws
 only what changed, and sleeps when nothing did.
 
 ```nim
 import rui
 
-let count = newLink(0)
-var shown: Label
-var minus, plus: Button
+state:
+  count: int = 0
 
 let root = ui:
   Padding(padding = EdgeInsets.all(24.0)):
     Column(spacing = 12.0):
-      shown = Label(text = "", fontSize = 28.0, bold = true)
+      Label(text = -> "Count: {count}", fontSize = 28.0, bold = true)
       Row(spacing = 8.0, mainAxisSize = MainAxisSize.min):
-        minus = Button(text = "-").frame(minWidth = 48)
-        plus = Button(text = "+", intent = ThemeIntent.Info).frame(minWidth = 48)
+        Button(text = "-", onClick = proc() = count.value = count.value - 1).frame(minWidth = 48)
+        Button(text = "+", intent = ThemeIntent.Info,
+               onClick = proc() = count.value = count.value + 1).frame(minWidth = 48)
       Spacer()                                # pushes the footer down
       Label(text = "Built with RUI2", fontSize = 12.0)
-
-count.bindTo(shown, proc(v: int) = shown.text = "Count: " & $v)
-minus.onClick = proc() = count.set(count.get() - 1)
-plus.onClick = proc() = count.set(count.get() + 1)
 
 let app = newApp("Counter", 400, 300)
 app.setTheme("aurora")
@@ -49,10 +45,11 @@ code generation step.
 - **Trees** -- `ui:` builds a tree from its shape; a capitalised call is a
   widget and an indented block is its children. It is sugar over the
   constructors (`newColumn(...)`, `addChild`), which you can use directly.
-- **State** -- `newLink(value)`, `link.get()` / `link.set(v)`.
-  `link.bindTo(widget, proc(v: T) = ...)` keeps a widget in step, repainting
-  only the widgets bound to that link.
-- **Handlers** -- plain closures: `button.onClick = proc() = ...`.
+- **State** -- a `state:` block declares values (`count: int = 0`); each is a
+  `Link[T]`, and `link.value = v` writes it. State flows one way, into widgets:
+  `Label(text = -> "Count: {count}")` shows it and follows it, repainting only
+  what is bound to it. See [docs/store.md](docs/store.md).
+- **Handlers** -- plain closures: `onClick = proc() = ...`. Writing a widget's value back into state is a handler too: `TextInput(text = -> name, onChange = name.setter)`.
 - **Layout** -- Flutter's model and names, so a Flutter developer is at
   home: `Row` / `Column` / `Flex` with `mainAxisAlignment`,
   `crossAxisAlignment`, `mainAxisSize`; `Expanded`, `Flexible`, `Spacer`;
@@ -176,6 +173,7 @@ system are designed to stand alone.
 
 - **[docs/tutorial.md](docs/tutorial.md)** — start here: a counter, a form and a
   data app, each a real program in `examples/tutorial/`.
+- **[docs/store.md](docs/store.md)** — state: `Link`, `Store`, and binding in `ui:`.
 - **[docs/themes.md](docs/themes.md)** and **[docs/preferences.md](docs/preferences.md)**
   — the author's look, and the user's own settings (keys, motion, scroll speed).
 - **[docs/PERFORMANCE.md](docs/PERFORMANCE.md)** — what it costs, measured.

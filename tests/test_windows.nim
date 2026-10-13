@@ -28,8 +28,8 @@ proc content(name: Link[string], level: Link[float32]): Widget =
   ui:
     Column(spacing = 4.0):
       Label(text = -> "Hello, {name}")
-      TextInput(text = <-> name)
-      Slider(value = <-> level)
+      TextInput(text = -> name, onChange = name.setter)
+      Slider(value = -> level, onChange = level.setter)
       Button(text = "Go")
 
 proc newWin(title: string, name: Link[string], level: Link[float32],

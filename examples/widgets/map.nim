@@ -12,10 +12,6 @@ import std/[options, os, json, strutils]
 
 let app = newApp("RUI2 - Map", 720, 520)
 
-proc named[T](x: T, id: string): T =
-  x.stringId = id
-  x
-
 let root = newVStack(spacing = 10.0, padding = 16.0).named("root")
 let summary = newLabel(text = "drag to pan, scroll or +/- to zoom",
                        fontSize = 15.0).named("summary")

@@ -20,10 +20,6 @@ var store = ShowcaseStore(clicks: 0)
 
 let app = newApp("RUI2 - Pango text showcase", 760, 740)
 
-proc named[T](w: T, id: string): T =
-  w.stringId = id
-  w
-
 # --- headings -------------------------------------------------------------
 let title = newLabel(
   text = "Typography with Pango",

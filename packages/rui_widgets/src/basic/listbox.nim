@@ -233,5 +233,8 @@ proc bindItems*(list: ListBox, source: LinkSeq[string]) =
   list.bindSource(adapter)
   list.disposers.add proc() = adapter.close()      # the adapter is this list's own
 
+proc bindItems*(list: ListBox, source: Link[seq[string]]) =
+  list.followItemsLink(source)
+
 proc bindItems*(list: ListBox, source: RowSource) = list.bindSource(source)
   ## `ui:` spelling: `ListBox(items = -> source)`.

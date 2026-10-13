@@ -45,33 +45,24 @@ suite "binding arrows":
     label.onRefresh()
     check label.text == "Bob"
 
-  test "<-> is two-way":
+  test "a handler writes the widget's value back; -> shows state in the widget":
     let name = newLink("Ada")
     let root = ui:
       Column():
-        TextInput(text = <-> name)
+        TextInput(text = -> name, onChange = name.setter)
     let input = TextInput(root.children[0])
     check input.text == "Ada"
-    input.onChange("Zed")                  # the user typed
+    input.onChange("Zed")                  # the user typed: the handler wrote it back
     check name.value == "Zed"
     name.value = "Yan"
     input.onRefresh()
     check input.text == "Yan"
 
-  test "<- only writes back":
-    let level = newLink(0.0'f32)
-    let root = ui:
-      Column():
-        Slider(value = <- level)
-    let slider = Slider(root.children[0])
-    slider.onChange(0.5)
-    check level.value == 0.5
-
-  test "a checkbox binds through onToggle":
+  test "a checkbox writes back through onToggle":
     let on = newLink(false)
     let root = ui:
       Column():
-        Checkbox(text = "x", checked = <-> on)
+        Checkbox(text = "x", checked = -> on, onToggle = on.setter)
     let box = Checkbox(root.children[0])
     box.onToggle(true)
     check on.value
@@ -79,14 +70,17 @@ suite "binding arrows":
     box.onRefresh()
     check not box.checked
 
+  test "the two-way arrows are gone, with a message saying what to write instead":
+    check not compiles(ui(Column(): TextInput(text = <-> newLink(""))))
+
   test "an existing handler still runs":
     let name = newLink("")
     var heard = ""
     let root = ui:
       Column():
-        TextInput(text = <-> name, onChange = proc(s: string) = heard = s)
+        TextInput(text = -> name, onChange = proc(s: string) = heard = s)
     TextInput(root.children[0]).onChange("hi")
-    check heard == "hi" and name.value == "hi"
+    check heard == "hi"
 
   test "-> \"... {link} ...\" interpolates and follows every link":
     let first = newLink("Ada")

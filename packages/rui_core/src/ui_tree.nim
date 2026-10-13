@@ -52,11 +52,10 @@
 ## - `.margin(8)`, `.margin("8px 16px")`, `.padding(...)` put the widget in a
 ##   Padding and return that, so `Button().margin(8).flex` flexes the padded box.
 ## - `.size(120, 40)` is `.frame(width = 120, height = 40)`.
-## - A property written with an arrow is bound to a Link after the widget is
-##   built: `TextInput(text = <-> name)` (both ways), `Label(text = -> count)`
-##   (Link into widget), `Slider(value = <- level)` (widget into Link). The
-##   hook a widget fires on user change (`onChange`, `onToggle`) is chained, so
-##   a handler you wrote yourself still runs. A string with `{link}` in it,
+## - A property written with `->` is bound to a Link after the widget is built:
+##   `Label(text = -> count)`. Bindings are one-way, state -> widget; to write a
+##   widget's value back, give it a handler: `TextInput(text = -> name,
+##   onChange = name.setter)` (or any closure). A string with `{link}` in it,
 ##   `Label(text = -> "Hello, {name} ({n})")`, follows every Link it names.
 ##   `Store` (store.nim) supplies Links by name for these. `items = -> seq` and
 ##   `rows = -> seq` take a `LinkSeq` and follow it edit by edit.
@@ -115,32 +114,22 @@ proc rewriteControlFlow(parent, stmt: NimNode): NimNode
 
 
 # ---------------------------------------------------------------------------
-# Binding arguments: `text = <-> name`, `text = -> "Hello, {name}"`
+# Binding arguments: `text = -> name`, `text = -> "Hello, {name}"`
 # ---------------------------------------------------------------------------
 
-type Arrow = enum arrowBoth, arrowToWidget, arrowToState
+type Arrow = enum arrowToWidget
 
 proc arrowOf(node: NimNode): tuple[isArrow: bool, arrow: Arrow] =
-  ## `<->`, `->` or `<-` as a prefix operator on a value.
+  ## `->` as a prefix operator on a value: state flows to the widget. That is the
+  ## only direction there is; the other way is an explicit handler.
   if node.kind == nnkPrefix and node[0].kind == nnkIdent:
     case node[0].strVal
-    of "<->": return (true, arrowBoth)
     of "->": return (true, arrowToWidget)
-    of "<-": return (true, arrowToState)
+    of "<->", "<-":
+      error("ui: bindings are one-way. Use `->` to show state in a widget, and a handler " &
+            "to write back: `TextInput(text = -> name, onChange = name.setter)`", node)
     else: discard
-  (false, arrowBoth)
-
-proc hookFor(field: string, at: NimNode): string =
-  ## The callback a widget fires when the user changes `field`, which is what
-  ## writing the value back into a Link hangs off.
-  case field
-  of "text", "value": "onChange"
-  of "checked", "toggled", "on": "onToggle"
-  else:
-    error("ui: '" & field & "' cannot be bound from the widget " &
-          "(only text, value, checked, toggled and on can): use " &
-          "'->' to push a Link into it", at)
-    ""
+  (false, arrowToWidget)
 
 proc interpolation(source: string, at: NimNode):
     tuple[links: seq[NimNode], text: NimNode] =
@@ -177,9 +166,6 @@ proc bindStatements(w: NimNode, field: string, arrow: Arrow,
   result = newStmtList()
   let fieldAccess = newDotExpr(w, ident(field))
   if operand.kind in {nnkStrLit, nnkTripleStrLit}:
-    if arrow != arrowToWidget:
-      error("ui: a string with {names} can only be pushed into a widget " &
-            "with '->'", operand)
     let (links, text) = interpolation(operand.strVal, operand)
     for link in links:
       let v = genSym(nskParam, "v")
@@ -191,32 +177,18 @@ proc bindStatements(w: NimNode, field: string, arrow: Arrow,
     if links.len == 0:
       result.add newAssignment(fieldAccess, newLit(operand.strVal))
     return
-  if field in ["items", "rows"] and arrow == arrowToWidget:
+  if field in ["items", "rows"]:
     # A list: `ListView(items = -> source)` shows a RowSource (or follows a
     # LinkSeq) without copying it.
     result.add newCall(ident(if field == "items": "bindItems" else: "bindRows"),
                        w, operand)
     return
-  if arrow in {arrowBoth, arrowToWidget}:
-    let v = genSym(nskParam, "v")
-    let apply = newProc(newEmptyNode(),
-      [newEmptyNode(), newIdentDefs(v, newCall(ident("typeof"),
-        newDotExpr(operand, ident("value"))))],
-      newStmtList(newAssignment(fieldAccess, v)), nnkLambda)
-    result.add newCall(ident("bindTo"), operand, w, apply)
-  if arrow in {arrowBoth, arrowToState}:
-    let hook = newDotExpr(w, ident(hookFor(field, operand)))
-    let prev = genSym(nskLet, "prev")
-    let v = genSym(nskParam, "v")
-    result.add nnkLetSection.newTree(newIdentDefs(prev, newEmptyNode(), hook))
-    let body = newStmtList(
-      nnkIfStmt.newTree(nnkElifBranch.newTree(
-        infix(prev, "!=", newNilLit()), newCall(prev, v))),
-      newAssignment(newDotExpr(operand, ident("value")), v))
-    let write = newProc(newEmptyNode(),
-      [newEmptyNode(), newIdentDefs(v, newCall(ident("typeof"),
-        newDotExpr(operand, ident("value"))))], body, nnkLambda)
-    result.add newAssignment(hook, write)
+  let v = genSym(nskParam, "v")
+  let apply = newProc(newEmptyNode(),
+    [newEmptyNode(), newIdentDefs(v, newCall(ident("typeof"),
+      newDotExpr(operand, ident("value"))))],
+    newStmtList(newAssignment(fieldAccess, v)), nnkLambda)
+  result.add newCall(ident("bindTo"), operand, w, apply)
 
 proc buildCall(node: NimNode, body: NimNode): NimNode =
   ## `Foo(a, b)` with an optional child block, as an expression. The block

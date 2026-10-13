@@ -12,10 +12,6 @@ import std/[options, os, times, json]
 
 let app = newApp("RUI2 - Timeline", 720, 420)
 
-proc named[T](x: T, id: string): T =
-  x.stringId = id
-  x
-
 let root = newVStack(spacing = 12.0, padding = 16.0).named("root")
 let summary = newLabel(text = "click an event", fontSize = 15.0).named("summary")
 root.addChild(summary)

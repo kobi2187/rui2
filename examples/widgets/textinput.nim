@@ -13,10 +13,6 @@ import std/[options, os]
 
 let app = newApp("RUI2 - TextInput", 520, 320)
 
-proc named[T](x: T, id: string): T =
-  x.stringId = id
-  x
-
 let root = newVStack(spacing = 12.0, padding = 20.0).named("root")
 
 let echoLabel = newLabel(text = "(nothing typed)", fontSize = 15.0).named("echo")

@@ -12,10 +12,6 @@ import std/[options, os]
 
 let app = newApp("RUI2 - Menus", 560, 400)
 
-proc named[T](x: T, id: string): T =
-  x.stringId = id
-  x
-
 let root = newVStack(spacing = 10.0, padding = 0.0).named("root")
 let summary = newLabel(text = "no menu action yet", fontSize = 15.0).named("summary")
 

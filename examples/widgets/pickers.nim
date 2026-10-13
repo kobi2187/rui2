@@ -21,15 +21,15 @@ let root = ui:
         Label(text = "Pickers", fontSize = 24.0, bold = true)
         Row(spacing = 12.0):
           Label(text = "Due")
-          DatePicker(value = <-> due)
+          DatePicker(value = -> due, onChange = due.setter)
           Label(text = -> "{due}")
         Row(spacing = 12.0):
           Label(text = "Alarm")
-          TimePicker(value = <-> alarm)
+          TimePicker(value = -> alarm, onChange = alarm.setter)
           Label(text = -> "{alarm}")
         Row(spacing = 12.0):
           Label(text = "Accent")
-          ColorPicker(value = <-> accent)
+          ColorPicker(value = -> accent, onChange = accent.setter)
           Label(text = -> "{accent}")
         Row(spacing = 12.0):
           Label(text = "City")

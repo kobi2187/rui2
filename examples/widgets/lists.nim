@@ -12,10 +12,6 @@ import std/[options, os, sets, strutils]
 
 let app = newApp("RUI2 - Lists", 640, 520)
 
-proc named[T](x: T, id: string): T =
-  x.stringId = id
-  x
-
 let root = newVStack(spacing = 12.0, padding = 20.0).named("root")
 let summary = newLabel(text = "nothing selected", fontSize = 15.0).named("summary")
 root.addChild(summary)

@@ -12,10 +12,6 @@ import std/os
 
 let app = newApp("RUI2 - TextArea", 520, 420)
 
-proc named[T](x: T, id: string): T =
-  x.stringId = id
-  x
-
 var notes: TextArea
 var echoLabel: Label
 

@@ -32,8 +32,8 @@ let root = ui:
         Row(spacing = 10.0):
           Button(text = "Menu", onClick = proc() = drawer.toggle())
           SearchInput(placeholder = "Search mail").size(220, 32)
-          Switch(text = "Dark", on = <-> dark)
-        TextInput(text = <-> name).size(220, 32)
+          Switch(text = "Dark", on = -> dark, onToggle = dark.setter)
+        TextInput(text = -> name, onChange = name.setter).size(220, 32)
         SegmentedControl(options = @["Card", "List"], initialSelectedIndex = 0,
                          onSelect = proc(i: int) = page.value = i)
         IndexedStack(index = -> page):

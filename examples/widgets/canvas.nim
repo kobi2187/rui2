@@ -15,10 +15,6 @@ import std/[options, os, strutils]
 
 let app = newApp("RUI2 - Canvas and drag/drop", 640, 620)
 
-proc named[T](x: T, id: string): T =
-  x.stringId = id
-  x
-
 let root = newVStack(spacing = 10.0, padding = 16.0).named("root")
 let summary = newLabel(text = "drag on the canvas to draw",
                        fontSize = 15.0).named("summary")

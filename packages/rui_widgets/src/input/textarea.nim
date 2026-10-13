@@ -361,8 +361,11 @@ template indexAt*(widget: untyped, pos: Point): int =
                         softEnd(shown, line)))
 
 template bufferOf(widget: untyped): TextBuffer =
-  initTextBuffer(widget.text, widget.cursorPos, widget.selectionStart,
-                 widget.selectionEnd)
+  # The text can be replaced from outside (a binding, `replaceText`, a script) while
+  # the caret and selection still point into the old one: keep them inside the new.
+  initTextBuffer(widget.text, min(widget.cursorPos, widget.text.len),
+                 (if widget.selectionStart < 0: -1 else: min(widget.selectionStart, widget.text.len)),
+                 (if widget.selectionEnd < 0: -1 else: min(widget.selectionEnd, widget.text.len)))
 
 template writeBack(widget: untyped, buf: TextBuffer, beforeText: string) =
   ## Store an edited buffer and raise whatever flags the change calls for.

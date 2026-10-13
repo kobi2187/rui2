@@ -12,10 +12,6 @@ import std/[options, os]
 
 let app = newApp("RUI2 - Theme switching", 520, 420)
 
-proc named[T](x: T, id: string): T =
-  x.stringId = id
-  x
-
 let root = newVStack(spacing = 12.0, padding = 20.0).named("root")
 
 let current = newLabel(text = "", fontSize = 16.0).named("current")
