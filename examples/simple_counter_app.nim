@@ -18,7 +18,7 @@ proc buildUI*(): Widget =
   ui:
     VStack(spacing = 10.0, padding = 16.0):
       Label(text = "RUI2 Counter Demo", fontSize = 20.0)
-      Label(text = -> "Count: {count}", fontSize = 14.0)
+      Label(text = "Count: " & $count.value, fontSize = 14.0)
       HStack(spacing = 8.0):
         Button(text = "-", onClick = proc() = count.value = count.value - 1)
         Button(text = "+", onClick = proc() = count.value = count.value + 1)

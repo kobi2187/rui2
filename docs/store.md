@@ -67,24 +67,32 @@ contains a dot.
 
 ## Binding in `ui:`
 
-State flows one way: **from state to the widget**, with `->`. To get a widget's
-value back into state you write the handler yourself -- `Link.setter` is the
-short form of `proc (v: T) = link.value = v`:
+A property that reads `link.value` follows it. That is all there is to it:
 
 ```nim
 ui:
   Column(spacing = 8.0):
-    TextInput(text = -> name, onChange = name.setter)      # show name; typing writes it back
-    Label(text = -> "Hello, {name}")                        # a string with {links} follows all of them
-    Slider(value = -> level, onChange = level.setter)
-    Checkbox(text = "On", checked = -> on, onToggle = on.setter)
-    ListBox(items = -> items)                               # a Link[seq[string]] (or a LinkSeq / RowSource)
+    TextInput(text = name.value, onChange = name.setter)    # shows name; typing writes it back
+    Label(text = "Hello, " & name.value)                    # any Nim expression
+    Slider(value = level.value, onChange = level.setter)
+    Checkbox(text = "On", checked = on.value, onToggle = on.setter)
+    ListBox(items = items.value)                            # a Link[seq[string]]
     Button(text = "Reset", onClick = proc () = name.value = "")
 ```
 
-There is no two-way arrow: the write-back is an ordinary closure you can see,
-and can do more in (validate, log, write two Links in a `transaction`).
-`<->` and `<-` are compile errors that say so.
+How it works: `ui:` finds the `x.value` reads in a property's expression (not in
+closures) and puts the widget in each such Link's `dependentWidgets` set. Setting
+`link.value = v` marks exactly those widgets dirty, and before their next layout
+they re-evaluate the expression and assign the property. A handler such as
+`onClick = proc () = count.value = count.value + 1` is a closure, so it is not
+watched: it reads and writes Links when it runs.
+
+State flows one way, into widgets. Writing a widget's value back is a handler you
+write (`Link.setter` is the short form of `proc (v: T) = link.value = v`), so you
+can see it and do more in it. `<->`, `<-` and `->` on a plain value are compile
+errors that say so. The one arrow left is for big lists:
+`ListView(items = -> source)` follows a `LinkSeq` or `RowSource` edit by edit
+(see [sources.md](sources.md)).
 
 ## From a file
 

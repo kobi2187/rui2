@@ -1,7 +1,7 @@
 ## DatePicker -- a day chosen from a calendar that drops down from a field.
 ##
 ## The value is ISO text ("2026-10-11"; "" is none), so it binds like any
-## string: `DatePicker(value = -> due, onChange = due.setter)`. Click the field to open the month;
+## string: `DatePicker(value = due.value, onChange = due.setter)`. Click the field to open the month;
 ## the arrows at its top change month, a click on a day picks it. From the
 ## keyboard (focused), Left/Right move a day, Up/Down a week, PageUp/PageDown a
 ## month, Enter/Space/F4 open and close the calendar and Escape closes it.

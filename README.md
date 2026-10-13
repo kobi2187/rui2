@@ -21,7 +21,7 @@ state:
 let root = ui:
   Padding(padding = EdgeInsets.all(24.0)):
     Column(spacing = 12.0):
-      Label(text = -> "Count: {count}", fontSize = 28.0, bold = true)
+      Label(text = "Count: " & $count.value, fontSize = 28.0, bold = true)
       Row(spacing = 8.0, mainAxisSize = MainAxisSize.min):
         Button(text = "-", onClick = proc() = count.value = count.value - 1).frame(minWidth = 48)
         Button(text = "+", intent = ThemeIntent.Info,
@@ -47,9 +47,9 @@ code generation step.
   constructors (`newColumn(...)`, `addChild`), which you can use directly.
 - **State** -- a `state:` block declares values (`count: int = 0`); each is a
   `Link[T]`, and `link.value = v` writes it. State flows one way, into widgets:
-  `Label(text = -> "Count: {count}")` shows it and follows it, repainting only
+  `Label(text = "Count: " & $count.value)` shows it and follows it, repainting only
   what is bound to it. See [docs/store.md](docs/store.md).
-- **Handlers** -- plain closures: `onClick = proc() = ...`. Writing a widget's value back into state is a handler too: `TextInput(text = -> name, onChange = name.setter)`.
+- **Handlers** -- plain closures: `onClick = proc() = ...`. Writing a widget's value back into state is a handler too: `TextInput(text = name.value, onChange = name.setter)`.
 - **Layout** -- Flutter's model and names, so a Flutter developer is at
   home: `Row` / `Column` / `Flex` with `mainAxisAlignment`,
   `crossAxisAlignment`, `mainAxisSize`; `Expanded`, `Flexible`, `Spacer`;

@@ -65,13 +65,3 @@ proc followEdit*(place: var RowPlace, change: SeqChange, itemCount: int,
   else:
     place.scrollY = max(0.0'f32, place.scrollY)
 
-
-template followItemsLink*(list: untyped, source: untyped) =
-  ## `ListBox(items = -> items)` where `items` is a `Link[seq[string]]` (e.g. from a
-  ## `state:` block): show the seq, and show it again whenever the Link is set.
-  list.items = source.value
-  list.isDirty = true
-  source.bindTo(list, proc (v: seq[string]) =
-    list.items = v
-    list.layoutDirty = true
-    list.markDirtyToRoot())

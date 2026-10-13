@@ -21,16 +21,16 @@ let root = ui:
         Label(text = "Pickers", fontSize = 24.0, bold = true)
         Row(spacing = 12.0):
           Label(text = "Due")
-          DatePicker(value = -> due, onChange = due.setter)
-          Label(text = -> "{due}")
+          DatePicker(value = due.value, onChange = due.setter)
+          Label(text = $due.value)
         Row(spacing = 12.0):
           Label(text = "Alarm")
-          TimePicker(value = -> alarm, onChange = alarm.setter)
-          Label(text = -> "{alarm}")
+          TimePicker(value = alarm.value, onChange = alarm.setter)
+          Label(text = $alarm.value)
         Row(spacing = 12.0):
           Label(text = "Accent")
-          ColorPicker(value = -> accent, onChange = accent.setter)
-          Label(text = -> "{accent}")
+          ColorPicker(value = accent.value, onChange = accent.setter)
+          Label(text = $accent.value)
         Row(spacing = 12.0):
           Label(text = "City")
           Autocomplete(suggestions = @["Berlin", "Bern", "Bergen", "Bremen", "Hamburg"],

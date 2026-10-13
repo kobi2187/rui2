@@ -92,13 +92,13 @@ let root = ui:
             columnSpacing = 12.0, rowSpacing = 10.0):
         TableRow():
           Label(text = "Name")
-          TextInput(placeholder = "Ada Lovelace", text = -> name,
+          TextInput(placeholder = "Ada Lovelace", text = name.value,
                     onChange = proc(t: string) =
                       name.value = t
                       validate())
         TableRow():
           Label(text = "Email")
-          TextInput(placeholder = "ada@example.com", text = -> email,
+          TextInput(placeholder = "ada@example.com", text = email.value,
                     onChange = proc(t: string) =
                       email.value = t
                       validate())
@@ -110,18 +110,18 @@ let root = ui:
 
       Row(mainAxisAlignment = MainAxisAlignment.end):
         Button(text = "Create account", intent = ThemeIntent.Info,
-               disabled = -> incomplete,
+               disabled = incomplete.value,
                onClick = proc() = welcome.value = "Welcome, " & name.value & "!")
-      Label(text = -> welcome, fontSize = 14.0)
+      Label(text = welcome.value, fontSize = 14.0)
 
 let app = newApp("Sign up", 520, 420)
 app.setRootWidget(root)
 app.run()
 ```
 
-- `state:` declares the form's values (a `Link` each). `text = -> name` shows one
+- `state:` declares the form's values (a `Link` each). `text = name.value` shows one
   in a field; the field's `onChange` handler writes it back and re-checks
-  `validate()`. `disabled = -> incomplete` ties the button to a Link too: state
+  `validate()`. `disabled = incomplete.value` ties the button to a Link too: state
   flows to widgets with `->`, and back through handlers you write. See
   [store.md](store.md).
 - `Table` with `IntrinsicColumnWidth()` and `FlexColumnWidth()` is the form

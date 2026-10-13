@@ -285,7 +285,7 @@ type Link*[T] = ref object
 
 In an app, Links come from a `state:` block (`state: count: int = 0` declares a
 `Store` and a Link per entry; see `docs/store.md`). Bindings in `ui:` are one-way:
-`Label(text = -> count)` pushes state into a widget, and a widget's value goes back
+`Label(text = count.value)` pushes state into a widget, and a widget's value goes back
 through a handler (`onChange = name.setter`).
 
 API: `newLink(initial)`, `link.value` / `link.get()` to read,

@@ -96,10 +96,10 @@ proc inputTab(store: Store): Widget =
   let level = store.declare("level", 40.0'f32)
   ui:
     Column(spacing = 10.0, crossAxisAlignment = CrossAxisAlignment.stretch).named("input"):
-      Label(text = -> "Hello, {name}", fontSize = 20.0, bold = true)
+      Label(text = "Hello, " & $name.value, fontSize = 20.0, bold = true)
       Wrap(spacing = 12.0, runSpacing = 8.0):
         Label(text = "Text")
-        TextInput(text = -> name, onChange = name.setter).named("input.text").size(220, 32)
+        TextInput(text = name.value, onChange = name.setter).named("input.text").size(220, 32)
         Label(text = "Password")
         PasswordInput(initialText = "secret").named("input.password").size(160, 32)
         Label(text = "Search")
@@ -108,7 +108,7 @@ proc inputTab(store: Store): Widget =
         Label(text = "Number")
         NumberInput(initialValue = 3.0, minValue = -50.0, maxValue = 50.0).named("input.number")
         Label(text = "Slider")
-        Slider(value = -> level, onChange = level.setter).named("input.slider").size(220, 28)
+        Slider(value = level.value, onChange = level.setter).named("input.slider").size(220, 28)
         Label(text = "Range")
         RangeSlider(initialLow = 20, initialHigh = 70).named("input.range").size(220, 28)
         Label(text = "ScrollBar")
@@ -132,16 +132,16 @@ proc pickersTab(store: Store): Widget =
     Column(spacing = 12.0, crossAxisAlignment = CrossAxisAlignment.stretch).named("pickers"):
       Wrap(spacing = 12.0, runSpacing = 8.0):
         Label(text = "Date")
-        DatePicker(value = -> due, onChange = due.setter).named("pickers.date")
-        Label(text = -> "{due}")
+        DatePicker(value = due.value, onChange = due.setter).named("pickers.date")
+        Label(text = $due.value)
       Wrap(spacing = 12.0, runSpacing = 8.0):
         Label(text = "Time")
-        TimePicker(value = -> alarm, onChange = alarm.setter).named("pickers.time")
-        Label(text = -> "{alarm}")
+        TimePicker(value = alarm.value, onChange = alarm.setter).named("pickers.time")
+        Label(text = $alarm.value)
       Wrap(spacing = 12.0, runSpacing = 8.0):
         Label(text = "Colour")
-        ColorPicker(value = -> accent, onChange = accent.setter).named("pickers.color")
-        Label(text = -> "{accent}")
+        ColorPicker(value = accent.value, onChange = accent.setter).named("pickers.color")
+        Label(text = $accent.value)
       Label(text = "FilePicker (embedded)")
       FilePicker(mode = fpOpen, filters = @["*.nim"], initialPath = ".",
                  multiSelect = true).named("pickers.files").size(600, 240)
@@ -427,13 +427,13 @@ proc liveTab(g: Gallery, store: Store): Widget =
             fontSize = 18.0, bold = true)
       Wrap(spacing = 12.0, runSpacing = 8.0):
         Label(text = "Type")
-        TextInput(text = -> echoText, onChange = echoText.setter).named("live.input").size(260, 32)
-        Label(text = -> "echo: {echoText}").named("live.echo")
+        TextInput(text = echoText.value, onChange = echoText.setter).named("live.input").size(260, 32)
+        Label(text = "echo: " & $echoText.value).named("live.echo")
       Wrap(spacing = 12.0, runSpacing = 8.0):
         Button(text = "Bump", onClick = proc() = bumps.value = bumps.value + 1).named("live.bump")
-        Label(text = -> "bumped {bumps} times").named("live.bumped")
+        Label(text = "bumped " & $bumps.value & " times").named("live.bumped")
       Wrap(spacing = 12.0, runSpacing = 8.0):
-        Switch(text = "Run ticker", on = -> running, onToggle = running.setter).named("live.run")
+        Switch(text = "Run ticker", on = running.value, onToggle = running.setter).named("live.run")
         Embed(live.tickLabel)
         Embed(live.bar).size(220, 16)
         Embed(live.spark).size(220, 32)
