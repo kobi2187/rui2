@@ -257,7 +257,7 @@ suite "SplitView":
     check seen == s.ratio
     r.drag(s.bounds.x + s.bounds.width * 0.8, y, s.bounds.x - 50, y)
     check s.ratio < 0.3
-    check s.ratio > 0.0
+    check s.children[0].bounds.width >= s.minFirst - 1     # the panes keep their minimum, however far it is dragged
 
 suite "ScrollView":
   proc rig(): (Rig, ScrollView) =
