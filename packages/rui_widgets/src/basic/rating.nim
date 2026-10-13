@@ -47,6 +47,10 @@ definePrimitive(Rating):
 
   init:
     widget.focusable = true
+    # The pointer leaving the widget is not a move the widget ever hears.
+    widget.onPointerLeave = proc() =
+      widget.preview = 0
+      widget.markDirtyToRoot()
 
   events:
     on_mouse_move:

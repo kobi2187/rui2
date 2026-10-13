@@ -70,6 +70,10 @@ definePrimitive(ListBox):
 
   init:
     widget.focusable = true
+    # The pointer leaving the widget is not a move the widget ever hears.
+    widget.onPointerLeave = proc() =
+      widget.hoverIndex = -1
+      widget.markDirtyToRoot()
     widget.hoverIndex = -1       # nothing is under the pointer yet
 
   events:

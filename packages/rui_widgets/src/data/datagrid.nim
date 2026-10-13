@@ -148,6 +148,10 @@ definePrimitive(DataGrid):
 
   init:
     widget.focusable = true
+    # The pointer leaving the widget is not a move the widget ever hears.
+    widget.onPointerLeave = proc() =
+      widget.hoverRow = -1
+      widget.markDirtyToRoot()
     widget.hoverRow = -1       # nothing is under the pointer yet
 
   events:
