@@ -213,17 +213,23 @@ definePrimitive(Plot):
       let label = formatTick(t, l.yStep)
       drawStyledText(label, area.x - 6 - measureText(label, tickStyle).width,
                      y - tickStyle.fontSize / 2, tickStyle)
+    # x labels: one that would touch the previous is left out, so a narrow plot
+    # thins its ticks instead of printing them over each other.
+    var lastRight = -1.0e9'f32
+    template xLabel(text: string, x: float32) =
+      let w = measureText(text, tickStyle).width
+      if x - w / 2 >= lastRight + 6:
+        drawStyledText(text, x, area.y + area.height + 4, tickStyle, centered = true)
+        lastRight = x + w / 2
     if widget.xLabels.len > 0:
       for i, name in widget.xLabels:
-        let x = l.toPixel(float(i), l.yLo).x
-        drawStyledText(name, x, area.y + area.height + 4, tickStyle, centered = true)
+        xLabel(name, l.toPixel(float(i), l.yLo).x)
     else:
       for t in ticksFor(l.xLo, l.xHi, l.xStep):
         let x = l.toPixel(t, l.yLo).x
         if widget.showGrid:
           drawLine(x, area.y, x, area.y + area.height, faint)
-        drawStyledText(formatTick(t, l.xStep), x, area.y + area.height + 4,
-                       tickStyle, centered = true)
+        xLabel(formatTick(t, l.xStep), x)
     # Axes.
     drawLine(area.x, area.y + area.height, area.x + area.width, area.y + area.height, ink.withAlpha(0.6))
     drawLine(area.x, area.y, area.x, area.y + area.height, ink.withAlpha(0.6))

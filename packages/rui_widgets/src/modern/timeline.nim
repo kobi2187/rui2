@@ -73,11 +73,6 @@ template showEvent(widget: untyped, index: int) =
                    (widget.bounds.x + widget.bounds.width) + 16)
     widget.isDirty = true
 
-proc isUnset(d: DateTime): bool =
-  ## A DateTime nobody set: all zero bytes. Reading any field of one asserts.
-  var zero: DateTime
-  equalMem(unsafeAddr d, addr zero, sizeof(DateTime))
-
 definePrimitive(Timeline):
   props:
     events: seq[TimelineEvent] = @[]
@@ -242,7 +237,7 @@ definePrimitive(Timeline):
       drawRect(r, evt.color)
       if state != Normal:
         drawThemedBorder(r, evtProps, focused = state == Selected)
-      if evt.isDuration:
+      if evt.spans:
         drawThemedPaddedText(evt.title, r, evtProps, selected = state == Selected)
 
     endClip(clip)

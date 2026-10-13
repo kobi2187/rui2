@@ -113,12 +113,15 @@ definePrimitive(TabControl):
     var maxChildHeight = 0.0'f32
     for i, child in widget.children:
       child.visible = i == widget.activeTab
+      let before = child.bounds
       child.bounds.x = widget.bounds.x
       child.bounds.y = widget.bounds.y + tabBarHeightOf(widget)
       child.bounds.width = widget.bounds.width
       if widget.bounds.height > 0:
         child.bounds.height = widget.bounds.height - tabBarHeightOf(widget)
-      # Inactive tabs are still laid out, so switching to one is instant.
+      # Inactive tabs are still laid out, so switching to one is instant. A page given
+      # a new size (the window was resized) has to repaint at it.
+      if child.bounds != before: child.isDirty = true
       child.layout()
       maxChildHeight = max(maxChildHeight, child.bounds.height)
 

@@ -492,8 +492,8 @@ proc drawTab*(rect: Rect, text: string, props: ThemeProps,
       drawRect(Rect(x: rect.x + 1, y: rect.y + rect.height - 2, width: rect.width - 2, height: 3), panel)
     let ink = if active: props.foregroundColor.get(BLACK) else: Color(r: 96, g: 96, b: 96, a: 255)
     let style = props.captionStyle(ink, action = true)
-    drawStyledText(text, rect.x + rect.width/2, rect.y + (rect.height - style.fontSize) / 2,
-                   style, centered = true)
+    drawStyledText(fittedText(text, style, rect.width - 8), rect.x + rect.width/2,
+                   rect.y + (rect.height - style.fontSize) / 2, style, centered = true)
     return
   drawRoundedRect(rect, radius, bgColor)
 
@@ -513,10 +513,13 @@ proc drawTab*(rect: Rect, text: string, props: ThemeProps,
   let textColor = if active:
                     props.foregroundColor.get(Color(r: 60, g: 60, b: 60, a: 255))
                   else:
-                    Color(r: 120, g: 120, b: 120, a: 255)
+                    # the ink dimmed, not a fixed grey: stays readable (>= 4.5:1) on any tab fill
+                    let ink = props.foregroundColor.get(Color(r: 60, g: 60, b: 60, a: 255))
+                    Color(r: uint8((ink.r.int + 90) div 2),
+                          g: uint8((ink.g.int + 90) div 2), b: uint8((ink.b.int + 90) div 2), a: 255)
   let style = props.captionStyle(textColor, action = true)
-  drawStyledText(text, rect.x + rect.width/2, rect.y + (rect.height - style.fontSize) / 2,
-                 style, centered = true)
+  drawStyledText(fittedText(text, style, rect.width - 8), rect.x + rect.width/2,
+                 rect.y + (rect.height - style.fontSize) / 2, style, centered = true)
 
 proc drawSpinnerButtons*(rect: Rect, props: ThemeProps,
                         upHovered = false, downHovered = false) =

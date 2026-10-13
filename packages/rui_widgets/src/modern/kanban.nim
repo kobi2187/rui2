@@ -46,14 +46,20 @@ template geometryOf*(widget: untyped): KanbanGeometry =
     KanbanGeometry(
       origin: (x: widget.bounds.x, y: widget.bounds.y),
       height: widget.bounds.height,
-      columnWidth: (if widget.columnWidth > 0: widget.columnWidth else: 220.0'f32),
+      # 0: 220, or, when the board was given less room than that needs, the columns
+      # share the width (down to 140) instead of running off the edge.
+      columnWidth: (if widget.columnWidth > 0: widget.columnWidth
+                    elif widget.bounds.width > 0 and widget.columns.len > 0:
+                      clamp((widget.bounds.width - float32(widget.columns.len - 1) * max(8.0'f32, pad)) /
+                            float32(widget.columns.len), 140.0'f32, 220.0'f32)
+                    else: 220.0'f32),
       columnGap: max(8.0'f32, pad), headerHeight: line + pad * 2,
       cardHeight: cardH, cardGap: max(4.0'f32, pad * 0.6), pad: pad)
 
 definePrimitive(KanbanBoard):
   props:
     columns: seq[KanbanColumn] = @[]
-    columnWidth: float32 = 0.0     # 0: 220
+    columnWidth: float32 = 0.0     # 0: 220, or shared out when the board is narrower
     cardHeight: float32 = 0.0      # 0: from the text and the theme
     intent: ThemeIntent = Default
 

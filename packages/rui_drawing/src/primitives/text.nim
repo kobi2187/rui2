@@ -3,6 +3,7 @@
 ## Composable functions for text measurement and rendering
 ## Part of the refactored drawing_primitives module
 
+import std/unicode
 import raylib
 import strutils
 import std/math
@@ -151,6 +152,19 @@ proc measureTextWrapped*(text: string, style: TextStyle,
   result.height = m.height
   result.lineHeight = m.height
   result.baseline = m.baseline
+
+proc fittedText*(text: string, style: TextStyle, maxWidth: float32): string =
+  ## `text`, or as much of it as fits `maxWidth` followed by an ellipsis. Cuts on
+  ## characters, not bytes. For labels in a space that can shrink: tab titles, buttons.
+  if maxWidth <= 0 or measureText(text, style).width <= maxWidth: return text
+  const ellipsis = "…"
+  let room = maxWidth - measureText(ellipsis, style).width
+  var kept = ""
+  for r in text.runes:
+    let next = kept & $r
+    if measureText(next, style).width > room: break
+    kept = next
+  kept & ellipsis
 
 proc drawEllipsis*(text: string, rect: Rect, style: TextStyle) =
   ## Draws text with ellipsis if it doesn't fit

@@ -1,7 +1,7 @@
 ## Switch, SegmentedControl, Rating, Sparkline, Toast: small widgets, each with
 ## its arithmetic checked as plain values and its behaviour through real events.
 
-import std/[unittest, math, monotimes, times, options, sets]
+import std/[unittest, math, monotimes, times, options, sets, unicode, strutils]
 import rui
 from raylib import KeyboardKey
 
@@ -399,3 +399,14 @@ suite "tabs from the keyboard":
     fm.setFocus(inside)
     discard fm.press(t, KeyboardKey.Right)
     check t.activeTab == 0
+
+suite "text that has to fit":
+  test "fittedText keeps what fits and ends the rest with an ellipsis, on character boundaries":
+    let style = TextStyle(fontFamily: "", fontSize: 14.0, color: Color(r: 0, g: 0, b: 0, a: 255))
+    check fittedText("Hi", style, 200) == "Hi"
+    let cut = fittedText("a long tab title that cannot fit", style, 60)
+    check cut.endsWith("…")
+    check measureText(cut, style).width <= 60.5
+    let wide = fittedText("שלום עולם שלום עולם שלום עולם", style, 50)    # multi-byte characters
+    check wide.endsWith("…")
+    check wide.validateUtf8() == -1

@@ -53,7 +53,7 @@ proc basicsTab(store: Store): Widget =
                           onClick = proc() = clicks.value = clicks.value + 1).named("basics.counter")
   clicks.bindTo(counter, proc(n: int) = counter.text = "Clicked " & $n)
   ui:
-    Column(spacing = 12.0, crossAxisAlignment = CrossAxisAlignment.start).named("basics"):
+    Column(spacing = 12.0, crossAxisAlignment = CrossAxisAlignment.stretch).named("basics"):
       Label(text = "Labels", fontSize = 20.0, bold = true)
       Wrap(spacing = 16.0, runSpacing = 8.0):
         Label(text = "plain")
@@ -98,7 +98,7 @@ proc inputTab(store: Store): Widget =
   let name = store.declare("name", "Ada")
   let level = store.declare("level", 40.0'f32)
   ui:
-    Column(spacing = 10.0, crossAxisAlignment = CrossAxisAlignment.start).named("input"):
+    Column(spacing = 10.0, crossAxisAlignment = CrossAxisAlignment.stretch).named("input"):
       Label(text = -> "Hello, {name}", fontSize = 20.0, bold = true)
       Wrap(spacing = 12.0, runSpacing = 8.0):
         Label(text = "Text")
@@ -114,7 +114,9 @@ proc inputTab(store: Store): Widget =
         Slider(value = <-> level).named("input.slider").size(220, 28)
         Label(text = "Range")
         RangeSlider(initialLow = 20, initialHigh = 70).named("input.range").size(220, 28)
-        ScrollBar(initialValue = 20.0, minValue = 0.0, maxValue = 100.0).named("input.scrollbar").size(14, 60)
+        Label(text = "ScrollBar")
+        ScrollBar(initialValue = 20.0, minValue = 0.0, maxValue = 100.0,
+                  vertical = false).named("input.scrollbar").size(160, 14)
       Wrap(spacing = 12.0, runSpacing = 8.0):
         Label(text = "Combo")
         ComboBox(items = @["Small", "Medium", "Large"], initialSelectedIndex = 1).named("input.combo")
@@ -130,7 +132,7 @@ proc pickersTab(store: Store): Widget =
   let alarm = store.declare("alarm", "07:30")
   let accent = store.declare("accent", "#3366cc")
   ui:
-    Column(spacing = 12.0, crossAxisAlignment = CrossAxisAlignment.start).named("pickers"):
+    Column(spacing = 12.0, crossAxisAlignment = CrossAxisAlignment.stretch).named("pickers"):
       Wrap(spacing = 12.0, runSpacing = 8.0):
         Label(text = "Date")
         DatePicker(value = <-> due).named("pickers.date")
@@ -161,7 +163,7 @@ proc layoutTab(): Widget =
   for i in 0 ..< 20: rows.addChild(newLabel(text = "scroll row " & $i))
   scroll.addChild(rows)
   inner = ui:
-    Column(spacing = 10.0, crossAxisAlignment = CrossAxisAlignment.start).named("layout"):
+    Column(spacing = 10.0, crossAxisAlignment = CrossAxisAlignment.stretch).named("layout"):
       Wrap(spacing = 12.0, runSpacing = 8.0):
         Panel(padding = 6.0, cornerRadius = 0.0):
           Panel(padding = 10.0, cornerRadius = 6.0).named("layout.panel").size(160, 70):
@@ -272,24 +274,26 @@ proc dataTab(): Widget =
   let table = newDataTable(
     columns = @[DataColumn(id: "name", title: "Name", width: 140.0, sortable: true, filterable: true),
                 DataColumn(id: "role", title: "Role", width: 160.0, sortable: true, filterable: true)],
-    data = tableRows, rowHeight = 22.0, visibleRows = 5).named("data.table").size(320, 190)
+    data = tableRows, rowHeight = 22.0, visibleRows = 5).named("data.table").size(0, 190)
   let grid = newDataGrid(
     columns = @[GridColumn(id: "n", title: "#", width: 60.0, sortable: true),
                 GridColumn(id: "label", title: "Label", width: 140.0, sortable: true),
                 GridColumn(id: "sq", title: "Square", width: 100.0, sortable: true)],
-    data = gridRows, rowHeight = 22.0, visibleRows = 6).named("data.grid").size(320, 160)
+    data = gridRows, rowHeight = 22.0, visibleRows = 6).named("data.grid").size(0, 160)
   ui:
     Row(spacing = 16.0, crossAxisAlignment = CrossAxisAlignment.start).named("data"):
-      Column(spacing = 8.0, crossAxisAlignment = CrossAxisAlignment.start):
+      Expanded(flex = 2):
+       Column(spacing = 8.0, crossAxisAlignment = CrossAxisAlignment.stretch):
         Label(text = "TreeView")
-        TreeView(rootNode = tree, nodeHeight = 22.0, visibleRows = 6).named("data.tree").size(260, 140)
+        TreeView(rootNode = tree, nodeHeight = 22.0, visibleRows = 6).named("data.tree").size(0, 140)
         Label(text = "ListBox")
         ListBox(items = @["alpha", "beta", "gamma", "delta", "epsilon"], itemHeight = 20.0,
-                visibleRows = 4).named("data.box").size(260, 90)
+                visibleRows = 4).named("data.box").size(0, 90)
         Label(text = "ListView (10k rows)")
         ListView(items = many, itemHeight = 24.0, visibleRows = 5,
-                 multiSelect = true).named("data.view").size(260, 130)
-      Column(spacing = 8.0, crossAxisAlignment = CrossAxisAlignment.start):
+                 multiSelect = true).named("data.view").size(0, 130)
+      Expanded(flex = 3):
+       Column(spacing = 8.0, crossAxisAlignment = CrossAxisAlignment.stretch):
         Label(text = "DataTable")
         Embed(table)
         Label(text = "DataGrid")
@@ -331,22 +335,27 @@ proc graphicsTab(): Widget =
                                 rectColor: Color(r: 90, g: 140, b: 220, a: 255),
                                 rectRounded: true, rectRoundness: 6.0))
   ui:
-    Column(spacing = 10.0, crossAxisAlignment = CrossAxisAlignment.start).named("graphics"):
-      Wrap(spacing = 12.0, runSpacing = 8.0):
-        Plot(title = "Lines + area", series = @[lineSeries("a", growth),
-                                                areaSeries("b", curves)]).named("graphics.plot").size(300, 190)
-        Plot(title = "Bars", xLabels = @["Q1", "Q2", "Q3", "Q4"],
-             series = @[barSeries("2025", @[(0.0, 15.0), (1.0, 20.0), (2.0, 14.0), (3.0, 25.0)])]).size(260, 190)
-        Plot(title = "Scatter", series = @[scatterSeries("s", @[(1.0, 2.0), (2.0, 3.5), (3.0, 2.8),
-                                                                 (4.0, 5.0)])]).size(240, 190)
-      Wrap(spacing = 12.0, runSpacing = 8.0):
-        KanbanBoard(columns = @[
-          KanbanColumn(title: "Todo", cards: @[KanbanCard(id: "t1", title: "Write docs")]),
-          KanbanColumn(title: "Doing", cards: @[KanbanCard(id: "t2", title: "Gallery")]),
-          KanbanColumn(title: "Done", cards: @[])]).named("graphics.kanban").size(480, 160)
-        Timeline(events = events, startTime = dayStart, endTime = dayStart + initDuration(hours = 6),
-                 scale = tsHour, pixelsPerUnit = 70.0, eventHeight = 28.0, eventSpacing = 6.0,
-                 showGrid = true, showTimeLabels = true).named("graphics.timeline").size(380, 160)
+    Column(spacing = 10.0, crossAxisAlignment = CrossAxisAlignment.stretch).named("graphics"):
+      Row(spacing = 12.0):
+        Expanded(flex = 5):
+          Plot(title = "Lines + area", series = @[lineSeries("a", growth),
+                                                  areaSeries("b", curves)]).named("graphics.plot").size(0, 190)
+        Expanded(flex = 4):
+          Plot(title = "Bars", xLabels = @["Q1", "Q2", "Q3", "Q4"],
+               series = @[barSeries("2025", @[(0.0, 15.0), (1.0, 20.0), (2.0, 14.0), (3.0, 25.0)])]).size(0, 190)
+        Expanded(flex = 4):
+          Plot(title = "Scatter", series = @[scatterSeries("s", @[(1.0, 2.0), (2.0, 3.5), (3.0, 2.8),
+                                                                   (4.0, 5.0)])]).size(0, 190)
+      Row(spacing = 12.0):
+        Expanded(flex = 3):
+          KanbanBoard(columns = @[
+            KanbanColumn(title: "Todo", cards: @[KanbanCard(id: "t1", title: "Write docs")]),
+            KanbanColumn(title: "Doing", cards: @[KanbanCard(id: "t2", title: "Gallery")]),
+            KanbanColumn(title: "Done", cards: @[])]).named("graphics.kanban").size(0, 160)
+        Expanded(flex = 2):
+          Timeline(events = events, startTime = dayStart, endTime = dayStart + initDuration(hours = 6),
+                   scale = tsHour, pixelsPerUnit = 70.0, eventHeight = 28.0, eventSpacing = 6.0,
+                   showGrid = true, showTimeLabels = true).named("graphics.timeline").size(0, 160)
       Wrap(spacing = 12.0, runSpacing = 8.0):
         Embed(map)
         Embed(canvas)
@@ -382,10 +391,12 @@ proc menusTab(g: Gallery): Widget =
   let page = newVStack(spacing = 10.0, padding = 0.0).named("menus")
   page.addChild(bar)
   let body = newVStack(spacing = 10.0, padding = 16.0)
-  body.addChild(newButton(text = "Show context menu", onClick = proc() = ctx.openAt(260.0, 180.0)).named("menus.openContext"))
-  body.addChild(newButton(text = "MessageBox", onClick = proc() = confirm.show()).named("menus.openMessage"))
-  body.addChild(newButton(text = "FileDialog", onClick = proc() = fileDialog.show()).named("menus.openFile"))
-  body.addChild(newButton(text = "Dialog", onClick = proc() = dialog.show()).named("menus.openDialog"))
+  let buttons = newWrap(spacing = 10.0, runSpacing = 10.0)       # natural width, not full row
+  body.addChild(buttons)
+  buttons.addChild(newButton(text = "Show context menu", onClick = proc() = ctx.openAt(260.0, 180.0)).named("menus.openContext"))
+  buttons.addChild(newButton(text = "MessageBox", onClick = proc() = confirm.show()).named("menus.openMessage"))
+  buttons.addChild(newButton(text = "FileDialog", onClick = proc() = fileDialog.show()).named("menus.openFile"))
+  buttons.addChild(newButton(text = "Dialog", onClick = proc() = dialog.show()).named("menus.openDialog"))
   body.addChild(ctx)
   page.addChild(body)
   page
@@ -414,7 +425,7 @@ proc liveTab(g: Gallery, store: Store): Widget =
   live.tickLabel = newLabel(text = "tick 0")
   live.tickLabel.stringId = "live.tick"
   ui:
-    Column(spacing = 10.0, crossAxisAlignment = CrossAxisAlignment.start).named("live"):
+    Column(spacing = 10.0, crossAxisAlignment = CrossAxisAlignment.stretch).named("live"):
       Label(text = "Live: panes that change, for measuring how fast they do",
             fontSize = 18.0, bold = true)
       Wrap(spacing = 12.0, runSpacing = 8.0):

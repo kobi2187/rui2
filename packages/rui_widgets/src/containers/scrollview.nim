@@ -94,6 +94,7 @@ defineWidget(ScrollView):
     scrollbarWidth: float = 0.0   # 0: the theme's
     scrollbarColor: tuple[r, g, b, a: uint8] = (150'u8, 150'u8, 150'u8, 255'u8)
     scrollSpeed: float = 20.0  # Pixels per wheel tick
+    wrapToWidth: bool = false  # Content is laid out at the viewport's width (so a Wrap wraps, a form fills it) and scrolls only down
 
   state:
     scrollOffsetX: float
@@ -120,7 +121,11 @@ defineWidget(ScrollView):
     for child in widget.children:
       # The content at its natural size, shifted by the scroll offset. Its
       # measurement is remembered, so scrolling only moves it.
-      let natural = child.measure(unbounded())
+      let natural = if widget.wrapToWidth and widget.bounds.width > 0:
+                      child.measure(unbounded().withWidth(
+                        max(0.0'f32, widget.bounds.width - 2 * widget.padding -
+                                     currentTheme.scrollbarThickness)))
+                    else: child.measure(unbounded())
       child.arrange(Rect(x: widget.bounds.x + widget.padding - widget.scrollOffsetX,
                          y: widget.bounds.y + widget.padding - widget.scrollOffsetY,
                          width: natural.width, height: natural.height))
