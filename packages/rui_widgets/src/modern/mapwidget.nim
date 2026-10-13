@@ -10,6 +10,7 @@
 ## drawing.
 
 import rui_core
+import ../value_input
 import rui_drawing
 import std/[options, math, json]
 
@@ -180,14 +181,10 @@ definePrimitive(MapWidget):
       of KeyboardKey.Right: (if widget.enablePan: widget.panBy(stepX, 0) else: return false)
       of KeyboardKey.Up: (if widget.enablePan: widget.panBy(0, -stepY) else: return false)
       of KeyboardKey.Down: (if widget.enablePan: widget.panBy(0, stepY) else: return false)
-      of KeyboardKey.Equal, KeyboardKey.KpAdd:
-        if not widget.enableZoom: return false
-        widget.zoomAbout(widget.zoom + 1.0, midX, midY)
-      of KeyboardKey.Minus, KeyboardKey.KpSubtract:
-        if not widget.enableZoom: return false
-        widget.zoomAbout(widget.zoom - 1.0, midX, midY)
       else:
-        return false
+        let dir = event.key.zoomDirection
+        if dir == 0 or not widget.enableZoom: return false
+        widget.zoomAbout(widget.zoom + float(dir), midX, midY)
       return true
 
   layout:

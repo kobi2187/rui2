@@ -48,3 +48,10 @@ proc isValueKey*(key: KeyboardKey): bool =
 proc valueAtPointer*(pos, trackStart, trackLength, minValue, maxValue, step: float32): float32 =
   ## A pointer at `pos` along a track, as a value on the grid.
   snapped(valueAtX(pos, trackStart, trackLength, minValue, maxValue), minValue, step)
+
+proc zoomDirection*(key: KeyboardKey): int =
+  ## +1 for + / =, -1 for -, 0 for any other key: what a pannable view's zoom keys mean.
+  case key
+  of KeyboardKey.Equal, KeyboardKey.KpAdd: 1
+  of KeyboardKey.Minus, KeyboardKey.KpSubtract: -1
+  else: 0

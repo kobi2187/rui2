@@ -8,6 +8,7 @@
 ## hit-testing in the event handlers needs the same flat list the paint used.
 
 import rui_core
+import ../hover
 import rui_drawing
 import ../virtual_rows
 import ../list_input
@@ -73,11 +74,9 @@ definePrimitive(TreeView):
 
   init:
     widget.focusable = true
-    # The pointer leaving the widget is not a move the widget ever hears.
-    widget.onPointerLeave = proc() =
+    widget.resetOnLeave:
       widget.hoveredId = ""
       widget.vbar.hover = false
-      widget.markDirtyToRoot()
 
   events:
     on_mouse_up:

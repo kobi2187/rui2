@@ -12,6 +12,7 @@
 ## `render` only draws, which is what makes the dirty/repaint model work.
 
 import rui_core
+import ../hover
 import rui_drawing
 import ../virtual_rows
 import ../list_input
@@ -74,10 +75,9 @@ definePrimitive(ListView):
 
   init:
     widget.focusable = true
-    # The pointer leaving the widget is not a move the widget ever hears.
-    widget.onPointerLeave = proc() =
-      widget.hoverIndex = -1; widget.vbar.hover = false
-      widget.markDirtyToRoot()
+    widget.resetOnLeave:
+      widget.hoverIndex = -1
+      widget.vbar.hover = false
     widget.hoverIndex = -1       # nothing is under the pointer yet
 
   events:

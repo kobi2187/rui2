@@ -8,6 +8,7 @@
 ## cannot decide not to draw a child, it can only mark it invisible.
 
 import rui_core
+import ../hover
 import ../choice
 import rui_drawing
 import std/options
@@ -45,10 +46,8 @@ definePrimitive(TabControl):
 
   init:
     widget.focusable = true
-    # The pointer leaving the widget is not a move the widget ever hears.
-    widget.onPointerLeave = proc() =
+    widget.resetOnLeave:
       widget.hoverTab = -1
-      widget.markDirtyToRoot()
     widget.hoverTab = -1       # nothing is under the pointer yet
 
   events:

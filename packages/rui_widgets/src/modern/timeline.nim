@@ -9,6 +9,7 @@
 ## updated on frames that happened to repaint.
 
 import rui_core
+import ../value_input
 import rui_drawing
 import std/[options, times, json]
 
@@ -171,8 +172,6 @@ definePrimitive(Timeline):
       of KeyboardKey.Right: widget.panTo(widget.scrollOffset + widget.pixelsPerUnit)
       of KeyboardKey.Home: widget.panTo(0.0'f32)
       of KeyboardKey.End: widget.panTo(widget.maxScrollOf)
-      of KeyboardKey.Equal, KeyboardKey.KpAdd: widget.zoomAt(1.25, middle)
-      of KeyboardKey.Minus, KeyboardKey.KpSubtract: widget.zoomAt(0.8, middle)
       of KeyboardKey.Down, KeyboardKey.Up:
         if widget.events.len == 0: return false
         let next = if at < 0: 0
@@ -183,7 +182,9 @@ definePrimitive(Timeline):
         if at >= 0 and widget.onEventClick != nil:
           widget.onEventClick(widget.events[at])
       else:
-        return false
+        let dir = event.key.zoomDirection
+        if dir == 0: return false
+        widget.zoomAt(if dir > 0: 1.25'f32 else: 0.8'f32, middle)
       return true
 
   layout:

@@ -14,6 +14,7 @@
 ## numeric cell silently passed every text filter.
 
 import rui_core
+import ../hover
 import rui_drawing
 import ../virtual_rows
 import ../scroll_drag
@@ -230,11 +231,9 @@ definePrimitive(DataTable):
 
   init:
     widget.focusable = true
-    # The pointer leaving the widget is not a move the widget ever hears.
-    widget.onPointerLeave = proc() =
+    widget.resetOnLeave:
       widget.hoverRow = -1
       widget.vbar.hover = false
-      widget.markDirtyToRoot()
     widget.hoverRow = -1       # nothing is under the pointer yet
 
   events:

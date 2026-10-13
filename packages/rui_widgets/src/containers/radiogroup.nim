@@ -8,6 +8,7 @@
 ## children would each own their own `selected` flag with nothing to reconcile them.
 
 import rui_core
+import ../hover
 import ../choice
 import rui_drawing
 import std/options
@@ -44,10 +45,8 @@ definePrimitive(RadioGroup):
 
   init:
     widget.focusable = true
-    # The pointer leaving the widget is not a move the widget ever hears.
-    widget.onPointerLeave = proc() =
+    widget.resetOnLeave:
       widget.hoverIndex = -1
-      widget.markDirtyToRoot()
     widget.hoverIndex = -1       # no row is under the pointer yet
     # Not a focusGroup: RadioGroup draws its own options rather than owning
     # child widgets, so there is nothing for group navigation to move between.

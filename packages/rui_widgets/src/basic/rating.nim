@@ -10,6 +10,7 @@
 ## ```
 
 import rui_core
+import ../hover
 import rui_drawing
 import std/math
 import raylib
@@ -47,10 +48,8 @@ definePrimitive(Rating):
 
   init:
     widget.focusable = true
-    # The pointer leaving the widget is not a move the widget ever hears.
-    widget.onPointerLeave = proc() =
+    widget.resetOnLeave:
       widget.preview = 0
-      widget.markDirtyToRoot()
 
   events:
     on_mouse_move:
