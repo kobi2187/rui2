@@ -11,7 +11,7 @@
 ## discard     store.declare("count", 0)
 ##
 ## store.set("count", 3)                          # by name
-## echo store.get[int]("count")
+## echo store.get[:int]("count")
 ## echo store.format("Hello, {name} ({count})")   # Hello,  (3)
 ## let greeting = store.interpolated("Hello, {name}")   # a live Link[string]
 ## ```
@@ -22,7 +22,7 @@
 ## and written without knowing its type. Names are flat strings; a dotted name
 ## like `settings.apiKey` is just a name that contains a dot.
 
-import std/[tables, strutils]
+import std/[tables, strutils, macros]
 import types, link
 
 type
@@ -171,3 +171,43 @@ proc interpolated*(store: Store, pattern: string): Link[string] =
   for p in parts:
     if p.isName: store.entry(p.text).observe(refresh)
   target
+
+
+macro state*(args: varargs[untyped]): untyped =
+  ## Declare an app's state in one block: a `Store` and a typed `Link` per entry,
+  ## the same idea as yui's `state:`.
+  ##
+  ## ```nim
+  ## state:
+  ##   count: int = 0
+  ##   name: string = ""
+  ##   volume = 0.5            # the type is the value's: float
+  ## ```
+  ##
+  ## declares `store` (the `Store`), and `count`, `name`, `volume` (the Links, also
+  ## reachable by name: `store.get[:int]("count")`). `state(app):` names the Store
+  ## `app` instead. Use it where `let` works -- the top of a proc or a module.
+  var storeName = ident"store"
+  var body: NimNode
+  case args.len
+  of 1: body = args[0]
+  of 2: storeName = args[0]; body = args[1]
+  else: error("state: expected `state:` or `state(name):` and a block", args[0])
+  result = newStmtList()
+  result.add quote do:
+    let `storeName` = newStore()
+  for entry in body:
+    var name, init: NimNode
+    var typ: NimNode = nil
+    if entry.kind == nnkCall and entry.len == 2 and entry[1].kind == nnkStmtList and
+       entry[1].len == 1 and entry[1][0].kind == nnkAsgn:
+      # `count: int = 0` parses as Call(count, StmtList(Asgn(int, 0)))
+      name = entry[0]; typ = entry[1][0][0]; init = entry[1][0][1]
+    elif entry.kind in {nnkAsgn, nnkExprEqExpr}:
+      name = entry[0]; init = entry[1]               # `count = 0`
+    else:
+      error("state: write `name: Type = value` or `name = value`", entry)
+    let label = newLit($name)
+    let value = if typ == nil: init else: newCall(typ, init)
+    result.add quote do:
+      let `name` = `storeName`.declare(`label`, `value`)

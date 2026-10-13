@@ -85,7 +85,7 @@ exported through an extension element -- see the open questions.
 ## State: `Store`
 
 yui's `state:` block is a `Store`: named, typed `Link`s. `store.declare("n", 0)`
-returns the Link, `store.get[int]("n")` / `store.set("n", 3)` read and write by
+returns the Link, `store.get[:int]("n")` / `store.set("n", 3)` read and write by
 name, `getText` / `setText` give a text view of scalars (what a loader needs to
 bind a name from a file), and `format` / `interpolated` fill `{name}`. Names are
 flat strings; `settings.apiKey` is a name containing a dot.
