@@ -581,6 +581,12 @@ template paintEditable(widget: untyped, content: TextContent, inner: Rect) =
       for i, line in lines:
         if hi < line.start or lo > line.stop or (hi == line.start and lo < line.start):
           continue
+        # Only what is on screen: Pango was asked for the caret positions of every
+        # selected line, seen or not -- select-all in a 3000-line document cost
+        # ~160 ms a frame.
+        let bandY = oy + float32(i) * lineH
+        if bandY + lineH < inner.y or bandY > inner.y + inner.height:
+          continue
         let lineText = shown[line.start ..< line.stop]
         let shift = widget.lineShift(line, font, inner)
         let x0 = shift + cursorPosition(lineText, font, max(lo, line.start) - line.start,

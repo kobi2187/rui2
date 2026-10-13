@@ -135,5 +135,5 @@ send "1 * visual perf" | sed 's/^1 //' | tr ' ' '\n' | grep -E "^ph(Events|Layou
 xdotool mouseup 1; sleep 0.3
 send "1 * visual perf reset" >/dev/null
 measure "extend selection Shift+Down" live.doc 'xdotool key shift+Down'
-measure "select all (Ctrl+A)" live.doc 'xdotool key ctrl+a'
-measure "arrow with all selected" live.doc 'xdotool key Down; sleep 0.2; xdotool key ctrl+a'
+measure "select all (Ctrl+A)" live.doc 'xdotool key ctrl+a; sleep 0.6; xdotool key ctrl+Home; sleep 0.3'
+measure "arrow with all selected" live.doc 'xdotool key ctrl+a; sleep 0.5; xdotool key Down; sleep 0.3'
