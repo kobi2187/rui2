@@ -200,6 +200,8 @@ app.run()
 
 ## Where next
 
+- **Share state:** [store.md](store.md) -- `Link`, `derive`, the named `Store`, and
+  binding in `ui:` (`<->`, `->`, `{interpolation}`).
 - **Make it yours:** [themes.md](themes.md) -- colours, fonts *and* stroke
   widths, radii, shadows and sizes; fat or lean from one `brand:` section.
 - **How people use it:** [preferences.md](preferences.md) -- the keys, motion
