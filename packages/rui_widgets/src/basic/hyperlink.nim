@@ -13,6 +13,7 @@
 ## baseline, from the same Pango metrics the layout measured.
 
 import rui_core
+import ../press
 import rui_drawing
 import std/options
 
@@ -35,19 +36,19 @@ definePrimitive(Hyperlink):
     onNavigate(url: string)
 
   init:
-    widget.focusable = true
+    widget.makePressable()
     widget.cursorShape = csPointer    # the hand every link shows
 
   events:
-    on_mouse_down:
-      if not widget.disabled:
+    on_mouse_down: return widget.pressDown(event, not widget.disabled)
+
+    on_key_down: return widget.pressKey(event, not widget.disabled)
+
+    on_mouse_up:
+      return widget.pressUp(event):
         widget.visited = true
-        if widget.onClick != nil:
-          widget.onClick()
-        if widget.onNavigate != nil and widget.url.len > 0:
-          widget.onNavigate(widget.url)
-        return true
-      return false
+        if widget.onClick != nil: widget.onClick()
+        if widget.onNavigate != nil and widget.url.len > 0: widget.onNavigate(widget.url)
 
   layout:
     let style = TextStyle(fontFamily: "", fontSize: 14.0, color: BLACK,

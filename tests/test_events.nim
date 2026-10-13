@@ -147,24 +147,28 @@ suite "event routing":
     discard disabled.handleInput(mouseEvent(evMouseUp, 5, 5))
     check clicked == 0
 
-  test "a checkbox toggles on mouse down and reports the new value":
+  test "a checkbox toggles on release and reports the new value":
     let cb = newCheckbox(text = "opt", initialChecked = false)
     cb.bounds = Rect(x: 0, y: 0, width: 150, height: 24)
     var reported: seq[bool] = @[]
     cb.onToggle = proc(v: bool) = reported.add v
 
     discard cb.handleInput(mouseEvent(evMouseDown, 5, 5))
+    check not cb.checked                         # the press alone does nothing
+    discard cb.handleInput(mouseEvent(evMouseUp, 5, 5))
     check cb.checked
     discard cb.handleInput(mouseEvent(evMouseDown, 5, 5))
+    discard cb.handleInput(mouseEvent(evMouseUp, 5, 5))
     check not cb.checked
     check reported == @[true, false]
 
-  test "mouse move updates hover state":
+  test "the pointer over a button's child hovers the button, and leaving clears it":
     let b = newButton(text = "hover me")
     b.bounds = Rect(x: 0, y: 0, width: 100, height: 30)
-    discard b.handleInput(mouseEvent(evMouseMove, 50, 15))
+    let tracker = newHoverTracker()
+    discard tracker.setHover(b.children[0])
     check b.isHovered
-    discard b.handleInput(mouseEvent(evMouseMove, 500, 500))
+    discard tracker.setHover(nil)
     check not b.isHovered
 
   test "an unhandled event returns false so it can keep bubbling":

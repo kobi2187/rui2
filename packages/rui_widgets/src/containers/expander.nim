@@ -10,6 +10,7 @@
 ## ```
 
 import rui_core
+import ../press
 import rui_drawing
 import std/options
 import raylib
@@ -33,26 +34,24 @@ definePrimitive(Expander):
     onToggle(expanded: bool)
 
   init:
-    widget.focusable = true
+    widget.makePressable()
 
   events:
     on_mouse_down:
-      if widget.disabled: return false
-      let props = widget.themeProps(widget.intent, crPointer)
-      if event.mousePos.y > widget.bounds.y + headerHeight(props): return false
-      widget.expanded = not widget.expanded
-      widget.layoutDirty = true
-      if widget.onToggle != nil: widget.onToggle(widget.expanded)
-      return true
+      let head = headerHeight(widget.themeProps(widget.intent, crPointer))
+      return widget.pressDown(event, not widget.disabled,
+        Rect(x: widget.bounds.x, y: widget.bounds.y, width: widget.bounds.width, height: head))
 
     on_key_down:
-      if widget.disabled or not widget.focused: return false
-      if event.key == KeyboardKey.Space or event.key == KeyboardKey.Enter:
+      let head = headerHeight(widget.themeProps(widget.intent, crPointer))
+      return widget.pressKey(event, not widget.disabled,
+        Point(x: widget.bounds.x + 4, y: widget.bounds.y + head / 2))
+
+    on_mouse_up:
+      return widget.pressUp(event):
         widget.expanded = not widget.expanded
         widget.layoutDirty = true
         if widget.onToggle != nil: widget.onToggle(widget.expanded)
-        return true
-      return false
 
   layout:
     let props = widget.themeProps(widget.intent, crPointer)

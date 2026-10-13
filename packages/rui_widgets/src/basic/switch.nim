@@ -12,6 +12,7 @@
 ## reduced motion makes it jump.
 
 import rui_core
+import ../press
 import rui_drawing
 import std/options
 import raylib
@@ -42,22 +43,17 @@ definePrimitive(Switch):
     onToggle(on: bool)
 
   init:
-    widget.focusable = true
+    widget.makePressable()
 
   events:
-    on_mouse_down:
-      if widget.disabled: return false
-      widget.on = not widget.on
-      if widget.onToggle != nil: widget.onToggle(widget.on)
-      return true
+    on_mouse_down: return widget.pressDown(event, not widget.disabled)
 
-    on_key_down:
-      if widget.disabled or not widget.focused: return false
-      if event.key == KeyboardKey.Space or event.key == KeyboardKey.Enter:
+    on_key_down: return widget.pressKey(event, not widget.disabled)
+
+    on_mouse_up:
+      return widget.pressUp(event):
         widget.on = not widget.on
         if widget.onToggle != nil: widget.onToggle(widget.on)
-        return true
-      return false
 
   layout:
     let props = widget.themeProps(widget.intent, crPointer, disabled = widget.disabled)

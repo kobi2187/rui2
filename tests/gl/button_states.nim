@@ -38,11 +38,11 @@ suite "button states":
   test "hovering changes what is drawn, and leaving restores it":
     let (root, b) = scene()
     let off = pixels(root)
-    discard b.handleInput(event(evMouseMove, b))
+    let tracker = newHoverTracker()
+    discard tracker.setHover(b.children[0])      # what the router does on a move
     settle(root, b)
     check pixels(root) != off
-    discard b.handleInput(GuiEvent(kind: evMouseMove, mousePos: Point(x: 390, y: 190),
-                                   timestamp: getMonoTime()))
+    discard tracker.setHover(nil)
     settle(root, b)
     check pixels(root) == off
 
@@ -56,9 +56,10 @@ suite "button states":
   test "the pointer leaving the button clears hover; the button never stays lit":
     let (root, b) = scene()
     let off = pixels(root)
-    b.onPointerEnter(); settle(root, b)
+    let tracker = newHoverTracker()
+    discard tracker.setHover(b.children[0]); settle(root, b)
     check pixels(root) != off
-    b.onPointerLeave(); settle(root, b)
+    discard tracker.setHover(nil); settle(root, b)
     check pixels(root) == off
 
   test "a press released outside the button is not a click and does not stay pressed":
@@ -114,6 +115,6 @@ suite "BeOS bevels, read back from the GPU":
   test "hovering shows nothing: Be has no hover effect":
     let (root, b) = scene()
     let off = pixels(root)
-    discard b.handleInput(event(evMouseMove, b))
+    discard newHoverTracker().setHover(b.children[0])
     settle(root, b)
     check pixels(root) == off

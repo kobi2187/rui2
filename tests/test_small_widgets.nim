@@ -6,6 +6,7 @@ import rui
 from raylib import KeyboardKey
 
 proc down(x, y: float32): GuiEvent = GuiEvent(kind: evMouseDown, mousePos: Point(x: x, y: y))
+proc up(x, y: float32): GuiEvent = GuiEvent(kind: evMouseUp, mousePos: Point(x: x, y: y))
 proc key(k: string): GuiEvent = GuiEvent(kind: evKeyDown, key: chord(k).key)
 
 suite "Switch":
@@ -20,12 +21,15 @@ suite "Switch":
     s.onToggle = proc(on: bool) = seen.add on
     s.bounds = Rect(x: 0, y: 0, width: 150, height: 24)
     check s.handleInput(down(10, 10))
+    check s.handleInput(up(10, 10))
     check not s.on
     discard s.handleInput(down(10, 10))
+    discard s.handleInput(up(10, 10))
     check seen == @[false, true]
 
   test "Space and Enter toggle it only while it has focus":
     let s = newSwitch()
+    s.bounds = Rect(x: 0, y: 0, width: 150, height: 24)
     check not s.handleInput(key("Space"))
     s.focused = true
     check s.handleInput(key("Space"))
@@ -196,11 +200,11 @@ suite "Space and Enter press a focused button-like control":
     var clicks = 0
     b.onClick = proc() = inc clicks
     app.focusManager.setFocus(b)
-    check app.pressFocused(key("Space"))
+    check app.focusManager.handleKeyboardEvent(key("Space"), root)
     check clicks == 1
     app.focusManager.setFocus(s)
     let before = s.value
-    check not app.pressFocused(key("Space"))
+    discard app.focusManager.handleKeyboardEvent(key("Space"), root)
     check s.value == before                       # no jump to the middle
 
 suite "slider from the keyboard and the wheel":

@@ -102,7 +102,16 @@ proc routePointer*(router: EventRouter, event: GuiEvent): bool =
   var dirty = false
   if event.kind == evMouseMove:
     setPointer(widget, event.mousePos)
-    dirty = router.updateHover(widget)
+    # Hover follows what is really under the pointer, even while a widget holds
+    # the capture: that is how a held button learns the pointer left it (and
+    # came back). Over anything else, a capture means no hover at all.
+    var hit = widget
+    let held = pointerCapture()
+    if held != nil:
+      hit = overlayAt(event.mousePos.x, event.mousePos.y)
+      if hit == nil: hit = router.hitTest.getWidgetAt(event.mousePos.x, event.mousePos.y)
+      if hit != nil and not hit.isWithin(held): hit = nil
+    dirty = router.updateHover(hit)
 
   # A press outside an open menu or dropdown closes it, then goes on to
   # whatever it landed on -- empty space included.

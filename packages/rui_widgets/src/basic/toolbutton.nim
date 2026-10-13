@@ -8,6 +8,7 @@
 ## itself, because renderPass clips every widget to its own bounds.
 
 import rui_core
+import ../press
 import rui_drawing
 import std/options
 
@@ -26,7 +27,6 @@ definePrimitive(ToolButton):
     intent: ThemeIntent = Default
 
   state:
-    isPressed: bool
     toggled: bool
 
   actions:
@@ -34,39 +34,19 @@ definePrimitive(ToolButton):
     onToggle(state: bool)
 
   init:
-    widget.focusable = true
-    widget.onPointerLeave = proc() =
-      if widget.isPressed:
-        widget.isPressed = false
-        widget.markDirtyToRoot()
+    widget.makePressable()
 
   events:
-    on_mouse_down:
-      if widget.disabled:
-        return false
-      widget.isPressed = true
-      widget.isDirty = true
-      capturePointer(widget)         # the release comes here even if the pointer left
-      return true
+    on_mouse_down: return widget.pressDown(event, not widget.disabled)
+
+    on_key_down: return widget.pressKey(event, not widget.disabled)
 
     on_mouse_up:
-      if not widget.isPressed or widget.disabled:
-        return false
-      widget.isPressed = false
-      widget.isDirty = true
-      releasePointer()
-      # Released outside the button: not a click.
-      if not widget.bounds.contains(event.mousePos.x, event.mousePos.y):
-        return true
-
-      if widget.toggleable:
-        widget.toggled = not widget.toggled
-        if widget.onToggle != nil:
-          widget.onToggle(widget.toggled)
-
-      if widget.onClick != nil:
-        widget.onClick()
-      return true
+      return widget.pressUp(event):
+        if widget.toggleable:
+          widget.toggled = not widget.toggled
+          if widget.onToggle != nil: widget.onToggle(widget.toggled)
+        if widget.onClick != nil: widget.onClick()
 
   layout:
     let labelStyle = TextStyle(fontFamily: "", fontSize: LabelSize, color: BLACK,

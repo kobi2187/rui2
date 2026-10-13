@@ -177,7 +177,9 @@ type
     visible*: bool
     enabled*: bool
     hovered*: bool             # Mouse is over this widget
-    pressed*: bool             # Mouse button down on this widget
+    pressed*: bool             # Armed: the button went down on it and the pointer is still over it
+    under*: bool               # The pointer is over it or anything inside it (a Button's children take the hit)
+    relayoutOnState*: bool     # Its look is computed in `layout`, so a press or hover change needs one
     focused*: bool             # Has keyboard focus
     focusable*: bool
     hint*: string
@@ -882,3 +884,18 @@ proc `$`*(widget: Widget): string =
     return "nil"
   widget.getTypeName() & "(" & $widget.bounds.x & ", " & $widget.bounds.y &
     ", " & $widget.bounds.width & "x" & $widget.bounds.height & ")"
+
+template isPressed*(w: Widget): bool =
+  ## Armed: the button went down on it and the pointer is still over it.
+  w.pressed
+
+template `isPressed=`*(w: Widget, v: bool) =
+  w.pressed = v
+
+template isHovered*(w: Widget): bool =
+  ## The pointer is over it or something inside it (`under`): what a composite
+  ## such as Button, whose children take the hit, means by hovered.
+  w.under
+
+template `isHovered=`*(w: Widget, v: bool) =
+  w.under = v

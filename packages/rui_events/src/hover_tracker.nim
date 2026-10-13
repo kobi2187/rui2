@@ -53,13 +53,22 @@ proc setHover*(tracker: HoverTracker, widget: Widget): bool =
   # pointer while the hovered widget is it or inside it.
   var w = previous
   while w != nil:
-    if w.onPointerLeave != nil and (widget == nil or not widget.isWithin(w)):
-      w.onPointerLeave()
+    if widget == nil or not widget.isWithin(w):
+      w.under = false
+      w.pressed = false          # a held button is no longer armed once the pointer is off it
+      if w.relayoutOnState: w.layoutDirty = true
+      w.markDirtyToRoot()
+      if w.onPointerLeave != nil: w.onPointerLeave()
     w = w.parent
   w = widget
   while w != nil:
-    if w.onPointerEnter != nil and (previous == nil or not previous.isWithin(w)):
-      w.onPointerEnter()
+    if previous == nil or not previous.isWithin(w):
+      w.under = true
+      if w.relayoutOnState: w.layoutDirty = true
+      w.markDirtyToRoot()
+      if pointerCapture() == w and not w.pressed:
+        w.pressed = true         # back over the widget still holding the button: armed again
+      if w.onPointerEnter != nil: w.onPointerEnter()
     w = w.parent
 
   true
@@ -72,6 +81,9 @@ proc widgetRemoved*(tracker: HoverTracker, widget: Widget) =
       widget.hovered = false
       var w = widget
       while w != nil:
+        w.under = false
+        w.pressed = false
+        if w.relayoutOnState: w.layoutDirty = true
         if w.onPointerLeave != nil: w.onPointerLeave()
         w = w.parent
     tracker.current = nil

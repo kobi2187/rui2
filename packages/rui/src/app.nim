@@ -715,23 +715,6 @@ proc handleWindowResize(app: App, event: GuiEvent) =
   traceEvent "[Event] Window resized to ", event.windowSize.width, "x",
              event.windowSize.height
 
-proc pressFocused*(app: App, event: GuiEvent): bool =
-  ## Space or Enter on a focused button-like control presses it, as a click
-  ## would. Only the controls where a click means "do your one thing" -- not,
-  ## say, a Slider, where a click at the middle would jump the value.
-  if event.kind != evKeyDown or not (event.key in {KeyboardKey.Space, KeyboardKey.Enter}):
-    return false
-  let focused = app.focusManager.focusedWidget
-  if focused == nil or focused.takesText or not focused.enabled:
-    return false
-  case focused.getTypeName()
-  of "Button", "Checkbox", "RadioButton", "Hyperlink", "IconButton", "ToolButton":
-    focused.activate()
-    app.tree.anyDirty = true
-    true
-  else:
-    false
-
 proc handleMenuKeys(app: App, event: GuiEvent): bool =
   ## F10 opens the window's menu bar at its first menu; Alt+letter at the
   ## menu whose title starts with that letter -- the desktop convention, when
@@ -771,7 +754,7 @@ proc handleEvent(app: App, event: GuiEvent) =
 
   of evKeyDown, evChar:
     if not app.router.routeKeyboard(app.tree.root, event):
-      if not app.pressFocused(event) and not app.handleMenuKeys(event):
+      if not app.handleMenuKeys(event):
         traceEvent "[Event] Keyboard event not handled: ", event.kind
 
   else:

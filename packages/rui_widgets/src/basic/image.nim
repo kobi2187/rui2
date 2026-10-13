@@ -28,6 +28,7 @@
 ##   )
 
 import rui_core
+import ../press
 import std/[options, tables]
 import image_fit
 import rui_drawing
@@ -59,25 +60,19 @@ definePrimitive(ImageWidget):
   state:
     textureLoaded: bool
     loadFailed: bool
-    isPressed: bool
 
   actions:
     onClick()
 
+  init:
+    widget.makePressable(keyboard = false)
+
   events:
-    on_mouse_down:
-      if not widget.disabled and widget.onClick != nil:
-        widget.isPressed = true
-        return true
-      return false
+    on_mouse_down: return widget.pressDown(event, not widget.disabled and widget.onClick != nil)
 
     on_mouse_up:
-      if widget.isPressed and not widget.disabled:
-        widget.isPressed = false
-        if widget.onClick != nil:
-          widget.onClick()
-        return true
-      return false
+      return widget.pressUp(event):
+        if widget.onClick != nil: widget.onClick()
 
   render:
     # Update bounds to match width/height props
