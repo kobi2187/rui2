@@ -3,6 +3,7 @@
 
 import std/options
 import rui_core
+import raylib
 
 proc popupRect*(field: Rect, width, height: float32): Rect =
   ## Where a popup of this size goes: below the field, flipped above it when
@@ -35,3 +36,40 @@ template setFieldOpen*(widget, popupOf: untyped, wantOpen: bool) =
       else:
         closedPopup(w)
         hideOverlay(popup)
+
+template popupFieldClick*(widget, popupOf: untyped): bool =
+  ## A press on the closed field: toggle the popup (unless disabled). The value
+  ## is whether the press was taken.
+  block:
+    let w = widget
+    if w.disabled: false
+    else:
+      w.setFieldOpen(popupOf, not w.isOpen)
+      true
+
+template popupToggleKey*(widget, popupOf, event: untyped): bool =
+  ## Enter, Space or F4 toggles the popup; Escape closes it if open. The value
+  ## is whether the key was taken.
+  block:
+    let w = widget
+    case event.key
+    of KeyboardKey.Enter, KeyboardKey.KpEnter, KeyboardKey.Space, KeyboardKey.F4:
+      w.setFieldOpen(popupOf, not w.isOpen)
+      true
+    of KeyboardKey.Escape:
+      if w.isOpen:
+        w.setFieldOpen(popupOf, false)
+        true
+      else: false
+    else: false
+
+proc highlightKey*(key: KeyboardKey, count, current: int): int =
+  ## Where Up/Down/Home/End put the highlight in a popup list of `count` rows,
+  ## clamped to the ends; -1 when `key` is not one of them.
+  if count <= 0: return -1
+  case key
+  of KeyboardKey.Down: min(count - 1, max(0, current + 1))
+  of KeyboardKey.Up: max(0, current - 1)
+  of KeyboardKey.Home: 0
+  of KeyboardKey.End: count - 1
+  else: -1

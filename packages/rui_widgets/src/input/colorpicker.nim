@@ -130,22 +130,13 @@ definePrimitive(ColorPicker):
     widget.addChild widget.popup
 
   events:
-    on_mouse_down:
-      if widget.disabled: return false
-      widget.setFieldOpen(widget.popup, not widget.isOpen)
-      return true
+    on_mouse_down: return widget.popupFieldClick(widget.popup)
 
     on_key_down:
       if widget.disabled or not widget.focused: return false
+      if widget.popupToggleKey(widget.popup, event): return true
       var next = widget.hsv
       case event.key
-      of KeyboardKey.Enter, KeyboardKey.KpEnter, KeyboardKey.Space, KeyboardKey.F4:
-        widget.setFieldOpen(widget.popup, not widget.isOpen)
-        return true
-      of KeyboardKey.Escape:
-        if not widget.isOpen: return false
-        widget.setFieldOpen(widget.popup, false)
-        return true
       of KeyboardKey.Left: next.h = (next.h + 355) mod 360.0'f32
       of KeyboardKey.Right: next.h = (next.h + 5) mod 360.0'f32
       of KeyboardKey.Up: next.v = min(1.0'f32, next.v + 0.05)

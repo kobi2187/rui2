@@ -163,23 +163,18 @@ definePrimitive(DatePicker):
     widget.addChild widget.popup
 
   events:
-    on_mouse_down:
-      if widget.disabled: return false
-      widget.setFieldOpen(widget.popup, not widget.isOpen)
-      return true
+    on_mouse_down: return widget.popupFieldClick(widget.popup)
 
     on_key_down:
       if widget.disabled or not widget.focused: return false
       let current = block:
         let parsed = parseIsoDate(widget.value)
         if parsed.isSome: parsed.get else: today()
+      if event.key in {KeyboardKey.Enter, KeyboardKey.KpEnter, KeyboardKey.Space, KeyboardKey.F4} and
+         widget.value.len == 0:
+        widget.pickDate(isoDate(current))      # opening an empty field starts at today
+      if widget.popupToggleKey(widget.popup, event): return true
       case event.key
-      of KeyboardKey.Enter, KeyboardKey.KpEnter, KeyboardKey.Space, KeyboardKey.F4:
-        if widget.value.len == 0: widget.pickDate(isoDate(current))
-        widget.setFieldOpen(widget.popup, not widget.isOpen)
-      of KeyboardKey.Escape:
-        if not widget.isOpen: return false
-        widget.setFieldOpen(widget.popup, false)
       of KeyboardKey.Left: widget.pickDate(isoDate(current.addDays(-1)))
       of KeyboardKey.Right: widget.pickDate(isoDate(current.addDays(1)))
       of KeyboardKey.Up: widget.pickDate(isoDate(current.addDays(-7)))

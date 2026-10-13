@@ -9,6 +9,7 @@
 import rui_core
 import rui_drawing
 import menuitem
+import menu_panel
 import std/options
 from raylib import KeyboardKey
 
@@ -48,46 +49,15 @@ defineWidget(ContextMenu):
 
   layout:
     if not widget.isVisible:
-      for child in widget.children:
-        child.visible = false
-      widget.bounds.width = 0
-      widget.bounds.height = 0
+      widget.collapseMenuPanel()
       return
-
     widget.bounds.x = widget.posX
     widget.bounds.y = widget.posY
-
-    var y = widget.bounds.y + widget.padding
-    var widest = widget.minWidth - widget.padding * 2
-
-    # Pass 1: measure. Pass 2 squares every item off to the widest one.
-    for child in widget.children:
-      child.visible = true
-      child.bounds.x = widget.bounds.x + widget.padding
-      child.bounds.y = y
-      child.bounds.width = 0
-      child.bounds.height = 0
-      child.layout()
-      widest = max(widest, child.bounds.width)
-      y += child.bounds.height
-
-    widget.bounds.width = widest + widget.padding * 2
-    widget.bounds.height = (y - widget.bounds.y) + widget.padding
-
-    for child in widget.children:
-      child.bounds.width = widest
-      child.layout()
+    widget.layoutMenuColumn(widget.padding, widget.minWidth)
 
   render:
-    # Items are composited by renderPass; only the panel is drawn here.
-    if not widget.isVisible:
-      return
-    let props = currentTheme.getThemeProps(widget.intent, Normal)
-    drawShadow(widget.bounds, Shadow(offsetX: 2.0, offsetY: 2.0,
-                                     blur: 0.0, spread: 0.0,
-                                     color: Color(r: 0, g: 0, b: 0, a: 50)))
-    drawThemedBackground(widget.bounds, props)
-    drawThemedBorder(widget.bounds, props)
+    if widget.isVisible:
+      widget.drawMenuPanel(widget.intent, shadow = true)
 
 proc close*(widget: ContextMenu)
 
@@ -101,9 +71,7 @@ proc openAt*(widget: ContextMenu, x, y: float32) =
   widget.current = -1
   highlightItem(widget.children, -1)
   openPopup(widget, scope = widget, close = proc() = widget.close(), takeFocus = true)
-  showOverlay(widget, interactive = true)
-  widget.isDirty = true
-  widget.layoutDirty = true
+  widget.showMenuLayer()
   if widget.onOpen != nil:
     widget.onOpen(x, y)
 
@@ -115,8 +83,6 @@ proc close*(widget: ContextMenu) =
   widget.focusable = false
   highlightItem(widget.children, -1)
   closedPopup(widget)
-  hideOverlay(widget)
-  widget.isDirty = true
-  widget.layoutDirty = true
+  widget.hideMenuLayer()
   if widget.onClose != nil:
     widget.onClose()
