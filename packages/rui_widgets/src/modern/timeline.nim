@@ -72,6 +72,11 @@ template showEvent(widget: untyped, index: int) =
                    (widget.bounds.x + widget.bounds.width) + 16)
     widget.isDirty = true
 
+proc isUnset(d: DateTime): bool =
+  ## A DateTime nobody set: all zero bytes. Reading any field of one asserts.
+  var zero: DateTime
+  equalMem(unsafeAddr d, addr zero, sizeof(DateTime))
+
 definePrimitive(Timeline):
   props:
     events: seq[TimelineEvent] = @[]
@@ -99,6 +104,9 @@ definePrimitive(Timeline):
 
   init:
     widget.focusable = true
+    # An unset range (year 0) would crash every time calculation: use one day.
+    if widget.startTime.isUnset: widget.startTime = dateTime(2000, mJan, 1, zone = utc())
+    if widget.endTime.isUnset: widget.endTime = dateTime(2000, mJan, 2, zone = utc())
 
   events:
     on_mouse_down:

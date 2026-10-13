@@ -35,6 +35,10 @@ definePrimitive(ToolButton):
 
   init:
     widget.focusable = true
+    widget.onPointerLeave = proc() =
+      if widget.isPressed:
+        widget.isPressed = false
+        widget.markDirtyToRoot()
 
   events:
     on_mouse_down:
@@ -42,6 +46,7 @@ definePrimitive(ToolButton):
         return false
       widget.isPressed = true
       widget.isDirty = true
+      capturePointer(widget)         # the release comes here even if the pointer left
       return true
 
     on_mouse_up:
@@ -49,6 +54,10 @@ definePrimitive(ToolButton):
         return false
       widget.isPressed = false
       widget.isDirty = true
+      releasePointer()
+      # Released outside the button: not a click.
+      if not widget.bounds.contains(event.mousePos.x, event.mousePos.y):
+        return true
 
       if widget.toggleable:
         widget.toggled = not widget.toggled

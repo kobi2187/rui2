@@ -82,3 +82,13 @@ proc stack*(ws: varargs[Widget]): Widget =
   let v = newVStack(padding = 4.0, spacing = 6.0)
   for w in ws: v.addChild w
   v
+
+proc key*(r: Rig, k: KeyboardKey, mods: set[KeyMod]) =
+  r.src.push GuiEvent(kind: evKeyDown, priority: epHigh, timestamp: getMonoTime(),
+                      key: k, mods: mods)
+  r.frame()
+
+proc clickMod*(r: Rig, x, y: float32, mods: set[KeyMod]) =
+  var d = ev(evMouseDown, x, y); d.mods = mods
+  var u = ev(evMouseUp, x, y); u.mods = mods
+  r.src.push ev(evMouseMove, x, y); r.src.push d; r.src.push u; r.frame()
