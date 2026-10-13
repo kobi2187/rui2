@@ -17,8 +17,8 @@ proc buildUI*(): Widget =
   ui:
     VStack(spacing = 12.0, padding = 20.0):
       Label(text = "Greeter", fontSize = 22.0, bold = true)
-      TextInput(text = <-> name, placeholder = "Your name").named("name").size(260, 32)
-      Switch(text = "Shout", on = <-> shout).named("shout")
+      TextInput(text = -> name, onChange = name.setter, placeholder = "Your name").named("name").size(260, 32)
+      Switch(text = "Shout", on = -> shout, onToggle = shout.setter).named("shout")
       Label(text = -> greeting, fontSize = 18.0).named("greeting")
       Button(text = "Clear", onClick = proc () = name.value = "").named("clear")
 

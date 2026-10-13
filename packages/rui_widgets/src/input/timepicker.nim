@@ -4,7 +4,7 @@
 ## Down (or the wheel) step the part; digits type it ("1", "4" -> 14). With
 ## `use24h = false` there is a third part, AM/PM. The value is text, always
 ## 24-hour "HH:MM" whatever it shows, so it binds like any string:
-## `TimePicker(value = <-> alarm)`. `minuteStep` sets how far Up/Down move the
+## `TimePicker(value = -> alarm, onChange = alarm.setter)`. `minuteStep` sets how far Up/Down move the
 ## minutes. `onChange(value)` reports changes.
 
 import rui_core

@@ -1,5 +1,5 @@
 ## The example apps in examples/state/, driven like a user would: type, click,
-## drag, and read what the bound labels say. They exercise `state:`, `<->`, `->`
+## drag, and read what the bound labels say. They exercise `state:`, `->`, handlers
 ## and `derive` end to end.
 
 import std/unittest

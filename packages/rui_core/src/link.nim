@@ -165,6 +165,13 @@ proc `$`*[T](link: Link[T]): string =
 # Convenience Methods (Aliases for .value)
 # ============================================================================
 
+proc setter*[T](link: Link[T]): proc (v: T) {.closure.} =
+  ## A handler that writes its argument into the Link: the explicit way to get a
+  ## widget's value back into state. Bindings are one-way (state -> widget, `->`);
+  ## to write back, hang this on the widget's change action:
+  ## `TextInput(text = -> name, onChange = name.setter)`.
+  result = proc (v: T) = link.value = v
+
 proc get*[T](link: Link[T]): T =
   ## Convenience method - same as .value
   ## Read the current value of the link

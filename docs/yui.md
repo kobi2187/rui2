@@ -17,7 +17,7 @@ column:
 ui:
   Column().margin("16px"):
     Label(text = -> "Hello, {name}!")
-    TextInput(text = <-> name)
+    TextInput(text = -> name, onChange = name.setter)
     Button(text = "Save", onClick = save).size(120, 40)
 ```
 
@@ -77,7 +77,7 @@ exported through an extension element -- see the open questions.
 | `padding`, `margin` | `.padding(...)`, `.margin(...)` (CSS shorthand `8px 16px` parses) |
 | `spacing` | `spacing` on Row/Column |
 | `visible`, `enabled` | the Widget fields of the same name |
-| `bind <-> x`, `-> x`, `<- x` | `text = <-> x`, `= -> x`, `= <- x` in `ui:`; Links from a `Store` |
+| `bind <-> x`, `-> x`, `<- x` | `= -> x` in `ui:` for state to widget; write back with a handler (`onChange = x.setter`). yui's own `bind` keeps its meaning in `loadYui`; Links from a `Store` |
 | `"{name}"` interpolation | `text = -> "…{name}…"`, `store.interpolated(...)` |
 | `on_click: save/0` | `onClick`; actions are registered by name (`ruiEventName`, `parseYuiAction`) |
 | `theme`, `font`, `color`, `backgroundColor` | **not mapped**: themes are the author's, global (#46). The loader warns and ignores. |

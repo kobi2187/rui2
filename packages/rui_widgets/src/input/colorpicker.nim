@@ -2,7 +2,7 @@
 ## that drop down from a swatch field.
 ##
 ## The value is hex text ("#3366cc"), so it binds like any string:
-## `ColorPicker(value = <-> accent)`. Drag in the square for saturation (left to
+## `ColorPicker(value = -> accent, onChange = accent.setter)`. Drag in the square for saturation (left to
 ## right) and brightness (down to up), in the bar for hue. From the keyboard
 ## (focused) Left/Right turn the hue, Up/Down change the brightness,
 ## Enter/Space/F4 open and close the picker, Escape closes it. `onChange(value)`

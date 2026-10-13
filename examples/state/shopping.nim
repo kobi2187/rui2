@@ -21,7 +21,7 @@ proc buildUI*(): Widget =
     VStack(spacing = 10.0, padding = 20.0):
       Label(text = "Shopping list", fontSize = 22.0, bold = true)
       HStack(spacing = 8.0):
-        TextInput(text = <-> draft, placeholder = "Add an item",
+        TextInput(text = -> draft, onChange = draft.setter, placeholder = "Add an item",
                   onSubmit = proc (t: string) = add()).named("draft").size(220, 32)
         Button(text = "Add", onClick = add).named("add")
       ListBox(items = -> items, visibleRows = 6).named("list").size(300, 150)

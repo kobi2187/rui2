@@ -64,18 +64,24 @@ contains a dot.
 
 ## Binding in `ui:`
 
+State flows one way: **from state to the widget**, with `->`. To get a widget's
+value back into state you write the handler yourself -- `Link.setter` is the
+short form of `proc (v: T) = link.value = v`:
+
 ```nim
 ui:
   Column(spacing = 8.0):
-    TextInput(text = <-> name)                     # two-way: typing writes name, name writes the field
-    Label(text = -> "Hello, {name}")               # one-way to the widget, with interpolation
-    Slider(value = <-> level)
+    TextInput(text = -> name, onChange = name.setter)      # show name; typing writes it back
+    Label(text = -> "Hello, {name}")                        # a string with {links} follows all of them
+    Slider(value = -> level, onChange = level.setter)
+    Checkbox(text = "On", checked = -> on, onToggle = on.setter)
+    ListBox(items = -> items)                               # a Link[seq[string]] (or a LinkSeq / RowSource)
     Button(text = "Reset", onClick = proc () = name.value = "")
 ```
 
-`<->` is two-way, `->` pushes the value to the widget, `<-` reads the widget's
-value into the variable. The right-hand side is a Link (or a Store name inside
-`"{...}"`).
+There is no two-way arrow: the write-back is an ordinary closure you can see,
+and can do more in (validate, log, write two Links in a `transaction`).
+`<->` and `<-` are compile errors that say so.
 
 ## From a file
 

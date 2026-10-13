@@ -30,12 +30,12 @@ proc buildUI*(): Widget =
             columnSpacing = 12.0, rowSpacing = 10.0):
         TableRow():
           Label(text = "Nickname")
-          TextInput(text = <-> nickname).named("nickname")
+          TextInput(text = -> nickname, onChange = nickname.setter).named("nickname")
         TableRow():
           Label(text = "Volume")
-          Slider(value = <-> volume, minValue = 0, maxValue = 100).named("volume")
-      Checkbox(text = "Notifications", checked = <-> notifications).named("notifications")
-      Checkbox(text = "Sounds", checked = <-> sounds).named("sounds")
+          Slider(value = -> volume, onChange = volume.setter, minValue = 0, maxValue = 100).named("volume")
+      Checkbox(text = "Notifications", checked = -> notifications, onToggle = notifications.setter).named("notifications")
+      Checkbox(text = "Sounds", checked = -> sounds, onToggle = sounds.setter).named("sounds")
       Label(text = -> summary).named("summary")
       Button(text = "Reset", onClick = reset).named("reset")
 

@@ -99,7 +99,7 @@ proc inputTab(store: Store): Widget =
       Label(text = -> "Hello, {name}", fontSize = 20.0, bold = true)
       Wrap(spacing = 12.0, runSpacing = 8.0):
         Label(text = "Text")
-        TextInput(text = <-> name).named("input.text").size(220, 32)
+        TextInput(text = -> name, onChange = name.setter).named("input.text").size(220, 32)
         Label(text = "Password")
         PasswordInput(initialText = "secret").named("input.password").size(160, 32)
         Label(text = "Search")
@@ -108,7 +108,7 @@ proc inputTab(store: Store): Widget =
         Label(text = "Number")
         NumberInput(initialValue = 3.0, minValue = -50.0, maxValue = 50.0).named("input.number")
         Label(text = "Slider")
-        Slider(value = <-> level).named("input.slider").size(220, 28)
+        Slider(value = -> level, onChange = level.setter).named("input.slider").size(220, 28)
         Label(text = "Range")
         RangeSlider(initialLow = 20, initialHigh = 70).named("input.range").size(220, 28)
         Label(text = "ScrollBar")
@@ -132,15 +132,15 @@ proc pickersTab(store: Store): Widget =
     Column(spacing = 12.0, crossAxisAlignment = CrossAxisAlignment.stretch).named("pickers"):
       Wrap(spacing = 12.0, runSpacing = 8.0):
         Label(text = "Date")
-        DatePicker(value = <-> due).named("pickers.date")
+        DatePicker(value = -> due, onChange = due.setter).named("pickers.date")
         Label(text = -> "{due}")
       Wrap(spacing = 12.0, runSpacing = 8.0):
         Label(text = "Time")
-        TimePicker(value = <-> alarm).named("pickers.time")
+        TimePicker(value = -> alarm, onChange = alarm.setter).named("pickers.time")
         Label(text = -> "{alarm}")
       Wrap(spacing = 12.0, runSpacing = 8.0):
         Label(text = "Colour")
-        ColorPicker(value = <-> accent).named("pickers.color")
+        ColorPicker(value = -> accent, onChange = accent.setter).named("pickers.color")
         Label(text = -> "{accent}")
       Label(text = "FilePicker (embedded)")
       FilePicker(mode = fpOpen, filters = @["*.nim"], initialPath = ".",
@@ -427,13 +427,13 @@ proc liveTab(g: Gallery, store: Store): Widget =
             fontSize = 18.0, bold = true)
       Wrap(spacing = 12.0, runSpacing = 8.0):
         Label(text = "Type")
-        TextInput(text = <-> echoText).named("live.input").size(260, 32)
+        TextInput(text = -> echoText, onChange = echoText.setter).named("live.input").size(260, 32)
         Label(text = -> "echo: {echoText}").named("live.echo")
       Wrap(spacing = 12.0, runSpacing = 8.0):
         Button(text = "Bump", onClick = proc() = bumps.value = bumps.value + 1).named("live.bump")
         Label(text = -> "bumped {bumps} times").named("live.bumped")
       Wrap(spacing = 12.0, runSpacing = 8.0):
-        Switch(text = "Run ticker", on = <-> running).named("live.run")
+        Switch(text = "Run ticker", on = -> running, onToggle = running.setter).named("live.run")
         Embed(live.tickLabel)
         Embed(live.bar).size(220, 16)
         Embed(live.spark).size(220, 32)
