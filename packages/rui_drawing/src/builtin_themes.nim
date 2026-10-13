@@ -80,18 +80,19 @@ proc createBeosTheme*(): Theme =
   let white = Color(r: 255, g: 255, b: 255, a: 255)
   let grey152 = Color(r: 152, g: 152, b: 152, a: 255)
   let grey96 = Color(r: 96, g: 96, b: 96, a: 255)
-  let pushed = Color(r: 184, g: 184, b: 184, a: 255)
+  let pushed = Color(r: 216, g: 216, b: 216, a: 255)
   let black = Color(r: 0, g: 0, b: 0, a: 255)
   let beBlue = Color(r: 0, g: 0, b: 229, a: 255)
 
   var spec = BrandSpec(
     name: "BeOS", accent: beBlue, onAccent: white,
-    canvas: panel, surface: panel, text: black, border: grey96, radius: 0,
+    canvas: panel, surface: Color(r: 232, g: 232, b: 232, a: 255), text: black, border: grey96, radius: 0,
     fontSize: 12, padding: 4, paddingX: 10, borderWidth: 2, focusRingWidth: 1,
     controlHeight: 22, indicatorSize: 14, trackThickness: 6, thumbSize: 14,
     progressHeight: 14, rowHeight: 18, scrollbarThickness: 14, noTransitions: true)
   result = brandTheme(spec)
   result.name = "Classic BeOS"
+  result.titleColor = some(Color(r: 255, g: 203, b: 0, a: 255))   # the yellow window tab
 
   proc bevelled(p: var ThemeProps) =
     p.bevelStyle = some(BeRaised)
@@ -107,16 +108,16 @@ proc createBeosTheme*(): Theme =
   for intent in ThemeIntent:
     var base = result.base[intent]
     bevelled(base)
-    base.backgroundColor = some(panel)
+    base.backgroundColor = some(Color(r: 232, g: 232, b: 232, a: 255))   # R5 buttons are lighter than the panel
     base.foregroundColor = some(black)
     base.borderColor = some(grey96)
     base.activeColor = some(beBlue)
-    base.hoverColor = some(panel)           # Be shows no hover effect
+    base.hoverColor = base.backgroundColor   # Be shows no hover effect
     base.pressedColor = some(pushed)
     base.fontFamily = none(string)
     result.base[intent] = base
     # Pressed: darker face, the bevel pushed in. Hover changes nothing.
-    result.states[intent][Hovered] = ThemeProps(backgroundColor: some(panel))
+    result.states[intent][Hovered] = ThemeProps(backgroundColor: base.backgroundColor)
     result.states[intent][Pressed] = ThemeProps(backgroundColor: some(pushed),
                                                 bevelStyle: some(BeSunken))
     result.states[intent][Focused] = ThemeProps(borderColor: some(grey96),

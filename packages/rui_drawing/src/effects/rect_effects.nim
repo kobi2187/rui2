@@ -76,17 +76,23 @@ proc mixColors(a, b: Color, t: float32): Color =
         g: uint8(a.g.float32 + (b.g.float32 - a.g.float32) * t),
         b: uint8(a.b.float32 + (b.b.float32 - a.b.float32) * t), a: 255)
 
-proc beEdges(raised: bool, face, highlight, shadow, darkShadow: Color): BevelEdges =
-  ## BeOS R4/R5: a one-pixel frame (mid grey above-left, dark below-right) and
-  ## inside it a white line above-left with a soft grey line below-right.
-  ## Sunken keeps the frame's light source and swaps the inner lines, so a
-  ## pushed button and a text well both read as pressed in.
-  if raised:
-    BevelEdges(outerTopLeft: mixColors(shadow, darkShadow, 0.6), outerBottomRight: darkShadow,
-               innerTopLeft: highlight, innerBottomRight: mixColors(face, shadow, 0.5))
-  else:
-    BevelEdges(outerTopLeft: shadow, outerBottomRight: highlight,
-               innerTopLeft: darkShadow, innerBottomRight: face)
+proc drawBeLayers(bounds: Rect, topLeft, bottomRight: openArray[Color]) =
+  ## BeOS draws a bevel as rings from the outside in, each ring one pixel: `topLeft`
+  ## colours the top and left sides, `bottomRight` the bottom and right, and the two
+  ## need not be the same depth (a raised button is dark-light-white-white above-left
+  ## and dark-grey-lighter-grey below-right). Measured from R5.0.1 screenshots.
+  let (x, y, w, h) = (bounds.x, bounds.y, bounds.width, bounds.height)
+  let rings = int(min(w, h) / 2)          # a thin bar has room for fewer rings
+  for i, c in topLeft:
+    if i >= rings: break
+    let o = float32(i)
+    drawLine(Vector2(x: x + o, y: y + o), Vector2(x: x + w - o, y: y + o), 1.0, c)
+    drawLine(Vector2(x: x + o, y: y + o), Vector2(x: x + o, y: y + h - o), 1.0, c)
+  for i, c in bottomRight:
+    if i >= rings: break
+    let o = float32(i)
+    drawLine(Vector2(x: x + o, y: y + h - 1 - o), Vector2(x: x + w - o, y: y + h - 1 - o), 1.0, c)
+    drawLine(Vector2(x: x + w - 1 - o, y: y + o), Vector2(x: x + w - 1 - o, y: y + h - o), 1.0, c)
 
 proc drawRidgeOrGroove(bounds: Rect, bevelStyle: BevelStyle,
                        highlight, darkShadow: Color) =
@@ -142,9 +148,13 @@ proc drawBeveledRect*(
     return
 
   if bevelStyle in {BeRaised, BeSunken}:
-    drawBevelEdges(bounds, beEdges(bevelStyle == BeRaised, backgroundColor,
-                                   highlightColor, shadowColor, darkShadowColor),
-                   bevelWidth)
+    let soft = mixColors(backgroundColor, shadowColor, 0.2)
+    if bevelStyle == BeRaised:
+      drawBeLayers(bounds, [darkShadowColor, backgroundColor, highlightColor, highlightColor],
+                   [darkShadowColor, shadowColor, soft])
+    else:
+      drawBeLayers(bounds, [darkShadowColor, shadowColor, soft],
+                   [darkShadowColor, backgroundColor, highlightColor, highlightColor])
     return
 
   let edges = bevelEdgesFor(bevelStyle, highlightColor, shadowColor,

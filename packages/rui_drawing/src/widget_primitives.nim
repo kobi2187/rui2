@@ -359,16 +359,19 @@ proc drawSlider*(rect: Rect, value, minVal, maxVal: float32, props: ThemeProps,
   let cy = rect.y + rect.height / 2
   let track = Rect(x: rect.x, y: cy - th / 2, width: rect.width, height: th)
   if props.bevelStyle.get(Flat) != Flat:
-    # A bevelled theme: a sunken groove, filled with the accent up to a raised block.
+    # A bevelled theme (BeOS): a dark groove -- no fill -- and a small raised knob
+    # with three dots of grip.
     let x = clamp(rect.x + rect.width * t, rect.x + d / 2, rect.x + rect.width - d / 2)
-    let face = props.backgroundColor.get(Color(r: 216, g: 216, b: 216, a: 255))
-    discard drawBevelBody(track, props, WHITE, style = some(BeSunken))
-    if x - rect.x > 4:
-      drawRect(Rect(x: rect.x + 2, y: track.y + 2, width: x - rect.x - 2,
-                    height: max(1.0'f32, th - 4)), accent)
-    let blockW = max(8.0'f32, d * 0.6)
-    discard drawBevelBody(Rect(x: x - blockW / 2, y: cy - d / 2, width: blockW, height: d),
-                          props, face, style = some(BeRaised))
+    let face = props.backgroundColor.get(Color(r: 232, g: 232, b: 232, a: 255))
+    let groove = Rect(x: rect.x, y: cy - 3, width: rect.width, height: 6)
+    discard drawBevelBody(groove, props, props.darkShadowColor.get(Color(r: 96, g: 96, b: 96, a: 255)),
+                          style = some(BeSunken))
+    let blockW = max(10.0'f32, d * 0.7)
+    let knob = Rect(x: x - blockW / 2, y: cy - d / 2, width: blockW, height: d)
+    discard drawBevelBody(knob, props, face, style = some(BeRaised))
+    let grip = props.shadowColor.get(GRAY)
+    for k in -1 .. 1:
+      drawRect(Rect(x: knob.x + knob.width / 2 - 1, y: cy + float32(k) * 3 - 1, width: 2, height: 2), grip)
     return
   let rail = props.borderColor.get(Color(r: 200, g: 200, b: 200, a: 255))
   drawBox(track, radius, rail, rail, 0)
