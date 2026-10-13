@@ -61,26 +61,25 @@ app.run()
 
 ## 2. A form
 
-Inputs, a derived value, a layout that sizes itself.
+State in one `state:` block, handlers that update it, a layout that sizes itself.
 
 <!-- file: examples/tutorial/form.nim -->
 ```nim
-## Tutorial 2 -- a form: inputs, a derived value, layout.
+## Tutorial 2 -- a form: state, handlers, layout.
 ##
 ##   nim c -r -d:useGraphics examples/tutorial/form.nim
 
 import rui
 
-# One Link per field, and a value derived from them: it recomputes whenever
-# either changes, and tells its own dependents only when its answer does.
-let name = newLink("")
-let email = newLink("")
-let valid = derive(name, email, proc(n, e: string): bool =
-  n.len > 0 and '@' in e)
+# The form's state, declared in one block. Typing writes it; the widgets show it.
+state:
+  name: string = ""
+  email: string = ""
+  incomplete: bool = true       # the button is disabled while this is true
+  welcome: string = ""
 
-var nameInput, emailInput: TextInput
-var submit: Button
-var message: Label
+proc validate() =
+  incomplete.value = not (name.value.len > 0 and '@' in email.value)
 
 let root = ui:
   Padding(padding = EdgeInsets.all(24.0)):
@@ -93,10 +92,16 @@ let root = ui:
             columnSpacing = 12.0, rowSpacing = 10.0):
         TableRow():
           Label(text = "Name")
-          nameInput = TextInput(placeholder = "Ada Lovelace")
+          TextInput(placeholder = "Ada Lovelace", text = -> name,
+                    onChange = proc(t: string) =
+                      name.value = t
+                      validate())
         TableRow():
           Label(text = "Email")
-          emailInput = TextInput(placeholder = "ada@example.com")
+          TextInput(placeholder = "ada@example.com", text = -> email,
+                    onChange = proc(t: string) =
+                      email.value = t
+                      validate())
         TableRow():
           Label(text = "Plan")
           ComboBox(items = @["Starter", "Team", "Enterprise"], initialSelectedIndex = 0)
@@ -104,23 +109,21 @@ let root = ui:
       Checkbox(text = "Email me updates", initialChecked = true)
 
       Row(mainAxisAlignment = MainAxisAlignment.end):
-        submit = Button(text = "Create account", intent = ThemeIntent.Info,
-                        onClick = proc() = message.text = "Welcome, " & name.get() & "!")
-      message = Label(text = "", fontSize = 14.0)
-
-# Inputs write to their links; the button follows `valid`.
-nameInput.onChange = proc(t: string) = name.set(t)
-emailInput.onChange = proc(t: string) = email.set(t)
-valid.bindTo(submit, proc(ok: bool) = submit.disabled = not ok)
+        Button(text = "Create account", intent = ThemeIntent.Info,
+               disabled = -> incomplete,
+               onClick = proc() = welcome.value = "Welcome, " & name.value & "!")
+      Label(text = -> welcome, fontSize = 14.0)
 
 let app = newApp("Sign up", 520, 420)
 app.setRootWidget(root)
 app.run()
 ```
 
-- `derive(name, email, proc ...)` is a `Link` computed from other links. It only
-  tells its dependents when its *answer* changes, so typing a second letter in
-  an already-valid name repaints nothing.
+- `state:` declares the form's values (a `Link` each). `text = -> name` shows one
+  in a field; the field's `onChange` handler writes it back and re-checks
+  `validate()`. `disabled = -> incomplete` ties the button to a Link too: state
+  flows to widgets with `->`, and back through handlers you write. See
+  [store.md](store.md).
 - `Table` with `IntrinsicColumnWidth()` and `FlexColumnWidth()` is the form
   layout: labels take what they need, inputs take the rest. `Expanded`,
   `Flexible`, `Spacer`, `Padding`, `SizedBox`, `Align`, `Stack`... follow Flutter.
