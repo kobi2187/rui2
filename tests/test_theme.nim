@@ -1152,8 +1152,8 @@ suite "BeOS theme":
     check pressed.backgroundColor.get.r < base.backgroundColor.get.r
     check hovered.backgroundColor == base.backgroundColor
     check hovered.bevelStyle == base.bevelStyle
-  test "the panel is Be grey and disabled keeps the bevel with dim ink":
-    check be.getThemeProps(Default, Normal).backgroundColor == some(Color(r: 216, g: 216, b: 216, a: 255))
+  test "controls are Be light grey (232) and disabled keeps the bevel with dim ink":
+    check be.getThemeProps(Default, Normal).backgroundColor == some(Color(r: 232, g: 232, b: 232, a: 255))   # R5 buttons are lighter than the 216 panel
     check be.getThemeProps(Default, Disabled).foregroundColor.get.r > 100
   test "it carries its own name":
     check createBeosTheme().name == "Classic BeOS"

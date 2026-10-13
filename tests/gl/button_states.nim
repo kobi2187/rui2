@@ -79,8 +79,9 @@ suite "button states":
     releasePointer()
 
 suite "BeOS bevels, read back from the GPU":
-  ## The R4 button: a frame, a white line inside its top-left, a soft grey line
-  ## inside its bottom-right; pressed, the face darkens and the lines swap.
+  ## Measured from real R5.0.1 screenshots: a raised button is dark (96) outside,
+  ## then its own face colour, then two white lines above-left; below-right dark,
+  ## grey (152), then a slightly darker face (216). Pressed swaps the two sides.
 
   setup:
     setCurrentTheme(createBeosTheme())
@@ -93,23 +94,23 @@ suite "BeOS bevels, read back from the GPU":
     # A render texture reads back upside down.
     getImageColor(img, int32(w.bounds.x) + int32(dx), img.height - 1 - (int32(w.bounds.y) + int32(dy)))
 
-  test "a raised button has a white line inside its top-left and a dark frame below-right":
+  test "a raised button: dark frame, light face, white above-left, grey below-right":
     let (root, b) = scene()
     let w = int(b.bounds.width); let h = int(b.bounds.height)
-    check px(root, b, 1, 1) == Color(r: 255, g: 255, b: 255, a: 255)
-    check px(root, b, w div 2, 1) == Color(r: 255, g: 255, b: 255, a: 255)
-    var frame = 255'u8                                  # the outer frame, bottom-right
-    for dx in w - 3 .. w: frame = min(frame, px(root, b, dx, h div 2).r)
-    check frame < 130
-    check px(root, b, 4, h div 2).r in 200'u8 .. 230'u8  # the 216 face
+    check px(root, b, w div 2, 0).r == 96                     # outer frame, top
+    check px(root, b, w div 2, 2).r == 255                    # white line inside it
+    check px(root, b, w div 2, h - 1).r == 96                 # outer frame, bottom
+    check px(root, b, w div 2, h - 2).r == 152                # grey inside it
+    check px(root, b, 6, h div 2).r in 225'u8 .. 235'u8       # the 232 face
 
-  test "pressed, the face darkens and the inner top-left goes dark":
+  test "pressed: the sides swap and the face darkens":
     let (root, b) = scene()
     let w = int(b.bounds.width); let h = int(b.bounds.height)
     discard b.handleInput(event(evMouseDown, b))
     settle(root, b)
-    check px(root, b, 1, 1).r < 130
-    check px(root, b, 4, h div 2).r in 170'u8 .. 200'u8   # the 184 face
+    check px(root, b, w div 2, 1).r == 152                    # grey now above-left
+    check px(root, b, w div 2, h - 3).r == 255                # white now below-right
+    check px(root, b, 6, h div 2).r in 205'u8 .. 225'u8       # the 216 face
     releasePointer()
 
   test "hovering shows nothing: Be has no hover effect":

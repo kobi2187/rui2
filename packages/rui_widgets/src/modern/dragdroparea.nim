@@ -140,7 +140,14 @@ definePrimitive(DragDropArea):
       drawThemedBorder(widget.bounds, props)
 
     let text = if widget.isDragOver: widget.hoverText else: widget.promptText
-    drawThemedCenteredText(text, widget.bounds, props)
+    # The prompt wraps inside the box rather than running off both sides.
+    let inner = Rect(x: widget.bounds.x + 8, y: widget.bounds.y + 8,
+                     width: widget.bounds.width - 16, height: widget.bounds.height - 16)
+    let style = props.captionStyle(props.foregroundColor.get(BLACK))
+    let wrapped = measureTextWrapped(text, style, inner.width)
+    drawTextLayout(TextLayout(text: text, style: style, align: TextAlign.Center, wrap: true,
+                              rect: Rect(x: inner.x, y: inner.y + max(0.0'f32, (inner.height - wrapped.height) / 2),
+                                         width: inner.width, height: wrapped.height)))
 
     if widget.errorMessage.len > 0:
       let errProps = currentTheme.getThemeProps(Danger, Normal)

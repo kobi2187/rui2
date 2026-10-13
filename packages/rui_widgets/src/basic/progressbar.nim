@@ -116,12 +116,21 @@ definePrimitive(ProgressBar):
       let textColor = props.foregroundColor.get(Color(r: 60, g: 60, b: 60, a: 255))
       let displayText = widget.textLeft &
                         formatProgress(widget.value, widget.maxValue, widget.format)
-      # Over the fill, the caption takes the accent's ink so it stays legible.
-      let ink = if progress >= 0.5:
-                  currentTheme.getThemeProps(ThemeIntent.Info).foregroundColor.get(textColor)
-                else: textColor
-      let style = props.captionStyle(ink, 13.0)
-      drawStyledText(displayText, widget.bounds.x + widget.bounds.width / 2,
-                     widget.bounds.y + (widget.bounds.height - style.fontSize) / 2,
-                     style, centered = true)
+      # The caption straddles the fill's edge, so it is drawn twice: in the accent's
+      # ink over the fill and in the plain ink over the trough, each clipped to its part.
+      let onFill = currentTheme.getThemeProps(ThemeIntent.Info).foregroundColor.get(textColor)
+      let edge = widget.bounds.x + widget.bounds.width * clamp(progress, 0.0'f32, 1.0'f32)
+      let fillPart = Rect(x: widget.bounds.x, y: widget.bounds.y,
+                          width: edge - widget.bounds.x, height: widget.bounds.height)
+      let troughPart = Rect(x: edge, y: widget.bounds.y,
+                            width: widget.bounds.x + widget.bounds.width - edge,
+                            height: widget.bounds.height)
+      for (part, ink) in [(fillPart, onFill), (troughPart, textColor)]:
+        if part.width <= 0: continue
+        let style = props.captionStyle(ink, min(13.0'f32, max(8.0'f32, widget.bounds.height - 2)))
+        let clip = beginClip(part)
+        drawStyledText(displayText, widget.bounds.x + widget.bounds.width / 2,
+                       widget.bounds.y + (widget.bounds.height - style.fontSize) / 2,
+                       style, centered = true)
+        endClip(clip)
 

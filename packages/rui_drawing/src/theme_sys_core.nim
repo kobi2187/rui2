@@ -175,6 +175,7 @@ type
 
     # Branding features (optional)
     brandPalette*: BrandPalette           # Brand color system
+    titleColor*: Option[Color]            # Window/dialog title tab, when the theme wants a coloured one (BeOS yellow)
     typography*: TypographySystem         # Font system
     spacing*: SpacingScale                # Spacing tokens
     animation*: AnimationSettings         # Motion settings

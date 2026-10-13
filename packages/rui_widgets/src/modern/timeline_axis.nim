@@ -88,11 +88,21 @@ proc pixelToTime*(axis: TimelineAxis, pixel: float32): DateTime =
                             axis.pixelsPerSecond)
   axis.startTime + initDuration(seconds = int64(seconds))
 
+proc isUnset*(d: DateTime): bool =
+  ## A DateTime nobody set: all zero bytes. Reading any field of one asserts.
+  var zero: DateTime
+  equalMem(unsafeAddr d, addr zero, sizeof(DateTime))
+
+proc spans*(evt: TimelineEvent): bool =
+  ## Whether the event covers a stretch of time: flagged `isDuration`, or simply
+  ## given an end after its start. (Otherwise it is an instant.)
+  evt.isDuration or (not evt.endTime.isUnset and evt.endTime > evt.startTime)
+
 proc eventRectFor*(axis: TimelineAxis, index: int, evt: TimelineEvent): Rect =
   ## Where event `index` is drawn. Hit-testing and painting both call this, so a
   ## click can never land somewhere other than what was drawn.
   let startX = axis.timeToPixel(evt.startTime)
-  let endX = if evt.isDuration: axis.timeToPixel(evt.endTime)
+  let endX = if evt.spans: axis.timeToPixel(evt.endTime)
              else: startX + InstantWidth
   Rect(
     x: startX,

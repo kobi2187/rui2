@@ -1,6 +1,7 @@
 ## The gallery: every widget on screen, in tabs.
 ##
 ##   nim c -r -d:useGraphics examples/gallery/gallery.nim [theme] [--tab N]
+## (the Theme dropdown at the top switches themes while it runs)
 ##   nim c -r -d:useGraphics -d:ruiInspect -d:ruiTestKeys examples/gallery/gallery.nim \
 ##       --script DIR              # scripting + visual probe (tools/gallery_probe.sh)
 ##
@@ -9,7 +10,7 @@
 ## Live tab's ticker on its own.
 
 import rui
-import std/[os, strutils, monotimes, times]
+import std/[os, strutils, monotimes, times, algorithm]
 import gallery_ui
 
 var theme = "daylight"
@@ -30,7 +31,11 @@ while i <= paramCount():
 
 let app = newApp("RUI2 - Gallery", 1000, 720)
 app.setTheme(theme)
-let gallery = buildGallery(only)
+var themes = app.themeManager.listThemes()
+themes.sort()                       # the registry is a hash table: a dropdown wants a stable order
+let gallery = buildGallery(only, themes)
+gallery.themePicker.selectedIndex = max(0, themes.find(theme))
+gallery.themePicker.onSelect = proc(i: int) = app.setTheme(themes[i])
 gallery.tabs.activeTab = startTab
 if startLive: gallery.live.running.value = true
 app.onFrame = proc() = gallery.stepLive()
