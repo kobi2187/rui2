@@ -45,17 +45,19 @@ canvas.addCommand(DrawCommand(kind: dcRectFilled,
 root.addChild(canvas)
 
 let modeRow = newHStack(spacing = 6.0).named("modeRow")
+# A proc per button: closures made in a module-level loop share its variables.
+proc addModeButton(caption: string, mode: DrawingMode, id: string) =
+  let btn = newButton(text = caption).named(id)
+  btn.onClick = proc() =
+    canvas.drawingMode = mode
+    report("mode: " & caption)
+  modeRow.addChild(btn)
+
 for (caption, mode, id) in [("Freehand", dmFreehand, "mFree"),
                             ("Line", dmLine, "mLine"),
                             ("Rect", dmRect, "mRect"),
                             ("Circle", dmCircle, "mCircle")]:
-  let btn = newButton(text = caption).named(id)
-  let captured = mode
-  let capturedName = caption
-  btn.onClick = proc() =
-    canvas.drawingMode = captured
-    report("mode: " & capturedName)
-  modeRow.addChild(btn)
+  addModeButton(caption, mode, id)
 
 let clearBtn = newButton(text = "Clear").named("clearBtn")
 clearBtn.onClick = proc() =

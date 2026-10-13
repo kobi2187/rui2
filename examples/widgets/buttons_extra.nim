@@ -27,11 +27,14 @@ proc report(text: string) =
 
 root.addChild(newLabel(text = "IconButtons:", fontSize = 14.0).named("t1"))
 let iconRow = newHStack(spacing = 8.0).named("iconRow")
-for (glyph, id) in [("+", "iconAdd"), ("-", "iconDel"), ("?", "iconHelp")]:
+# A proc per widget: closures made in a module-level loop share its variables.
+proc addIconButton(glyph, id: string) =
   let btn = newIconButton(iconText = glyph, size = 32.0).named(id)
-  let captured = glyph
-  btn.onClick = proc() = report("icon button " & captured)
+  btn.onClick = proc() = report("icon button " & glyph)
   iconRow.addChild(btn)
+
+for (glyph, id) in [("+", "iconAdd"), ("-", "iconDel"), ("?", "iconHelp")]:
+  addIconButton(glyph, id)
 root.addChild(iconRow)
 
 # A separator only claims its cross axis; the stack decides how long it is.
@@ -39,15 +42,17 @@ root.addChild(newSeparator(vertical = false, thickness = 1.0).named("sep"))
 
 root.addChild(newLabel(text = "ToolBar with toggles:", fontSize = 14.0).named("t2"))
 let bar = newToolBar(barHeight = 40.0, spacing = 4.0, padding = 4.0).named("bar")
+proc addToolButton(glyph, caption, id: string) =
+  let btn = newToolButton(iconText = glyph, text = caption, size = 28.0,
+                          showText = true, toggleable = true).named(id)
+  btn.onToggle = proc(state: bool) =
+    report(caption & (if state: " on" else: " off"))
+  bar.addChild(btn)
+
 for (glyph, caption, id) in [("B", "Bold", "tbBold"),
                              ("I", "Italic", "tbItalic"),
                              ("U", "Under", "tbUnder")]:
-  let btn = newToolButton(iconText = glyph, text = caption, size = 28.0,
-                          showText = true, toggleable = true).named(id)
-  let captured = caption
-  btn.onToggle = proc(state: bool) =
-    report(captured & (if state: " on" else: " off"))
-  bar.addChild(btn)
+  addToolButton(glyph, caption, id)
 root.addChild(bar)
 
 # A Tooltip wraps the widget it describes. The tip floats on the overlay

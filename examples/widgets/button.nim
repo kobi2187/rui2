@@ -28,15 +28,19 @@ proc bump(which: string) =
 
 root.addChild(status)
 
+# A proc per button: a closure made in a module-level loop shares the loop's
+# variables (they are globals), so every button would report the last one.
+proc addIntentButton(caption: string, intent: ThemeIntent, id: string) =
+  let b = newButton(text = caption, intent = intent).named(id)
+  b.onClick = proc() = bump(caption)
+  root.addChild(b)
+
 for (caption, intent, id) in [("Default", ThemeIntent.Default, "bDefault"),
                               ("Info", ThemeIntent.Info, "bInfo"),
                               ("Success", ThemeIntent.Success, "bSuccess"),
                               ("Warning", ThemeIntent.Warning, "bWarning"),
                               ("Danger", ThemeIntent.Danger, "bDanger")]:
-  let b = newButton(text = caption, intent = intent).named(id)
-  let name = caption
-  b.onClick = proc() = bump(name)
-  root.addChild(b)
+  addIntentButton(caption, intent, id)
 
 let off = newButton(text = "Disabled", disabled = true).named("bDisabled")
 root.addChild(off)

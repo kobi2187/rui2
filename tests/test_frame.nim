@@ -47,6 +47,7 @@ suite "a frame with nothing in it":
 suite "events reach widgets":
 
   setup:
+    releasePointer()                        # a test that only pressed left it captured
     let button = newButton(text = "Go")
     button.bounds = Rect(x: 0, y: 0, width: 100, height: 40)
     let root = newVStack(padding = 0.0, spacing = 0.0)
@@ -248,6 +249,7 @@ suite "tooltips, through the real router":
   ## waited for, and as a sibling of its target the pointer was never over it.
 
   setup:
+    releasePointer()
     clearOverlays()
     clearRepaints()
     let target = newButton(text = "Save")

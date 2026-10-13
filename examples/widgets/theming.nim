@@ -37,11 +37,14 @@ proc showTheme(name: string) =
   current.layoutDirty = true
 
 let switcher = newHStack(spacing = 10.0).named("switcher")
-for name in ["light", "dark"]:
-  let themeName = name
+# A proc per button: closures made in a module-level loop share its variables.
+proc addThemeButton(name: string) =
   let b = newButton(text = "Use " & name).named("use_" & name)
-  b.onClick = proc() = showTheme(themeName)
+  b.onClick = proc() = showTheme(name)
   switcher.addChild(b)
+
+for name in ["light", "dark"]:
+  addThemeButton(name)
 root.addChild(switcher)
 
 showTheme("light")

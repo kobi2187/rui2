@@ -76,11 +76,15 @@ proc show(name: string) =
   app.setTheme(name)
   title.text = "Theme: " & name
 
-for brand in brands:
-  let b = newButton(text = brand)
-  let name = brand
+proc addSwitch(name: string) =
+  ## A proc, so each button's closure gets its own `name`: in a loop at module level
+  ## the variables are globals and every button would switch to the last theme.
+  let b = newButton(text = name)
   b.onClick = proc() = show(name)
   switcher.addChild(b)
+
+for brand in brands:
+  addSwitch(brand)
 
 volume.onChange = proc(v: float32) = meter.value = float(v)
 

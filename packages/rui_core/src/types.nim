@@ -300,6 +300,12 @@ type
     # generates: nil is the only "nothing attached" a proc needs, and an Option
     # around it only forced callers to write some(proc() {.closure.} = ...).
     onFocus*: proc() {.closure.}       # Called when widget gains focus
+    onPointerEnter*: proc() {.closure.}
+      ## The pointer came into this widget or anything under it (hover moved from
+      ## outside its subtree to inside). A composite whose children take the pointer
+      ## -- a Button is a Rectangle and a Label -- hears about it here; its own
+      ## mouse-move handler is never called for a pointer that is leaving.
+    onPointerLeave*: proc() {.closure.}  # The pointer left it and everything under it
     onBlur*: proc() {.closure.}        # Called when widget loses focus
 
     # Data binding

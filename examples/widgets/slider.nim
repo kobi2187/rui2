@@ -35,12 +35,15 @@ root.addChild(slider)
 root.addChild(bar)
 
 let row = newHStack(spacing = 8.0).named("row")
-for (caption, delta, id) in [("-10", -10.0, "minus"), ("+10", 10.0, "plus")]:
-  let step = delta
+# A proc per button: closures made in a module-level loop share its variables.
+proc addStepButton(caption: string, step: float, id: string) =
   let b = newButton(text = caption).named(id)
   b.onClick = proc() =
     amount.set(max(0.0, min(100.0, amount.get() + step)))
   row.addChild(b)
+
+for (caption, delta, id) in [("-10", -10.0, "minus"), ("+10", 10.0, "plus")]:
+  addStepButton(caption, delta, id)
 root.addChild(row)
 
 app.setRootWidget(root)

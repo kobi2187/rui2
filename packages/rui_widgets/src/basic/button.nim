@@ -48,6 +48,20 @@ defineWidget(Button):
 
   init:
     widget.focusable = true
+    # Hover comes from the pointer entering and leaving the whole button -- its two
+    # children are what gets hit, so its own mouse-move handler never hears the
+    # pointer leave, and the button stayed lit (and, pressed, stayed sunk).
+    widget.onPointerEnter = proc() =
+      if not widget.isHovered:
+        widget.isHovered = true
+        widget.layoutDirty = true
+        widget.markDirtyToRoot()
+    widget.onPointerLeave = proc() =
+      if widget.isHovered or widget.isPressed:
+        widget.isHovered = false
+        widget.isPressed = false
+        widget.layoutDirty = true
+        widget.markDirtyToRoot()
 
     # The two children are created once and then updated by `layout`, never
     # replaced. addChild rather than children.add, so the parent link is set --
@@ -65,6 +79,7 @@ defineWidget(Button):
       if not widget.disabled:
         widget.isPressed = true
         widget.layoutDirty = true
+        capturePointer(widget)       # the release comes here even if the pointer left
         return true
       return false
 
@@ -72,7 +87,9 @@ defineWidget(Button):
       if widget.isPressed and not widget.disabled:
         widget.isPressed = false
         widget.layoutDirty = true
-        if widget.onClick != nil:
+        let p = event.mousePos
+        let inside = widget.bounds.contains(p.x, p.y)
+        if inside and widget.onClick != nil:
           widget.onClick()
         return true
       return false

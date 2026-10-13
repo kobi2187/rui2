@@ -52,3 +52,27 @@ suite "button states":
     discard b.handleInput(event(evMouseDown, b))
     settle(root, b)
     check pixels(root) != off
+
+  test "the pointer leaving the button clears hover; the button never stays lit":
+    let (root, b) = scene()
+    let off = pixels(root)
+    b.onPointerEnter(); settle(root, b)
+    check pixels(root) != off
+    b.onPointerLeave(); settle(root, b)
+    check pixels(root) == off
+
+  test "a press released outside the button is not a click and does not stay pressed":
+    let (root, b) = scene()
+    var clicks = 0
+    b.onClick = proc() = inc clicks
+    discard b.handleInput(event(evMouseDown, b))
+    check b.isPressed
+    discard b.handleInput(GuiEvent(kind: evMouseUp, mousePos: Point(x: 390, y: 190),
+                                   timestamp: getMonoTime()))
+    check not b.isPressed
+    check clicks == 0
+    releasePointer()
+    discard b.handleInput(event(evMouseDown, b))
+    discard b.handleInput(event(evMouseUp, b))
+    check clicks == 1
+    releasePointer()
