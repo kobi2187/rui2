@@ -47,3 +47,60 @@ proc barDragTo*(track: Rect, contentH, viewH, grab, pointerY: float32): float32 
   let travel = track.height - len
   if travel <= 0: return 0.0'f32
   clamp((pointerY - grab - track.y) / travel * maxScroll, 0.0'f32, maxScroll)
+
+# ---------------------------------------------------------------------------
+# The whole bar, for a widget that keeps one `VBar` as state
+# ---------------------------------------------------------------------------
+
+import rui_drawing
+import raylib
+
+type VBar* = object
+  dragging*: bool     ## the thumb is held
+  hover*: bool        ## the pointer is over the track
+  grab*: float32      ## where on the thumb it was taken
+
+proc shown*(track: Rect, contentH, viewH: float32): bool =
+  contentH > viewH and track.height > 0
+
+proc barMove*(bar: var VBar, track: Rect, contentH, viewH: float32,
+              scrollY: var float32, p: Point): bool =
+  ## Feed every pointer move. True when the bar used it (a drag in progress):
+  ## the widget then skips its row hover. `bar.hover` follows the pointer.
+  if bar.dragging:
+    scrollY = barDragTo(track, contentH, viewH, bar.grab, p.y)
+    return true
+  bar.hover = shown(track, contentH, viewH) and track.contains(p.x, p.y)
+  false
+
+proc barDown*(bar: var VBar, track: Rect, contentH, viewH, page: float32,
+              scrollY: var float32, p: Point): bool =
+  ## Feed a press. True when it landed on the bar (thumb or track): the widget
+  ## captures the pointer when `bar.dragging` is set and stops handling it.
+  let press = barPress(track, contentH, viewH, scrollY, p)
+  case press.kind
+  of bpThumb:
+    bar.dragging = true
+    bar.grab = press.grab
+    true
+  of bpPageUp:
+    scrollY = clamp(scrollY - page, 0.0'f32, max(0.0'f32, contentH - viewH)); true
+  of bpPageDown:
+    scrollY = clamp(scrollY + page, 0.0'f32, max(0.0'f32, contentH - viewH)); true
+  of bpNone: false
+
+proc barUp*(bar: var VBar): bool =
+  ## True when a thumb drag just ended.
+  result = bar.dragging
+  bar.dragging = false
+
+proc drawBar*(bar: VBar, track: Rect, contentH, viewH, scrollY: float32,
+              props: ThemeProps) =
+  ## The theme's scroll bar, its thumb strengthened while held or hovered.
+  if not shown(track, contentH, viewH): return
+  drawScrollbar(track, contentH, viewH, scrollY, props)
+  if bar.dragging or bar.hover:
+    let thumb = thumbRect(track, contentH, viewH, scrollY)
+    drawRoundedRect(Rect(x: thumb.x + 1, y: thumb.y, width: thumb.width - 2,
+                         height: thumb.height), (thumb.width - 2) / 2,
+                    props.borderColor.get(GRAY).withAlpha(0.45'f32))

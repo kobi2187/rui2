@@ -11,6 +11,7 @@ import rui_core
 import rui_drawing
 import ../virtual_rows
 import ../list_input
+import ../scroll_drag
 import std/[options, json]
 
 export virtual_rows
@@ -47,6 +48,12 @@ template setExpanded(widget: untyped, node: TreeNode, open: bool) =
     else:
       if widget.onCollapse != nil: widget.onCollapse(node.id)
 
+template barTrack(widget: untyped): Rect =
+  ## The scroll bar's track: down the right edge, the full height.
+  Rect(x: widget.bounds.x + widget.bounds.width - currentTheme.scrollbarThickness,
+       y: widget.bounds.y, width: currentTheme.scrollbarThickness,
+       height: widget.bounds.height)
+
 definePrimitive(TreeView):
   props:
     rootNode: TreeNode = nil
@@ -61,6 +68,7 @@ definePrimitive(TreeView):
     hoveredId: string            # Not `hovered`: Widget already has that (a bool)
     flatNodes: seq[FlatNode]
     scrollY: float32
+    vbar: VBar                   # the scroll bar's drag and hover
     visibleStart: int
     visibleEnd: int
 
@@ -74,10 +82,24 @@ definePrimitive(TreeView):
     # The pointer leaving the widget is not a move the widget ever hears.
     widget.onPointerLeave = proc() =
       widget.hoveredId = ""
+      widget.vbar.hover = false
       widget.markDirtyToRoot()
 
   events:
+    on_mouse_up:
+      if widget.vbar.barUp():
+        widget.isDirty = true
+        return true
+      return false
+
     on_mouse_down:
+      let content = viewportOf(widget).contentHeight(widget.flatNodes.len)
+      let page = max(widget.bounds.height - rowH(widget), rowH(widget))
+      if widget.vbar.barDown(widget.barTrack, content, widget.bounds.height, page,
+                             widget.scrollY, event.mousePos):
+        if widget.vbar.dragging: capturePointer(widget)
+        widget.isDirty = true
+        return true
       let idx = viewportOf(widget).rowAt(event.mousePos.y, widget.flatNodes.len)
       if idx < 0:
         return false
@@ -103,7 +125,15 @@ definePrimitive(TreeView):
       return true
 
     on_mouse_move:
-      let idx = viewportOf(widget).rowAt(event.mousePos.y, widget.flatNodes.len)
+      let content = viewportOf(widget).contentHeight(widget.flatNodes.len)
+      let barWas = widget.vbar.hover
+      if widget.vbar.barMove(widget.barTrack, content, widget.bounds.height,
+                             widget.scrollY, event.mousePos):
+        widget.isDirty = true
+        return true
+      if widget.vbar.hover != barWas: widget.isDirty = true
+      let idx = if widget.vbar.hover: -1
+                else: viewportOf(widget).rowAt(event.mousePos.y, widget.flatNodes.len)
       let newHover = if idx >= 0: widget.flatNodes[idx].node.id else: ""
       if newHover != widget.hoveredId:
         widget.hoveredId = newHover
@@ -220,4 +250,6 @@ definePrimitive(TreeView):
       drawText(flat.node.text, x, rowY + (nodeH - 14.0) / 2, 14.0, fgColor)
 
     endClip(clip)
+    widget.vbar.drawBar(widget.barTrack, v.contentHeight(widget.flatNodes.len),
+                        widget.bounds.height, widget.scrollY, props)
     drawThemedBorder(widget.bounds, props, widget.focused)

@@ -284,3 +284,70 @@ suite "ScrollView":
     r.drag(x, sv.bounds.y + 10, x, sv.bounds.y + 60)
     check sv.scrollOffsetY > 0
     check sv.dragAxis == 0
+
+suite "scroll bars on row widgets":
+  ## One scenario for every widget that scrolls its own rows: the thumb drags,
+  ## the track pages, the wheel scrolls, and none of them leave a drag behind.
+
+  template scrollScenarios(name: string, build: untyped) =
+    test name & ": dragging the thumb scrolls and ends cleanly":
+      let (r, w) = build
+      let x = w.bounds.x + w.bounds.width - 4
+      let top = w.bounds.y + 40
+      r.drag(x, top, x, top + 50)
+      check w.scrollY > 0
+      check not w.vbar.dragging
+    test name & ": a track click below the thumb pages down, above it back up":
+      let (r, w) = build
+      let x = w.bounds.x + w.bounds.width - 4
+      for _ in 1 .. 4: r.click(x, w.bounds.y + w.bounds.height - 6)
+      check w.scrollY > 0
+      let before = w.scrollY
+      r.click(x, w.bounds.y + 42)      # the top of the track: above the thumb by now
+      check w.scrollY < before
+    test name & ": pointer over the bar shows bar hover; leaving clears it":
+      let (r, w) = build
+      let x = w.bounds.x + w.bounds.width - 4
+      r.moveTo(x, w.bounds.y + 60)
+      check w.vbar.hover
+      r.moveTo(390, 290)
+      check not w.vbar.hover
+    test name & ": the wheel scrolls":
+      let (r, w) = build
+      let c = centre(w)
+      r.wheel(c.x - 30, c.y, -3)
+      check w.scrollY > 0
+
+  proc many(n: int): seq[string] = toSeq(0 ..< n).mapIt("item " & $it)
+
+  scrollScenarios("ListBox"):
+    (block:
+      let l = newListBox(items = many(100), visibleRows = 8)
+      (newRig(stack(l)), l))
+
+  scrollScenarios("TreeView"):
+    (block:
+      var kids: seq[TreeNode]
+      for i in 0 ..< 100: kids.add TreeNode(id: "n" & $i, text: "node " & $i)
+      let t = newTreeView(rootNode = TreeNode(id: "root", text: "root", expanded: true, children: kids),
+                          visibleRows = 8)
+      (newRig(stack(t)), t))
+
+  scrollScenarios("DataTable"):
+    (block:
+      var rows: seq[DataRow]
+      for i in 0 ..< 100:
+        var v = initTable[string, JsonNode]()
+        v["a"] = %i
+        rows.add DataRow(id: $i, values: v)
+      let t = newDataTable(columns = @[DataColumn(id: "a", title: "A", width: 120.0)],
+                           data = rows, visibleRows = 8, showFilter = false)
+      (newRig(stack(t)), t))
+
+  scrollScenarios("DataGrid"):
+    (block:
+      var rows: seq[GridRow]
+      for i in 0 ..< 100: rows.add GridRow(id: $i, values: @[%i])
+      let g = newDataGrid(columns = @[GridColumn(id: "a", title: "A", width: 120.0)],
+                          data = rows, visibleRows = 8)
+      (newRig(stack(g)), g))

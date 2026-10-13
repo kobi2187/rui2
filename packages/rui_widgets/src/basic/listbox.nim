@@ -14,6 +14,7 @@ import rui_drawing
 import ../virtual_rows
 import ../list_input
 import ../seq_follow
+import ../scroll_drag
 import ../sources
 import std/[options, sets]
 
@@ -43,6 +44,12 @@ template viewportOf*(widget: untyped): RowViewport =
   rowViewport(top = widget.bounds.y, height = widget.bounds.height,
               rowHeight = rowH(widget), scrollY = widget.scrollY)
 
+template barTrack(widget: untyped): Rect =
+  ## The scroll bar's track: down the right edge, the full height.
+  Rect(x: widget.bounds.x + widget.bounds.width - currentTheme.scrollbarThickness,
+       y: widget.bounds.y, width: currentTheme.scrollbarThickness,
+       height: widget.bounds.height)
+
 definePrimitive(ListBox):
   props:
     items: seq[string] = @[]
@@ -57,6 +64,7 @@ definePrimitive(ListBox):
     selection: HashSet[int]
     source: RowSource            # where the rows come from, instead of `items`
     scrollY: float32
+    vbar: VBar                   # the scroll bar's drag and hover
     visibleStart: int
     visibleEnd: int
     focusIndex: int
@@ -73,6 +81,7 @@ definePrimitive(ListBox):
     # The pointer leaving the widget is not a move the widget ever hears.
     widget.onPointerLeave = proc() =
       widget.hoverIndex = -1
+      widget.vbar.hover = false
       widget.markDirtyToRoot()
     widget.hoverIndex = -1       # nothing is under the pointer yet
 
@@ -94,15 +103,40 @@ definePrimitive(ListBox):
     on_mouse_move:
       if widget.disabled:
         return false
+      let content = viewportOf(widget).contentHeight(widget.totalItems)
+      let barWas = widget.vbar.hover
+      if widget.vbar.barMove(widget.barTrack, content, widget.bounds.height,
+                             widget.scrollY, event.mousePos):
+        widget.isDirty = true
+        return true
+      if widget.vbar.hover != barWas: widget.isDirty = true
+      if widget.vbar.hover:
+        if widget.hoverIndex != -1:
+          widget.hoverIndex = -1
+          widget.isDirty = true
+        return false
       let newHover = viewportOf(widget).rowAt(event.mousePos.y, widget.totalItems)
       if newHover != widget.hoverIndex:
         widget.hoverIndex = newHover
         widget.isDirty = true
       return false
 
+    on_mouse_up:
+      if widget.vbar.barUp():
+        widget.isDirty = true
+        return true
+      return false
+
     on_mouse_down:
       if widget.disabled:
         return false
+      let content = viewportOf(widget).contentHeight(widget.totalItems)
+      let page = max(widget.bounds.height - rowH(widget), rowH(widget))
+      if widget.vbar.barDown(widget.barTrack, content, widget.bounds.height, page,
+                             widget.scrollY, event.mousePos):
+        if widget.vbar.dragging: capturePointer(widget)
+        widget.isDirty = true
+        return true
       let idx = viewportOf(widget).rowAt(event.mousePos.y, widget.totalItems)
       if idx < 0:
         return false
@@ -195,6 +229,8 @@ definePrimitive(ListBox):
                    focused = widget.focused and itemIdx == widget.focusIndex)
     endClip(clip)
 
+    widget.vbar.drawBar(widget.barTrack, v.contentHeight(total), widget.bounds.height,
+                        widget.scrollY, props)
     drawThemedBorder(widget.bounds, props, widget.focused)
     if widget.disabled:
       drawDisabledOverlay(widget.bounds)
