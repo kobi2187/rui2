@@ -25,13 +25,13 @@ let root = ui:
             columnSpacing = 12.0, rowSpacing = 10.0):
         TableRow():
           Label(text = "Name")
-          TextInput(placeholder = "Ada Lovelace", text = -> name,
+          TextInput(placeholder = "Ada Lovelace", text = name.value,
                     onChange = proc(t: string) =
                       name.value = t
                       validate())
         TableRow():
           Label(text = "Email")
-          TextInput(placeholder = "ada@example.com", text = -> email,
+          TextInput(placeholder = "ada@example.com", text = email.value,
                     onChange = proc(t: string) =
                       email.value = t
                       validate())
@@ -43,9 +43,9 @@ let root = ui:
 
       Row(mainAxisAlignment = MainAxisAlignment.end):
         Button(text = "Create account", intent = ThemeIntent.Info,
-               disabled = -> incomplete,
+               disabled = incomplete.value,
                onClick = proc() = welcome.value = "Welcome, " & name.value & "!")
-      Label(text = -> welcome, fontSize = 14.0)
+      Label(text = welcome.value, fontSize = 14.0)
 
 let app = newApp("Sign up", 520, 420)
 app.setRootWidget(root)

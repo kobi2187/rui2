@@ -5,7 +5,7 @@
 ##
 ## ```nim
 ## Badge(text = "3", intent = Danger)
-## Label(text = "Inbox") ; Badge(text = -> "{unread}")
+## Label(text = "Inbox") ; Badge(text = $unread.value)
 ## ```
 
 import rui_core

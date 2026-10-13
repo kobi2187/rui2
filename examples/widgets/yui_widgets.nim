@@ -24,19 +24,19 @@ let root = ui:
           Label(text = "Menu", bold = true)
           Row(spacing = 8.0):
             Label(text = "Inbox")
-            Badge(text = -> "{unread}")
+            Badge(text = $unread.value)
           Label(text = "Sent")
     Expanded():
       Column(spacing = 14.0, crossAxisAlignment = CrossAxisAlignment.start).margin(20):
-        Label(text = -> "Hello, {name}!", fontSize = 22.0, bold = true)
+        Label(text = "Hello, " & $name.value & "!", fontSize = 22.0, bold = true)
         Row(spacing = 10.0):
           Button(text = "Menu", onClick = proc() = drawer.toggle())
           SearchInput(placeholder = "Search mail").size(220, 32)
-          Switch(text = "Dark", on = -> dark, onToggle = dark.setter)
-        TextInput(text = -> name, onChange = name.setter).size(220, 32)
+          Switch(text = "Dark", on = dark.value, onToggle = dark.setter)
+        TextInput(text = name.value, onChange = name.setter).size(220, 32)
         SegmentedControl(options = @["Card", "List"], initialSelectedIndex = 0,
                          onSelect = proc(i: int) = page.value = i)
-        IndexedStack(index = -> page):
+        IndexedStack(index = page.value):
           Card(padding = 16):
             Column(spacing = 6.0, crossAxisAlignment = CrossAxisAlignment.start):
               Label(text = "Storage", bold = true)

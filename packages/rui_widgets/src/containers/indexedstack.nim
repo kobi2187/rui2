@@ -4,7 +4,7 @@
 ## visible (Flutter's IndexedStack; TabControl is this plus a tab strip). It is
 ## as big as its biggest child, so switching never moves what is around it, and
 ## the hidden children keep their state. Set `index` from code, or bind it:
-## `IndexedStack(index = -> page)`.
+## `IndexedStack(index = page.value)`.
 ##
 ## ```nim
 ## IndexedStack(index = 1):

@@ -52,13 +52,13 @@
 ## - `.margin(8)`, `.margin("8px 16px")`, `.padding(...)` put the widget in a
 ##   Padding and return that, so `Button().margin(8).flex` flexes the padded box.
 ## - `.size(120, 40)` is `.frame(width = 120, height = 40)`.
-## - A property written with `->` is bound to a Link after the widget is built:
-##   `Label(text = -> count)`. Bindings are one-way, state -> widget; to write a
-##   widget's value back, give it a handler: `TextInput(text = -> name,
-##   onChange = name.setter)` (or any closure). A string with `{link}` in it,
-##   `Label(text = -> "Hello, {name} ({n})")`, follows every Link it names.
-##   `Store` (store.nim) supplies Links by name for these. `items = -> seq` and
-##   `rows = -> seq` take a `LinkSeq` and follow it edit by edit.
+## - A property that reads `link.value` follows it: `Label(text = "Count: " &
+##   $count.value)`. The widget is registered as a dependent of `count` (the Link's
+##   `dependentWidgets` set), and re-evaluates the expression when `count` is set.
+##   To write a widget's value back, give it a handler: `TextInput(text = name.value,
+##   onChange = name.setter)`. Handlers are closures; they are not watched.
+##   `items = -> source` / `rows = -> source` are the one arrow left: a LinkSeq or
+##   RowSource followed edit by edit.
 
 import macros, std/strutils
 import types
@@ -114,81 +114,64 @@ proc rewriteControlFlow(parent, stmt: NimNode): NimNode
 
 
 # ---------------------------------------------------------------------------
-# Binding arguments: `text = -> name`, `text = -> "Hello, {name}"`
+# Binding: a property that reads `link.value`
 # ---------------------------------------------------------------------------
+#
+# `Label(text = "Count: " & $count.value)` is an ordinary Nim expression. The
+# macro looks for `x.value` reads in it (not inside a closure), and after the
+# widget is built it
+#   1. registers the widget as a dependent of each such Link
+#      (`dependsOn`, which is `link.dependentWidgets.incl(widget)`), and
+#   2. gives the widget a refresh step that re-evaluates the expression and
+#      assigns the property (`refreshWith`).
+# Setting a Link marks its dependent widgets dirty; their next layout runs the
+# refresh. That is the whole mechanism. Handlers (`onClick = proc () = ...`) are
+# closures and are left alone: they read and write Links when they run.
+#
+# `->` remains for one thing: `ListView(items -> source)` style list sources
+# (`items = -> source`, `rows = -> source`), which follow a LinkSeq or RowSource
+# edit by edit instead of re-copying a seq.
 
-type Arrow = enum arrowToWidget
+proc isClosure(n: NimNode): bool =
+  n.kind in {nnkLambda, nnkProcDef, nnkFuncDef, nnkDo}
 
-proc arrowOf(node: NimNode): tuple[isArrow: bool, arrow: Arrow] =
-  ## `->` as a prefix operator on a value: state flows to the widget. That is the
-  ## only direction there is; the other way is an explicit handler.
+proc valueReads(n: NimNode, reads: var seq[NimNode]) =
+  ## Every `x.value` in `n`, outside closures.
+  if n.isClosure: return
+  if n.kind == nnkDotExpr and n.len == 2 and n[1].kind == nnkIdent and
+     n[1].strVal == "value":
+    var seen = false
+    for r in reads:
+      if r.repr == n[0].repr: seen = true
+    if not seen: reads.add n[0]
+  for child in n: valueReads(child, reads)
+
+proc isHandlerField(field: string): bool =
+  field.len > 2 and field.startsWith("on") and field[2].isUpperAscii
+
+proc arrowTarget(node: NimNode): NimNode =
+  ## `-> source` (a prefix `->`): the source. nil when `node` is not one.
   if node.kind == nnkPrefix and node[0].kind == nnkIdent:
     case node[0].strVal
-    of "->": return (true, arrowToWidget)
+    of "->": return node[1]
     of "<->", "<-":
-      error("ui: bindings are one-way. Use `->` to show state in a widget, and a handler " &
-            "to write back: `TextInput(text = -> name, onChange = name.setter)`", node)
+      error("ui: bindings are one-way. Read state with `.value` " &
+            "(`TextInput(text = name.value, onChange = name.setter)`); " &
+            "a handler writes it back", node)
     else: discard
-  (false, arrowToWidget)
+  nil
 
-proc interpolation(source: string, at: NimNode):
-    tuple[links: seq[NimNode], text: NimNode] =
-  ## "Hello, {name}!" -> the Link expressions in the braces, and the string
-  ## expression that reads their current values.
-  var pieces: seq[NimNode]
-  var literal = ""
-  var i = 0
-  while i < source.len:
-    if source[i] == '{' and i + 1 < source.len and source[i + 1] == '{':
-      literal.add '{'; i += 2
-    elif source[i] == '}' and i + 1 < source.len and source[i + 1] == '}':
-      literal.add '}'; i += 2
-    elif source[i] == '{':
-      let close = source.find('}', i)
-      if close < 0: error("ui: unclosed '{' in \"" & source & "\"", at)
-      if literal.len > 0: pieces.add newLit(literal); literal = ""
-      let link = parseExpr(source[i + 1 ..< close])
-      result.links.add link
-      pieces.add newCall(ident("$"), newDotExpr(link, ident("value")))
-      i = close + 1
-    else:
-      literal.add source[i]; inc i
-  if literal.len > 0: pieces.add newLit(literal)
-  if pieces.len == 0: pieces.add newLit("")
-  var text = pieces[0]
-  if text.kind != nnkStrLit: text = infix(newLit(""), "&", text)
-  for k in 1 ..< pieces.len: text = infix(text, "&", pieces[k])
-  result.text = text
-
-proc bindStatements(w: NimNode, field: string, arrow: Arrow,
-                    operand: NimNode): NimNode =
-  ## What an arrow argument becomes after the widget exists.
+proc bindingStatements(w: NimNode, field: string, expr: NimNode,
+                       reads: seq[NimNode]): NimNode =
+  ## The widget shows `expr`, now and whenever any Link it reads changes.
   result = newStmtList()
-  let fieldAccess = newDotExpr(w, ident(field))
-  if operand.kind in {nnkStrLit, nnkTripleStrLit}:
-    let (links, text) = interpolation(operand.strVal, operand)
-    for link in links:
-      let v = genSym(nskParam, "v")
-      let apply = newProc(newEmptyNode(),
-        [newEmptyNode(), newIdentDefs(v, newCall(ident("typeof"),
-          newDotExpr(link, ident("value"))))],
-        newStmtList(newAssignment(fieldAccess, text)), nnkLambda)
-      result.add newCall(ident("bindTo"), link, w, apply)
-    if links.len == 0:
-      result.add newAssignment(fieldAccess, newLit(operand.strVal))
-    return
-  if field in ["items", "rows"]:
-    # A list: `ListView(items = -> source)` shows a RowSource (or follows a
-    # LinkSeq) without copying it.
-    result.add newCall(ident(if field == "items": "bindItems" else: "bindRows"),
-                       w, operand)
-    return
-  let v = genSym(nskParam, "v")
-  let apply = newProc(newEmptyNode(),
-    [newEmptyNode(), newIdentDefs(v, newCall(ident("typeof"),
-      newDotExpr(operand, ident("value"))))],
-    newStmtList(newAssignment(fieldAccess, v)), nnkLambda)
-  result.add newCall(ident("bindTo"), operand, w, apply)
+  let target = newDotExpr(w, ident(field))
+  result.add newAssignment(target, expr)                      # now
+  for link in reads:
+    result.add newCall(ident("dependsOn"), w, link)
+  let apply = newProc(newEmptyNode(), [newEmptyNode()],
+                      newStmtList(newAssignment(target, expr)), nnkLambda)
+  result.add newCall(ident("refreshWith"), w, apply)
 
 proc buildCall(node: NimNode, body: NimNode): NimNode =
   ## `Foo(a, b)` with an optional child block, as an expression. The block
@@ -196,18 +179,33 @@ proc buildCall(node: NimNode, body: NimNode): NimNode =
   ## than read off `node`.
   let widgetSym = genSym(nskLet, "w")
   var call = newCall(constructorName(node[0]))
-  var bindings: seq[tuple[field: string, arrow: Arrow, operand: NimNode]]
+  var reactive: seq[tuple[field: string, expr: NimNode, reads: seq[NimNode]]]
+  var lists: seq[tuple[field: string, source: NimNode]]
   for i in 1 ..< node.len:
     if node[i].kind == nnkStmtList: continue
-    if node[i].kind == nnkExprEqExpr and node[i][1].arrowOf.isArrow:
-      bindings.add (node[i][0].strVal, node[i][1].arrowOf.arrow, node[i][1][1])
-    else:
-      call.add(node[i])
+    if node[i].kind == nnkExprEqExpr:
+      let field = node[i][0].strVal
+      let src = node[i][1].arrowTarget
+      if src != nil:
+        if field notin ["items", "rows"]:
+          error("ui: `->` is for list sources (items, rows). Read state with " &
+                "`.value`: `" & field & " = link.value`", node[i])
+        lists.add (field, src)
+        continue
+      var reads: seq[NimNode]
+      if not field.isHandlerField: node[i][1].valueReads(reads)
+      if reads.len > 0:
+        reactive.add (field, node[i][1], reads)
+        continue
+    call.add(node[i])
 
   var stmts = newStmtList(nnkLetSection.newTree(
     newIdentDefs(widgetSym, newEmptyNode(), call)))
-  for b in bindings:
-    stmts.add bindStatements(widgetSym, b.field, b.arrow, b.operand)
+  for l in lists:
+    stmts.add newCall(ident(if l.field == "items": "bindItems" else: "bindRows"),
+                      widgetSym, l.source)
+  for r in reactive:
+    stmts.add bindingStatements(widgetSym, r.field, r.expr, r.reads)
   if body != nil:
     addChildrenTo(widgetSym, body, stmts)
   stmts.add(widgetSym)

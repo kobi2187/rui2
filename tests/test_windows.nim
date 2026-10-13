@@ -27,9 +27,9 @@ proc reset() =
 proc content(name: Link[string], level: Link[float32]): Widget =
   ui:
     Column(spacing = 4.0):
-      Label(text = -> "Hello, {name}")
-      TextInput(text = -> name, onChange = name.setter)
-      Slider(value = -> level, onChange = level.setter)
+      Label(text = "Hello, " & $name.value)
+      TextInput(text = name.value, onChange = name.setter)
+      Slider(value = level.value, onChange = level.setter)
       Button(text = "Go")
 
 proc newWin(title: string, name: Link[string], level: Link[float32],

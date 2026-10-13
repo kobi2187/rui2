@@ -26,12 +26,12 @@ proc buildUI*(): Widget =
     VStack(spacing = 10.0, padding = 20.0):
       Label(text = "Shopping list", fontSize = 22.0, bold = true)
       HStack(spacing = 8.0):
-        TextInput(text = -> draft, placeholder = "Add an item",
+        TextInput(text = draft.value, placeholder = "Add an item",
                   onChange = draft.setter,
                   onSubmit = proc (t: string) = add()).named("draft").size(220, 32)
         Button(text = "Add", onClick = add).named("add")
-      ListBox(items = -> items, visibleRows = 6).named("list").size(300, 150)
-      Label(text = -> count).named("count")
+      ListBox(items = items.value, visibleRows = 6).named("list").size(300, 150)
+      Label(text = count.value).named("count")
       Button(text = "Clear", onClick = proc () = setItems(@[])).named("clear")
 
 when isMainModule:

@@ -32,24 +32,24 @@ suite "spacing modifiers":
     let b = newButton(text = "A").size(120, 40)
     check b.sizeRequest == Size(width: 120, height: 40)
 
-suite "binding arrows":
+suite "binding: a property that reads link.value":
 
-  test "-> pushes a Link into a property":
+  test "a property reading link.value follows the link":
     let name = newLink("Ada")
     let root = ui:
       Column():
-        Label(text = -> name)
+        Label(text = name.value)
     let label = Label(root.children[0])
     check label.text == "Ada"
     name.value = "Bob"
     label.onRefresh()
     check label.text == "Bob"
 
-  test "a handler writes the widget's value back; -> shows state in the widget":
+  test "a handler writes the widget's value back":
     let name = newLink("Ada")
     let root = ui:
       Column():
-        TextInput(text = -> name, onChange = name.setter)
+        TextInput(text = name.value, onChange = name.setter)
     let input = TextInput(root.children[0])
     check input.text == "Ada"
     input.onChange("Zed")                  # the user typed: the handler wrote it back
@@ -62,13 +62,35 @@ suite "binding arrows":
     let on = newLink(false)
     let root = ui:
       Column():
-        Checkbox(text = "x", checked = -> on, onToggle = on.setter)
+        Checkbox(text = "x", checked = on.value, onToggle = on.setter)
     let box = Checkbox(root.children[0])
     box.onToggle(true)
     check on.value
     on.value = false
     box.onRefresh()
     check not box.checked
+
+  test "the widget is in the Link's dependentWidgets; a handler that reads the Link is not a dependency":
+    let a = newLink("x")
+    let b = newLink(0)
+    let root = ui:
+      Column():
+        Label(text = a.value & "!")
+        Button(text = "go", onClick = proc () = b.value = b.value + 1)
+    check Widget(root.children[0]) in a.dependentWidgets
+    check b.dependentWidgets.len == 0
+
+  test "two expressions reading the same Link register the widget once, and one Link per read":
+    let first = newLink("Ada")
+    let n = newLink(2)
+    let root = ui:
+      Column():
+        Label(text = first.value & " (" & $n.value & ")")
+    let label = Label(root.children[0])
+    check label in first.dependentWidgets and label in n.dependentWidgets
+    n.value = 3
+    label.onRefresh()
+    check label.text == "Ada (3)"
 
   test "the two-way arrows are gone, with a message saying what to write instead":
     check not compiles(ui(Column(): TextInput(text = <-> newLink(""))))
@@ -78,7 +100,7 @@ suite "binding arrows":
     var heard = ""
     let root = ui:
       Column():
-        TextInput(text = -> name, onChange = proc(s: string) = heard = s)
+        TextInput(text = name.value, onChange = proc(s: string) = heard = s)
     TextInput(root.children[0]).onChange("hi")
     check heard == "hi"
 
@@ -87,7 +109,7 @@ suite "binding arrows":
     let n = newLink(2)
     let root = ui:
       Column():
-        Label(text = -> "Hello, {first} ({n})")
+        Label(text = "Hello, " & $first.value & " (" & $n.value & ")")
     let label = Label(root.children[0])
     check label.text == "Hello, Ada (2)"
     n.value = 3

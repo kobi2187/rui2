@@ -35,22 +35,22 @@ proc buildUI*(): Widget =
             columnSpacing = 12.0, rowSpacing = 10.0):
         TableRow():
           Label(text = "Nickname")
-          TextInput(text = -> nickname, onChange = proc (s: string) =
+          TextInput(text = nickname.value, onChange = proc (s: string) =
             nickname.value = s
             refresh()).named("nickname")
         TableRow():
           Label(text = "Volume")
-          Slider(value = -> volume, minValue = 0, maxValue = 100,
+          Slider(value = volume.value, minValue = 0, maxValue = 100,
                  onChange = proc (v: float32) =
                    volume.value = v
                    refresh()).named("volume")
-      Checkbox(text = "Notifications", checked = -> notifications,
+      Checkbox(text = "Notifications", checked = notifications.value,
                onToggle = proc (on: bool) =
                  notifications.value = on
                  refresh()).named("notifications")
-      Checkbox(text = "Sounds", checked = -> sounds,
+      Checkbox(text = "Sounds", checked = sounds.value,
                onToggle = sounds.setter).named("sounds")
-      Label(text = -> summary).named("summary")
+      Label(text = summary.value).named("summary")
       Button(text = "Reset", onClick = reset).named("reset")
 
 when isMainModule:

@@ -26,9 +26,9 @@ proc spawn() =
   w.addChild:
     ui:
       Column(spacing = 8.0, crossAxisAlignment = CrossAxisAlignment.start):
-        Label(text = -> "Hello, {name}")
-        TextInput(text = -> name, onChange = name.setter).size(220, 30)
-        Slider(value = -> level, onChange = level.setter).size(220, 28)
+        Label(text = "Hello, " & $name.value)
+        TextInput(text = name.value, onChange = name.setter).size(220, 30)
+        Slider(value = level.value, onChange = level.setter).size(220, 28)
         DatePicker(initialValue = "2026-10-11")
   host.openWindow w
 

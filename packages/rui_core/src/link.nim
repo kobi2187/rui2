@@ -169,7 +169,7 @@ proc setter*[T](link: Link[T]): proc (v: T) {.closure.} =
   ## A handler that writes its argument into the Link: the explicit way to get a
   ## widget's value back into state. Bindings are one-way (state -> widget, `->`);
   ## to write back, hang this on the widget's change action:
-  ## `TextInput(text = -> name, onChange = name.setter)`.
+  ## `TextInput(text = name.value, onChange = name.setter)`.
   result = proc (v: T) = link.value = v
 
 proc get*[T](link: Link[T]): T =
@@ -191,6 +191,21 @@ proc set*[T](link: Link[T], newVal: T) =
 # *and* installs a refresh hook that copies the current value into the widget
 # before each layout. One registration, and the value flows.
 # ============================================================================
+
+proc dependsOn*[T](widget: Widget, link: Link[T]) =
+  ## The widget shows something that comes from `link`: when the link is set it is
+  ## marked dirty. (`ui:` calls this for every `link.value` a property reads.)
+  link.dependentWidgets.incl(widget)
+  widget.disposers.add proc() = link.dependentWidgets.excl(widget)
+
+proc refreshWith*(widget: Widget, apply: proc() {.closure.}) =
+  ## Run `apply` before each layout of the widget (and chain with any earlier one):
+  ## it re-reads the Links and assigns the widget's property.
+  let earlier = widget.onRefresh
+  widget.onRefresh = proc() =
+    if earlier != nil: earlier()
+    apply()
+  widget.layoutDirty = true
 
 proc bindTo*[T](link: Link[T], widget: Widget,
                 apply: proc(value: T) {.closure.}) =
