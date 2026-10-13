@@ -202,7 +202,7 @@ A widget definition is organised into named sections. The common sections are:
 | Section   | Purpose |
 |-----------|---------|
 | `props`   | Public, constructor-settable fields (with optional defaults). Become `newXxx` parameters. |
-| `state`   | Internal reactive state; each field is auto-wrapped in `Link[T]` and initialised. Not in the constructor. Used for `isPressed`, `isHovered`, etc. |
+| `state`   | Internal reactive state; each field is auto-wrapped in `Link[T]` and initialised. Not in the constructor. (Pressed/hover state now lives on `Widget` itself: `pressed`, `under`.) |
 | `actions` | Callback signatures (e.g. `onClick()`, `onChange(v: float)`). Generated as `Option[proc(...)]` fields and `newXxx` params (default `nil`). |
 | `events`  | Event handlers (`on_mouse_down`, `on_mouse_up`, `on_mouse_move`, `on_key_down`, …). Each has access to `widget` and `event`; return `true` to consume, `false` to propagate. |
 | `render`  | (Primitives) drawing code using drawing primitives. |
@@ -282,6 +282,11 @@ type Link*[T] = ref object
   dependentWidgets*: HashSet[Widget]   # direct refs, not ids
   onChange*: proc(oldVal, newVal: T)
 ```
+
+In an app, Links come from a `state:` block (`state: count: int = 0` declares a
+`Store` and a Link per entry; see `docs/store.md`). Bindings in `ui:` are one-way:
+`Label(text = -> count)` pushes state into a widget, and a widget's value goes back
+through a handler (`onChange = name.setter`).
 
 API: `newLink(initial)`, `link.value` / `link.get()` to read,
 `link.value = v` / `link.set(v)` to write, `addDependent`/`removeDependent`/
