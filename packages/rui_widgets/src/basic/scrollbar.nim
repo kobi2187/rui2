@@ -4,6 +4,7 @@
 ## Can be vertical or horizontal.
 
 import rui_core
+import ../value_input
 import rui_drawing
 import std/options
 
@@ -34,11 +35,12 @@ definePrimitive(ScrollBar):
         return false
       widget.dragging = true
       # Jump straight to the clicked position, then keep tracking on move.
-      let track = if widget.vertical: widget.bounds.height else: widget.bounds.width
-      let pos = if widget.vertical: event.mousePos.y - widget.bounds.y
-                else: event.mousePos.x - widget.bounds.x
-      let ratio = if track > 0: clamp(pos / track, 0.0'f32, 1.0'f32) else: 0.0'f32
-      let newValue = widget.minValue + ratio * (widget.maxValue - widget.minValue)
+      let newValue = if widget.vertical:
+          valueAtPointer(event.mousePos.y, widget.bounds.y, widget.bounds.height,
+                         widget.minValue, widget.maxValue, 0.0)
+        else:
+          valueAtPointer(event.mousePos.x, widget.bounds.x, widget.bounds.width,
+                         widget.minValue, widget.maxValue, 0.0)
       if newValue != widget.value:
         widget.value = newValue
         widget.isDirty = true
@@ -49,11 +51,12 @@ definePrimitive(ScrollBar):
     on_mouse_move:
       if not widget.dragging or widget.disabled:
         return false
-      let track = if widget.vertical: widget.bounds.height else: widget.bounds.width
-      let pos = if widget.vertical: event.mousePos.y - widget.bounds.y
-                else: event.mousePos.x - widget.bounds.x
-      let ratio = if track > 0: clamp(pos / track, 0.0'f32, 1.0'f32) else: 0.0'f32
-      let newValue = widget.minValue + ratio * (widget.maxValue - widget.minValue)
+      let newValue = if widget.vertical:
+          valueAtPointer(event.mousePos.y, widget.bounds.y, widget.bounds.height,
+                         widget.minValue, widget.maxValue, 0.0)
+        else:
+          valueAtPointer(event.mousePos.x, widget.bounds.x, widget.bounds.width,
+                         widget.minValue, widget.maxValue, 0.0)
       if newValue != widget.value:
         widget.value = newValue
         widget.isDirty = true

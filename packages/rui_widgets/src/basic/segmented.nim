@@ -11,6 +11,7 @@
 ## ```
 
 import rui_core
+import ../choice
 import rui_drawing
 import raylib
 
@@ -68,14 +69,10 @@ definePrimitive(SegmentedControl):
 
     on_key_down:
       if widget.disabled or not widget.focused: return false
-      let step = if event.key == KeyboardKey.Left: -1
-                 elif event.key == KeyboardKey.Right: 1
-                 else: 0
-      if step == 0: return false
-      let next = widget.selectedIndex + step
-      if next < 0 or next >= widget.options.len: return false   # at the end: let it navigate on
-      widget.selectedIndex = next
-      if widget.onSelect != nil: widget.onSelect(next)
+      let move = choiceKey(event.key, widget.options.len, widget.selectedIndex, vertical = false)
+      if not move.handled: return false
+      widget.selectedIndex = move.index
+      if widget.onSelect != nil: widget.onSelect(move.index)
       return true
 
   layout:

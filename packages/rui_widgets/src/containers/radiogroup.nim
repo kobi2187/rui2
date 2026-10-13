@@ -8,6 +8,7 @@
 ## children would each own their own `selected` flag with nothing to reconcile them.
 
 import rui_core
+import ../choice
 import rui_drawing
 import std/options
 # rui_core does not re-export KeyboardKey -- its Menu/Down/Up fields collide
@@ -78,18 +79,12 @@ definePrimitive(RadioGroup):
       return false
 
     on_key_down:
-      if widget.disabled or widget.options.len == 0:
-        return false
-      var newIndex = widget.selectedIndex
-      case event.key
-      of Up:   newIndex = max(0, widget.selectedIndex - 1)
-      of Down: newIndex = min(widget.options.len - 1, widget.selectedIndex + 1)
-      else:    return false
-      if newIndex != widget.selectedIndex:
-        widget.selectedIndex = newIndex
-        widget.isDirty = true
-        if widget.onSelect != nil:
-          widget.onSelect(newIndex)
+      if widget.disabled or not widget.focused: return false
+      let move = choiceKey(event.key, widget.options.len, widget.selectedIndex, vertical = true)
+      if not move.handled: return false
+      widget.selectedIndex = move.index
+      widget.isDirty = true
+      if widget.onSelect != nil: widget.onSelect(move.index)
       return true
 
   layout:
