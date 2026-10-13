@@ -70,6 +70,10 @@ proc fullRepaint(s: Scene): seq[Color] =
   s.root.renderPass()
   pixels(s.root)
 
+var before: seq[Color]
+
+proc fullBefore(s: Scene): seq[Color] = before
+
 proc changed(w: Widget): int =
   ## How many widgets in the tree redrew only part of themselves last pass.
   if w.damage.width < w.bounds.width or w.damage.height < w.bounds.height: result = 1
@@ -134,3 +138,16 @@ suite "partial repaint":
     s.bar.markDirtyToRoot()
     settle(s)
     check changed(s.root) == 0
+
+  test "a leaf marked dirty by hand (no walk to the root) still reaches the screen":
+    # What a key press does: the widget's handler sets its own flag and nobody
+    # marks the ancestors. The parents used to be re-composited only when something
+    # else happened to repaint them -- typed text showed up a blink late.
+    let s = build()
+    before = pixels(s.root)
+    s.bar.value = 90.0
+    s.bar.isDirty = true                          # not markDirtyToRoot
+    settle(s)
+    let shown = pixels(s.root)
+    check shown != fullBefore(s)
+    check shown == fullRepaint(s)

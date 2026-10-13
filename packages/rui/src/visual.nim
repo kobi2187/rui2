@@ -46,6 +46,7 @@ type
     at: MonoTime
     framesAtArm: int
     changedAt: Option[MonoTime]
+    changedEpoch: float
     changedFrame: int
     changedHash: uint64
 
@@ -68,6 +69,7 @@ type
     watchers: Table[string, Watcher]
     shotDir: string
     rectOf*: RectOf
+    resizeTo*: proc(width, height: int) {.closure.}
 
 const frameWindow = 600
 
@@ -109,6 +111,8 @@ proc hex*(h: uint64): string = toHex(h.BiggestUInt, 16).toLowerAscii
 proc capture*(probe: VisualProbe) =
   ## Read the framebuffer; call between drawing and `endDrawing`, so it is the
   ## frame about to be presented. Resolves anything waiting on a change.
+  let nowEpoch = epochTime()
+  let now = getMonoTime()       # the frame is composited: the read-back below is not latency
   let image = loadImageFromScreen()
   if image.data == nil or image.width <= 0: return
   let n = image.width.int * image.height.int * 4
@@ -118,7 +122,6 @@ proc capture*(probe: VisualProbe) =
   copyMem(addr probe.shot.pixels[0], image.data, n)
   probe.haveShot = true
   probe.wantPresent = false
-  let now = getMonoTime()
   for sel, arm in probe.arms.mpairs:
     if arm.changedAt.isNone:
       let r = probe.rectOf(sel)
@@ -126,6 +129,7 @@ proc capture*(probe: VisualProbe) =
         let stats = probe.shot.regionStats(r.get.x, r.get.y, r.get.w, r.get.h)
         if stats.hash != arm.hash:
           arm.changedAt = some(now)
+          arm.changedEpoch = nowEpoch
           arm.changedFrame = probe.presented + 1
           arm.changedHash = stats.hash
   for sel, watcher in probe.watchers.mpairs:
@@ -226,9 +230,15 @@ proc answer*(probe: VisualProbe, selector, what: string): VisualReply =
   let fresh = "fresh" in parts
   case parts[0]
   of "clock":
-    ok("ms=" & ms3(probe.ms(getMonoTime())) & " frame=" & $probe.presented)
+    ok("ms=" & ms3(probe.ms(getMonoTime())) & " frame=" & $probe.presented &
+       " epoch=" & formatFloat(epochTime(), ffDecimal, 6))
   of "frames":
     probe.framesReply()
+  of "resize":
+    if parts.len < 3 or probe.resizeTo == nil: return fail("visual resize W H")
+    probe.resizeTo(intArg(parts, 1, 800), intArg(parts, 2, 600))
+    probe.wantPresent = true
+    ok("resized")
   of "perf":
     # Per-phase timers; only present in a build with -d:ruiPerf.
     if parts.len > 1 and parts[1] == "reset":
@@ -259,7 +269,8 @@ proc answer*(probe: VisualProbe, selector, what: string): VisualReply =
       if arm.changedAt.isSome:
         some(ok("ms=" & ms3(float((arm.changedAt.get - arm.at).inMicroseconds) / 1000.0) &
                 " frames=" & $(arm.changedFrame - arm.framesAtArm) &
-                " hash=" & hex(arm.changedHash)))
+                " hash=" & hex(arm.changedHash) &
+                " at=" & formatFloat(arm.changedEpoch, ffDecimal, 6)))
       elif getMonoTime() > deadline:
         some(fail("no visual change in " & $timeout & "ms (" & selector & ")"))
       else: none(VisualReply))

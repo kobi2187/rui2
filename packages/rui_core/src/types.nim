@@ -272,6 +272,9 @@ type
     paintSig*: int
       ## What its children looked like -- count, order, bounds, visibility -- when
       ## it was last painted. A partial repaint is allowed only while it still does.
+    paintPass*: int
+      ## Which render pass last repainted it (see main_loop `renderPassNumber`): how
+      ## a parent knows a child was repainted this pass, however it came to be dirty.
     damage*: Rect
       ## The part of the widget (screen coordinates) its last repaint redrew: all
       ## of it, or just the area a child changed in. What the parent re-blits.
