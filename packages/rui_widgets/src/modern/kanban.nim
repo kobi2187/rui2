@@ -84,6 +84,7 @@ definePrimitive(KanbanBoard):
       if hit.isNone:
         return false
       widget.held = true
+      capturePointer(widget)
       widget.dragging = false
       widget.grabbed = hit.get
       widget.focus = hit.get

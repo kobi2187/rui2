@@ -180,6 +180,7 @@ defineWidget(ScrollView):
         let thumbLen = if vertical: g.thumb.height else: g.thumb.width
         if along >= thumbStart and along <= thumbStart + thumbLen:
           widget.dragAxis = if vertical: 1 else: 2
+          capturePointer(widget)
           widget.dragGrab = along - thumbStart
         else:
           let page = if vertical: bars.innerHeight else: bars.innerWidth

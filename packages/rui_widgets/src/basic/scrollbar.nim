@@ -34,6 +34,7 @@ definePrimitive(ScrollBar):
       if widget.disabled:
         return false
       widget.dragging = true
+      capturePointer(widget)
       # Jump straight to the clicked position, then keep tracking on move.
       let newValue = if widget.vertical:
           valueAtPointer(event.mousePos.y, widget.bounds.y, widget.bounds.height,

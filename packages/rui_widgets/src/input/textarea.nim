@@ -708,6 +708,7 @@ definePrimitive(TextArea):
                              event.mousePos.y - thumb.y
                            else: thumb.height / 2
           widget.draggingBar = true
+          capturePointer(widget)
           widget.scrollToThumbAt(event.mousePos.y, lineH, inner)
           return true
       let at = widget.indexAt(event.mousePos)
@@ -725,6 +726,7 @@ definePrimitive(TextArea):
       else:
         widget.edit: buf.placeCursor(at)
         widget.dragging = true
+        capturePointer(widget)       # selecting keeps going past the box
       return true
 
     on_mouse_move:

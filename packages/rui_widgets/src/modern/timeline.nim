@@ -120,6 +120,7 @@ definePrimitive(Timeline):
           return true
       # Empty space starts a pan.
       widget.isDragging = true
+      capturePointer(widget)
       widget.dragStartX = event.mousePos.x + widget.scrollOffset
       return true
 

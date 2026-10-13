@@ -126,6 +126,7 @@ definePrimitive(MapWidget):
 
       if widget.enablePan:
         widget.isPanning = true
+        capturePointer(widget)
         widget.panStart = Point(x: event.mousePos.x, y: event.mousePos.y)
         widget.panStartCenter = widget.center
 

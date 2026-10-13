@@ -70,6 +70,7 @@ definePrimitive(RangeSlider):
         thumbCenter(t, widget.low, widget.minValue, widget.maxValue),
         thumbCenter(t, widget.high, widget.minValue, widget.maxValue))
       widget.dragging = true
+      capturePointer(widget)
       widget.setThumb(widget.active, valueAtPointer(event.mousePos.x, t.x, t.width,
         widget.minValue, widget.maxValue, widget.step))
       return true

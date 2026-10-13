@@ -112,6 +112,7 @@ definePrimitive(Slider):
       # every other slider does and what makes a single click useful.
       if not widget.disabled:
         widget.dragging = true
+        capturePointer(widget)       # the thumb follows the pointer off the track
         let t = widget.track
         widget.setValue(valueAtPointer(event.mousePos.x, t.x, t.width,
                                        widget.minValue, widget.maxValue, widget.step))
