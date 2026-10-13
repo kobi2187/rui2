@@ -71,73 +71,61 @@ proc createDarkTheme*(): Theme =
   result = brandTheme(midnightSpec())
 
 proc createBeosTheme*(): Theme =
-  result = newTheme("Classic BeOS (Authentic)")
+  ## BeOS R4/R5: the grey panel, one-pixel bevels (white inside the top-left,
+  ## soft grey inside the bottom-right), square corners, 12px sans, no hover
+  ## effect, a pushed button gone darker with its bevel inverted, text fields
+  ## and troughs sunk, and the Be blue (0, 0, 229) for focus and fills.
+  ## The greys are Be's own tints of the 216 panel: 255, 232, 216, 184, 152, 96.
+  let panel = Color(r: 216, g: 216, b: 216, a: 255)
+  let white = Color(r: 255, g: 255, b: 255, a: 255)
+  let grey152 = Color(r: 152, g: 152, b: 152, a: 255)
+  let grey96 = Color(r: 96, g: 96, b: 96, a: 255)
+  let pushed = Color(r: 184, g: 184, b: 184, a: 255)
+  let black = Color(r: 0, g: 0, b: 0, a: 255)
+  let beBlue = Color(r: 0, g: 0, b: 229, a: 255)
 
-  # Create base with 3D bevel for authentic BeOS look
-  result.base[Default] = ThemeProps(
-    backgroundColor: some(makeColor(217, 217, 217)),    # BeOS gray
-    foregroundColor: some(makeColor(0, 0, 0)),
-    bevelStyle: some(Raised),                           # 3D raised button
-    highlightColor: some(makeColor(255, 255, 255)),     # White highlight
-    shadowColor: some(makeColor(153, 153, 153)),        # Gray shadow
-    darkShadowColor: some(makeColor(102, 102, 102)),    # Dark shadow
-    cornerRadius: some(0.0f32),                            # Sharp corners!
-    fontSize: some(12.0f32),
-    padding: some(EdgeInsets(top: 4.0, right: 6.0, bottom: 4.0, left: 6.0)),
-    spacing: some(6.0f32)
-  )
+  var spec = BrandSpec(
+    name: "BeOS", accent: beBlue, onAccent: white,
+    canvas: panel, surface: panel, text: black, border: grey96, radius: 0,
+    fontSize: 12, padding: 4, paddingX: 10, borderWidth: 2, focusRingWidth: 1,
+    controlHeight: 22, indicatorSize: 14, trackThickness: 6, thumbSize: 14,
+    progressHeight: 14, rowHeight: 18, scrollbarThickness: 14, noTransitions: true)
+  result = brandTheme(spec)
+  result.name = "Classic BeOS"
 
-  result.base[Info] = ThemeProps(
-    backgroundColor: some(makeColor(255, 255, 200)),
-    foregroundColor: some(makeColor(0, 0, 0)),
-    bevelStyle: some(Raised),
-    highlightColor: some(makeColor(255, 255, 255)),
-    shadowColor: some(makeColor(200, 200, 150)),
-    darkShadowColor: some(makeColor(150, 150, 100))
-  )
+  proc bevelled(p: var ThemeProps) =
+    p.bevelStyle = some(BeRaised)
+    p.highlightColor = some(white)
+    p.shadowColor = some(grey152)
+    p.darkShadowColor = some(grey96)
+    p.cornerRadius = some(0.0'f32)
+    p.dropShadowOffset = none(tuple[x, y: float32])
+    p.borderWidth = some(2.0'f32)
+    p.focusRingColor = some(beBlue)
+    p.focusRingWidth = some(1.0'f32)
 
-  result.base[Success] = ThemeProps(
-    backgroundColor: some(makeColor(200, 255, 200)),
-    foregroundColor: some(makeColor(0, 100, 0)),
-    bevelStyle: some(Raised),
-    highlightColor: some(makeColor(255, 255, 255)),
-    shadowColor: some(makeColor(150, 200, 150)),
-    darkShadowColor: some(makeColor(100, 150, 100))
-  )
-
-  result.base[Warning] = ThemeProps(
-    backgroundColor: some(makeColor(255, 200, 150)),
-    foregroundColor: some(makeColor(100, 50, 0)),
-    bevelStyle: some(Raised),
-    highlightColor: some(makeColor(255, 255, 255)),
-    shadowColor: some(makeColor(200, 150, 100)),
-    darkShadowColor: some(makeColor(150, 100, 50))
-  )
-
-  result.base[Danger] = ThemeProps(
-    backgroundColor: some(makeColor(255, 200, 200)),
-    foregroundColor: some(makeColor(150, 0, 0)),
-    bevelStyle: some(Raised),
-    highlightColor: some(makeColor(255, 255, 255)),
-    shadowColor: some(makeColor(200, 150, 150)),
-    darkShadowColor: some(makeColor(150, 100, 100))
-  )
-
-  # State overrides - pressed buttons get sunken bevel
-  result.states[Default][Pressed] = ThemeProps(
-    bevelStyle: some(Sunken)  # Invert bevel when pressed!
-  )
-  result.states[Info][Pressed] = ThemeProps(bevelStyle: some(Sunken))
-  result.states[Success][Pressed] = ThemeProps(bevelStyle: some(Sunken))
-  result.states[Warning][Pressed] = ThemeProps(bevelStyle: some(Sunken))
-  result.states[Danger][Pressed] = ThemeProps(bevelStyle: some(Sunken))
-
-  # Disabled state - no bevel
-  result.states[Default][Disabled] = ThemeProps(
-    backgroundColor: some(makeColor(204, 204, 204)),
-    foregroundColor: some(makeColor(153, 153, 153)),
-    bevelStyle: some(Flat)
-  )
+  for intent in ThemeIntent:
+    var base = result.base[intent]
+    bevelled(base)
+    base.backgroundColor = some(panel)
+    base.foregroundColor = some(black)
+    base.borderColor = some(grey96)
+    base.activeColor = some(beBlue)
+    base.hoverColor = some(panel)           # Be shows no hover effect
+    base.pressedColor = some(pushed)
+    base.fontFamily = none(string)
+    result.base[intent] = base
+    # Pressed: darker face, the bevel pushed in. Hover changes nothing.
+    result.states[intent][Hovered] = ThemeProps(backgroundColor: some(panel))
+    result.states[intent][Pressed] = ThemeProps(backgroundColor: some(pushed),
+                                                bevelStyle: some(BeSunken))
+    result.states[intent][Focused] = ThemeProps(borderColor: some(grey96),
+                                                focusRingColor: some(beBlue))
+    result.states[intent][Selected] = ThemeProps(backgroundColor: some(grey152),
+                                                 foregroundColor: some(black))
+    var off = ThemeProps(backgroundColor: some(panel),
+                         foregroundColor: some(grey152), bevelStyle: some(BeRaised))
+    result.states[intent][Disabled] = off
 
 # Joy Theme (Playful)
 proc createJoyTheme*(): Theme =

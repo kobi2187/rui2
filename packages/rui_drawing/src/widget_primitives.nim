@@ -12,6 +12,7 @@ import rui_core
 import theme_sys_core
 import primitives/[shapes, text, controls, indicators, panels]
 import pango_text  # drawTextPango
+import effects/rect_effects
 
 import raylib
 import std/unicode
@@ -144,15 +145,52 @@ proc borderFor(props: ThemeProps, focused, active: bool): Color =
   else:
     props.borderColor.get(Color(r: 180, g: 180, b: 180, a: 255))
 
+proc fieldColor*(props: ThemeProps): Color =
+  ## What a text field or list is filled with: white in a bevelled theme (Be's
+  ## wells are white against the grey panel), else the control's own colour.
+  if props.bevelStyle.get(Flat) != Flat: Color(r: 255, g: 255, b: 255, a: 255)
+  else: props.backgroundColor.get(Color(r: 255, g: 255, b: 255, a: 255))
+
+proc bevelOf(props: ThemeProps, pressed = false): BevelStyle =
+  ## The theme's bevel, flipped when pressed: a raised key pushed in goes sunken.
+  result = props.bevelStyle.get(Flat)
+  if pressed:
+    case result
+    of Raised: result = Sunken
+    of BeRaised: result = BeSunken
+    else: discard
+
+proc drawBevelBody*(rect: Rect, props: ThemeProps, fill: Color,
+                    pressed = false, style = none(BevelStyle)): bool =
+  ## Fill and bevel in one: true when the theme has a bevel (so the caller
+  ## skips its flat outline), false for a flat theme. `style` forces one
+  ## (a text field is always sunken in a bevelled theme).
+  let st = if style.isSome and props.bevelStyle.get(Flat) != Flat: style.get
+           else: bevelOf(props, pressed)
+  if st == Flat: return false
+  drawBeveledRect(rect, st, fill, 0.0,
+                  props.highlightColor.get(Color(r: 255, g: 255, b: 255, a: 255)),
+                  props.shadowColor.get(Color(r: 128, g: 128, b: 128, a: 255)),
+                  props.darkShadowColor.get(Color(r: 0, g: 0, b: 0, a: 255)),
+                  max(1.0'f32, props.strokeWidth))
+  true
+
 proc drawThemedBackground*(rect: Rect, props: ThemeProps,
-                          pressed = false, hovered = false) =
-  ## Draw background with state-based color selection
+                          pressed = false, hovered = false, well = false) =
+  ## Draw background with state-based color selection. In a bevelled theme the
+  ## box is raised, or a white sunken `well` for a list or field.
+  if well:
+    if drawBevelBody(rect, props, props.fieldColor, style = some(BeSunken)): return
+  elif drawBevelBody(rect, props, backgroundFor(props, pressed, hovered), pressed):
+    return
   drawRoundedRect(rect, props.cornerRadius.get(4.0),
                   backgroundFor(props, pressed, hovered))
 
 proc drawThemedBorder*(rect: Rect, props: ThemeProps, focused = false, active = false) =
   ## The theme's outline, `borderWidth` deep inside `rect`.
   let w = props.strokeWidth
+  if props.bevelStyle.get(Flat) != Flat:
+    return                     # the bevel is the outline
   if w > 0:
     drawRoundedRectLines(rect, props.cornerRadius.get(4.0), w,
                          borderFor(props, focused, active))
@@ -220,8 +258,9 @@ proc drawInteractiveBox*(rect: Rect, props: ThemeProps,
   ## focus ring -- every one of them sized by the theme.
   drawDropShadow(rect, props, pressed)
   let body = bodyRect(rect, props, pressed)
-  drawBox(body, props.cornerRadius.get(4.0), backgroundFor(props, pressed, hovered),
-          borderFor(props, focused, false), props.strokeWidth)
+  if not drawBevelBody(body, props, backgroundFor(props, pressed, hovered), pressed):
+    drawBox(body, props.cornerRadius.get(4.0), backgroundFor(props, pressed, hovered),
+            borderFor(props, focused, false), props.strokeWidth)
   if focused:
     drawThemedFocusRing(body, props)
 
@@ -257,7 +296,16 @@ proc drawCheckbox*(rect: Rect, checked: bool, props: ThemeProps,
   let w = max(1.0'f32, props.strokeWidth)
   let radius = min(props.cornerRadius.get(2.0), rect.width / 4)
   let accent = props.activeColor.get(Color(r: 100, g: 150, b: 255, a: 255))
-  if checked:
+  if props.bevelStyle.get(Flat) != Flat:
+    # A bevelled theme: a sunken well, the tick in the ink colour.
+    let bg = if hovered: props.hoverColor.get(props.backgroundColor.get(WHITE))
+             else: props.backgroundColor.get(WHITE)
+    discard drawBevelBody(rect, props, bg, style = some(BeSunken))
+    if checked:
+      drawCheckmark(Rect(x: rect.x + 2, y: rect.y + 2, width: rect.width - 4,
+                         height: rect.height - 4),
+                    props.foregroundColor.get(BLACK), max(2.0'f32, w * 1.25))
+  elif checked:
     drawBox(rect, radius, accent, accent, 0)
     drawCheckmark(rect, onAccentColor(), max(2.0'f32, w * 1.25))
   else:
@@ -278,6 +326,16 @@ proc drawRadioButton*(rect: Rect, selected: bool, props: ThemeProps,
   let ring = if selected: accent else: borderFor(props, focused, false)
   let bg = if hovered: props.hoverColor.get(props.backgroundColor.get(WHITE))
            else: props.backgroundColor.get(WHITE)
+  if props.bevelStyle.get(Flat) != Flat:
+    # A bevelled theme: a sunken round well -- dark arc above-left, light below-right.
+    let c = Vector2(x: cx, y: cy)
+    drawCircle(c, r, props.highlightColor.get(WHITE))
+    drawCircle(c, r - 1, bg)
+    drawRing(c, r - 1.5, r, 135, 315, 24, props.shadowColor.get(GRAY))
+    drawRing(c, r - 3.0, r - 1.5, 135, 315, 24, props.darkShadowColor.get(BLACK))
+    if selected:
+      drawCircle(c, r * 0.42, props.foregroundColor.get(BLACK))
+    return
   let ringW = if selected: max(w, r * 0.3) else: w
   drawCircle(Vector2(x: cx, y: cy), r, ring)
   drawCircle(Vector2(x: cx, y: cy), max(0.0'f32, r - ringW), bg)
@@ -300,6 +358,18 @@ proc drawSlider*(rect: Rect, value, minVal, maxVal: float32, props: ThemeProps,
   let radius = min(props.cornerRadius.get(4.0), th / 2)
   let cy = rect.y + rect.height / 2
   let track = Rect(x: rect.x, y: cy - th / 2, width: rect.width, height: th)
+  if props.bevelStyle.get(Flat) != Flat:
+    # A bevelled theme: a sunken groove, filled with the accent up to a raised block.
+    let x = clamp(rect.x + rect.width * t, rect.x + d / 2, rect.x + rect.width - d / 2)
+    let face = props.backgroundColor.get(Color(r: 216, g: 216, b: 216, a: 255))
+    discard drawBevelBody(track, props, WHITE, style = some(BeSunken))
+    if x - rect.x > 4:
+      drawRect(Rect(x: rect.x + 2, y: track.y + 2, width: x - rect.x - 2,
+                    height: max(1.0'f32, th - 4)), accent)
+    let blockW = max(8.0'f32, d * 0.6)
+    discard drawBevelBody(Rect(x: x - blockW / 2, y: cy - d / 2, width: blockW, height: d),
+                          props, face, style = some(BeRaised))
+    return
   let rail = props.borderColor.get(Color(r: 200, g: 200, b: 200, a: 255))
   drawBox(track, radius, rail, rail, 0)
   let x = clamp(rect.x + rect.width * t, rect.x + d / 2, rect.x + rect.width - d / 2)
@@ -321,6 +391,14 @@ proc drawProgressBar*(rect: Rect, progress: float32, props: ThemeProps) =
   let radius = min(props.cornerRadius.get(4.0), rect.height / 2)
   let w = props.strokeWidth
   let trough = props.backgroundColor.get(Color(r: 220, g: 220, b: 220, a: 255))
+  if props.bevelStyle.get(Flat) != Flat:
+    discard drawBevelBody(rect, props, WHITE, style = some(BeSunken))
+    let p = clamp(progress, 0.0, 1.0)
+    if p > 0:
+      drawRect(Rect(x: rect.x + 2, y: rect.y + 2, width: (rect.width - 4) * p,
+                    height: rect.height - 4),
+               props.activeColor.get(Color(r: 100, g: 150, b: 255, a: 255)))
+    return
   drawBox(rect, radius, trough, props.borderColor.get(trough), w)
   let p = clamp(progress, 0.0, 1.0)
   if p > 0:
@@ -388,6 +466,11 @@ proc drawComboBox*(rect: Rect, text: string, props: ThemeProps,
   else:
     drawDownArrow(arrowX, arrowY, 8.0, textColor)
 
+proc mixTab(panel: Color): Color =
+  ## An inactive tab in a bevelled theme: the panel, a little darker.
+  Color(r: uint8(panel.r.int * 9 div 10), g: uint8(panel.g.int * 9 div 10),
+        b: uint8(panel.b.int * 9 div 10), a: 255)
+
 proc drawTab*(rect: Rect, text: string, props: ThemeProps,
               active = false, hovered = false) =
   ## Tab = background + bottom indicator + centered text
@@ -400,6 +483,18 @@ proc drawTab*(rect: Rect, text: string, props: ThemeProps,
                   Color(r: 220, g: 220, b: 220, a: 255)
 
   let radius = props.cornerRadius.get(4.0)
+  if props.bevelStyle.get(Flat) != Flat:
+    # A bevelled theme: a raised tab; the active one is the panel colour and
+    # runs into the page below (its bottom edge is painted over).
+    let panel = props.backgroundColor.get(Color(r: 216, g: 216, b: 216, a: 255))
+    discard drawBevelBody(rect, props, if active: panel else: mixTab(panel), style = some(BeRaised))
+    if active:
+      drawRect(Rect(x: rect.x + 1, y: rect.y + rect.height - 2, width: rect.width - 2, height: 3), panel)
+    let ink = if active: props.foregroundColor.get(BLACK) else: Color(r: 96, g: 96, b: 96, a: 255)
+    let style = props.captionStyle(ink, action = true)
+    drawStyledText(text, rect.x + rect.width/2, rect.y + (rect.height - style.fontSize) / 2,
+                   style, centered = true)
+    return
   drawRoundedRect(rect, radius, bgColor)
 
   # Active indicator bar at bottom: as thick as the theme's strokes call for.

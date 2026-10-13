@@ -173,7 +173,7 @@ definePrimitive(ListBox):
       if needCount > 0:
         widget.onLoadMore(widget.items.len, needCount)
 
-    drawThemedBackground(widget.bounds, props)
+    drawThemedBackground(widget.bounds, props, well = true)
 
     let clip = beginClip(widget.bounds)
     let pendingProps = currentTheme.getThemeProps(widget.intent, Disabled)

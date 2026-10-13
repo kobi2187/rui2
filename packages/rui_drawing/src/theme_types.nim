@@ -53,6 +53,8 @@ type
     Interior   # Interior shadow effect (inset content)
     Flatsoft   # Flat design with soft highlight
     Flatconvex # Flat design with convex highlight
+    BeRaised   # BeOS R4/R5 button: grey frame, white inner top-left, mid-grey inner bottom-right
+    BeSunken   # The same, pushed in: a pressed button, a text field, a well
 
   GradientDirection* = enum
     Vertical

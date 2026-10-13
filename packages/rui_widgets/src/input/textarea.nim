@@ -882,7 +882,8 @@ definePrimitive(TextArea):
     if widget.framed:
       let props = widget.themeProps(widget.intent, crText,
                                     disabled = widget.disabled)
-      drawInteractiveBox(widget.bounds, props, focused = widget.focused)
+      if not drawBevelBody(widget.bounds, props, props.fieldColor, style = some(BeSunken)):
+        drawInteractiveBox(widget.bounds, props, focused = widget.focused)
 
     var content = widget.contentOf
     let inner = widget.lineRect(content.lineHeight)

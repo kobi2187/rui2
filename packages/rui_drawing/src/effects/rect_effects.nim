@@ -71,6 +71,23 @@ proc drawBevelEdges(bounds: Rect, edges: BevelEdges, bevelWidth: float32) =
   drawLine(Vector2(x: x + w - 2, y: y + 1), Vector2(x: x + w - 2, y: y + h - 1),
            1.0, edges.innerBottomRight)
 
+proc mixColors(a, b: Color, t: float32): Color =
+  Color(r: uint8(a.r.float32 + (b.r.float32 - a.r.float32) * t),
+        g: uint8(a.g.float32 + (b.g.float32 - a.g.float32) * t),
+        b: uint8(a.b.float32 + (b.b.float32 - a.b.float32) * t), a: 255)
+
+proc beEdges(raised: bool, face, highlight, shadow, darkShadow: Color): BevelEdges =
+  ## BeOS R4/R5: a one-pixel frame (mid grey above-left, dark below-right) and
+  ## inside it a white line above-left with a soft grey line below-right.
+  ## Sunken keeps the frame's light source and swaps the inner lines, so a
+  ## pushed button and a text well both read as pressed in.
+  if raised:
+    BevelEdges(outerTopLeft: mixColors(shadow, darkShadow, 0.6), outerBottomRight: darkShadow,
+               innerTopLeft: highlight, innerBottomRight: mixColors(face, shadow, 0.5))
+  else:
+    BevelEdges(outerTopLeft: shadow, outerBottomRight: highlight,
+               innerTopLeft: darkShadow, innerBottomRight: face)
+
 proc drawRidgeOrGroove(bounds: Rect, bevelStyle: BevelStyle,
                        highlight, darkShadow: Color) =
   ## Ridge is raised-sunken-raised and Groove is sunken-raised-sunken; both
@@ -122,6 +139,12 @@ proc drawBeveledRect*(
 
   if bevelStyle in {Ridge, Groove}:
     drawRidgeOrGroove(bounds, bevelStyle, highlightColor, darkShadowColor)
+    return
+
+  if bevelStyle in {BeRaised, BeSunken}:
+    drawBevelEdges(bounds, beEdges(bevelStyle == BeRaised, backgroundColor,
+                                   highlightColor, shadowColor, darkShadowColor),
+                   bevelWidth)
     return
 
   let edges = bevelEdgesFor(bevelStyle, highlightColor, shadowColor,

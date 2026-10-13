@@ -23,9 +23,17 @@ definePrimitive(Rectangle):
     filled: bool = true
     borderColor: raylib.Color = BLACK
     borderWidth: float = 0.0
+    bevel: BevelStyle = Flat      # a 3D edge instead of the outline (see drawBeveledRect)
+    bevelHighlight: raylib.Color = WHITE
+    bevelShadow: raylib.Color = GRAY
+    bevelDark: raylib.Color = BLACK
 
   render:
     # Fill and border in one shape, the border inside the bounds.
     let fill = if widget.filled: widget.color else: Color(r: 0, g: 0, b: 0, a: 0)
+    if widget.bevel != Flat:
+      drawBeveledRect(widget.bounds, widget.bevel, fill, 0.0, widget.bevelHighlight,
+                      widget.bevelShadow, widget.bevelDark, max(1.0'f32, widget.borderWidth.float32))
+      return
     drawBox(widget.bounds, widget.cornerRadius, fill,
             widget.borderColor, widget.borderWidth)

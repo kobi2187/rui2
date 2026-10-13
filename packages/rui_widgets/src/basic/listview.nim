@@ -254,7 +254,7 @@ definePrimitive(ListView):
       if needCount > 0:
         widget.onLoadMore(widget.items.len, needCount)
 
-    drawThemedBackground(widget.bounds, props)
+    drawThemedBackground(widget.bounds, props, well = true)
 
     let clip = beginClip(widget.bounds)
     let listWidth = if widget.showScrollbar and totalHeight > viewHeight:

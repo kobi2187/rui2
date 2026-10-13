@@ -1135,3 +1135,25 @@ suite "theme: state changes fade":
     check w.fadeActive
     disposeTree(w)
     check not w.fadeActive
+
+suite "BeOS theme":
+  let be = createBeosTheme()
+
+  test "every intent is a raised bevel with square corners":
+    for intent in ThemeIntent:
+      let p = be.getThemeProps(intent, Normal)
+      check p.bevelStyle == some(BeRaised)
+      check p.cornerRadius == some(0.0'f32)
+  test "pressed inverts the bevel and darkens the face; hover changes nothing":
+    let base = be.getThemeProps(Default, Normal)
+    let pressed = be.getThemeProps(Default, Pressed)
+    let hovered = be.getThemeProps(Default, Hovered)
+    check pressed.bevelStyle == some(BeSunken)
+    check pressed.backgroundColor.get.r < base.backgroundColor.get.r
+    check hovered.backgroundColor == base.backgroundColor
+    check hovered.bevelStyle == base.bevelStyle
+  test "the panel is Be grey and disabled keeps the bevel with dim ink":
+    check be.getThemeProps(Default, Normal).backgroundColor == some(Color(r: 216, g: 216, b: 216, a: 255))
+    check be.getThemeProps(Default, Disabled).foregroundColor.get.r > 100
+  test "it carries its own name":
+    check createBeosTheme().name == "Classic BeOS"
