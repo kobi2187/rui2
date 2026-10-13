@@ -119,3 +119,21 @@ sleep 0.5
 echo "typed 70 chars at 30 ms in the 3000-line document"
 echo "    in-app: $(inapp)"
 send "1 * visual perf" | sed 's/^1 //' | tr ' ' '\n' | grep -E "^ph(Events|Layout|Render|Compose|Screen|Swap)=|^pcPainted" | sed 's/^/    /'
+echo
+echo "== selecting text in the 3000-line document =="
+send "1 tabs write activeTab=7" "2 * visual stable 300 4000" >/dev/null
+click live.doc; xdotool key ctrl+Home; sleep 0.4
+DC=$(center live.doc); IFS=' ' read -r dcx dcy <<<"$DC"
+sel_state() { send "1 live.doc read" | sed -n 's#.*"selectionStart":\(-*[0-9]*\),"selectionEnd":\(-*[0-9]*\).*#sel=\1..\2#p'; }
+send "1 * visual perf reset" >/dev/null
+xdotool mousemove $((dcx - 150)) $((dcy - 80)) mousedown 1
+for i in $(seq 1 25); do xdotool mousemove $((dcx - 150 + i * 12)) $((dcy - 80 + i * 6)); sleep 0.02; done
+sleep 0.4
+echo "drag over ~8 lines (25 moves, 20 ms apart): $(sel_state)"
+echo "    in-app: $(inapp)"
+send "1 * visual perf" | sed 's/^1 //' | tr ' ' '\n' | grep -E "^ph(Events|Layout|Render|Compose)=" | sed 's/^/    /'
+xdotool mouseup 1; sleep 0.3
+send "1 * visual perf reset" >/dev/null
+measure "extend selection Shift+Down" live.doc 'xdotool key shift+Down'
+measure "select all (Ctrl+A)" live.doc 'xdotool key ctrl+a'
+measure "arrow with all selected" live.doc 'xdotool key Down; sleep 0.2; xdotool key ctrl+a'
