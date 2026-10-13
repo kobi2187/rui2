@@ -1,0 +1,8 @@
+VStack - @0,0 360x260
+  Label - @20,20 320x35
+  TextInput name @20,67 260x32 tabstop
+  Switch shout @20,111 320x24 tabstop
+  Label greeting @20,147 320x29
+  Button clear @20,188 320x39 tabstop
+    Rectangle - @20,188 320x39
+    Label - @36,196 288x23

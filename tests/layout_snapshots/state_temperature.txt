@@ -1,0 +1,4 @@
+VStack - @0,0 380x200
+  Label - @20,20 340x35
+  Slider celsius @20,67 300x28 tabstop
+  Label summary @20,107 340x29
