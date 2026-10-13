@@ -92,6 +92,7 @@ defineWidget(SplitView):
     on_mouse_down:
       if widget.dividerRect.contains(event.mousePos.x, event.mousePos.y):
         widget.dragging = true
+        capturePointer(widget)       # the drag follows the pointer off the divider
         return true
       return false
 

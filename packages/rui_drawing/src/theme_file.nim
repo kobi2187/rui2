@@ -290,6 +290,8 @@ proc toThemeProps*(fp: ThemePropsFile): ThemeProps =
       of "interior": Interior
       of "flatsoft": Flatsoft
       of "flatconvex": Flatconvex
+      of "beraised": BeRaised
+      of "besunken": BeSunken
       else: Flat)
   # Gradient direction
   if fp.gradientDirection.isSome:

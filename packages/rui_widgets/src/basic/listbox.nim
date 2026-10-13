@@ -10,10 +10,12 @@
 ## arrow keys move and Enter activates.
 
 import rui_core
+import ../hover
 import rui_drawing
 import ../virtual_rows
 import ../list_input
 import ../seq_follow
+import ../scroll_drag
 import ../sources
 import std/[options, sets]
 
@@ -57,6 +59,7 @@ definePrimitive(ListBox):
     selection: HashSet[int]
     source: RowSource            # where the rows come from, instead of `items`
     scrollY: float32
+    vbar: VBar                   # the scroll bar's drag and hover
     visibleStart: int
     visibleEnd: int
     focusIndex: int
@@ -70,35 +73,40 @@ definePrimitive(ListBox):
 
   init:
     widget.focusable = true
+    widget.resetOnLeave:
+      widget.hoverIndex = -1
+      widget.vbar.hover = false
     widget.hoverIndex = -1       # nothing is under the pointer yet
 
   events:
     on_mouse_wheel:
       if widget.disabled:
         return false
-      let v = viewportOf(widget)
-      let total = widget.totalItems
-      let newScroll = v.scrolledBy(event.wheelDelta, total)
-      if newScroll != widget.scrollY:
-        widget.scrollY = newScroll
-        widget.isDirty = true
-
-      if v.nearEnd(total) and widget.onScrollNearEnd != nil:
+      if widget.rowsWheel(viewportOf(widget), widget.totalItems, event.wheelDelta,
+                          widget.scrollY) and widget.onScrollNearEnd != nil:
         widget.onScrollNearEnd()
       return true
 
     on_mouse_move:
       if widget.disabled:
         return false
-      let newHover = viewportOf(widget).rowAt(event.mousePos.y, widget.totalItems)
-      if newHover != widget.hoverIndex:
-        widget.hoverIndex = newHover
+      let at = widget.rowsMove(widget.vbar, widget.scrollY, widget.barTrack,
+                               viewportOf(widget), widget.totalItems, event.mousePos)
+      if at.taken: return true
+      if at.row != widget.hoverIndex:
+        widget.hoverIndex = at.row
         widget.isDirty = true
       return false
+
+    on_mouse_up:
+      return widget.rowsUp(widget.vbar)
 
     on_mouse_down:
       if widget.disabled:
         return false
+      if widget.rowsDown(widget.vbar, widget.scrollY, widget.barTrack,
+                         viewportOf(widget), widget.totalItems, event.mousePos):
+        return true
       let idx = viewportOf(widget).rowAt(event.mousePos.y, widget.totalItems)
       if idx < 0:
         return false
@@ -169,7 +177,7 @@ definePrimitive(ListBox):
       if needCount > 0:
         widget.onLoadMore(widget.items.len, needCount)
 
-    drawThemedBackground(widget.bounds, props)
+    drawThemedBackground(widget.bounds, props, well = true)
 
     let clip = beginClip(widget.bounds)
     let pendingProps = currentTheme.getThemeProps(widget.intent, Disabled)
@@ -191,6 +199,8 @@ definePrimitive(ListBox):
                    focused = widget.focused and itemIdx == widget.focusIndex)
     endClip(clip)
 
+    widget.vbar.drawBar(widget.barTrack, v.contentHeight(total), widget.bounds.height,
+                        widget.scrollY, props)
     drawThemedBorder(widget.bounds, props, widget.focused)
     if widget.disabled:
       drawDisabledOverlay(widget.bounds)

@@ -374,7 +374,9 @@ proc renderChildrenFirst(widget: Widget, view: Option[Rect],
       if renderPassIn(child, childView):
         result = true
       if child.paintPass == renderPassNumber and child.visible:
-        changed.add child.damage       # it was repainted just now, whoever marked it
+        # it was repainted just now, whoever marked it
+        if child.damageParts.len > 0: changed.add child.damageParts
+        else: changed.add child.damage
 
   if widget.hasOverlay and widget.children.len > 1:
     var sortedChildren = widget.children
@@ -457,19 +459,39 @@ proc unionOf(rects: seq[Rect]): Rect =
     let y1 = max(result.y + result.height, r.y + r.height)
     result = Rect(x: x0, y: y0, width: x1 - x0, height: y1 - y0)
 
-proc partialRegion(widget: Widget, changed: seq[Rect]): Option[Rect] =
-  ## The widget-local rectangle to repaint instead of the whole texture: what
+proc partialRegions(widget: Widget, changed: seq[Rect]): seq[Rect] =
+  ## The widget-local rectangles to repaint instead of the whole texture: what
   ## the changed children damaged, a pixel wider each way (blits are rounded to
-  ## whole pixels), inside the texture. none: nothing to repaint.
-  let damage = unionOf(changed)
+  ## whole pixels), inside the texture, with overlapping ones merged. Separate
+  ## damage stays separate -- a ticking label and a progress bar two rows apart
+  ## are two small repaints, not one rectangle covering the rows between them.
+  ## Empty: nothing to repaint.
   let texW = widget.bounds.width
   let texH = widget.bounds.height
-  let lx = max(0'f32, floor(damage.x - widget.bounds.x) - 1)
-  let ly = max(0'f32, floor(damage.y - widget.bounds.y) - 1)
-  let rx = min(texW, ceil(damage.x + damage.width - widget.bounds.x) + 1)
-  let ry = min(texH, ceil(damage.y + damage.height - widget.bounds.y) + 1)
-  if rx <= lx or ry <= ly: return none(Rect)
-  some(Rect(x: lx, y: ly, width: rx - lx, height: ry - ly))
+  for d in changed:
+    let lx = max(0'f32, floor(d.x - widget.bounds.x) - 1)
+    let ly = max(0'f32, floor(d.y - widget.bounds.y) - 1)
+    let rx = min(texW, ceil(d.x + d.width - widget.bounds.x) + 1)
+    let ry = min(texH, ceil(d.y + d.height - widget.bounds.y) + 1)
+    if rx > lx and ry > ly:
+      result.add Rect(x: lx, y: ly, width: rx - lx, height: ry - ly)
+  # Merge any that touch, until none do.
+  var merged = true
+  while merged and result.len > 1:
+    merged = false
+    var i = 0
+    while i < result.len and not merged:
+      var j = i + 1
+      while j < result.len:
+        if overlapsView(result[i], result[j]):
+          result[i] = unionOf(@[result[i], result[j]])
+          result.delete(j)
+          merged = true
+          break
+        inc j
+      inc i
+  if result.len > 6:                     # too many to be worth separate passes
+    result = @[unionOf(result)]
 
 proc renderToTexture(widget: Widget, changed: seq[Rect], partialOk: bool) =
   ## Paint this widget and its children into its cached texture.
@@ -482,62 +504,72 @@ proc renderToTexture(widget: Widget, changed: seq[Rect], partialOk: bool) =
   ## blend is per pixel, so the result is identical to a full repaint, at the
   ## cost of the damaged area instead of the widget's whole.
   let sig = paintSignature(widget)
-  var region = none(Rect)
+  var regions: seq[Rect]               # empty: the whole texture
   if partialRepaint and partialOk and not widget.ownDirty and changed.len > 0 and
      widget.paintSig == sig and textureFits(widget):
-    region = partialRegion(widget, changed)
-    if region.isNone:                    # changed children outside the widget
+    regions = partialRegions(widget, changed)
+    if regions.len == 0:                 # changed children outside the widget
       widget.isDirty = false
       widget.paintPass = renderPassNumber
       widget.damage = Rect()
+      widget.damageParts = @[]
       return
   widget.paintSig = sig
   ensureTextureFor(widget)
   perfCount(pcPainted)
-  let repainted = region.get(Rect(x: 0, y: 0, width: widget.bounds.width,
-                                  height: widget.bounds.height))
-  perfCount(pcPixels, int(repainted.width * repainted.height))
+  let whole = Rect(x: 0, y: 0, width: widget.bounds.width, height: widget.bounds.height)
+  let passes = if regions.len > 0: regions else: @[whole]
+  for r in passes: perfCount(pcPixels, int(r.width * r.height))
+  when defined(ruiPerfWidgets):
+    echo "PAINT ", widget.getTypeName(), " ", widget.stringId, " own=", widget.ownDirty, " regions=", regions.len, " ", passes, " bounds=", widget.bounds
 
   beginTextureMode(widget.cachedTexture.get())
-  if region.isSome:
-    # scissor boxes count from the bottom of the framebuffer, textures included
-    rlgl.drawRenderBatchActive()
-    rlgl.enableScissorTest()
-    rlgl.scissor(repainted.x.int32,
-                 int32(widget.cachedTexture.get.texture.height.float32 -
-                       (repainted.y + repainted.height)),
-                 repainted.width.int32, repainted.height.int32)
-  clearBackground(Color(r: 0, g: 0, b: 0, a: 0))   # Transparent background
-
-  # `render` draws at widget.bounds, and the texture's origin is the widget's
-  # top-left, so bounds.x/y are zeroed for the duration. This is why anything a
-  # widget draws outside its own bounds is silently clipped, and why a popup has
-  # to grow its bounds rather than just drawing further down.
   let originalX = widget.bounds.x
   let originalY = widget.bounds.y
-  widget.bounds.x = 0
-  widget.bounds.y = 0
-  perfTime(phRender):
-    paintingIntoTexture:
-      widget.render()
-  widget.bounds.x = originalX
-  widget.bounds.y = originalY
+  for repainted in passes:
+    let region = if regions.len > 0: some(repainted) else: none(Rect)
+    if region.isSome:
+      # scissor boxes count from the bottom of the framebuffer, textures included
+      rlgl.drawRenderBatchActive()
+      rlgl.enableScissorTest()
+      rlgl.scissor(repainted.x.int32,
+                   int32(widget.cachedTexture.get.texture.height.float32 -
+                         (repainted.y + repainted.height)),
+                   repainted.width.int32, repainted.height.int32)
+    clearBackground(Color(r: 0, g: 0, b: 0, a: 0))   # Transparent background
 
-  perfTime(phCompose):
-    compositingTextures:
-      compositeChildren(widget, originalX, originalY,
-        region)                       # widget-local, like each child's `dest`
+    # `render` draws at widget.bounds, and the texture's origin is the widget's
+    # top-left, so bounds.x/y are zeroed for the duration. This is why anything a
+    # widget draws outside its own bounds is silently clipped, and why a popup has
+    # to grow its bounds rather than just drawing further down.
+    widget.bounds.x = 0
+    widget.bounds.y = 0
+    perfTime(phRender):
+      paintingIntoTexture:
+        widget.render()
+    widget.bounds.x = originalX
+    widget.bounds.y = originalY
 
-  if region.isSome:
-    rlgl.drawRenderBatchActive()
-    rlgl.disableScissorTest()
+    perfTime(phCompose):
+      compositingTextures:
+        compositeChildren(widget, originalX, originalY,
+          region)                     # widget-local, like each child's `dest`
+
+    if region.isSome:
+      rlgl.drawRenderBatchActive()
+      rlgl.disableScissorTest()
   endTextureMode()
   widget.isDirty = false
   widget.paintPass = renderPassNumber
-  widget.damage = if region.isSome:
-                    Rect(x: originalX + repainted.x, y: originalY + repainted.y,
-                         width: repainted.width, height: repainted.height)
-                  else: widget.bounds
+  widget.damageParts = @[]
+  if regions.len > 0:
+    for r in regions:
+      widget.damageParts.add Rect(x: originalX + r.x, y: originalY + r.y,
+                                  width: r.width, height: r.height)
+    widget.damage = unionOf(widget.damageParts)
+  else:
+    widget.damage = widget.bounds
+    widget.damageParts = @[widget.bounds]
 
 proc renderPassIn(widget: Widget, view: Option[Rect]): bool =
   ## Render dirty widgets to textures, bottom-up.

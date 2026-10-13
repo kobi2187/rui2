@@ -7,6 +7,7 @@
 ## itself, because renderPass clips every widget to its own bounds.
 
 import rui_core
+import ../press
 import rui_drawing
 import std/[options, tables]
 
@@ -25,7 +26,6 @@ definePrimitive(IconButton):
     intent: ThemeIntent = Default
 
   state:
-    isPressed: bool
     textureLoaded: bool
     loadFailed: bool
 
@@ -33,24 +33,16 @@ definePrimitive(IconButton):
     onClick()
 
   init:
-    widget.focusable = true
+    widget.makePressable()
 
   events:
-    on_mouse_down:
-      if widget.disabled:
-        return false
-      widget.isPressed = true
-      widget.isDirty = true
-      return true
+    on_mouse_down: return widget.pressDown(event, not widget.disabled)
+
+    on_key_down: return widget.pressKey(event, not widget.disabled)
 
     on_mouse_up:
-      if not widget.isPressed or widget.disabled:
-        return false
-      widget.isPressed = false
-      widget.isDirty = true
-      if widget.onClick != nil:
-        widget.onClick()
-      return true
+      return widget.pressUp(event):
+        if widget.onClick != nil: widget.onClick()
 
   layout:
     # Square by construction; `size` is the whole story.

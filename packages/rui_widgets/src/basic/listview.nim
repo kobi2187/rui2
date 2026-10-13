@@ -12,10 +12,12 @@
 ## `render` only draws, which is what makes the dirty/repaint model work.
 
 import rui_core
+import ../hover
 import rui_drawing
 import ../virtual_rows
 import ../list_input
 import ../seq_follow
+import ../scroll_drag
 import ../sources
 import std/[options, sets]
 
@@ -63,6 +65,7 @@ definePrimitive(ListView):
     hoverIndex: int
     focusIndex: int              # the keyboard's row
     anchorIndex: int             # where a Shift range starts
+    vbar: VBar                   # the scroll bar's drag and hover
 
   actions:
     onSelect(selection: HashSet[int])
@@ -72,35 +75,40 @@ definePrimitive(ListView):
 
   init:
     widget.focusable = true
+    widget.resetOnLeave:
+      widget.hoverIndex = -1
+      widget.vbar.hover = false
     widget.hoverIndex = -1       # nothing is under the pointer yet
 
   events:
     on_mouse_wheel:
       if widget.disabled:
         return false
-      let v = viewportOf(widget)
-      let total = widget.totalItems
-      let newScroll = v.scrolledBy(event.wheelDelta, total)
-      if newScroll != widget.scrollY:
-        widget.scrollY = newScroll
-        widget.isDirty = true
-
-      if v.nearEnd(total) and widget.onScrollNearEnd != nil:
+      if widget.rowsWheel(viewportOf(widget), widget.totalItems, event.wheelDelta,
+                          widget.scrollY) and widget.onScrollNearEnd != nil:
         widget.onScrollNearEnd()
       return true
 
     on_mouse_move:
       if widget.disabled:
         return false
-      let newHover = viewportOf(widget).rowAt(event.mousePos.y, widget.totalItems)
-      if newHover != widget.hoverIndex:
-        widget.hoverIndex = newHover
+      let at = widget.rowsMove(widget.vbar, widget.scrollY, widget.barTrack,
+                               viewportOf(widget), widget.totalItems, event.mousePos)
+      if at.taken: return true
+      if at.row != widget.hoverIndex:
+        widget.hoverIndex = at.row
         widget.isDirty = true
       return false
+
+    on_mouse_up:
+      return widget.rowsUp(widget.vbar)
 
     on_mouse_down:
       if widget.disabled:
         return false
+      if widget.rowsDown(widget.vbar, widget.scrollY, widget.barTrack,
+                         viewportOf(widget), widget.totalItems, event.mousePos):
+        return true
       let idx = viewportOf(widget).rowAt(event.mousePos.y, widget.totalItems)
       if idx < 0:
         return false
@@ -195,7 +203,7 @@ definePrimitive(ListView):
       if needCount > 0:
         widget.onLoadMore(widget.items.len, needCount)
 
-    drawThemedBackground(widget.bounds, props)
+    drawThemedBackground(widget.bounds, props, well = true)
 
     let clip = beginClip(widget.bounds)
     let listWidth = if widget.showScrollbar and totalHeight > viewHeight:
@@ -222,14 +230,8 @@ definePrimitive(ListView):
                    focused = widget.focused and itemIdx == widget.focusIndex)
     endClip(clip)
 
-    if widget.showScrollbar and totalHeight > viewHeight:
-      let barRect = Rect(
-        x: widget.bounds.x + widget.bounds.width - currentTheme.scrollbarThickness,
-        y: widget.bounds.y,
-        width: currentTheme.scrollbarThickness,
-        height: viewHeight
-      )
-      drawScrollbar(barRect, totalHeight, viewHeight, widget.scrollY, props)
+    if widget.showScrollbar:
+      widget.vbar.drawBar(widget.barTrack, totalHeight, viewHeight, widget.scrollY, props)
 
     drawThemedBorder(widget.bounds, props, widget.focused)
     if widget.disabled:

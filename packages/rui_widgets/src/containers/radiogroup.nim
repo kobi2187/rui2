@@ -8,6 +8,8 @@
 ## children would each own their own `selected` flag with nothing to reconcile them.
 
 import rui_core
+import ../hover
+import ../choice
 import rui_drawing
 import std/options
 # rui_core does not re-export KeyboardKey -- its Menu/Down/Up fields collide
@@ -43,6 +45,8 @@ definePrimitive(RadioGroup):
 
   init:
     widget.focusable = true
+    widget.resetOnLeave:
+      widget.hoverIndex = -1
     widget.hoverIndex = -1       # no row is under the pointer yet
     # Not a focusGroup: RadioGroup draws its own options rather than owning
     # child widgets, so there is nothing for group navigation to move between.
@@ -74,18 +78,12 @@ definePrimitive(RadioGroup):
       return false
 
     on_key_down:
-      if widget.disabled or widget.options.len == 0:
-        return false
-      var newIndex = widget.selectedIndex
-      case event.key
-      of Up:   newIndex = max(0, widget.selectedIndex - 1)
-      of Down: newIndex = min(widget.options.len - 1, widget.selectedIndex + 1)
-      else:    return false
-      if newIndex != widget.selectedIndex:
-        widget.selectedIndex = newIndex
-        widget.isDirty = true
-        if widget.onSelect != nil:
-          widget.onSelect(newIndex)
+      if widget.disabled or not widget.focused: return false
+      let move = choiceKey(event.key, widget.options.len, widget.selectedIndex, vertical = true)
+      if not move.handled: return false
+      widget.selectedIndex = move.index
+      widget.isDirty = true
+      if widget.onSelect != nil: widget.onSelect(move.index)
       return true
 
   layout:

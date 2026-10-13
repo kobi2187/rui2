@@ -8,9 +8,11 @@
 ## hit-testing in the event handlers needs the same flat list the paint used.
 
 import rui_core
+import ../hover
 import rui_drawing
 import ../virtual_rows
 import ../list_input
+import ../scroll_drag
 import std/[options, json]
 
 export virtual_rows
@@ -61,6 +63,7 @@ definePrimitive(TreeView):
     hoveredId: string            # Not `hovered`: Widget already has that (a bool)
     flatNodes: seq[FlatNode]
     scrollY: float32
+    vbar: VBar                   # the scroll bar's drag and hover
     visibleStart: int
     visibleEnd: int
 
@@ -71,9 +74,18 @@ definePrimitive(TreeView):
 
   init:
     widget.focusable = true
+    widget.resetOnLeave:
+      widget.hoveredId = ""
+      widget.vbar.hover = false
 
   events:
+    on_mouse_up:
+      return widget.rowsUp(widget.vbar)
+
     on_mouse_down:
+      if widget.rowsDown(widget.vbar, widget.scrollY, widget.barTrack,
+                         viewportOf(widget), widget.flatNodes.len, event.mousePos):
+        return true
       let idx = viewportOf(widget).rowAt(event.mousePos.y, widget.flatNodes.len)
       if idx < 0:
         return false
@@ -99,19 +111,18 @@ definePrimitive(TreeView):
       return true
 
     on_mouse_move:
-      let idx = viewportOf(widget).rowAt(event.mousePos.y, widget.flatNodes.len)
-      let newHover = if idx >= 0: widget.flatNodes[idx].node.id else: ""
+      let at = widget.rowsMove(widget.vbar, widget.scrollY, widget.barTrack,
+                               viewportOf(widget), widget.flatNodes.len, event.mousePos)
+      if at.taken: return true
+      let newHover = if at.row >= 0: widget.flatNodes[at.row].node.id else: ""
       if newHover != widget.hoveredId:
         widget.hoveredId = newHover
         widget.isDirty = true
       return false
 
     on_mouse_wheel:
-      let newScroll = viewportOf(widget).scrolledBy(event.wheelDelta,
-                                                    widget.flatNodes.len)
-      if newScroll != widget.scrollY:
-        widget.scrollY = newScroll
-        widget.isDirty = true
+      discard widget.rowsWheel(viewportOf(widget), widget.flatNodes.len,
+                               event.wheelDelta, widget.scrollY)
       return true
 
     on_key_down:
@@ -216,4 +227,6 @@ definePrimitive(TreeView):
       drawText(flat.node.text, x, rowY + (nodeH - 14.0) / 2, 14.0, fgColor)
 
     endClip(clip)
+    widget.vbar.drawBar(widget.barTrack, v.contentHeight(widget.flatNodes.len),
+                        widget.bounds.height, widget.scrollY, props)
     drawThemedBorder(widget.bounds, props, widget.focused)

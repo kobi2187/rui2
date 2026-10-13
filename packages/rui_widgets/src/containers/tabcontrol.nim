@@ -8,6 +8,8 @@
 ## cannot decide not to draw a child, it can only mark it invisible.
 
 import rui_core
+import ../hover
+import ../choice
 import rui_drawing
 import std/options
 from raylib import KeyboardKey
@@ -44,6 +46,8 @@ definePrimitive(TabControl):
 
   init:
     widget.focusable = true
+    widget.resetOnLeave:
+      widget.hoverTab = -1
     widget.hoverTab = -1       # nothing is under the pointer yet
 
   events:
@@ -81,12 +85,9 @@ definePrimitive(TabControl):
           return false
       if not widget.focused:
         return false
-      case event.key
-      of KeyboardKey.Right: widget.selectTab(widget.activeTab + 1)
-      of KeyboardKey.Left: widget.selectTab(widget.activeTab - 1)
-      of KeyboardKey.Home: widget.selectTab(0)
-      of KeyboardKey.End: widget.selectTab(widget.tabs.len - 1)
-      else: return false
+      let move = choiceKey(event.key, widget.tabs.len, widget.activeTab, vertical = false)
+      if not move.handled: return false
+      widget.selectTab(move.index)
       return true
 
     on_mouse_move:

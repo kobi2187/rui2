@@ -157,3 +157,8 @@ template tableKeyDown*(widget: untyped, view: untyped, rows: RowViewport,
         if widget.selected != before and widget.onSelect != nil:
           widget.onSelect(widget.selected)
     handled
+
+template barTrackOf*(widget, m: untyped): Rect =
+  ## The scroll bar's track: down the right edge, beside the rows (not the header).
+  Rect(x: widget.bounds.x + widget.bounds.width - currentTheme.scrollbarThickness,
+       y: m.rowsTop, width: currentTheme.scrollbarThickness, height: m.viewHeight)

@@ -13,6 +13,7 @@ import rui_core
 import rui_drawing
 import std/[options, math]
 import slider
+import ../value_input
 import raylib
 
 proc thumbCenter(track: Rect, value, minValue, maxValue: float32): float32 =
@@ -69,15 +70,16 @@ definePrimitive(RangeSlider):
         thumbCenter(t, widget.low, widget.minValue, widget.maxValue),
         thumbCenter(t, widget.high, widget.minValue, widget.maxValue))
       widget.dragging = true
-      widget.setThumb(widget.active, snapped(valueAtX(event.mousePos.x, t.x, t.width,
-        widget.minValue, widget.maxValue), widget.minValue, widget.step))
+      capturePointer(widget)
+      widget.setThumb(widget.active, valueAtPointer(event.mousePos.x, t.x, t.width,
+        widget.minValue, widget.maxValue, widget.step))
       return true
 
     on_mouse_move:
       if not widget.dragging or widget.disabled: return false
       let t = widget.bounds
-      widget.setThumb(widget.active, snapped(valueAtX(event.mousePos.x, t.x, t.width,
-        widget.minValue, widget.maxValue), widget.minValue, widget.step))
+      widget.setThumb(widget.active, valueAtPointer(event.mousePos.x, t.x, t.width,
+        widget.minValue, widget.maxValue, widget.step))
       return true
 
     on_mouse_up:
@@ -90,16 +92,10 @@ definePrimitive(RangeSlider):
       if widget.disabled or not widget.focused: return false
       let current = if widget.active == 0: widget.low else: widget.high
       case event.key
-      of KeyboardKey.Right, KeyboardKey.Up:
-        widget.setThumb(widget.active, stepValue(current, widget.minValue, widget.maxValue, widget.step, 1))
-      of KeyboardKey.Left, KeyboardKey.Down:
-        widget.setThumb(widget.active, stepValue(current, widget.minValue, widget.maxValue, widget.step, -1))
-      of KeyboardKey.PageUp:
-        widget.setThumb(widget.active, stepValue(current, widget.minValue, widget.maxValue, widget.step, 10))
-      of KeyboardKey.PageDown:
-        widget.setThumb(widget.active, stepValue(current, widget.minValue, widget.maxValue, widget.step, -10))
-      of KeyboardKey.Home: widget.setThumb(widget.active, widget.minValue)
-      of KeyboardKey.End: widget.setThumb(widget.active, widget.maxValue)
+      of KeyboardKey.Right, KeyboardKey.Up, KeyboardKey.Left, KeyboardKey.Down,
+         KeyboardKey.PageUp, KeyboardKey.PageDown, KeyboardKey.Home, KeyboardKey.End:
+        widget.setThumb(widget.active, valueKey(event.key, current, widget.minValue,
+                                                widget.maxValue, widget.step))
       of KeyboardKey.Space, KeyboardKey.Enter:
         widget.active = 1 - widget.active
         widget.isDirty = true

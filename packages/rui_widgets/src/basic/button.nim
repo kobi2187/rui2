@@ -24,6 +24,7 @@
 ## placed the label at a hard-coded 14px with a +10/-20 horizontal fudge.
 
 import rui_core
+import ../press
 import rui_drawing
 import ../primitives/rectangle
 import ../input/textarea   # the caption is a Label, i.e. a non-editable TextArea
@@ -37,8 +38,6 @@ defineWidget(Button):
     intent: ThemeIntent = Default
 
   state:
-    isPressed: bool
-    isHovered: bool
     bgFade: Animated[Color]       # the colours as drawn, easing toward the
     borderFade: Animated[Color]   # theme's for the current state
     inkFade: Animated[Color]
@@ -47,7 +46,7 @@ defineWidget(Button):
     onClick()
 
   init:
-    widget.focusable = true
+    widget.makePressable(relayout = true)    # its colours are worked out in `layout`
 
     # The two children are created once and then updated by `layout`, never
     # replaced. addChild rather than children.add, so the parent link is set --
@@ -58,38 +57,13 @@ defineWidget(Button):
                              align = TextAlign.Center))
 
   events:
-    # The look of each state is applied in `layout`, so a change of state has to
-    # ask for one -- repainting alone drew the old colours: a hovered button did
-    # not light up, and a pressed one did not sink, until something else laid it out.
-    on_mouse_down:
-      if not widget.disabled:
-        widget.isPressed = true
-        widget.layoutDirty = true
-        return true
-      return false
+    on_mouse_down: return widget.pressDown(event, not widget.disabled)
+
+    on_key_down: return widget.pressKey(event, not widget.disabled)
 
     on_mouse_up:
-      if widget.isPressed and not widget.disabled:
-        widget.isPressed = false
-        widget.layoutDirty = true
-        if widget.onClick != nil:
-          widget.onClick()
-        return true
-      return false
-
-    on_mouse_move:
-      # Check if mouse is over widget
-      let mouseX = event.mousePos.x
-      let mouseY = event.mousePos.y
-      let isOver = mouseX >= widget.bounds.x and
-                   mouseX <= widget.bounds.x + widget.bounds.width and
-                   mouseY >= widget.bounds.y and
-                   mouseY <= widget.bounds.y + widget.bounds.height
-      if widget.isHovered != isOver:
-        widget.isHovered = isOver
-        widget.layoutDirty = true
-        widget.markDirtyToRoot()
-      return false
+      return widget.pressUp(event):
+        if widget.onClick != nil: widget.onClick()
 
   layout:
     # The background and label are created once, in `init`, and updated here.
@@ -112,7 +86,7 @@ defineWidget(Button):
     # on_mouse_move, and has since before the hover tracker existed.
     let props = currentTheme.getThemeProps(widget.intent,
       visualState(widget.disabled, widget.isPressed,
-                  hovered = widget.isHovered, focused = widget.focused,
+                  hovered = widget.under, focused = widget.focused,
                   ladder = currentTheme.ladderFor(crPointer)))
 
     # State changes fade rather than snap (the theme sets how long; 0 = snap).
@@ -149,6 +123,15 @@ defineWidget(Button):
     bg.borderWidth = props.strokeWidth +
                      (if widget.focused: props.focusRingWidth.get(2.0) else: 0.0f32)
     bg.bounds = body
+    # A bevelled theme draws its 3D edge (inverted while pressed) instead of an
+    # outline, and shows focus by a ring inside it rather than a fatter border.
+    let bevel = props.bevelStyle.get(Flat)
+    bg.bevel = bevel
+    if bevel != Flat:
+      bg.bevelHighlight = props.highlightColor.get(WHITE)
+      bg.bevelShadow = props.shadowColor.get(GRAY)
+      bg.bevelDark = props.darkShadowColor.get(BLACK)
+      bg.borderWidth = props.strokeWidth
 
     # Centred label
     textLabel.text = caption
@@ -168,7 +151,7 @@ defineWidget(Button):
     # Only the shadow: the body and caption are the children, drawn over it.
     let props = currentTheme.getThemeProps(widget.intent,
       visualState(widget.disabled, widget.isPressed,
-                  hovered = widget.isHovered, focused = widget.focused,
+                  hovered = widget.under, focused = widget.focused,
                   ladder = currentTheme.ladderFor(crPointer)))
     drawDropShadow(widget.bounds, props, widget.isPressed and not widget.disabled)
 

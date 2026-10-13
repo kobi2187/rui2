@@ -14,8 +14,10 @@
 ## numeric cell silently passed every text filter.
 
 import rui_core
+import ../hover
 import rui_drawing
 import ../virtual_rows
+import ../scroll_drag
 import datatable_helpers
 
 export virtual_rows
@@ -214,6 +216,7 @@ definePrimitive(DataTable):
     sortColumn: string           # Empty means unsorted
     sortOrder: SortOrder
     scrollY: float32
+    vbar: VBar                   # the scroll bar's drag and hover
     filteredIndices: seq[int]
     visibleStart: int
     visibleEnd: int
@@ -228,30 +231,37 @@ definePrimitive(DataTable):
 
   init:
     widget.focusable = true
+    widget.resetOnLeave:
+      widget.hoverRow = -1
+      widget.vbar.hover = false
     widget.hoverRow = -1       # nothing is under the pointer yet
 
   events:
+    on_mouse_up:
+      return widget.rowsUp(widget.vbar)
+
     on_mouse_down:
       let m = metricsOf(widget)
+      if widget.rowsDown(widget.vbar, widget.scrollY, barTrackOf(widget, m), m.rows,
+                         viewCount(widget), event.mousePos):
+        return true
       if m.overHeader(event.mousePos.y):
         return widget.sortByColumnAt(event.mousePos.x)
-      return widget.selectRowAt(
-        m.rows.rowAt(event.mousePos.y, viewCount(widget)))
+      return widget.selectRowAt(m.rows.rowAt(event.mousePos.y, viewCount(widget)))
 
     on_mouse_move:
       let m = metricsOf(widget)
-      let newHover = m.rows.rowAt(event.mousePos.y, viewCount(widget))
-      if newHover != widget.hoverRow:
-        widget.hoverRow = newHover
+      let at = widget.rowsMove(widget.vbar, widget.scrollY, barTrackOf(widget, m),
+                               m.rows, viewCount(widget), event.mousePos)
+      if at.taken: return true
+      if at.row != widget.hoverRow:
+        widget.hoverRow = at.row
         widget.isDirty = true
       return false
 
     on_mouse_wheel:
       let m = metricsOf(widget)
-      let newScroll = m.rows.scrolledBy(event.wheelDelta, viewCount(widget))
-      if newScroll != widget.scrollY:
-        widget.scrollY = newScroll
-        widget.isDirty = true
+      discard widget.rowsWheel(m.rows, viewCount(widget), event.wheelDelta, widget.scrollY)
       return true
 
     on_key_down:
@@ -370,6 +380,8 @@ definePrimitive(DataTable):
         drawRowGridLine(rowRect, gridColor)
 
     endClip(clip)
+    widget.vbar.drawBar(barTrackOf(widget, m), m.rows.contentHeight(viewCount(widget)), m.viewHeight,
+                        widget.scrollY, props)
     drawThemedBorder(widget.bounds, props, widget.focused)
 
 proc bindRows*(table: DataTable, source: LinkSeq[DataRow]) =

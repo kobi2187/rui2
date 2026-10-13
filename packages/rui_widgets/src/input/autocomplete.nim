@@ -96,12 +96,12 @@ definePrimitive(Autocomplete):
     on_key_down:
       # Reached by bubbling from the text field, which leaves Up/Down/Escape alone.
       if widget.disabled or not widget.isOpen: return false
-      let n = widget.matches.len
-      case event.key
-      of KeyboardKey.Down: widget.hoverIndex = min(n - 1, widget.hoverIndex + 1)
-      of KeyboardKey.Up: widget.hoverIndex = max(0, widget.hoverIndex - 1)
-      of KeyboardKey.Escape: widget.setFieldOpen(widget.list, false); return true
-      else: return false
+      if event.key == KeyboardKey.Escape:
+        widget.setFieldOpen(widget.list, false)
+        return true
+      let moved = highlightKey(event.key, widget.matches.len, widget.hoverIndex)
+      if moved < 0 or event.key in {KeyboardKey.Home, KeyboardKey.End}: return false   # those edit the text
+      widget.hoverIndex = moved
       widget.list.isDirty = true
       widget.isDirty = true
       return true

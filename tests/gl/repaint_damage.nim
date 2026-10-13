@@ -151,3 +151,29 @@ suite "partial repaint":
     let shown = pixels(s.root)
     check shown != fullBefore(s)
     check shown == fullRepaint(s)
+
+suite "separate damage stays separate":
+
+  test "two distant leaves changing give the parent two repaints, not one covering the gap":
+    let s = build()
+    s.bar.value = 80.0
+    s.bar.markDirtyToRoot()
+    s.chip.color = Color(r: 10, g: 220, b: 10, a: 200)
+    s.chip.markDirtyToRoot()
+    settle(s)
+    check s.root.damageParts.len >= 2
+    var area = 0.0'f32
+    for r in s.root.damageParts: area += r.width * r.height
+    let u = s.root.damage
+    check area < u.width * u.height * 0.8       # the gap between them was not repainted
+    check pixels(s.root) == fullRepaint(s)
+
+  test "overlapping damage merges into one pass":
+    let s = build()
+    s.under.color = Color(r: 90, g: 90, b: 200, a: 255)
+    s.under.markDirtyToRoot()
+    s.chip.color = Color(r: 200, g: 90, b: 90, a: 200)
+    s.chip.markDirtyToRoot()
+    settle(s)
+    check s.root.damageParts.len == 1
+    check pixels(s.root) == fullRepaint(s)

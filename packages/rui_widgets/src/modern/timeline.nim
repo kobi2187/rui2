@@ -9,6 +9,7 @@
 ## updated on frames that happened to repaint.
 
 import rui_core
+import ../value_input
 import rui_drawing
 import std/[options, times, json]
 
@@ -72,6 +73,11 @@ template showEvent(widget: untyped, index: int) =
                    (widget.bounds.x + widget.bounds.width) + 16)
     widget.isDirty = true
 
+proc isUnset(d: DateTime): bool =
+  ## A DateTime nobody set: all zero bytes. Reading any field of one asserts.
+  var zero: DateTime
+  equalMem(unsafeAddr d, addr zero, sizeof(DateTime))
+
 definePrimitive(Timeline):
   props:
     events: seq[TimelineEvent] = @[]
@@ -99,6 +105,9 @@ definePrimitive(Timeline):
 
   init:
     widget.focusable = true
+    # An unset range (year 0) would crash every time calculation: use one day.
+    if widget.startTime.isUnset: widget.startTime = dateTime(2000, mJan, 1, zone = utc())
+    if widget.endTime.isUnset: widget.endTime = dateTime(2000, mJan, 2, zone = utc())
 
   events:
     on_mouse_down:
@@ -112,6 +121,7 @@ definePrimitive(Timeline):
           return true
       # Empty space starts a pan.
       widget.isDragging = true
+      capturePointer(widget)
       widget.dragStartX = event.mousePos.x + widget.scrollOffset
       return true
 
@@ -162,8 +172,6 @@ definePrimitive(Timeline):
       of KeyboardKey.Right: widget.panTo(widget.scrollOffset + widget.pixelsPerUnit)
       of KeyboardKey.Home: widget.panTo(0.0'f32)
       of KeyboardKey.End: widget.panTo(widget.maxScrollOf)
-      of KeyboardKey.Equal, KeyboardKey.KpAdd: widget.zoomAt(1.25, middle)
-      of KeyboardKey.Minus, KeyboardKey.KpSubtract: widget.zoomAt(0.8, middle)
       of KeyboardKey.Down, KeyboardKey.Up:
         if widget.events.len == 0: return false
         let next = if at < 0: 0
@@ -174,7 +182,9 @@ definePrimitive(Timeline):
         if at >= 0 and widget.onEventClick != nil:
           widget.onEventClick(widget.events[at])
       else:
-        return false
+        let dir = event.key.zoomDirection
+        if dir == 0: return false
+        widget.zoomAt(if dir > 0: 1.25'f32 else: 0.8'f32, middle)
       return true
 
   layout:

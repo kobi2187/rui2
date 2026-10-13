@@ -16,6 +16,7 @@
 ## else; use a RadioGroup when the group is the thing.
 
 import rui_core
+import ../press
 import rui_drawing
 import std/options
 
@@ -33,16 +34,17 @@ definePrimitive(RadioButton):
     onChange(value: string)
 
   init:
-    widget.focusable = true
+    widget.makePressable()
 
   events:
-    on_mouse_down:
-      if not widget.disabled:
-        if widget.selectedValue != widget.value:
-          if widget.onChange != nil:
-            widget.onChange(widget.value)
-        return true
-      return false
+    on_mouse_down: return widget.pressDown(event, not widget.disabled)
+
+    on_key_down: return widget.pressKey(event, not widget.disabled)
+
+    on_mouse_up:
+      return widget.pressUp(event):
+        if widget.selectedValue != widget.value and widget.onChange != nil:
+          widget.onChange(widget.value)
 
   layout:
     # Size to content, in the theme's indicator size, gap and caption font.

@@ -92,22 +92,9 @@ definePrimitive(MessageBox):
     if not widget.isVisible:
       return
 
-    drawRect(widget.bounds, Color(r: 0, g: 0, b: 0, a: 128))
-
     let intent = intentFor(widget.messageType)
-    let props = currentTheme.getThemeProps(intent, Normal)
     let panel = panelRect(widget.bounds, widget.dialogWidth, widget.dialogHeight)
-
-    drawShadow(panel, Shadow(offsetX: 3.0, offsetY: 3.0, blur: 0.0, spread: 0.0,
-                             color: Color(r: 0, g: 0, b: 0, a: 60)))
-    drawThemedBackground(panel, props)
-    drawThemedBorder(panel, props)
-
-    let titleRect = Rect(x: panel.x, y: panel.y,
-                         width: panel.width, height: TitleBarHeight)
-    let titleProps = currentTheme.getThemeProps(intent, Selected)
-    drawThemedBackground(titleRect, titleProps)
-    drawThemedPaddedText(widget.title, titleRect, titleProps, selected = true)
+    let props = drawModalFrame(widget.bounds, panel, widget.title, intent)
 
     let iconRect = Rect(x: panel.x + 20, y: panel.y + 50, width: 32, height: 32)
     drawAlertSymbol(iconRect, alertLevelFor(widget.messageType),

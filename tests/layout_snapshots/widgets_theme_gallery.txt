@@ -31,6 +31,9 @@ VStack - @0,0 760x740
     Button - @236,123 101x39 tabstop
       Rectangle - @236,123 101x39
       Label - @252,131 69x23
+    Button - @343,123 76x39 tabstop
+      Rectangle - @343,123 76x39
+      Label - @359,131 44x23
   Table - @24,178 712x143
     TableRow - @24,178 712x41
       Label - @24,187 54x23

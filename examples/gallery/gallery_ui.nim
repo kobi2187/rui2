@@ -163,69 +163,90 @@ proc layoutTab(): Widget =
   inner = ui:
     Column(spacing = 10.0, crossAxisAlignment = CrossAxisAlignment.start).named("layout"):
       Wrap(spacing = 12.0, runSpacing = 8.0):
-        Panel(padding = 10.0, cornerRadius = 6.0).named("layout.panel").size(160, 70):
-          Label(text = "Panel")
-        Card().named("layout.card").size(160, 70):
-          Label(text = "Card")
-        GroupBox(title = "GroupBox", padding = 10.0, titleHeight = 20.0).size(180, 80):
-          Label(text = "inside")
-        Expander(title = "Expander", initialExpanded = true).named("layout.expander").size(200, 90):
-          Label(text = "expanded content")
-        Drawer(side = dsLeft, initialOpen = true, width = 90.0).size(220, 80):
-          Label(text = "drawer")
+        Panel(padding = 6.0, cornerRadius = 0.0):
+          Panel(padding = 10.0, cornerRadius = 6.0).named("layout.panel").size(160, 70):
+            Label(text = "Panel")
+        Panel(padding = 6.0, cornerRadius = 0.0):
+          Card().named("layout.card").size(160, 70):
+            Label(text = "Card")
+        Panel(padding = 6.0, cornerRadius = 0.0):
+          GroupBox(title = "GroupBox", padding = 10.0, titleHeight = 20.0).size(180, 80):
+            Label(text = "inside")
+        Panel(padding = 6.0, cornerRadius = 0.0):
+          Expander(title = "Expander", initialExpanded = true).named("layout.expander").size(200, 90):
+            Label(text = "expanded content")
+        Panel(padding = 6.0, cornerRadius = 0.0):
+          Drawer(side = dsLeft, initialOpen = true, width = 90.0).size(220, 80):
+            Label(text = "drawer")
       Wrap(spacing = 12.0, runSpacing = 8.0):
-        SplitView(initialRatio = 0.4).named("layout.split").size(320, 90):
-          Label(text = "left")
-          Label(text = "right")
-        Wrap(spacing = 6.0, runSpacing = 6.0).size(220, 80):
-          Badge(text = "a")
-          Badge(text = "b")
-          Badge(text = "c")
-          Badge(text = "wrap")
-      Wrap(spacing = 12.0, runSpacing = 8.0):
-        GridView(crossAxisCount = 3, mainAxisSpacing = 4.0, crossAxisSpacing = 4.0).size(180, 70):
-          Rectangle(color = Color(r: 90, g: 140, b: 220, a: 255))
-          Rectangle(color = Color(r: 110, g: 180, b: 120, a: 255))
-          Rectangle(color = Color(r: 220, g: 120, b: 90, a: 255))
-        Table(columnWidths = @[IntrinsicColumnWidth(), FlexColumnWidth()],
-              columnSpacing = 8.0, rowSpacing = 4.0).size(240, 60):
-          TableRow():
-            Label(text = "Name")
-            TextInput(placeholder = "Ada")
-          TableRow():
-            Label(text = "Plan")
-            ComboBox(items = @["Starter", "Team"], initialSelectedIndex = 1)
-        Stack().size(120, 60):
-          Rectangle(color = Color(r: 90, g: 140, b: 220, a: 255))
-          Center():
-            Label(text = "stack")
-      Wrap(spacing = 12.0, runSpacing = 8.0):
-        Align(alignment = Alignment(x: 1.0, y: 1.0)).size(120, 60):
-          Label(text = "align")
-        Padding(padding = EdgeInsets.all(8.0)).size(120, 60):
-          Label(text = "padding")
-        SizedBox(width = 100.0, height = 40.0):
-          Label(text = "sized")
-        ConstrainedBox(constraints = BoxConstraints(minWidth: 80.0, maxWidth: 140.0, minHeight: 0.0, maxHeight: 60.0)).size(100, 40):
-          Label(text = "constrained")
-        Container().size(100, 40):
-          Label(text = "container")
-        Flex(direction = Axis.horizontal, spacing = 6.0).size(220, 30):
-          Expanded(flex = 1): Label(text = "expanded")
-          Flexible(flex = 1): Label(text = "flexible")
-          Spacer(minHeight = 4.0)
-        Positioned(left = 4.0, top = 4.0).size(120, 40):
-          Label(text = "positioned")
-      Wrap(spacing = 12.0, runSpacing = 8.0):
-        Embed(scroll)
-        Embed(tabsInside)
-        Embed(stackPages)
-        Dock().named("layout.dock").size(260, 110):
-          Docked(side = DockSide.top):
-            Label(text = "top dock")
-          Docked(side = DockSide.left):
+        Panel(padding = 6.0, cornerRadius = 0.0):
+          SplitView(initialRatio = 0.4).named("layout.split").size(320, 90):
             Label(text = "left")
-          Label(text = "fills the rest")
+            Label(text = "right")
+        Panel(padding = 6.0, cornerRadius = 0.0):
+          Wrap(spacing = 6.0, runSpacing = 6.0).size(220, 80):
+            Badge(text = "a")
+            Badge(text = "b")
+            Badge(text = "c")
+            Badge(text = "wrap")
+      Wrap(spacing = 12.0, runSpacing = 8.0):
+        Panel(padding = 6.0, cornerRadius = 0.0):
+          GridView(crossAxisCount = 3, mainAxisSpacing = 4.0, crossAxisSpacing = 4.0).size(180, 70):
+            Rectangle(color = Color(r: 90, g: 140, b: 220, a: 255))
+            Rectangle(color = Color(r: 110, g: 180, b: 120, a: 255))
+            Rectangle(color = Color(r: 220, g: 120, b: 90, a: 255))
+        Panel(padding = 6.0, cornerRadius = 0.0):
+          Table(columnWidths = @[IntrinsicColumnWidth(), FlexColumnWidth()],
+                columnSpacing = 8.0, rowSpacing = 4.0).size(240, 84):
+            TableRow():
+              Label(text = "Name")
+              TextInput(placeholder = "Ada")
+            TableRow():
+              Label(text = "Plan")
+              ComboBox(items = @["Starter", "Team"], initialSelectedIndex = 1)
+        Panel(padding = 6.0, cornerRadius = 0.0):
+          Stack().size(120, 60):
+            Rectangle(color = Color(r: 90, g: 140, b: 220, a: 255))
+            Center():
+              Label(text = "stack")
+      Wrap(spacing = 12.0, runSpacing = 8.0):
+        Panel(padding = 6.0, cornerRadius = 0.0):
+          Align(alignment = Alignment(x: 1.0, y: 1.0)).size(120, 60):
+            Label(text = "align")
+        Panel(padding = 6.0, cornerRadius = 0.0):
+          Padding(padding = EdgeInsets.all(8.0)).size(120, 60):
+            Label(text = "padding")
+        Panel(padding = 6.0, cornerRadius = 0.0):
+          SizedBox(width = 100.0, height = 40.0):
+            Label(text = "sized")
+        Panel(padding = 6.0, cornerRadius = 0.0):
+          ConstrainedBox(constraints = BoxConstraints(minWidth: 80.0, maxWidth: 140.0, minHeight: 0.0, maxHeight: 60.0)).size(100, 40):
+            Label(text = "constrained")
+        Panel(padding = 6.0, cornerRadius = 0.0):
+          Container().size(100, 40):
+            Label(text = "container")
+        Panel(padding = 6.0, cornerRadius = 0.0):
+          Flex(direction = Axis.horizontal, spacing = 6.0).size(220, 30):
+            Expanded(flex = 1): Label(text = "expanded")
+            Flexible(flex = 1): Label(text = "flexible")
+            Spacer(minHeight = 4.0)
+        Panel(padding = 6.0, cornerRadius = 0.0):
+          Positioned(left = 4.0, top = 4.0).size(120, 40):
+            Label(text = "positioned")
+      Wrap(spacing = 12.0, runSpacing = 8.0):
+        Panel(padding = 6.0, cornerRadius = 0.0):
+          Embed(scroll)
+        Panel(padding = 6.0, cornerRadius = 0.0):
+          Embed(tabsInside)
+        Panel(padding = 6.0, cornerRadius = 0.0):
+          Embed(stackPages)
+        Panel(padding = 6.0, cornerRadius = 0.0):
+          Dock().named("layout.dock").size(260, 110):
+            Docked(side = DockSide.top):
+              Label(text = "top dock")
+            Docked(side = DockSide.left):
+              Label(text = "left")
+            Label(text = "fills the rest")
       StatusBar(text = "Ready", rightText = "Ln 1, Col 1", barHeight = 24.0).named("layout.status")
   inner
 

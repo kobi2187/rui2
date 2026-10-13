@@ -5,6 +5,7 @@
 
 import rui_core
 import rui_drawing
+import ../input/popup_field
 import std/[options, strutils]
 # rui_core does not re-export KeyboardKey: its Menu/Down/Up fields collide with
 # the Menu widget and with rui_drawing's ArrowDirection. A widget that reads
@@ -95,26 +96,12 @@ template pick(widget: untyped, index: int) =
     widget.isDirty = true
 
 template setOpen(widget: untyped, open: bool) =
-  ## Show or hide the list. Open, it floats on the overlay layer and is a
-  ## popup: a click anywhere else closes it.
+  ## Open or close the list (see popup_field.nim), highlighting the choice on open.
   block:
     let w = widget
-    let wanted = open                # evaluated once: it may read isOpen
-    if w.isOpen != wanted:
-      w.isOpen = wanted
-      w.isDirty = true
-      w.layoutDirty = true
-      if wanted:
-        w.hoverIndex = w.selectedIndex
-        openPopup(w, scope = w, close = proc() =
-          w.isOpen = false
-          hideOverlay(w.list)
-          w.isDirty = true
-          w.layoutDirty = true)
-        showOverlay(w.list, interactive = true)
-      else:
-        closedPopup(w)
-        hideOverlay(w.list)
+    let wasOpen = w.isOpen
+    w.setFieldOpen(w.list, open)
+    if w.isOpen and not wasOpen: w.hoverIndex = w.selectedIndex
 
 definePrimitive(ComboBox):
   props:
@@ -161,8 +148,10 @@ definePrimitive(ComboBox):
         return false
 
       # The box toggles the list; picks in the list arrive from the list.
-      widget.setOpen(not widget.isOpen)
-      return true
+      let wasOpen = widget.isOpen
+      let taken = widget.popupFieldClick(widget.list)
+      if widget.isOpen and not wasOpen: widget.hoverIndex = widget.selectedIndex
+      return taken
 
     on_key_down:
       # Closed: Up/Down, Home/End and a letter change the choice at once;
@@ -172,11 +161,12 @@ definePrimitive(ComboBox):
         return false
       let n = widget.items.len
       if widget.isOpen:
+        let moved = highlightKey(event.key, n, widget.hoverIndex)
+        if moved >= 0:
+          widget.hoverIndex = moved
+          widget.isDirty = true
+          return true
         case event.key
-        of Down: widget.hoverIndex = min(n - 1, max(0, widget.hoverIndex + 1))
-        of Up: widget.hoverIndex = max(0, widget.hoverIndex - 1)
-        of Home: widget.hoverIndex = 0
-        of End: widget.hoverIndex = n - 1
         of Enter, KpEnter, Space:
           let chosen = widget.hoverIndex
           widget.setOpen(false)
@@ -221,13 +211,7 @@ definePrimitive(ComboBox):
     # The list hangs below the box -- or above it, when the window has no
     # room below.
     let listH = float32(widget.items.len) * widget.itemHeight
-    var top = widget.bounds.y + widget.bounds.height
-    if renderView.isSome:
-      let view = renderView.get
-      if top + listH > view.y + view.height and widget.bounds.y - listH >= view.y:
-        top = widget.bounds.y - listH
-    widget.list.bounds = Rect(x: widget.bounds.x, y: top,
-                              width: widget.bounds.width, height: listH)
+    widget.list.bounds = popupRect(widget.bounds, widget.bounds.width, listH)
     widget.list.itemHeight = widget.itemHeight
 
   render:

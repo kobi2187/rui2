@@ -10,6 +10,7 @@
 ## ```
 
 import rui_core
+import ../hover
 import rui_drawing
 import std/math
 import raylib
@@ -47,6 +48,8 @@ definePrimitive(Rating):
 
   init:
     widget.focusable = true
+    widget.resetOnLeave:
+      widget.preview = 0
 
   events:
     on_mouse_move:

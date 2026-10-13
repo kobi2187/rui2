@@ -177,7 +177,9 @@ type
     visible*: bool
     enabled*: bool
     hovered*: bool             # Mouse is over this widget
-    pressed*: bool             # Mouse button down on this widget
+    pressed*: bool             # Armed: the button went down on it and the pointer is still over it
+    under*: bool               # The pointer is over it or anything inside it (a Button's children take the hit)
+    relayoutOnState*: bool     # Its look is computed in `layout`, so a press or hover change needs one
     focused*: bool             # Has keyboard focus
     focusable*: bool
     hint*: string
@@ -276,6 +278,7 @@ type
       ## Which render pass last repainted it (see main_loop `renderPassNumber`): how
       ## a parent knows a child was repainted this pass, however it came to be dirty.
     damage*: Rect
+    damageParts*: seq[Rect]   # the same area as separate absolute rects: a parent repaints each, not their union
       ## The part of the widget (screen coordinates) its last repaint redrew: all
       ## of it, or just the area a child changed in. What the parent re-blits.
     childClip*: Option[Rect]
@@ -300,6 +303,12 @@ type
     # generates: nil is the only "nothing attached" a proc needs, and an Option
     # around it only forced callers to write some(proc() {.closure.} = ...).
     onFocus*: proc() {.closure.}       # Called when widget gains focus
+    onPointerEnter*: proc() {.closure.}
+      ## The pointer came into this widget or anything under it (hover moved from
+      ## outside its subtree to inside). A composite whose children take the pointer
+      ## -- a Button is a Rectangle and a Label -- hears about it here; its own
+      ## mouse-move handler is never called for a pointer that is leaving.
+    onPointerLeave*: proc() {.closure.}  # The pointer left it and everything under it
     onBlur*: proc() {.closure.}        # Called when widget loses focus
 
     # Data binding
@@ -875,3 +884,18 @@ proc `$`*(widget: Widget): string =
     return "nil"
   widget.getTypeName() & "(" & $widget.bounds.x & ", " & $widget.bounds.y &
     ", " & $widget.bounds.width & "x" & $widget.bounds.height & ")"
+
+template isPressed*(w: Widget): bool =
+  ## Armed: the button went down on it and the pointer is still over it.
+  w.pressed
+
+template `isPressed=`*(w: Widget, v: bool) =
+  w.pressed = v
+
+template isHovered*(w: Widget): bool =
+  ## The pointer is over it or something inside it (`under`): what a composite
+  ## such as Button, whose children take the hit, means by hovered.
+  w.under
+
+template `isHovered=`*(w: Widget, v: bool) =
+  w.under = v
