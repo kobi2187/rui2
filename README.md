@@ -176,6 +176,7 @@ system are designed to stand alone.
 
 - **[docs/tutorial.md](docs/tutorial.md)** — start here: a counter, a form and a
   data app, each a real program in `examples/tutorial/`.
+- **[docs/store.md](docs/store.md)** — state: `Link`, `Store`, and binding in `ui:`.
 - **[docs/themes.md](docs/themes.md)** and **[docs/preferences.md](docs/preferences.md)**
   — the author's look, and the user's own settings (keys, motion, scroll speed).
 - **[docs/PERFORMANCE.md](docs/PERFORMANCE.md)** — what it costs, measured.
