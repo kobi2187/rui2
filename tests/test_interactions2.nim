@@ -351,3 +351,16 @@ suite "scroll bars on row widgets":
       let g = newDataGrid(columns = @[GridColumn(id: "a", title: "A", width: 120.0)],
                           data = rows, visibleRows = 8)
       (newRig(stack(g)), g))
+
+import ../examples/simple_counter_app
+
+suite "the canonical counter example":
+  test "pressing + and - changes the bound label":
+    let root = buildUI()
+    let r = newRig(root)
+    let label = Label(root.children[1])
+    check label.text == "Count: 0"
+    let row = root.children[2]
+    r.click(row.children[1]); check label.text == "Count: 1"
+    r.click(row.children[1]); check label.text == "Count: 2"
+    r.click(row.children[0]); check label.text == "Count: 1"

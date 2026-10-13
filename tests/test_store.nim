@@ -48,3 +48,21 @@ suite "store":
     check greeting.value == "Hello, Ada!"
     name.value = "Bob"
     check greeting.value == "Hello, Bob!"
+
+suite "state: block":
+  test "declares the Store and a typed Link per entry":
+    state:
+      count: int = 0
+      name: string = ""
+      volume = 0.5
+      ratio: float32 = 2
+    count.value = 3
+    check store.get[:int]("count") == 3                  # the Link and the name are one value
+    check name.value == ""
+    check volume.value == 0.5
+    check ratio.value == 2.0'f32
+    check store.names == @["count", "name", "volume", "ratio"]
+  test "state(name): names the Store":
+    state(app):
+      n = 1
+    check app.get[:int]("n") == 1 and n.value == 1

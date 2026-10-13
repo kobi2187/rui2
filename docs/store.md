@@ -27,7 +27,23 @@ transaction:                                   # several writes, one notificatio
 `derive` also takes two or three Links. `setOnChange(proc (old, new))` is the
 escape hatch for side effects.
 
-## Store
+## Declaring state: `state:`
+
+The usual way to write it:
+
+```nim
+state:
+  count: int = 0
+  name: string = ""
+  volume = 0.5                  # the type is the value's: float
+```
+
+declares `store` (a `Store`) and the Links `count`, `name`, `volume`, each also
+reachable by name (`store.get[:int]("count")`). `state(app):` calls the Store
+`app`. It works anywhere a `let` does -- the top of a proc, or a module. The
+canonical example is `examples/simple_counter_app.nim`.
+
+## Store, spelled out
 
 ```nim
 let store = newStore()
@@ -35,7 +51,7 @@ let name  = store.declare("name", "")          # a Link[string]
 let count = store.declare("count", 0)
 
 store.set("count", 3)                          # by name
-echo store.get[int]("count")                   # reading as the wrong type raises StoreError
+echo store.get[:int]("count")                   # reading as the wrong type raises StoreError
 echo store.format("Hello, {name} ({count})")   # fill {names} once
 let greeting = store.interpolated("Hello, {name}")   # or a live Link[string]
 ```
