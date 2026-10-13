@@ -17,15 +17,18 @@ Both live in `rui_core` (`link.nim`, `store.nim`) and are exported by `rui`.
 let count = newLink(0)
 count.value = count.value + 1                  # everything bound repaints
 
-let doubled = count.derive(proc (n: int): int = n * 2)   # recomputes when count does,
-                                                         # tells its own dependents only if its answer changed
 transaction:                                   # several writes, one notification
   count.value = 10
   name.value = "Ada"
 ```
 
-`derive` also takes two or three Links. `setOnChange(proc (old, new))` is the
-escape hatch for side effects.
+`setOnChange(proc (old, new))` is the escape hatch for side effects.
+
+**Things that depend on a value are updated by the handler that changes it.**
+A temperature slider's handler sets the Celsius Link *and* the text Link that
+shows both scales; there is no computed-value machinery to learn. A `proc
+refresh()` that rewrites the dependent Links, called from each handler, is the
+whole pattern -- see `examples/state/settings.nim`.
 
 ## Declaring state: `state:`
 
