@@ -35,16 +35,11 @@ proc main() =
   echo "  ✓ Changed value to: ", counter.value
   echo ""
 
-  # Test 3: onChange callback
-  echo "[Test 3] onChange callback"
-  var callbackFired = false
-  counter.setOnChange proc(old, new: int) =
-    echo "  ✓ Callback fired: ", old, " → ", new
-    callbackFired = true
-
+  # Test 3: setting again
+  echo "[Test 3] Set again"
   counter.value = 100
-  assert callbackFired, "onChange callback should fire"
-  echo "  ✓ Callback working correctly"
+  assert counter.value == 100
+  echo "  ✓ Value is 100"
   echo ""
 
   # Test 4: Widget dependency tracking

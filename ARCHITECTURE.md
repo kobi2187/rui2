@@ -290,8 +290,8 @@ through a handler (`onChange = name.setter`).
 
 API: `newLink(initial)`, `link.value` / `link.get()` to read,
 `link.value = v` / `link.set(v)` to write, `addDependent`/`removeDependent`/
-`hasDependent`/`dependentCount` to manage subscribers, and `setOnChange` for a
-side-effect callback.
+`hasDependent`/`dependentCount` to manage subscribers. A Link is just its value and
+that set of dependent widgets; there are no callbacks to register.
 
 **Key optimisation — direct widget references.** A `Link` stores the actual
 dependent `Widget` objects, not their ids. On a value change it can mark each
@@ -299,14 +299,12 @@ dependent dirty in O(1) with no hashtable lookup and no tree traversal:
 
 ```nim
 proc `value=`*[T](link: Link[T], newVal: T) =
-  if link.value != newVal:
-    let oldVal = link.value
-    link.value = newVal
+  if link.val != newVal:
+    link.val = newVal
     for w in link.dependentWidgets:
-      w.isDirty = true
       w.layoutDirty = true            # content change may affect size
       if w.parent != nil: w.parent.layoutDirty = true
-    if link.onChange != nil: link.onChange(oldVal, newVal)
+      w.markDirtyToRoot()
 ```
 
 Cost is O(n) in the number of widgets bound to *that* link, not O(total widgets).

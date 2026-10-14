@@ -22,10 +22,6 @@ proc main() =
   # Create a Link with initial value
   let counter = newLink(0)
 
-  # Set up onChange callback for logging
-  counter.setOnChange proc(old, new: int) =
-    echo "Value changed: ", old, " → ", new
-
   echo "Link created: ", counter
   echo "Initial value: ", counter.value
   echo ""

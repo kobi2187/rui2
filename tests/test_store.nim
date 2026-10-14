@@ -41,14 +41,6 @@ suite "store":
     check s.format("Hi {name}, {n} {{ok}}") == "Hi Ada, 3 {ok}"
     expect StoreError: discard s.format("{nope}")
 
-  test "interpolated follows its entries":
-    let s = newStore()
-    let name = s.declare("name", "Ada")
-    let greeting = s.interpolated("Hello, {name}!")
-    check greeting.value == "Hello, Ada!"
-    name.value = "Bob"
-    check greeting.value == "Hello, Bob!"
-
 suite "state: block":
   test "declares the Store and a typed Link per entry":
     state:

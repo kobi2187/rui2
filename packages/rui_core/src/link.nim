@@ -13,8 +13,7 @@ proc newLink*[T](initialValue: T): Link[T] =
   ## Create a new Link with an initial value
   result = Link[T](
     val: initialValue,
-    dependentWidgets: initHashSet[Widget](),
-    onChange: nil
+    dependentWidgets: initHashSet[Widget]()
   )
 
 # ============================================================================
@@ -25,26 +24,16 @@ proc value*[T](link: Link[T]): T =
   ## Get the current value of the link
   link.val
 
-# ----------------------------------------------------------------------------
-# Transactions
-#
-# `transaction: a.set(1); b.set(2)` stores every value immediately -- reads
-# inside the block see them -- but announces each changed link once, at the
-# end: its dependents are marked, its onChange and observers run a single
-# time, and derived links recompute from the final values. Without it, each
-# set announced itself.
-# ----------------------------------------------------------------------------
-
-var
-  transactionDepth = 0
-  pendingAnnouncements: seq[proc() {.closure.}]
-
-proc announce[T](link: Link[T], oldVal: T) =
-  ## Tell the world `link` changed from `oldVal` to its current value.
+proc `value=`*[T](link: Link[T], newVal: T) =
+  ## Set a new value and mark every widget that depends on this link dirty.
   ##
-  ## IMMEDIATE MODE: widgets read the value every frame when rendering, so
-  ## announcing is just marking dependents dirty -- O(n) in the widgets bound
-  ## to THIS link, not in the whole tree -- and running the callbacks.
+  ## IMMEDIATE MODE: widgets read the value every frame when rendering, so a
+  ## change needs no callback, only the dependents marked: O(n) in the widgets
+  ## bound to THIS link, not in the whole tree. Marking is idempotent, so any
+  ## number of sets in one frame cost one repaint.
+  if link.val == newVal:
+    return
+  link.val = newVal
   for widget in link.dependentWidgets:
     widget.layoutDirty = true  # Content change may affect size
 
@@ -55,57 +44,6 @@ proc announce[T](link: Link[T], oldVal: T) =
     # Mark the leaf->root render line dirty so the rebuilt texture composites
     # all the way to the screen; unaffected sibling subtrees keep their caches.
     widget.markDirtyToRoot()
-
-  if link.onChange != nil:
-    link.onChange(oldVal, link.val)
-  for observe in link.observers:
-    observe()
-
-proc `value=`*[T](link: Link[T], newVal: T) =
-  ## Set a new value and mark dependent widgets dirty (see `announce`).
-  ## Inside a `transaction` the announcement waits for the block's end.
-  if link.val == newVal:
-    return
-  if transactionDepth == 0:
-    let oldVal = link.val
-    link.val = newVal
-    announce(link, oldVal)
-    return
-
-  if not link.held:
-    link.held = true
-    link.heldFrom = link.val
-    pendingAnnouncements.add proc() =
-      link.held = false
-      # Set back to where it started: nothing changed, so nothing to announce.
-      if link.val != link.heldFrom:
-        announce(link, link.heldFrom)
-  link.val = newVal
-
-proc beginTransaction*() =
-  inc transactionDepth
-
-proc endTransaction*() =
-  ## Close one level; the outermost close announces everything at once.
-  dec transactionDepth
-  if transactionDepth == 0:
-    let pending = pendingAnnouncements
-    pendingAnnouncements = @[]
-    for announceIt in pending:
-      announceIt()
-
-template transaction*(body: untyped) =
-  ## Batch sets: every link set inside is announced once, afterwards, however
-  ## often it was set. Nests; only the outermost block announces.
-  ##
-  ##   transaction:
-  ##     first.set("Ada")
-  ##     last.set("Lovelace")        # one repaint, one onChange each
-  beginTransaction()
-  try:
-    body
-  finally:
-    endTransaction()
 
 # ============================================================================
 # Widget Binding
@@ -136,22 +74,6 @@ proc hasDependent*[T](link: Link[T], widget: Widget): bool =
 proc dependentCount*[T](link: Link[T]): int =
   ## Get the number of widgets depending on this link
   link.dependentWidgets.len
-
-# ============================================================================
-# Utility Functions
-# ============================================================================
-
-proc setOnChange*[T](link: Link[T], callback: proc(oldVal, newVal: T)) =
-  ## Set a callback to be called when the value changes
-  ##
-  ## Useful for logging, validation, or side effects:
-  ##   counter.setOnChange proc(old, new: int) =
-  ##     echo "Counter: ", old, " → ", new
-  link.onChange = callback
-
-proc clearOnChange*[T](link: Link[T]) =
-  ## Remove the onChange callback
-  link.onChange = nil
 
 # ============================================================================
 # Debug Helpers
@@ -234,41 +156,3 @@ proc unbind*[T](link: Link[T], widget: Widget) =
   ## Stop tracking this widget. The refresh hook is left in place: it is a
   ## closure chain and may serve other links.
   link.removeDependent(widget)
-
-
-# ============================================================================
-# Derived links
-# ============================================================================
-
-proc derive*[A, T](a: Link[A], compute: proc(x: A): T): Link[T] =
-  ## A link computed from another, kept current as it changes. It is an
-  ## ordinary `Link[T]`: bind widgets to it, read it, derive from it again.
-  ## Only its own dependents are dirtied, and only when its value actually
-  ## changes -- a source change that leaves the result equal costs nothing.
-  ##
-  ##   let label = derive(first, proc(s: string): string = "Hello, " & s)
-  ##
-  ## Setting a derived link by hand is allowed but will be overwritten by the
-  ## next source change.
-  let target = newLink(compute(a.val))
-  a.observers.add proc() = target.value = compute(a.val)
-  target
-
-proc derive*[A, B, T](a: Link[A], b: Link[B],
-                      compute: proc(x: A, y: B): T): Link[T] =
-  ## Derived from two links: `derive(a, b, proc(x, y): int = x + y)`.
-  let target = newLink(compute(a.val, b.val))
-  let refresh = proc() = target.value = compute(a.val, b.val)
-  a.observers.add refresh
-  b.observers.add refresh
-  target
-
-proc derive*[A, B, C, T](a: Link[A], b: Link[B], c: Link[C],
-                         compute: proc(x: A, y: B, z: C): T): Link[T] =
-  ## Derived from three links.
-  let target = newLink(compute(a.val, b.val, c.val))
-  let refresh = proc() = target.value = compute(a.val, b.val, c.val)
-  a.observers.add refresh
-  b.observers.add refresh
-  c.observers.add refresh
-  target

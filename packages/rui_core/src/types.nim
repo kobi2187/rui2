@@ -358,14 +358,6 @@ type
     ## fired. The whole reactive system was inert.
     val*: T
     dependentWidgets*: HashSet[Widget]  # Direct references for O(1) updates!
-    onChange*: proc(oldVal, newVal: T)
-    observers*: seq[proc() {.closure.}]
-      ## Run after every change: how derived links follow their sources
-      ## without taking the single `onChange` slot from the application.
-    held*: bool
-      ## Inside a `transaction` with a change not yet announced.
-    heldFrom*: T
-      ## The value before the transaction's first change to this link.
 
   Store* = ref object of RootObj
     ## Subclass it and declare fields of type Link[T] (`counter*: Link[int]`),
