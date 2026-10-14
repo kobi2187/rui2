@@ -31,13 +31,6 @@ when defined(useGraphics):
       mouseClicks: newLink(0)
     )
 
-    # Set up onChange callbacks for demonstration
-    store.counter.setOnChange proc(old, new: int) =
-      echo "Counter changed: ", old, " → ", new
-
-    store.mouseClicks.setOnChange proc(old, new: int) =
-      echo "Mouse clicks: ", new
-
     app.setStore(store)
 
     # Override event handler to update our store

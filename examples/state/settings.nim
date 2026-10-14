@@ -1,6 +1,6 @@
 ## State block: a settings page. Several controls share one store; every change
 ## goes through `set...` handlers, the summary is rewritten by `refresh`, and
-## Reset writes everything in one transaction.
+## Reset writes every entry back to its default.
 ##
 ##   nim c -r -d:useGraphics examples/state/settings.nim
 
@@ -21,11 +21,10 @@ proc buildUI*(): Widget =
   refresh()
 
   proc reset() =
-    transaction:                         # one repaint for all the writes
-      notifications.value = true
-      sounds.value = false
-      volume.value = 40
-      nickname.value = "guest"
+    notifications.value = true
+    sounds.value = false
+    volume.value = 40
+    nickname.value = "guest"
     refresh()
 
   ui:

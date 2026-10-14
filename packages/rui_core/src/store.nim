@@ -13,12 +13,10 @@
 ## store.set("count", 3)                          # by name
 ## echo store.get[:int]("count")
 ## echo store.format("Hello, {name} ({count})")   # Hello,  (3)
-## let greeting = store.interpolated("Hello, {name}")   # a live Link[string]
 ## ```
 ##
-## The entries *are* Links: bind widgets to them, derive from them, set them in
-## a `transaction`. The store only adds the names and a text view of each value
-## (`getText` / `setText`, for scalars) so that a name from a file can be read
+## The entries *are* Links: bind widgets to them (`label.text = name.value`). The store only
+## adds the names and a text view of each value (`getText` / `setText`, for scalars) so that a name from a file can be read
 ## and written without knowing its type. Names are flat strings; a dotted name
 ## like `settings.apiKey` is just a name that contains a dot.
 
@@ -33,7 +31,6 @@ type
     typeName: string
     getText: proc(): string {.closure.}
     setText: proc(text: string): bool {.closure.}
-    observe: proc(f: proc() {.closure.}) {.closure.}
     bindWidget: proc(widget: Widget, apply: proc(text: string) {.closure.}) {.closure.}
 
   TypedEntry[T] = ref object of StoreEntry
@@ -76,7 +73,6 @@ proc declare*[T](store: Store, name: string, initial: T): Link[T] =
   let entry = TypedEntry[T](link: link, typeName: $T)
   entry.getText = proc(): string = scalarText(link.value)
   entry.setText = proc(text: string): bool = scalarParse(link, text)
-  entry.observe = proc(f: proc() {.closure.}) = link.observers.add f
   entry.bindWidget = proc(widget: Widget, apply: proc(text: string) {.closure.}) =
     link.bindTo(widget, proc(v: T) = apply(scalarText(v)))
   store.entries[name] = RootRef(entry)
@@ -161,17 +157,6 @@ proc format*(store: Store, pattern: string): string =
   ## Fill `{name}` with each entry's text. An unknown name raises.
   for p in pieces(pattern):
     result.add (if p.isName: store.getText(p.text) else: p.text)
-
-proc interpolated*(store: Store, pattern: string): Link[string] =
-  ## A Link[string] that follows every entry the pattern mentions.
-  ##   Label(text = ...) bound to it re-renders when `name` changes.
-  let parts = pieces(pattern)
-  let target = newLink(store.format(pattern))
-  let refresh = proc() = target.value = store.format(pattern)
-  for p in parts:
-    if p.isName: store.entry(p.text).observe(refresh)
-  target
-
 
 macro state*(args: varargs[untyped]): untyped =
   ## Declare an app's state in one block: a `Store` and a typed `Link` per entry,

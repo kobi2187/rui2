@@ -17,12 +17,13 @@ Both live in `rui_core` (`link.nim`, `store.nim`) and are exported by `rui`.
 let count = newLink(0)
 count.value = count.value + 1                  # everything bound repaints
 
-transaction:                                   # several writes, one notification
-  count.value = 10
-  name.value = "Ada"
+count.value = 10                               # setting marks the widgets that read it
 ```
 
-`setOnChange(proc (old, new))` is the escape hatch for side effects.
+A Link is its value plus the set of widgets that read it; setting it marks those
+widgets dirty and the next frame draws the new value. There are no callbacks or
+batching to learn: marking is idempotent, so any number of writes in a frame cost
+one repaint. For a side effect, do it in the handler that made the change.
 
 **Things that depend on a value are updated by the handler that changes it.**
 A temperature slider's handler sets the Celsius Link *and* the text Link that
@@ -56,7 +57,6 @@ let count = store.declare("count", 0)
 store.set("count", 3)                          # by name
 echo store.get[:int]("count")                   # reading as the wrong type raises StoreError
 echo store.format("Hello, {name} ({count})")   # fill {names} once
-let greeting = store.interpolated("Hello, {name}")   # or a live Link[string]
 ```
 
 The entries *are* Links, so everything above applies to them. `getText` /
