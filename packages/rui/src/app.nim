@@ -940,7 +940,25 @@ proc applyCursor(app: App) =
     app.cursorShown = shape
     setMouseCursor(raylibCursor(shape))
 
+proc quietRaylibLog() =
+  ## raylib prints its start-up report (display, GL, shaders, VRAM...) at INFO.
+  ## That is noise in a release build, so only warnings and errors get through;
+  ## debug builds keep it. RUI_LOG=trace|debug|info|warning|error|none overrides.
+  let level =
+    case getEnv("RUI_LOG").toLowerAscii
+    of "trace": TraceLogLevel.Trace
+    of "debug": TraceLogLevel.Debug
+    of "info": TraceLogLevel.Info
+    of "warning": TraceLogLevel.Warning
+    of "error": TraceLogLevel.Error
+    of "none": TraceLogLevel.None
+    else:
+      when defined(release) or defined(danger): TraceLogLevel.Warning
+      else: TraceLogLevel.Info
+  setTraceLogLevel(level)
+
 proc openWindow(app: App) =
+  quietRaylibLog()
   initWindow(app.window.width.int32, app.window.height.int32, app.window.title)
   setTargetFPS(app.window.fps.int32)
   useClipboard(systemClipboard())
