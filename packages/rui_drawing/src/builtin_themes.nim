@@ -70,6 +70,11 @@ proc createDarkTheme*(): Theme =
   ## "dark": the Midnight brand (brand_themes.nim).
   result = brandTheme(midnightSpec())
 
+const beosFontFamily = "Nimbus Sans, Liberation Sans, Helvetica, Arial, sans-serif"
+  ## BeOS shipped Swiss 721, a Helvetica-class sans. Pango takes this list in
+  ## order and uses the first family the machine has, so the look holds where
+  ## only the common fallbacks are installed.
+
 proc createBeosTheme*(): Theme =
   ## BeOS R4/R5: the grey panel, one-pixel bevels (white inside the top-left,
   ## soft grey inside the bottom-right), square corners, 12px sans, no hover
@@ -87,7 +92,7 @@ proc createBeosTheme*(): Theme =
   var spec = BrandSpec(
     name: "BeOS", accent: beBlue, onAccent: white,
     canvas: panel, surface: Color(r: 232, g: 232, b: 232, a: 255), text: black, border: grey96, radius: 0,
-    fontSize: 12, padding: 4, paddingX: 10, borderWidth: 2, focusRingWidth: 1,
+    fontFamily: beosFontFamily, fontSize: 12, padding: 4, paddingX: 10, borderWidth: 2, focusRingWidth: 1,
     controlHeight: 22, indicatorSize: 14, trackThickness: 6, thumbSize: 14,
     progressHeight: 14, rowHeight: 18, scrollbarThickness: 14, noTransitions: true)
   result = brandTheme(spec)

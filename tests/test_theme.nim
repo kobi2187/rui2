@@ -1157,3 +1157,9 @@ suite "BeOS theme":
     check be.getThemeProps(Default, Disabled).foregroundColor.get.r > 100
   test "it carries its own name":
     check createBeosTheme().name == "Classic BeOS"
+  test "its type is a Helvetica-class sans, with fallbacks, as Swiss 721 was":
+    check be.typography.primaryFont.get("").startsWith("Nimbus Sans")
+    check "Helvetica" in be.typography.primaryFont.get("")
+  test "its window titles are tabs, and a theme without a titleColor is not":
+    check be.titleColor.isSome
+    check createLightTheme().titleColor.isNone

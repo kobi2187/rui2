@@ -36,16 +36,9 @@ proc drawModalFrame*(bounds, panel: Rect, title: string, intent = ThemeIntent.De
   drawThemedBorder(panel, result)
   let titleRect = Rect(x: panel.x, y: panel.y, width: panel.width, height: TitleBarHeight)
   if currentTheme.titleColor.isSome:
-    # A coloured title *tab*, as in BeOS: only as wide as its caption, with a light
-    # edge above-left and a dark one below-right, on the panel's own colour.
-    let face = currentTheme.titleColor.get
-    let style = result.captionStyle(Color(r: 0, g: 0, b: 0, a: 255), action = true)
-    let tabW = min(panel.width, measureText(title, style).width + 56)
-    let tab = Rect(x: panel.x, y: panel.y, width: tabW, height: TitleBarHeight)
-    drawRect(tab, face)
-    drawBeveledRect(tab, BeRaised, face, 0.0, Color(r: 255, g: 255, b: 80, a: 255),
-                    Color(r: 152, g: 152, b: 152, a: 255), Color(r: 152, g: 152, b: 152, a: 255), 2.0)
-    drawStyledText(title, tab.x + 32, tab.y + (tab.height - style.fontSize) / 2, style)
+    # A coloured title tab, as in BeOS: the same tab a window wears.
+    discard drawWindowTab(Rect(x: panel.x, y: panel.y, width: panel.width, height: TitleBarHeight),
+                          title, result, currentTheme.titleColor.get)
     return
   let titleProps = currentTheme.getThemeProps(intent, Selected)
   drawThemedBackground(titleRect, titleProps)

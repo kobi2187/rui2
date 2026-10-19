@@ -1,15 +1,18 @@
 ## In-app windows (the optional rui_windows module): several movable,
 ## resizable, closable windows over one page, all sharing one Store.
 ##
-##   nim c -r -d:useGraphics examples/widgets/windows.nim
+##   nim c -r -d:useGraphics examples/widgets/windows.nim [theme]
+##
+## The theme is `daylight` unless one is named, e.g. `beos` for the BeOS tabs.
 ##
 ## Drag a title bar, drag a border, click a window behind to raise it, press
 ## Tab (it stays in the active window), close with the x or Escape.
 
 import rui, rui_windows
+import std/os
 
 let app = newApp("RUI2 - windows", 900, 600)
-app.setTheme("daylight")
+app.setTheme(if paramCount() >= 1: paramStr(1) else: "daylight")
 
 let store = newStore()
 let name = store.declare("name", "Ada")

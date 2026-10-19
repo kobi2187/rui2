@@ -488,6 +488,23 @@ proc drawComboBox*(rect: Rect, text: string, props: ThemeProps,
   else:
     drawDownArrow(arrowX, arrowY, 8.0, textColor)
 
+proc drawWindowTab*(bar: Rect, caption: string, props: ThemeProps,
+                    face: Color, active = true): Rect =
+  ## The BeOS window tab: a tab only as wide as its caption, hanging from the top
+  ## of the title bar, raised with a light edge above-left and a dark one
+  ## below-right. `face` is the theme's titleColor while the window is active;
+  ## an inactive tab is the bar's own colour, so only the caption says it is there.
+  ## The left 32px are the close box's space. Returns the tab's rect.
+  let style = props.captionStyle(BLACK, action = active)
+  let tabW = min(bar.width, measureText(caption, style).width + 56)
+  let tab = Rect(x: bar.x, y: bar.y, width: tabW, height: bar.height)
+  drawRect(tab, face)
+  let light = if active: Color(r: 255, g: 255, b: 80, a: 255) else: Color(r: 255, g: 255, b: 255, a: 255)
+  drawBeveledRect(tab, BeRaised, face, 0.0, light,
+                  Color(r: 152, g: 152, b: 152, a: 255), Color(r: 152, g: 152, b: 152, a: 255), 2.0)
+  drawStyledText(caption, tab.x + 32, tab.y + (tab.height - style.fontSize) / 2, style)
+  tab
+
 proc mixTab(panel: Color): Color =
   ## An inactive tab in a bevelled theme: the panel, a little darker.
   Color(r: uint8(panel.r.int * 9 div 10), g: uint8(panel.g.int * 9 div 10),
