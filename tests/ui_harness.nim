@@ -18,12 +18,12 @@ proc newRig*(root: Widget, w = 400, h = 300): Rig =
   root.bounds = Rect(x: 0, y: 0, width: w.float32, height: h.float32)
   app.setRootWidget(root)
   app.stepHeadless()
-  releasePointer()
+  releaseAllPointers()
   Rig(app: app, src: src, root: root)
 
-proc ev(kind: EventKind, x, y: float32): GuiEvent =
+proc ev(kind: EventKind, x, y: float32, pointer = 0): GuiEvent =
   GuiEvent(kind: kind, priority: epHigh, timestamp: getMonoTime(),
-           mousePos: Point(x: x, y: y))
+           mousePos: Point(x: x, y: y), pointerId: pointer)
 
 proc frame*(r: Rig, n = 2) =
   for _ in 0 ..< n: r.app.stepHeadless()
@@ -60,6 +60,16 @@ proc drag*(r: Rig, x0, y0, x1, y1: float32, steps = 4) =
     r.src.push ev(evMouseMove, x0 + (x1 - x0) * t, y0 + (y1 - y0) * t)
     r.frame(1)
   r.release(x1, y1)
+
+proc pointerDown*(r: Rig, id: int, x, y: float32) =
+  ## A further pointer (a second finger) goes down at (x, y).
+  r.src.push ev(evMouseDown, x, y, id); r.frame(1)
+
+proc pointerMove*(r: Rig, id: int, x, y: float32) =
+  r.src.push ev(evMouseMove, x, y, id); r.frame(1)
+
+proc pointerUp*(r: Rig, id: int, x, y: float32) =
+  r.src.push ev(evMouseUp, x, y, id); r.frame(1)
 
 proc wheel*(r: Rig, x, y, delta: float32) =
   sleep(55)                       # the event manager throttles wheel events to one per 50 ms

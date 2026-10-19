@@ -179,6 +179,7 @@ type
     hovered*: bool             # Mouse is over this widget
     pressed*: bool             # Armed: the button went down on it and the pointer is still over it
     under*: bool               # The pointer is over it or anything inside it (a Button's children take the hit)
+    multiPointer*: bool        # Takes pointers other than 0 (a pinch); others are never shown them
     relayoutOnState*: bool     # Its look is computed in `layout`, so a press or hover change needs one
     focused*: bool             # Has keyboard focus
     focusable*: bool
@@ -431,6 +432,10 @@ type
     paths*: seq[string]
       ## The files or folders an `evFileDrop` carries (absolute paths).
     wheelDelta*: float32  # Mouse wheel movement (positive = up, negative = down)
+    pointerId*: int
+      ## Which pointer a mouse event is from: 0 is the mouse (or the first finger),
+      ## a second finger is 1, a third 2... Only widgets that set `multiPointer`
+      ## are offered the others (see event_routing).
 
   EventPattern* = enum
     epNormal      # Process immediately

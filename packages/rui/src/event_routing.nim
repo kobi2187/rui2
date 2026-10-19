@@ -66,8 +66,8 @@ proc focusTargetFor*(widget: Widget): Widget =
 
 proc widgetAt(router: EventRouter, event: GuiEvent): Widget =
   ## An open menu or dropdown sits above the tree, so it is asked first.
-  if pointerCapture() != nil and event.kind in {evMouseMove, evMouseUp}:
-    return pointerCapture()
+  if pointerCapture(event.pointerId) != nil and event.kind in {evMouseMove, evMouseUp}:
+    return pointerCapture(event.pointerId)
   result = overlayAt(event.mousePos.x, event.mousePos.y)
   if result == nil:
     result = router.hitTest.getWidgetAt(event.mousePos.x, event.mousePos.y)
@@ -90,6 +90,30 @@ proc updateHover(router: EventRouter, widget: Widget): bool =
     widget.markDirtyToRoot()
   true
 
+proc routeExtraPointer(router: EventRouter, event: GuiEvent): bool =
+  ## A pointer other than 0: a second finger. It never moves the hover, takes
+  ## the focus or presses a button -- it goes only to a widget that asked for
+  ## several pointers (`multiPointer`): the one it landed in, or else the one
+  ## already holding pointer 0 (a pinch whose second finger lands on a child).
+  ## That widget captures the pointer, so its moves and its release follow.
+  let id = event.pointerId
+  var target = pointerCapture(id)
+  if target == nil and event.kind == evMouseDown:
+    var hit = overlayAt(event.mousePos.x, event.mousePos.y)
+    if hit == nil: hit = router.hitTest.getWidgetAt(event.mousePos.x, event.mousePos.y)
+    while hit != nil and not hit.multiPointer: hit = hit.parent
+    target = hit
+    if target == nil:
+      let held = pointerCapture(0)
+      if held != nil and held.multiPointer: target = held
+    if target != nil: capturePointer(target, id)
+  if target == nil:
+    return false
+  discard target.handleInput(event)
+  if event.kind == evMouseUp: releasePointer(id)
+  if event.kind != evMouseMove: target.markDirtyToRoot()
+  true
+
 proc routePointer*(router: EventRouter, event: GuiEvent): bool =
   ## Deliver a pointer event to whatever is under it. Returns whether the tree
   ## needs repainting.
@@ -97,6 +121,8 @@ proc routePointer*(router: EventRouter, event: GuiEvent): bool =
   ## The four pointer kinds differ in exactly two ways -- whether they take
   ## focus, and whether they move the hover -- so those are the only two
   ## conditions here. Everything else was copied four times.
+  if event.pointerId != 0:
+    return router.routeExtraPointer(event)
   let widget = router.widgetAt(event)
 
   var dirty = false
