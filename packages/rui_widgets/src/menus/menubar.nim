@@ -210,11 +210,15 @@ definePrimitive(MenuBar):
     let barProps = currentTheme.getThemeProps(widget.intent, Normal)
     let barRect = Rect(x: widget.bounds.x, y: widget.bounds.y,
                        width: widget.bounds.width, height: barHeightOf(widget))
-    drawThemedBackground(barRect, barProps)
-
-    let borderColor = barProps.borderColor.get(Color(r: 180, g: 180, b: 180, a: 255))
-    drawLine(barRect.x, barRect.y + barHeightOf(widget),
-             barRect.x + barRect.width, barRect.y + barHeightOf(widget), borderColor)
+    if barProps.bevelStyle.get(Flat) != Flat:
+      # A bevelled theme (BeOS): the bar is the window's own panel, flat, with no
+      # rule under it -- the menu titles sit on the panel as they do in R5.
+      drawRect(barRect, currentTheme.canvasColor)
+    else:
+      drawThemedBackground(barRect, barProps)
+      let borderColor = barProps.borderColor.get(Color(r: 180, g: 180, b: 180, a: 255))
+      drawLine(barRect.x, barRect.y + barHeightOf(widget),
+               barRect.x + barRect.width, barRect.y + barHeightOf(widget), borderColor)
 
     for slot in titleSlots(widget.children, widget.bounds.x):
       let state = if slot.index == widget.activeMenuIndex: Selected

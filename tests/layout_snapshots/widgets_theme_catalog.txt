@@ -1,0 +1,55 @@
+VStack - @0,0 1000x760
+  Row - @16,16 968x511
+    VStack - @16,16 174x456
+      Label - @16,16 174x19
+      Button - @16,47 174x27 tabstop
+        Rectangle - @16,47 174x27
+        Label - @26,51 154x19
+      Button - @16,86 174x27 tabstop
+        Rectangle - @16,86 174x27
+        Label - @26,90 154x19
+      Button - @16,125 174x27 tabstop
+        Rectangle - @16,125 174x27
+        Label - @26,129 154x19
+      Label - @16,164 174x19
+      Checkbox - @16,195 174x19 tabstop
+      Checkbox - @16,226 174x19 tabstop
+      Checkbox - @16,257 174x19 tabstop
+      RadioGroup - @16,288 174x48 tabstop
+      Switch - @16,348 174x19 tabstop
+      Switch - @16,379 174x19 tabstop
+      Label - @16,410 174x19
+      SegmentedControl - @16,441 174x31 tabstop
+    VStack - @218,16 310x511
+      Label - @218,16 310x19
+      TextInput - @218,47 310x31 tabstop
+      TextInput - @218,90 310x31 tabstop
+      ComboBox - @218,133 310x31 tabstop
+        ComboList - @218,164 310x72 floating
+      NumberInput - @218,176 310x28 tabstop
+      Spinner - @218,216 310x28 tabstop
+      TextArea - @218,256 310x107 tabstop
+      Label - @218,375 310x19
+      Slider - @218,406 310x24 tabstop
+      RangeSlider - @218,442 310x24 tabstop
+      ProgressBar - @218,478 310x23
+      ScrollBar - @218,513 310x14 tabstop
+    VStack - @556,16 228x391
+      Label - @556,16 228x19
+      ListBox - @556,47 228x72 tabstop
+      ListView - @556,131 228x54 tabstop
+      TabControl - @556,197 228x28 tabstop
+      Expander - @556,237 228x26 tabstop
+      Label - @556,275 228x19
+      Label - @556,306 228x19
+      Hyperlink - @556,337 228x21 tabstop
+      Separator - @556,370 228x1
+      StatusBar - @556,383 228x24
+  MenuBar - @16,535 968x28 tabstop
+    Menu - @16,563 0x0 floating
+      MenuItem - @0,0 148x18 hidden
+      MenuItem - @0,0 36x7 hidden
+      MenuItem - @0,0 148x18 hidden
+    Menu - @69,563 0x0 floating
+      MenuItem - @0,0 64x18 hidden
+      MenuItem - @0,0 78x18 hidden

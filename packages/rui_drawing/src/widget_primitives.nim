@@ -350,6 +350,23 @@ proc drawRadioButton*(rect: Rect, selected: bool, props: ThemeProps,
     drawRing(Vector2(x: cx, y: cy), max(0.0'f32, r - ringW - props.focusRingWidth.get(2.0)),
              max(0.0'f32, r - ringW), 0, 360, 36, ringColor)
 
+proc drawBeGroove*(x, width, cy: float32, props: ThemeProps) =
+  ## A bevelled slider's track: a sunken groove, six pixels deep, centred on `cy`.
+  let groove = Rect(x: x, y: cy - 3, width: width, height: 6)
+  discard drawBevelBody(groove, props, props.darkShadowColor.get(Color(r: 96, g: 96, b: 96, a: 255)),
+                        style = some(BeSunken))
+
+proc drawBeKnob*(x, cy, d: float32, props: ThemeProps) =
+  ## A bevelled slider's thumb: a raised block, centred on (`x`, `cy`), with three
+  ## dots of grip. Shared by Slider and RangeSlider, which use one knob each.
+  let face = props.backgroundColor.get(Color(r: 232, g: 232, b: 232, a: 255))
+  let blockW = max(10.0'f32, d * 0.7)
+  let knob = Rect(x: x - blockW / 2, y: cy - d / 2, width: blockW, height: d)
+  discard drawBevelBody(knob, props, face, style = some(BeRaised))
+  let grip = props.shadowColor.get(GRAY)
+  for k in -1 .. 1:
+    drawRect(Rect(x: knob.x + knob.width / 2 - 1, y: cy + float32(k) * 3 - 1, width: 2, height: 2), grip)
+
 proc drawSlider*(rect: Rect, value, minVal, maxVal: float32, props: ThemeProps,
                  dragging = false, hovered = false) =
   ## A slider: a track `trackThickness` thick, filled with the accent up to a
@@ -363,19 +380,10 @@ proc drawSlider*(rect: Rect, value, minVal, maxVal: float32, props: ThemeProps,
   let cy = rect.y + rect.height / 2
   let track = Rect(x: rect.x, y: cy - th / 2, width: rect.width, height: th)
   if props.bevelStyle.get(Flat) != Flat:
-    # A bevelled theme (BeOS): a dark groove -- no fill -- and a small raised knob
-    # with three dots of grip.
+    # A bevelled theme (BeOS): a dark groove -- no fill -- and a small raised knob.
     let x = clamp(rect.x + rect.width * t, rect.x + d / 2, rect.x + rect.width - d / 2)
-    let face = props.backgroundColor.get(Color(r: 232, g: 232, b: 232, a: 255))
-    let groove = Rect(x: rect.x, y: cy - 3, width: rect.width, height: 6)
-    discard drawBevelBody(groove, props, props.darkShadowColor.get(Color(r: 96, g: 96, b: 96, a: 255)),
-                          style = some(BeSunken))
-    let blockW = max(10.0'f32, d * 0.7)
-    let knob = Rect(x: x - blockW / 2, y: cy - d / 2, width: blockW, height: d)
-    discard drawBevelBody(knob, props, face, style = some(BeRaised))
-    let grip = props.shadowColor.get(GRAY)
-    for k in -1 .. 1:
-      drawRect(Rect(x: knob.x + knob.width / 2 - 1, y: cy + float32(k) * 3 - 1, width: 2, height: 2), grip)
+    drawBeGroove(rect.x, rect.width, cy, props)
+    drawBeKnob(x, cy, d, props)
     return
   let rail = props.borderColor.get(Color(r: 200, g: 200, b: 200, a: 255))
   drawBox(track, radius, rail, rail, 0)
@@ -415,6 +423,76 @@ proc drawProgressBar*(rect: Rect, progress: float32, props: ThemeProps) =
       let accent = props.activeColor.get(Color(r: 100, g: 150, b: 255, a: 255))
       drawBox(inner, max(0.0'f32, min(radius - w, inner.width / 2)), accent, accent, 0)
 
+proc themeBevelled*(): bool =
+  ## True when the current theme draws bevels (BeOS): its scroll bars then have
+  ## arrow buttons at their ends.
+  currentTheme.getThemeProps(Default, Normal).bevelStyle.get(Flat) != Flat
+
+proc scrollEndSize(bar: Rect, bevelled: bool): float32 =
+  ## The side of each arrow button: a square the bar's thickness, or nothing.
+  if bevelled: min(bar.width, bar.height) else: 0.0'f32
+
+proc scrollBarEnds*(bar: Rect, bevelled = themeBevelled()): tuple[startEnd, stopEnd: Rect] =
+  ## The arrow buttons at the start (top or left) and stop (bottom or right) of
+  ## `bar`. Empty rects in a theme without bevels.
+  let e = scrollEndSize(bar, bevelled)
+  if bar.height >= bar.width:
+    (Rect(x: bar.x, y: bar.y, width: bar.width, height: e),
+     Rect(x: bar.x, y: bar.y + bar.height - e, width: bar.width, height: e))
+  else:
+    (Rect(x: bar.x, y: bar.y, width: e, height: bar.height),
+     Rect(x: bar.x + bar.width - e, y: bar.y, width: e, height: bar.height))
+
+proc scrollBarTrack*(bar: Rect, bevelled = themeBevelled()): Rect =
+  ## The part of `bar` that the thumb moves in: the whole bar, less the arrow
+  ## buttons. Every scroll bar's geometry -- drawing, hit tests, drags -- uses this,
+  ## so an arrow is never a press on the track.
+  let e = scrollEndSize(bar, bevelled)
+  if bar.height >= bar.width:
+    Rect(x: bar.x, y: bar.y + e, width: bar.width, height: max(0.0'f32, bar.height - 2 * e))
+  else:
+    Rect(x: bar.x + e, y: bar.y, width: max(0.0'f32, bar.width - 2 * e), height: bar.height)
+
+proc drawBeArrow(button: Rect, vertical, towardStart: bool, ink: Color) =
+  ## The outlined triangle on a scroll bar's arrow button.
+  let cx = button.x + button.width / 2
+  let cy = button.y + button.height / 2
+  let s = if towardStart: -1.0'f32 else: 1.0'f32
+  let (apex, b1, b2) =
+    if vertical:
+      (Vector2(x: cx, y: cy + 3 * s), Vector2(x: cx - 3.5, y: cy - 2.5 * s),
+       Vector2(x: cx + 3.5, y: cy - 2.5 * s))
+    else:
+      (Vector2(x: cx + 3 * s, y: cy), Vector2(x: cx - 2.5 * s, y: cy - 3.5),
+       Vector2(x: cx - 2.5 * s, y: cy + 3.5))
+  drawLine(apex, b1, 1.0, ink)
+  drawLine(b1, b2, 1.0, ink)
+  drawLine(b2, apex, 1.0, ink)
+
+proc drawBeScrollbar(bar: Rect, contentSize, viewSize, offset: float32, props: ThemeProps) =
+  ## R5's scroll bar: a raised arrow button at each end, the track between them
+  ## sunken, and a raised thumb with a grip square in its middle.
+  let vertical = bar.height >= bar.width
+  let ends = scrollBarEnds(bar, true)
+  let face = props.backgroundColor.get(WHITE)
+  let shadow = props.shadowColor.get(GRAY)
+  let ink = props.foregroundColor.get(BLACK)
+  let track = scrollBarTrack(bar, true)
+  # The track is the face darkened toward the shadow: R5's stippled grey.
+  let tone = Color(r: uint8(face.r.int - (face.r.int - shadow.r.int) * 4 div 10),
+                   g: uint8(face.g.int - (face.g.int - shadow.g.int) * 4 div 10),
+                   b: uint8(face.b.int - (face.b.int - shadow.b.int) * 4 div 10), a: 255)
+  discard drawBevelBody(track, props, tone, style = some(BeSunken))
+  let thumb = scrollThumb(track, contentSize, viewSize, offset)
+  discard drawBevelBody(thumb, props, face, style = some(BeRaised))
+  if thumb.width >= 9 and thumb.height >= 9:
+    drawRectangleLines(int32(thumb.x + thumb.width / 2 - 3.5), int32(thumb.y + thumb.height / 2 - 3.5),
+                       7, 7, shadow)
+  for (button, towardStart) in [(ends.startEnd, true), (ends.stopEnd, false)]:
+    if button.width > 0 and button.height > 0:
+      discard drawBevelBody(button, props, face, style = some(BeRaised))
+      drawBeArrow(button, vertical, towardStart, ink)
+
 proc drawScrollbar*(rect: Rect, contentSize, viewSize, offset: float32,
                    props: ThemeProps, hovered = false) =
   ## Scrollbar = reuse existing primitive with theme colors.
@@ -423,6 +501,9 @@ proc drawScrollbar*(rect: Rect, contentSize, viewSize, offset: float32,
   ## for a theme that sets no foreground, which the built-in light theme does
   ## not -- is a dark neutral. It was a light grey, and a 35% tint of light grey
   ## on a light background is invisible.
+  if props.bevelStyle.get(Flat) != Flat:
+    drawBeScrollbar(rect, contentSize, viewSize, offset, props)
+    return
   drawScrollbar(
     rect,
     contentSize,
@@ -463,18 +544,12 @@ proc drawComboBox*(rect: Rect, text: string, props: ThemeProps,
   drawThemedPaddedText(text, rect, props)
 
   if props.bevelStyle.get(Flat) != Flat:
-    # A bevelled theme (BeOS): the arrow sits in its own small raised button at
-    # the field's right end, as the Be menu field does, not as a loose glyph.
-    let inset = 3.0'f32
-    let side = rect.height - 2 * inset
-    let button = Rect(x: rect.x + rect.width - inset - side, y: rect.y + inset,
-                      width: side, height: side)
-    discard drawBevelBody(button, props, props.backgroundColor.get(WHITE),
-                          style = some(BeRaised))
+    # A bevelled theme (BeOS): the field is one raised button, its text on the
+    # left and a small arrow inside it at the right, as the Be menu field is.
     let ink = props.foregroundColor.get(BLACK)
-    let (cx, cy) = (button.x + side / 2, button.y + side / 2)
-    if isOpen: drawUpArrow(cx, cy, 3.5, ink)
-    else: drawDownArrow(cx, cy, 3.5, ink)
+    let (cx, cy) = (rect.x + rect.width - 10, rect.y + rect.height / 2)
+    if isOpen: drawUpArrow(cx, cy, 3.0, ink)
+    else: drawDownArrow(cx, cy, 3.0, ink)
     return
 
   # Dropdown arrow

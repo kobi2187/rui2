@@ -98,13 +98,23 @@ definePrimitive(SegmentedControl):
     let edges = segmentEdges(ws)
     # Scale the segments to the width the control was given.
     let scale = if edges[^1] > 0: widget.bounds.width / edges[^1] else: 1.0'f32
-    drawBox(widget.bounds, radius, props.backgroundColor.get(WHITE),
-            props.borderColor.get(ink), stroke)
+    let bevelled = props.bevelStyle.get(Flat) != Flat
+    if not bevelled:
+      drawBox(widget.bounds, radius, props.backgroundColor.get(WHITE),
+              props.borderColor.get(ink), stroke)
     for i, o in widget.options:
       let x0 = widget.bounds.x + edges[i] * scale
       let seg = Rect(x: x0, y: widget.bounds.y, width: ws[i] * scale, height: widget.bounds.height)
       var text = style
-      if i == widget.selectedIndex:
+      if bevelled:
+        # A bevelled theme (BeOS) has no segmented control: each segment is a button,
+        # and the chosen one stays pressed in.
+        let chosen = i == widget.selectedIndex
+        discard drawBevelBody(seg, props,
+                              if chosen: props.pressedColor.get(props.backgroundColor.get(WHITE))
+                              else: props.backgroundColor.get(WHITE),
+                              pressed = chosen)
+      elif i == widget.selectedIndex:
         drawBox(Rect(x: seg.x + stroke, y: seg.y + stroke, width: seg.width - stroke * 2,
                      height: seg.height - stroke * 2), max(0.0'f32, radius - stroke), accent, accent, 0)
         text.color = onAccent

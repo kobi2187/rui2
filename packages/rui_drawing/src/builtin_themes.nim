@@ -129,8 +129,11 @@ proc createBeosTheme*(): Theme =
                                                 focusRingColor: some(beBlue))
     result.states[intent][Selected] = ThemeProps(backgroundColor: some(grey152),
                                                  foregroundColor: some(black))
+    # R5's disabled label grey is 128 (its own B_DISABLED_LABEL_COLOR), measured on
+    # the disabled "Open" in the file dialog screenshot.
     var off = ThemeProps(backgroundColor: some(panel),
-                         foregroundColor: some(grey152), bevelStyle: some(BeRaised))
+                         foregroundColor: some(Color(r: 128, g: 128, b: 128, a: 255)),
+                         bevelStyle: some(BeRaised))
     result.states[intent][Disabled] = off
 
 # Joy Theme (Playful)

@@ -70,24 +70,35 @@ definePrimitive(Switch):
 
   render:
     let props = widget.themeProps(widget.intent, crPointer, disabled = widget.disabled)
-    let accent = props.activeColor.get(Color(r: 80, g: 120, b: 255, a: 255))
-    let off = props.borderColor.get(Color(r: 190, g: 190, b: 190, a: 255))
-    let h = max(currentTheme.indicatorSize * 1.2'f32, 18.0'f32)
-    let dims = switchTrack(h)
-    let track = Rect(x: widget.bounds.x,
-                     y: widget.bounds.y + (widget.bounds.height - dims.height) / 2,
-                     width: dims.width, height: dims.height)
-    let color = lerp(off, accent, widget.thumbT)
-    drawBox(track, track.height / 2, color, props.borderColor.get(color),
-            if widget.on: 0.0'f32 else: props.strokeWidth)
-    let d = track.height - 4
-    drawBox(Rect(x: thumbX(track, widget.thumbT), y: track.y + 2, width: d, height: d),
-            d / 2, props.backgroundColor.get(WHITE), props.borderColor.get(color), 0)
-    if widget.focused:
-      drawBox(Rect(x: track.x - 3, y: track.y - 3, width: track.width + 6, height: track.height + 6),
-              track.height / 2 + 3, Color(r: 0, g: 0, b: 0, a: 0),
-              props.focusColor.get(accent), props.focusRingWidth.get(2.0'f32))
+    var right: float32       # where the caption starts, after the control
+    if props.bevelStyle.get(Flat) != Flat:
+      # A bevelled theme (BeOS) has no switch: the same control is a check box,
+      # as it is in R5.
+      let box = currentTheme.indicatorSize
+      let r = Rect(x: widget.bounds.x, y: widget.bounds.y + (widget.bounds.height - box) / 2,
+                   width: box, height: box)
+      drawCheckbox(r, widget.on, props, widget.hovered, widget.focused)
+      right = r.x + r.width
+    else:
+      let accent = props.activeColor.get(Color(r: 80, g: 120, b: 255, a: 255))
+      let off = props.borderColor.get(Color(r: 190, g: 190, b: 190, a: 255))
+      let h = max(currentTheme.indicatorSize * 1.2'f32, 18.0'f32)
+      let dims = switchTrack(h)
+      let track = Rect(x: widget.bounds.x,
+                       y: widget.bounds.y + (widget.bounds.height - dims.height) / 2,
+                       width: dims.width, height: dims.height)
+      let color = lerp(off, accent, widget.thumbT)
+      drawBox(track, track.height / 2, color, props.borderColor.get(color),
+              if widget.on: 0.0'f32 else: props.strokeWidth)
+      let d = track.height - 4
+      drawBox(Rect(x: thumbX(track, widget.thumbT), y: track.y + 2, width: d, height: d),
+              d / 2, props.backgroundColor.get(WHITE), props.borderColor.get(color), 0)
+      if widget.focused:
+        drawBox(Rect(x: track.x - 3, y: track.y - 3, width: track.width + 6, height: track.height + 6),
+                track.height / 2 + 3, Color(r: 0, g: 0, b: 0, a: 0),
+                props.focusColor.get(accent), props.focusRingWidth.get(2.0'f32))
+      right = track.x + track.width
     if widget.text.len > 0:
       let style = props.captionStyle(props.foregroundColor.get(BLACK))
-      drawStyledText(widget.text, track.x + track.width + props.spacing.get(8.0'f32),
+      drawStyledText(widget.text, right + props.spacing.get(8.0'f32),
                      widget.bounds.y + (widget.bounds.height - style.fontSize) / 2, style)
