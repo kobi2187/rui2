@@ -216,6 +216,7 @@ definePrimitive(DataTable):
     sortColumn: string           # Empty means unsorted
     sortOrder: SortOrder
     scrollY: float32
+    touch: RowsTouch             # a finger's tap or drag (scroll_drag.nim)
     vbar: VBar                   # the scroll bar's drag and hover
     filteredIndices: seq[int]
     visibleStart: int
@@ -231,6 +232,7 @@ definePrimitive(DataTable):
 
   init:
     widget.focusable = true
+    widget.multiPointer = true
     widget.resetOnLeave:
       widget.hoverRow = -1
       widget.vbar.hover = false
@@ -238,10 +240,15 @@ definePrimitive(DataTable):
 
   events:
     on_mouse_up:
+      let m = metricsOf(widget)
+      if widget.rowsTouch(widget.touch, event, widget.scrollY, m.rows,
+                          viewCount(widget), barTrackOf(widget, m)): return true
       return widget.rowsUp(widget.vbar)
 
     on_mouse_down:
       let m = metricsOf(widget)
+      if widget.rowsTouch(widget.touch, event, widget.scrollY, m.rows,
+                          viewCount(widget), barTrackOf(widget, m)): return true
       if widget.rowsDown(widget.vbar, widget.scrollY, barTrackOf(widget, m), m.rows,
                          viewCount(widget), event.mousePos):
         return true
@@ -251,6 +258,8 @@ definePrimitive(DataTable):
 
     on_mouse_move:
       let m = metricsOf(widget)
+      if widget.rowsTouch(widget.touch, event, widget.scrollY, m.rows,
+                          viewCount(widget), barTrackOf(widget, m)): return true
       let at = widget.rowsMove(widget.vbar, widget.scrollY, barTrackOf(widget, m),
                                m.rows, viewCount(widget), event.mousePos)
       if at.taken: return true

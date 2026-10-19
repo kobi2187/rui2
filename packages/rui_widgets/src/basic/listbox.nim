@@ -59,6 +59,7 @@ definePrimitive(ListBox):
     selection: HashSet[int]
     source: RowSource            # where the rows come from, instead of `items`
     scrollY: float32
+    touch: RowsTouch             # a finger's tap or drag (scroll_drag.nim)
     vbar: VBar                   # the scroll bar's drag and hover
     visibleStart: int
     visibleEnd: int
@@ -73,6 +74,7 @@ definePrimitive(ListBox):
 
   init:
     widget.focusable = true
+    widget.multiPointer = true
     widget.resetOnLeave:
       widget.hoverIndex = -1
       widget.vbar.hover = false
@@ -88,6 +90,8 @@ definePrimitive(ListBox):
       return true
 
     on_mouse_move:
+      if widget.rowsTouch(widget.touch, event, widget.scrollY, viewportOf(widget),
+                          widget.totalItems, widget.barTrack): return true
       if widget.disabled:
         return false
       let at = widget.rowsMove(widget.vbar, widget.scrollY, widget.barTrack,
@@ -99,9 +103,13 @@ definePrimitive(ListBox):
       return false
 
     on_mouse_up:
+      if widget.rowsTouch(widget.touch, event, widget.scrollY, viewportOf(widget),
+                          widget.totalItems, widget.barTrack): return true
       return widget.rowsUp(widget.vbar)
 
     on_mouse_down:
+      if widget.rowsTouch(widget.touch, event, widget.scrollY, viewportOf(widget),
+                          widget.totalItems, widget.barTrack): return true
       if widget.disabled:
         return false
       if widget.rowsDown(widget.vbar, widget.scrollY, widget.barTrack,

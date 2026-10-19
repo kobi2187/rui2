@@ -136,6 +136,7 @@ definePrimitive(DataGrid):
     sortColumn: int              # -1 means unsorted
     sortOrder: SortOrder
     scrollY: float32
+    touch: RowsTouch             # a finger's tap or drag (scroll_drag.nim)
     vbar: VBar                   # the scroll bar's drag and hover
     order: seq[int]              # Display order -> index into `data`
     visibleStart: int
@@ -151,6 +152,7 @@ definePrimitive(DataGrid):
 
   init:
     widget.focusable = true
+    widget.multiPointer = true
     widget.resetOnLeave:
       widget.hoverRow = -1
       widget.vbar.hover = false
@@ -158,10 +160,15 @@ definePrimitive(DataGrid):
 
   events:
     on_mouse_up:
+      let m = metricsOf(widget)
+      if widget.rowsTouch(widget.touch, event, widget.scrollY, m.rows,
+                          widget.order.len, barTrackOf(widget, m)): return true
       return widget.rowsUp(widget.vbar)
 
     on_mouse_down:
       let m = metricsOf(widget)
+      if widget.rowsTouch(widget.touch, event, widget.scrollY, m.rows,
+                          widget.order.len, barTrackOf(widget, m)): return true
       if widget.rowsDown(widget.vbar, widget.scrollY, barTrackOf(widget, m), m.rows,
                          widget.order.len, event.mousePos):
         return true
@@ -171,6 +178,8 @@ definePrimitive(DataGrid):
 
     on_mouse_move:
       let m = metricsOf(widget)
+      if widget.rowsTouch(widget.touch, event, widget.scrollY, m.rows,
+                          widget.order.len, barTrackOf(widget, m)): return true
       let at = widget.rowsMove(widget.vbar, widget.scrollY, barTrackOf(widget, m),
                                m.rows, widget.order.len, event.mousePos)
       if at.taken: return true
