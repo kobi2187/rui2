@@ -297,14 +297,18 @@ proc drawCheckbox*(rect: Rect, checked: bool, props: ThemeProps,
   let radius = min(props.cornerRadius.get(2.0), rect.width / 4)
   let accent = props.activeColor.get(Color(r: 100, g: 150, b: 255, a: 255))
   if props.bevelStyle.get(Flat) != Flat:
-    # A bevelled theme: a sunken well, the tick in the ink colour.
+    # A bevelled theme: a sunken well, marked with an X in the ink colour. R5
+    # marks a checked box with two strokes corner to corner, not a tick.
     let bg = if hovered: props.hoverColor.get(props.backgroundColor.get(WHITE))
              else: props.backgroundColor.get(WHITE)
     discard drawBevelBody(rect, props, bg, style = some(BeSunken))
     if checked:
-      drawCheckmark(Rect(x: rect.x + 2, y: rect.y + 2, width: rect.width - 4,
-                         height: rect.height - 4),
-                    props.foregroundColor.get(BLACK), max(2.0'f32, w * 1.25))
+      let i = 3.0'f32
+      let ink = props.foregroundColor.get(BLACK)
+      let (x0, y0) = (rect.x + i, rect.y + i)
+      let (x1, y1) = (rect.x + rect.width - i, rect.y + rect.height - i)
+      drawLine(Vector2(x: x0, y: y0), Vector2(x: x1, y: y1), 2.0, ink)
+      drawLine(Vector2(x: x0, y: y1), Vector2(x: x1, y: y0), 2.0, ink)
   elif checked:
     drawBox(rect, radius, accent, accent, 0)
     drawCheckmark(rect, onAccentColor(), max(2.0'f32, w * 1.25))
@@ -457,6 +461,21 @@ proc drawComboBox*(rect: Rect, text: string, props: ThemeProps,
   ## Combo box = interactive box + padded text + down/up arrow
   drawInteractiveBox(rect, props, hovered = hovered, focused = focused)
   drawThemedPaddedText(text, rect, props)
+
+  if props.bevelStyle.get(Flat) != Flat:
+    # A bevelled theme (BeOS): the arrow sits in its own small raised button at
+    # the field's right end, as the Be menu field does, not as a loose glyph.
+    let inset = 3.0'f32
+    let side = rect.height - 2 * inset
+    let button = Rect(x: rect.x + rect.width - inset - side, y: rect.y + inset,
+                      width: side, height: side)
+    discard drawBevelBody(button, props, props.backgroundColor.get(WHITE),
+                          style = some(BeRaised))
+    let ink = props.foregroundColor.get(BLACK)
+    let (cx, cy) = (button.x + side / 2, button.y + side / 2)
+    if isOpen: drawUpArrow(cx, cy, 3.5, ink)
+    else: drawDownArrow(cx, cy, 3.5, ink)
+    return
 
   # Dropdown arrow
   let padding = props.fieldInset
