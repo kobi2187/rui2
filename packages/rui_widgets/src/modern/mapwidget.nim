@@ -179,7 +179,12 @@ definePrimitive(MapWidget):
 
     on_mouse_up:
       discard widget.fingers.feed(event)
-      if event.pointerId != 0: return true
+      if event.pointerId != 0:
+        if widget.fingers.has(0) and widget.enablePan:      # back to one finger: it pans on
+          widget.isPanning = true
+          widget.panStart = widget.fingers.pos(0)
+          widget.panStartCenter = widget.center
+        return true
       if widget.isPanning:
         widget.isPanning = false
         return true

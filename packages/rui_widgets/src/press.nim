@@ -29,6 +29,7 @@ proc makePressable*(widget: Widget, relayout = false, keyboard = true) =
   ## (Button does), so a press or hover change must ask for one. `keyboard`: it can
   ## take focus (not for a mere clickable image).
   widget.focusable = keyboard
+  widget.stealableDrag = true       # on a touch screen a drag through a button scrolls, it does not click
   widget.relayoutOnState = relayout
 
 proc stateChanged*(widget: Widget) =

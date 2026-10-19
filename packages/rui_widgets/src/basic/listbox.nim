@@ -158,6 +158,8 @@ definePrimitive(ListBox):
       return true
 
   layout:
+    widget.rowsFling(widget.touch, widget.scrollY, viewportOf(widget),
+                     widget.totalItems)
     if widget.bounds.height <= 0:
       widget.bounds.height = float32(widget.visibleRows) * rowH(widget)
     if widget.bounds.width <= 0:

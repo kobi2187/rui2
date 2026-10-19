@@ -39,3 +39,10 @@ proc unpinInputMode*() =
   ## Back to automatic (tests).
   modePinned = false
   inputMode = imDesktop
+
+const TouchBarWidth = 24.0'f32
+
+proc fingerSized*(base: float32): float32 =
+  ## A control a pointer must hit (a scroll bar's width): at least a fingertip wide
+  ## on a touch screen, as the theme made it with a mouse.
+  if isTouch(): max(base, TouchBarWidth) else: base

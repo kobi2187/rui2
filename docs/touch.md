@@ -29,6 +29,18 @@ The mode starts as desktop (touch on Android); `RUI_INPUT=touch|desktop` or
 `setInputMode(...)` set it, and two fingers down at once switch an unpinned app to touch.
 `scroll_drag.nim`'s `rowsTouch` is the shared code for the row lists.
 
-Not yet: one-finger scrolling in `ScrollView` (a press lands on the child first), flings,
-rotation in the Map, and real-device testing (raylib's own touch to mouse emulation is
-assumed to mirror finger 0).
+A finger also gets what a mouse has, not less:
+
+- Scroll bars are at least a fingertip wide (`fingerSized`), and touching the track
+  *jumps* the thumb to the touch and keeps dragging from there (a mouse still pages),
+  so no list or `ScrollView` needs flinging to be crossed.
+- Dragging on a `ScrollView`'s content scrolls it, even when the finger started on a
+  button: a press on anything `stealableDrag` (everything that uses `makePressable`)
+  that travels past 8px is handed to the nearest `scrollsByDrag` ancestor, and the
+  button is disarmed so its release does not click. A tap still clicks.
+- A quick drag released while moving *flings* (`fling.nim`, plain values, decays by
+  friction; touching again stops it) in `ScrollView` and the row lists.
+
+Not yet: rotation in the Map (it has no bearing), long-press as right-click / tooltip
+(hover has no touch equivalent yet), and real-device testing (raylib's own touch to
+mouse emulation is assumed to mirror finger 0).

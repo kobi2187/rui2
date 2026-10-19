@@ -38,7 +38,11 @@ proc count*(ps: Pointers): int = ps.at.len
 proc has*(ps: Pointers, id: int): bool = id in ps.at
 proc pos*(ps: Pointers, id: int): Point = ps.at.getOrDefault(id)
 
-proc down*(ps: var Pointers, id: int, p: Point) = ps.at[id] = p
+proc down*(ps: var Pointers, id: int, p: Point) =
+  ## Pointer 0 is the first finger or the mouse, so its press starts a fresh
+  ## sequence: whatever else was recorded is stale (a release the widget never saw).
+  if id == 0: ps.at.clear()
+  ps.at[id] = p
 proc up*(ps: var Pointers, id: int) = ps.at.del id
 proc clear*(ps: var Pointers) = ps.at.clear()
 

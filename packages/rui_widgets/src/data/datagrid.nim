@@ -200,6 +200,8 @@ definePrimitive(DataGrid):
       return widget.tableKeyDown(widget.order, m.rows, event)
 
   layout:
+    widget.rowsFling(widget.touch, widget.scrollY, metricsOf(widget).rows,
+                     widget.order.len)
     # Build the display order once here rather than per frame in render.
     widget.order.setLen(widget.data.len)
     for i in 0 ..< widget.data.len:

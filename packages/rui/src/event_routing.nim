@@ -11,6 +11,7 @@
 ## checkable headlessly, which it was not while it was a private proc reaching
 ## into App's fields.
 
+import std/math
 import rui_core
 import rui_events
 import rui_hittest
@@ -24,6 +25,8 @@ type
       ## Where keys go, and what Tab moves.
     hover*: HoverTracker
       ## Which widget the pointer is over, and the transition when that changes.
+    pressAt: Point
+      ## Where pointer 0 went down: a drag is measured from it (see `steal`).
 
 proc newEventRouter*(hitTest: HitTestSystem, focus: FocusManager,
                      hover: HoverTracker): EventRouter =
@@ -114,6 +117,28 @@ proc routeExtraPointer(router: EventRouter, event: GuiEvent): bool =
   if event.kind != evMouseMove: target.markDirtyToRoot()
   true
 
+const StealSlop = 8.0'f32   ## px a held press may move before a scroller takes it
+
+proc steal(router: EventRouter, event: GuiEvent, held: Widget): Widget =
+  ## On a touch screen a finger that went down on a button and then travels is
+  ## scrolling, not clicking. When the widget holding the pointer is `stealable`
+  ## and the finger has gone past the slop, the nearest ancestor that
+  ## `scrollsByDrag` takes the pointer: the button is disarmed (clearing the hover
+  ## clears `pressed`, so its release does not click), and the scroller is handed
+  ## the press as if it had landed there. Returns the new target, or `held`.
+  let d = hypot(event.mousePos.x - router.pressAt.x, event.mousePos.y - router.pressAt.y)
+  if d <= StealSlop: return held
+  var s = held.parent
+  while s != nil and not s.scrollsByDrag: s = s.parent
+  if s == nil: return held
+  discard router.updateHover(nil)
+  held.pressed = false
+  releasePointer(0)
+  capturePointer(s, 0)
+  discard s.handleInput(GuiEvent(kind: evMouseDown, priority: epHigh,
+                                 timestamp: event.timestamp, mousePos: router.pressAt))
+  s
+
 proc routePointer*(router: EventRouter, event: GuiEvent): bool =
   ## Deliver a pointer event to whatever is under it. Returns whether the tree
   ## needs repainting.
@@ -123,7 +148,11 @@ proc routePointer*(router: EventRouter, event: GuiEvent): bool =
   ## conditions here. Everything else was copied four times.
   if event.pointerId != 0:
     return router.routeExtraPointer(event)
-  let widget = router.widgetAt(event)
+  var widget = router.widgetAt(event)
+  if event.kind == evMouseDown: router.pressAt = event.mousePos
+  if event.kind == evMouseMove and isTouch() and widget != nil and
+     widget.stealableDrag and pointerCapture(0) == widget:
+    widget = router.steal(event, widget)
 
   var dirty = false
   if event.kind == evMouseMove:

@@ -160,5 +160,5 @@ template tableKeyDown*(widget: untyped, view: untyped, rows: RowViewport,
 
 template barTrackOf*(widget, m: untyped): Rect =
   ## The scroll bar's track: down the right edge, beside the rows (not the header).
-  Rect(x: widget.bounds.x + widget.bounds.width - currentTheme.scrollbarThickness,
-       y: m.rowsTop, width: currentTheme.scrollbarThickness, height: m.viewHeight)
+  Rect(x: widget.bounds.x + widget.bounds.width - fingerSized(currentTheme.scrollbarThickness),
+       y: m.rowsTop, width: fingerSized(currentTheme.scrollbarThickness), height: m.viewHeight)

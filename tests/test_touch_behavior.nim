@@ -2,7 +2,7 @@
 ## selects at once; with fingers a drag scrolls and only a tap selects; two
 ## fingers scroll by the movement of their midpoint in either mode.
 
-import std/[unittest, sequtils, json, tables, sets]
+import std/[unittest, sequtils, json, tables, sets, os]
 import rui
 import ui_harness
 
@@ -181,3 +181,160 @@ suite "pinch":
     r.pointerMove(1, c.x, c.y - 30)
     r.pointerUp(1, c.x, c.y - 30)
     check sv.scrollOffsetY > 40
+
+suite "one finger in a ScrollView":
+  var sv: ScrollView
+  var button: Button
+  var clicks = 0
+  var r: Rig
+
+  setup:
+    setInputMode(imTouch)
+    clicks = 0
+    sv = newScrollView(padding = 0.0)
+    sv.sizeRequest = Size(width: 200, height: 100)
+    let content = newVStack(spacing = 4.0)
+    button = newButton(text = "go", onClick = proc() = inc clicks)
+    content.addChild(button)
+    let tall = newLabel(text = "tall", fontSize = 14.0)
+    tall.sizeRequest = Size(width: 150, height: 600)
+    content.addChild(tall)
+    sv.addChild(content)
+    r = newRig(stack(sv))
+
+  teardown:
+    unpinInputMode()
+    releaseAllPointers()
+
+  test "dragging on empty content scrolls it":
+    let c = centre(sv)
+    r.press(c.x, c.y + 30)
+    r.pointerMove(0, c.x, c.y)
+    r.pointerMove(0, c.x, c.y - 30)
+    r.release(c.x, c.y - 30)
+    check sv.scrollOffsetY > 40
+
+  test "a tap on a button still clicks it":
+    r.click(button)
+    check clicks == 1
+
+  test "a drag that starts on a button scrolls and does not click":
+    let c = centre(button)
+    r.press(c.x, c.y)
+    r.pointerMove(0, c.x, c.y - 10)
+    r.pointerMove(0, c.x, c.y - 40)
+    r.release(c.x, c.y - 40)
+    check sv.scrollOffsetY > 20
+    check clicks == 0
+    check not button.pressed
+
+  test "with a mouse the same drag clicks nothing and scrolls nothing":
+    setInputMode(imDesktop)
+    let c = centre(button)
+    r.press(c.x, c.y)
+    r.pointerMove(0, c.x, c.y - 40)
+    r.release(c.x, c.y - 40)
+    check sv.scrollOffsetY == 0
+
+  test "a quick flick runs on after the finger lifts":
+    let c = centre(sv)
+    r.press(c.x, c.y + 40)
+    for i in 1 .. 4:
+      sleep(16)
+      r.pointerMove(0, c.x, c.y + 40 - i.float32 * 15)
+    r.release(c.x, c.y - 20)
+    let atRelease = sv.scrollOffsetY
+    for _ in 1 .. 30:
+      sleep(20); discard fireDueRepaints(); r.frame(1)
+    check sv.scrollOffsetY > atRelease + 10
+
+  test "touching again stops it":
+    let c = centre(sv)
+    r.press(c.x, c.y + 40)
+    for i in 1 .. 4:
+      sleep(16)
+      r.pointerMove(0, c.x, c.y + 40 - i.float32 * 15)
+    r.release(c.x, c.y - 20)
+    sleep(40); discard fireDueRepaints(); r.frame(1)
+    r.press(c.x, c.y)
+    let held = sv.scrollOffsetY
+    for _ in 1 .. 5:
+      sleep(20); discard fireDueRepaints(); r.frame(1)
+    check sv.scrollOffsetY == held
+    r.release(c.x, c.y)
+
+suite "a flick on a row list":
+  setup: setInputMode(imTouch)
+  teardown:
+    unpinInputMode()
+    releaseAllPointers()
+
+  test "ListView runs on after a quick drag":
+    let l = newListView(items = rows(300), visibleRows = 8)
+    let r = newRig(stack(l))
+    let c = centre(l)
+    r.press(c.x - 30, c.y + 40)
+    for i in 1 .. 4:
+      sleep(16)
+      r.pointerMove(0, c.x - 30, c.y + 40 - i.float32 * 15)
+    r.release(c.x - 30, c.y - 20)
+    let atRelease = l.scrollY
+    for _ in 1 .. 30:
+      sleep(20); discard fireDueRepaints(); r.frame(1)
+    check l.scrollY > atRelease + 10
+
+suite "a pinch that ends with one finger":
+  setup: releaseAllPointers()
+  teardown: releaseAllPointers()
+
+  test "MapWidget carries on panning with the finger that stayed":
+    let m = newMapWidget(); m.sizeRequest = Size(width: 300, height: 200)
+    let r = newRig(stack(m))
+    let c = centre(m)
+    r.press(c.x, c.y)
+    r.pointerDown(1, c.x + 40, c.y)
+    r.pointerUp(1, c.x + 40, c.y)
+    check m.isPanning
+    let before = m.center
+    r.pointerMove(0, c.x + 50, c.y)
+    check m.center != before
+
+suite "scroll bars on a touch screen jump to where they are touched":
+  setup: setInputMode(imTouch)
+  teardown:
+    unpinInputMode()
+    releaseAllPointers()
+
+  for s in scrollers:
+    let sc = s
+    test sc.name & ": a tap low on the bar jumps there, a drag from it carries on":
+      let w = sc.make()
+      let r = newRig(stack(w))
+      let x = w.bounds.x + w.bounds.width - 6      # inside the (widened) bar
+      let y = w.bounds.y + w.bounds.height - 12
+      r.press(x, y)
+      let jumped = sc.scrollY(w)
+      check jumped > 100                           # not a page: a jump near the end
+      r.pointerMove(0, x, w.bounds.y + 30)
+      check sc.scrollY(w) < jumped                 # the thumb follows the finger
+      r.release(x, w.bounds.y + 30)
+      check not sc.picked(w)
+
+  test "ScrollView: the same":
+    let sv = newScrollView(padding = 0.0)
+    sv.sizeRequest = Size(width: 200, height: 100)
+    let tall = newLabel(text = "tall", fontSize = 14.0)
+    tall.sizeRequest = Size(width: 150, height: 1000)
+    sv.addChild(tall)
+    let r = newRig(stack(sv))
+    let x = sv.bounds.x + sv.bounds.width - 6
+    r.press(x, sv.bounds.y + sv.bounds.height - 10)
+    check sv.scrollOffsetY > 500
+    r.release(x, sv.bounds.y + sv.bounds.height - 10)
+
+  test "with a mouse a click on the track still moves one page":
+    setInputMode(imDesktop)
+    let l = newListView(items = rows(300), visibleRows = 8)
+    let r = newRig(stack(l))
+    r.click(l.bounds.x + l.bounds.width - 5, l.bounds.y + l.bounds.height - 8)
+    check l.scrollY > 0 and l.scrollY < 200

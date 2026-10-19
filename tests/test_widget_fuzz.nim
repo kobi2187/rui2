@@ -39,3 +39,45 @@ suite "every widget under the same gestures":
       check not w.hovered
       check pointerCapture() == nil
       check overlays().len == 0
+
+suite "every widget under several fingers":
+  for mode in [imDesktop, imTouch]:
+    for name in registeredWidgets():
+      if skipped(name): continue
+      let typeName = name
+      let m = mode
+
+      test $m & " " & typeName & ": a pinch, a two-finger drag and a flick leave no pointer held":
+        setInputMode(m)
+        defer:
+          unpinInputMode()
+          releaseAllPointers()
+        let w = newWidgetByName(typeName).get
+        w.sizeRequest = Size(width: 160, height: 60)
+        let r = newRig(stack(w))
+        clearOverlays()
+        let c = centre(w)
+        # a pinch
+        r.press(c.x - 10, c.y)
+        r.pointerDown(1, c.x + 10, c.y)
+        for i in 1 .. 4:
+          r.pointerMove(0, c.x - 10 - i.float32 * 8, c.y)
+          r.pointerMove(1, c.x + 10 + i.float32 * 8, c.y)
+        r.pointerUp(1, c.x + 40, c.y)
+        r.release(c.x - 40, c.y)
+        # two fingers dragging together, lifted in the other order
+        r.press(c.x, c.y)
+        r.pointerDown(1, c.x + 20, c.y)
+        r.pointerMove(0, c.x, c.y - 20); r.pointerMove(1, c.x + 20, c.y - 20)
+        r.release(c.x, c.y - 20)
+        r.pointerUp(1, c.x + 20, c.y - 20)
+        # a flick, and a stray second finger with no first
+        r.drag(c.x, c.y + 20, c.x, c.y - 20, steps = 3)
+        r.pointerDown(2, c.x, c.y); r.pointerMove(2, c.x + 5, c.y); r.pointerUp(2, c.x + 5, c.y)
+        r.click(395, 295)
+        r.moveTo(395, 295)
+        check not w.hovered
+        check pointerCapture(0) == nil
+        check pointerCapture(1) == nil
+        check pointerCapture(2) == nil
+        check overlays().len == 0

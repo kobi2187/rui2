@@ -181,6 +181,8 @@ definePrimitive(ListView):
       return true
 
   layout:
+    widget.rowsFling(widget.touch, widget.scrollY, viewportOf(widget),
+                     widget.totalItems)
     if widget.bounds.height <= 0:
       widget.bounds.height = float32(widget.visibleRows) * rowH(widget)
     if widget.bounds.width <= 0:
@@ -189,7 +191,7 @@ definePrimitive(ListView):
       var widest = if widget.source != nil: 240.0'f32 else: 0.0'f32
       for item in widget.items:
         widest = max(widest, measureText(item, style).width)
-      widget.bounds.width = widest + 16.0 + currentTheme.scrollbarThickness
+      widget.bounds.width = widest + 16.0 + fingerSized(currentTheme.scrollbarThickness)
 
   render:
     let props = currentTheme.getThemeProps(widget.intent,
@@ -215,7 +217,7 @@ definePrimitive(ListView):
 
     let clip = beginClip(widget.bounds)
     let listWidth = if widget.showScrollbar and totalHeight > viewHeight:
-                      widget.bounds.width - currentTheme.scrollbarThickness
+                      widget.bounds.width - fingerSized(currentTheme.scrollbarThickness)
                     else:
                       widget.bounds.width
 

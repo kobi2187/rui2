@@ -178,6 +178,8 @@ definePrimitive(TreeView):
       return true
 
   layout:
+    widget.rowsFling(widget.touch, widget.scrollY, viewportOf(widget),
+                     widget.flatNodes.len)
     # Re-flatten: the visible row list is built here (and by a key that
     # opens or closes a branch, which needs it at once).
     widget.reflatten()

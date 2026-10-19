@@ -151,7 +151,11 @@ definePrimitive(Timeline):
 
     on_mouse_up:
       discard widget.fingers.feed(event)
-      if event.pointerId != 0: return true
+      if event.pointerId != 0:
+        if widget.fingers.has(0):                           # back to one finger: it pans on
+          widget.isDragging = true
+          widget.dragStartX = widget.fingers.pos(0).x + widget.scrollOffset
+        return true
       if widget.isDragging:
         widget.isDragging = false
         return true

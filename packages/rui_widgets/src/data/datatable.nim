@@ -278,6 +278,8 @@ definePrimitive(DataTable):
       return widget.tableKeyDown(shownRows(widget), m.rows, event)
 
   layout:
+    widget.rowsFling(widget.touch, widget.scrollY, metricsOf(widget).rows,
+                     viewCount(widget))
     widget.ensureEditors()
     # Filter, then sort, then cache. Doing this here rather than in render means
     # it runs when the data or the filters change, not once per frame.
