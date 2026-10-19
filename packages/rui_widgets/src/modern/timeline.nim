@@ -10,6 +10,7 @@
 
 import rui_core
 import ../value_input
+import ../pointers
 import rui_drawing
 import std/[options, times, json]
 
@@ -93,6 +94,7 @@ definePrimitive(Timeline):
     hoverEvent: string           # Event ID
     isDragging: bool
     dragStartX: float32
+    fingers: Pointers            # the pointers down: two make a pinch
 
   actions:
     onEventClick(event: TimelineEvent)
@@ -100,12 +102,17 @@ definePrimitive(Timeline):
 
   init:
     widget.focusable = true
+    widget.multiPointer = true
     # An unset range (year 0) would crash every time calculation: use one day.
     if widget.startTime.isUnset: widget.startTime = dateTime(2000, mJan, 1, zone = utc())
     if widget.endTime.isUnset: widget.endTime = dateTime(2000, mJan, 2, zone = utc())
 
   events:
     on_mouse_down:
+      let fed = widget.fingers.feed(event)
+      if fed.pinching or event.pointerId != 0:
+        widget.isDragging = false         # a second finger: the pinch takes over
+        return true
       let axis = axisOf(widget)
       for i, evt in widget.events:
         if axis.eventRectFor(i, evt).contains(event.mousePos.x, event.mousePos.y):
@@ -121,6 +128,12 @@ definePrimitive(Timeline):
       return true
 
     on_mouse_move:
+      let fed = widget.fingers.feed(event)
+      if fed.pinching:
+        widget.zoomAt(fed.change.scale, fed.change.anchor.x)
+        widget.panTo(widget.scrollOffset - fed.change.pan.x)
+        return true
+      if event.pointerId != 0: return true
       if widget.isDragging:
         widget.panTo(widget.dragStartX - event.mousePos.x)
         return true
@@ -137,6 +150,8 @@ definePrimitive(Timeline):
       return false
 
     on_mouse_up:
+      discard widget.fingers.feed(event)
+      if event.pointerId != 0: return true
       if widget.isDragging:
         widget.isDragging = false
         return true

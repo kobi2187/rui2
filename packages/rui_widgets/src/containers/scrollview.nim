@@ -24,6 +24,7 @@
 import rui_core
 import rui_drawing
 import scroll_geometry
+import ../pointers
 export scroll_geometry
 
 import raylib
@@ -103,6 +104,10 @@ defineWidget(ScrollView):
     contentHeight: float
     dragAxis: int                # 0 none, 1 the vertical thumb, 2 the horizontal
     dragGrab: float32            # where on the thumb it was taken
+    fingers: Pointers            # extra fingers: they scroll the content
+
+  init:
+    widget.multiPointer = true
 
   layout:
     # Keep the offset inside what the content allowed last time *before* the
@@ -171,6 +176,8 @@ defineWidget(ScrollView):
       return after != before
 
     on_mouse_down:
+      discard widget.fingers.feed(event)
+      if event.pointerId != 0: return true
       # The thumb is dragged where it was taken; a press elsewhere on the
       # track moves a page towards the pointer.
       let bars = scrollBarsFor(widget.extent)
@@ -195,6 +202,12 @@ defineWidget(ScrollView):
       return false
 
     on_mouse_move:
+      let fed = widget.fingers.feed(event)
+      if event.pointerId != 0:
+        # A finger beyond the first carries the content with it.
+        widget.scrollTo(true, widget.scrollOffsetY - fed.change.pan.y)
+        widget.scrollTo(false, widget.scrollOffsetX - fed.change.pan.x)
+        return true
       if widget.dragAxis == 0:
         return false
       let vertical = widget.dragAxis == 1
@@ -208,6 +221,8 @@ defineWidget(ScrollView):
       return true
 
     on_mouse_up:
+      discard widget.fingers.feed(event)
+      if event.pointerId != 0: return true
       if widget.dragAxis == 0:
         return false
       widget.dragAxis = 0

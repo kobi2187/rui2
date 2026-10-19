@@ -106,3 +106,78 @@ for s in scrollers:
       r.pointerMove(0, x, y - 30); r.pointerMove(1, x + 40, y - 30)
       r.pointerUp(1, x + 40, y - 30); r.release(x, y - 30)
       check s.scrollY(w) > 0
+
+suite "pinch":
+  setup: releaseAllPointers()
+  teardown: releaseAllPointers()
+
+  proc spread(r: Rig, c: Point, from0, to0: float32, steps = 4) =
+    ## Two fingers either side of `c`, moving apart (or together) symmetrically.
+    r.press(c.x - from0, c.y)
+    r.pointerDown(1, c.x + from0, c.y)
+    for i in 1 .. steps:
+      let d = from0 + (to0 - from0) * i.float32 / steps.float32
+      r.pointerMove(0, c.x - d, c.y)
+      r.pointerMove(1, c.x + d, c.y)
+    r.pointerUp(1, c.x + to0, c.y)
+    r.release(c.x - to0, c.y)
+
+  test "MapWidget zooms in when the fingers spread and out when they close":
+    let m = newMapWidget(); m.sizeRequest = Size(width: 300, height: 200)
+    let r = newRig(stack(m))
+    let before = m.zoom
+    r.spread(centre(m), 20, 60)
+    check m.zoom > before + 0.5
+    let zoomed = m.zoom
+    r.spread(centre(m), 60, 20)
+    check m.zoom < zoomed - 0.5
+
+  test "MapWidget keeps the place between the fingers under them":
+    let m = newMapWidget(); m.sizeRequest = Size(width: 300, height: 200)
+    let r = newRig(stack(m))
+    let c = centre(m)
+    let view = MapView(center: m.center, zoom: m.zoom, projection: m.projection,
+                       originX: m.bounds.x, originY: m.bounds.y,
+                       width: m.bounds.width, height: m.bounds.height)
+    let place = view.screenToWorld(c.x, c.y)
+    r.spread(c, 20, 60)
+    let after = MapView(center: m.center, zoom: m.zoom, projection: m.projection,
+                        originX: m.bounds.x, originY: m.bounds.y,
+                        width: m.bounds.width, height: m.bounds.height)
+    let at = after.worldToScreen(place)
+    check abs(at.x - c.x) < 2 and abs(at.y - c.y) < 2
+
+  test "MapWidget: a pinch does not start a one-finger pan":
+    let m = newMapWidget(); m.sizeRequest = Size(width: 300, height: 200)
+    let r = newRig(stack(m))
+    let c = centre(m)
+    r.press(c.x, c.y)
+    check m.isPanning
+    r.pointerDown(1, c.x + 40, c.y)
+    check not m.isPanning
+    r.pointerUp(1, c.x + 40, c.y); r.release(c.x, c.y)
+
+  test "Timeline zooms with a pinch":
+    let t = Timeline(newWidgetByName("Timeline").get)
+    t.sizeRequest = Size(width: 300, height: 120)
+    let r = newRig(stack(t))
+    let before = t.pixelsPerUnit
+    r.spread(Point(x: t.bounds.x + 150, y: t.bounds.y + 100), 20, 60)
+    check t.pixelsPerUnit > before * 1.5
+    let zoomed = t.pixelsPerUnit
+    r.spread(Point(x: t.bounds.x + 150, y: t.bounds.y + 100), 60, 20)
+    check t.pixelsPerUnit < zoomed
+
+  test "ScrollView: a second finger carries the content":
+    let sv = newScrollView(padding = 0.0)
+    sv.sizeRequest = Size(width: 200, height: 100)
+    let tall = newLabel(text = "tall", fontSize = 14.0)
+    tall.sizeRequest = Size(width: 150, height: 600)
+    sv.addChild(tall)
+    let r = newRig(stack(sv))
+    let c = centre(sv)
+    r.pointerDown(1, c.x, c.y + 30)
+    r.pointerMove(1, c.x, c.y)
+    r.pointerMove(1, c.x, c.y - 30)
+    r.pointerUp(1, c.x, c.y - 30)
+    check sv.scrollOffsetY > 40

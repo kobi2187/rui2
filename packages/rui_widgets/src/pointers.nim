@@ -84,3 +84,24 @@ proc move*(ps: var Pointers, id: int, p: Point): PointerChange =
     result.scale = d1 / d0
     result.rotation = wrapAngle(arctan2(b1.y - a1.y, b1.x - a1.x) -
                                 arctan2(b0.y - a0.y, b0.x - a0.x))
+
+type Fed* = object
+  change*: PointerChange    ## what this event changed (neutral for a press or release)
+  pinching*: bool           ## two or more pointers are down
+
+proc feed*(ps: var Pointers, event: GuiEvent): Fed =
+  ## The one way a widget that takes several pointers reads them: pass every
+  ## mouse event through it, then act on `change` when `pinching` (or, for a
+  ## widget that sees only the extra fingers, whenever `event.pointerId != 0`).
+  ## A move from a pointer that is not down (a hovering mouse) is not tracked.
+  result.change = PointerChange(scale: 1, anchor: event.mousePos)
+  case event.kind
+  of evMouseDown:
+    ps.down(event.pointerId, event.mousePos)
+  of evMouseMove:
+    if ps.has(event.pointerId):
+      result.change = ps.move(event.pointerId, event.mousePos)
+  of evMouseUp:
+    ps.up(event.pointerId)
+  else: discard
+  result.pinching = ps.count >= 2
