@@ -15,6 +15,7 @@
 ## tooltip needs to know whether the pointer is still over its target.
 ## Module-level, like `currentTheme`.
 
+import std/tables
 import types
 
 var
@@ -30,16 +31,18 @@ var
     ## before the press is delivered. How a window raises itself when anything
     ## inside it is clicked -- including a child that consumes the click -- and
     ## stands down when the page is. nil costs one check.
-  captured: Widget
+  captured: Table[int, Widget]   # pointer id -> the widget that holds it
 
-proc capturePointer*(widget: Widget) =
+proc capturePointer*(widget: Widget, pointer = 0) =
   ## Until `releasePointer` (or the next button release), moves and releases go
   ## to `widget` wherever the pointer is: a drag that outruns its widget keeps
-  ## working.
-  captured = widget
+  ## working. `pointer` is the pointer id (0: the mouse or first finger); a
+  ## pinch holds two.
+  captured[pointer] = widget
 
-proc releasePointer*() = captured = nil
-proc pointerCapture*(): Widget = captured
+proc releasePointer*(pointer = 0) = captured.del pointer
+proc releaseAllPointers*() = captured.clear()
+proc pointerCapture*(pointer = 0): Widget = captured.getOrDefault(pointer)
 
 proc showOverlay*(widget: Widget, interactive = false) =
   ## Put `widget` on the overlay layer, above everything already there. An

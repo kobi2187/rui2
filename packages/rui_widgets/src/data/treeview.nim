@@ -63,6 +63,7 @@ definePrimitive(TreeView):
     hoveredId: string            # Not `hovered`: Widget already has that (a bool)
     flatNodes: seq[FlatNode]
     scrollY: float32
+    touch: RowsTouch             # a finger's tap or drag (scroll_drag.nim)
     vbar: VBar                   # the scroll bar's drag and hover
     visibleStart: int
     visibleEnd: int
@@ -74,15 +75,20 @@ definePrimitive(TreeView):
 
   init:
     widget.focusable = true
+    widget.multiPointer = true
     widget.resetOnLeave:
       widget.hoveredId = ""
       widget.vbar.hover = false
 
   events:
     on_mouse_up:
+      if widget.rowsTouch(widget.touch, event, widget.scrollY, viewportOf(widget),
+                          widget.flatNodes.len, widget.barTrack): return true
       return widget.rowsUp(widget.vbar)
 
     on_mouse_down:
+      if widget.rowsTouch(widget.touch, event, widget.scrollY, viewportOf(widget),
+                          widget.flatNodes.len, widget.barTrack): return true
       if widget.rowsDown(widget.vbar, widget.scrollY, widget.barTrack,
                          viewportOf(widget), widget.flatNodes.len, event.mousePos):
         return true
@@ -111,6 +117,8 @@ definePrimitive(TreeView):
       return true
 
     on_mouse_move:
+      if widget.rowsTouch(widget.touch, event, widget.scrollY, viewportOf(widget),
+                          widget.flatNodes.len, widget.barTrack): return true
       let at = widget.rowsMove(widget.vbar, widget.scrollY, widget.barTrack,
                                viewportOf(widget), widget.flatNodes.len, event.mousePos)
       if at.taken: return true
@@ -170,6 +178,8 @@ definePrimitive(TreeView):
       return true
 
   layout:
+    widget.rowsFling(widget.touch, widget.scrollY, viewportOf(widget),
+                     widget.flatNodes.len)
     # Re-flatten: the visible row list is built here (and by a key that
     # opens or closes a branch, which needs it at once).
     widget.reflatten()

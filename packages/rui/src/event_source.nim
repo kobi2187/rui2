@@ -17,7 +17,8 @@
 
 import rui_core
 import rui_events
-import std/[monotimes, unicode, options]
+import std/[monotimes, unicode, options, tables]
+import touch_source
 
 import raylib
 
@@ -27,6 +28,8 @@ type
 
   RaylibEventSource* = ref object of EventSource
     ## The live window.
+    fingers: Table[int, rui_core.Point]
+      ## The fingers after the first, as of the last poll (see touch_source.nim).
 
   ListEventSource* = ref object of EventSource
     ## A queue you fill. `poll` drains it, so an event is delivered once.
@@ -180,8 +183,21 @@ proc heldMods(): set[KeyMod] =
     if isKeyDown(key):
       result.incl modOf(key).get
 
+proc touchEvents(dest: var seq[GuiEvent], known: var Table[int, rui_core.Point]) =
+  ## Fingers beyond the first. raylib folds the first into the mouse; the rest
+  ## become pointers 2 and up. Nothing is read when there is no touch.
+  let n = getTouchPointCount()
+  if n >= 2: noteMultiTouch()
+  if n <= 1 and known.len == 0: return
+  var frame: TouchFrame
+  for i in 0 ..< n:
+    let p = getTouchPosition(i.int32)
+    frame.add (id: getTouchPointId(i.int32).int, at: rui_core.Point(x: p.x, y: p.y))
+  dest.add touchDiff(known, frame)
+
 method poll*(source: RaylibEventSource): seq[GuiEvent] =
   pointerEvents(result)
+  touchEvents(result, source.fingers)
   keyboardEvents(result)
   windowEvents(result)
   # Stamped here, once, rather than by each producer: every event in a poll

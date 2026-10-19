@@ -11,6 +11,7 @@
 
 import rui_core
 import ../value_input
+import ../pointers
 import rui_drawing
 import std/[options, math, json]
 
@@ -49,6 +50,16 @@ template zoomAbout(widget: untyped, newZoom: float, atX, atY: float32) =
       if widget.onCenterChanged != nil:
         widget.onCenterChanged(widget.center)
 
+template pinch(widget: untyped, change: PointerChange) =
+  ## Two fingers: zoom about the point between them (a doubled distance is one
+  ## zoom level), and carry the map with the movement of that point.
+  block:
+    if widget.enableZoom and change.scale != 1:
+      widget.zoomAbout(widget.zoom + log2(float(change.scale)),
+                       change.anchor.x, change.anchor.y)
+    if widget.enablePan:
+      widget.panBy(-change.pan.x, -change.pan.y)
+
 template panBy(widget: untyped, dx, dy: float32) =
   ## Move the view by (dx, dy) pixels.
   block:
@@ -79,6 +90,7 @@ definePrimitive(MapWidget):
     center: MapCoord
     zoom: float
     markers: seq[MapMarker]
+    fingers: Pointers            # the pointers down: two make a pinch
     selectedMarker: string
     hoveredMarker: string
     isPanning: bool
@@ -95,9 +107,14 @@ definePrimitive(MapWidget):
 
   init:
     widget.focusable = true
+    widget.multiPointer = true
 
   events:
     on_mouse_down:
+      let fed = widget.fingers.feed(event)
+      if fed.pinching or event.pointerId != 0:
+        widget.isPanning = false          # a second finger: the pinch takes over
+        return true
       let view = viewOf(widget)
 
       if widget.showZoomControls and widget.enableZoom:
@@ -136,6 +153,11 @@ definePrimitive(MapWidget):
       return true
 
     on_mouse_move:
+      let fed = widget.fingers.feed(event)
+      if fed.pinching:
+        widget.pinch(fed.change)
+        return true
+      if event.pointerId != 0: return true
       let view = viewOf(widget)
       let here = view.screenToWorld(event.mousePos.x, event.mousePos.y)
       widget.pointerLat = here.lat
@@ -156,6 +178,13 @@ definePrimitive(MapWidget):
       return false
 
     on_mouse_up:
+      discard widget.fingers.feed(event)
+      if event.pointerId != 0:
+        if widget.fingers.has(0) and widget.enablePan:      # back to one finger: it pans on
+          widget.isPanning = true
+          widget.panStart = widget.fingers.pos(0)
+          widget.panStartCenter = widget.center
+        return true
       if widget.isPanning:
         widget.isPanning = false
         return true

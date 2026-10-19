@@ -13,6 +13,9 @@
 import rui_core
 import containers/scroll_geometry
 import virtual_rows
+import pointers
+import fling
+import std/math
 
 type BarPress* = enum
   bpNone      ## not on the bar
@@ -84,10 +87,18 @@ proc barDown*(bar: var VBar, track: Rect, contentH, viewH, page: float32,
     bar.dragging = true
     bar.grab = press.grab
     true
-  of bpPageUp:
-    scrollY = clamp(scrollY - page, 0.0'f32, max(0.0'f32, contentH - viewH)); true
-  of bpPageDown:
-    scrollY = clamp(scrollY + page, 0.0'f32, max(0.0'f32, contentH - viewH)); true
+  of bpPageUp, bpPageDown:
+    if isTouch():
+      # A fingertip jumps to where it lands, and keeps dragging from there: paging
+      # in steps is what a mouse wheel is for.
+      bar.dragging = true
+      bar.grab = thumbLength(track.height, viewH, contentH) / 2
+      scrollY = barDragTo(track, contentH, viewH, bar.grab, p.y)
+    elif press.kind == bpPageUp:
+      scrollY = clamp(scrollY - page, 0.0'f32, max(0.0'f32, contentH - viewH))
+    else:
+      scrollY = clamp(scrollY + page, 0.0'f32, max(0.0'f32, contentH - viewH))
+    true
   of bpNone: false
 
 proc barUp*(bar: var VBar): bool =
@@ -116,8 +127,8 @@ proc drawBar*(bar: VBar, track: Rect, contentH, viewH, scrollY: float32,
 
 template barTrack*(widget: untyped): Rect =
   ## The scroll bar's track: down the right edge, the full height.
-  Rect(x: widget.bounds.x + widget.bounds.width - currentTheme.scrollbarThickness,
-       y: widget.bounds.y, width: currentTheme.scrollbarThickness,
+  Rect(x: widget.bounds.x + widget.bounds.width - fingerSized(currentTheme.scrollbarThickness),
+       y: widget.bounds.y, width: fingerSized(currentTheme.scrollbarThickness),
        height: widget.bounds.height)
 
 proc rowsWheel*(w: Widget, vp: RowViewport, total: int, delta: float32,
@@ -159,3 +170,98 @@ proc rowsUp*(w: Widget, bar: var VBar): bool =
     w.isDirty = true
     return true
   false
+
+# ---------------------------------------------------------------------------
+# Fingers on a row list
+# ---------------------------------------------------------------------------
+##
+## With a mouse nothing here applies. With fingers (`isTouch()`), a drag scrolls
+## the rows, so a press cannot select at once: it is held back, and replayed as
+## an ordinary press if the finger lifts without having moved (a tap). Two
+## fingers scroll by the movement of their midpoint, whichever mode. The widget
+## adds `touch: RowsTouch`, sets `multiPointer`, and starts each of its three
+## mouse handlers with
+##
+## ```nim
+## if widget.rowsTouch(widget.touch, event, widget.scrollY, vp, total, track): return true
+## ```
+
+
+
+const TapSlop = 8.0'f32    ## pixels a finger may wander and still be a tap
+
+type RowsTouch* = object
+  ps: Pointers
+  held: bool          ## a press is being held back
+  moved: bool         ## it turned out to be a drag
+  replaying: bool
+  start: Point
+  startScroll: float32
+  press: GuiEvent
+  fling: Fling
+
+proc scrollTo(w: Widget, scrollY: var float32, vp: RowViewport, total: int,
+              to: float32) =
+  let clamped = vp.clampScroll(to, total)
+  if clamped != scrollY:
+    scrollY = clamped
+    w.isDirty = true
+
+proc rowsTouch*(w: Widget, t: var RowsTouch, event: GuiEvent, scrollY: var float32,
+                vp: RowViewport, total: int, track: Rect): bool =
+  ## True when the event was used here (the widget then does nothing with it).
+  let id = event.pointerId
+  let p = event.mousePos
+  let multi = t.ps.count >= 2
+  case event.kind
+  of evMouseDown:
+    t.ps.down(id, p)
+    if id != 0 or t.ps.count >= 2:
+      t.moved = true                         # a second finger: not a tap, and
+      t.held = false                         # the pending press is dropped
+      return true
+    if t.replaying or not isTouch() or p.x >= track.x: return false
+    t.held = true; t.moved = false
+    t.start = p; t.startScroll = scrollY; t.press = event
+    t.fling.begin(p.y)
+    capturePointer(w)
+    return true
+  of evMouseMove:
+    if not t.ps.has(id): return id != 0
+    let c = t.ps.move(id, p)
+    if t.ps.count >= 2:
+      w.scrollTo(scrollY, vp, total, scrollY - c.pan.y)
+      return true
+    if id != 0: return true
+    if multi and t.ps.count < 2: return true
+    if not t.held: return false
+    if not t.moved and hypot(p.x - t.start.x, p.y - t.start.y) > TapSlop:
+      t.moved = true
+    if t.moved:
+      w.scrollTo(scrollY, vp, total, t.startScroll - (p.y - t.start.y))
+      t.fling.track(p.y)
+    return true
+  of evMouseUp:
+    t.ps.up(id)
+    if id != 0: return true
+    if multi: t.held = false; return true   # the finger that stayed ends the pinch
+    if not t.held: return false
+    t.held = false
+    if t.moved:
+      if t.fling.release(): w.repaintAfter(FlingFrame, relayout = true)
+      return true
+    t.replaying = true                       # a tap: now the press happens
+    discard w.handleInput(t.press)
+    t.replaying = false
+    return false
+  else:
+    return false
+
+proc rowsFling*(w: Widget, t: var RowsTouch, scrollY: var float32,
+                vp: RowViewport, total: int) =
+  ## Call from `layout:`. Carries the rows on after a finger lifted while moving.
+  if not t.fling.active: return
+  let before = scrollY
+  w.scrollTo(scrollY, vp, total, scrollY - t.fling.step())
+  if scrollY == before: t.fling.stop()          # hit an end
+  if t.fling.active: w.repaintAfter(FlingFrame, relayout = true)

@@ -15,7 +15,9 @@ type
   EventManager* = ref object
     configs: Table[EventKind, EventConfig]
     queue: HeapQueue[GuiEvent]
-    lastEvents: Table[EventKind, GuiEvent]
+    lastEvents: Table[(EventKind, int), GuiEvent]
+      ## the newest replaceable event per kind AND pointer: two fingers moving in
+      ## one frame must not replace each other
     sequences: Table[EventKind, EventSequence]
     throttleLastTime: Table[EventKind, MonoTime]
     timings*: Table[EventKind, EventTiming]
@@ -28,7 +30,7 @@ type
 
 proc initEventTables*(): tuple[
   configs: Table[EventKind, EventConfig],
-  lastEvents: Table[EventKind, GuiEvent],
+  lastEvents: Table[(EventKind, int), GuiEvent],
   sequences: Table[EventKind, EventSequence],
   throttleTimes: Table[EventKind, MonoTime],
   timings: Table[EventKind, EventTiming]
@@ -36,7 +38,7 @@ proc initEventTables*(): tuple[
   ## Initialize all event manager tables
   (
     initTable[EventKind, EventConfig](),
-    initTable[EventKind, GuiEvent](),
+    initTable[(EventKind, int), GuiEvent](),
     initTable[EventKind, EventSequence](),
     initTable[EventKind, MonoTime](),
     initTable[EventKind, EventTiming]()
@@ -75,7 +77,7 @@ proc addNormalEvent*(em: EventManager, event: GuiEvent) =
 
 proc addReplaceableEvent*(em: EventManager, event: GuiEvent) =
   ## Cache event for later (replaceable pattern)
-  em.lastEvents[event.kind] = event
+  em.lastEvents[(event.kind, event.pointerId)] = event
 
 proc addDebouncedEvent*(em: EventManager, event: GuiEvent) =
   ## Add event to debounce sequence
@@ -143,7 +145,7 @@ proc addEvent*(em: EventManager, event: GuiEvent) =
 
 proc flushReplaceableEvents*(em: EventManager) =
   ## Move replaceable events to queue
-  for kind, event in em.lastEvents:
+  for _, event in em.lastEvents:
     em.queue.push(event)
   em.lastEvents.clear()
 

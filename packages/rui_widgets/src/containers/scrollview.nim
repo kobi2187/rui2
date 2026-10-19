@@ -24,13 +24,16 @@
 import rui_core
 import rui_drawing
 import scroll_geometry
+import ../pointers
+import ../fling
+import std/math
 export scroll_geometry
 
 import raylib
 
 template scrollbarWidthOf(w: untyped): float =
   ## Scrollbar thickness: the prop, else the theme's (16 if it names none).
-  themedSize(w.scrollbarWidth, currentTheme.metrics.scrollbarThickness.get(16.0))
+  fingerSized(themedSize(w.scrollbarWidth, currentTheme.metrics.scrollbarThickness.get(16.0)))
 
 const
   BackgroundColor = Color(r: 245, g: 245, b: 245, a: 255)
@@ -103,8 +106,26 @@ defineWidget(ScrollView):
     contentHeight: float
     dragAxis: int                # 0 none, 1 the vertical thumb, 2 the horizontal
     dragGrab: float32            # where on the thumb it was taken
+    fingers: Pointers            # extra fingers: they scroll the content
+    touchHeld: bool              # a finger is dragging the content (touch mode)
+    touchStart: Point
+    touchFrom: Point             # the scroll offsets when it went down
+    flingX: Fling
+    flingY: Fling
+
+  init:
+    widget.multiPointer = true
+    widget.scrollsByDrag = true
 
   layout:
+    if widget.flingX.active or widget.flingY.active:
+      let before = (widget.scrollOffsetX, widget.scrollOffsetY)
+      widget.scrollTo(true, widget.scrollOffsetY - widget.flingY.step())
+      widget.scrollTo(false, widget.scrollOffsetX - widget.flingX.step())
+      if (widget.scrollOffsetX, widget.scrollOffsetY) == before:
+        widget.flingX.stop(); widget.flingY.stop()      # at an end
+      elif widget.flingX.active or widget.flingY.active:
+        widget.repaintAfter(FlingFrame, relayout = true)
     # Keep the offset inside what the content allowed last time *before* the
     # children are placed by it; clamping afterwards left them at a stale
     # offset for a frame, and one beyond the end placed them off the screen.
@@ -124,7 +145,7 @@ defineWidget(ScrollView):
       let natural = if widget.wrapToWidth and widget.bounds.width > 0:
                       child.measure(unbounded().withWidth(
                         max(0.0'f32, widget.bounds.width - 2 * widget.padding -
-                                     currentTheme.scrollbarThickness)))
+                                     fingerSized(currentTheme.scrollbarThickness))))
                     else: child.measure(unbounded())
       child.arrange(Rect(x: widget.bounds.x + widget.padding - widget.scrollOffsetX,
                          y: widget.bounds.y + widget.padding - widget.scrollOffsetY,
@@ -171,6 +192,9 @@ defineWidget(ScrollView):
       return after != before
 
     on_mouse_down:
+      if event.pointerId != 0:
+        discard widget.fingers.feed(event)
+        return true
       # The thumb is dragged where it was taken; a press elsewhere on the
       # track moves a page towards the pointer.
       let bars = scrollBarsFor(widget.extent)
@@ -187,14 +211,46 @@ defineWidget(ScrollView):
           widget.dragAxis = if vertical: 1 else: 2
           capturePointer(widget)
           widget.dragGrab = along - thumbStart
+        elif isTouch():
+          # A fingertip jumps to where it lands and keeps dragging from there.
+          widget.dragAxis = if vertical: 1 else: 2
+          capturePointer(widget)
+          widget.dragGrab = thumbLen / 2
+          let travel = (if vertical: g.track.height - g.thumb.height
+                        else: g.track.width - g.thumb.width)
+          let start = if vertical: g.track.y else: g.track.x
+          if travel > 0:
+            widget.scrollTo(vertical, (along - widget.dragGrab - start) / travel * g.maxScroll)
         else:
           let page = if vertical: bars.innerHeight else: bars.innerWidth
           let current = if vertical: widget.scrollOffsetY else: widget.scrollOffsetX
           widget.scrollTo(vertical, current + (if along < thumbStart: -page else: page))
         return true
+      if isTouch():
+        # A finger on the content: dragging carries it. Reached when nothing
+        # inside took the press, or when a button was stolen from (event_routing).
+        widget.touchHeld = true
+        widget.touchStart = event.mousePos
+        widget.touchFrom = Point(x: widget.scrollOffsetX, y: widget.scrollOffsetY)
+        widget.flingX.begin(event.mousePos.x)
+        widget.flingY.begin(event.mousePos.y)
+        capturePointer(widget)
+        return true
       return false
 
     on_mouse_move:
+      if event.pointerId != 0:
+        let fed = widget.fingers.feed(event)
+        # A finger beyond the first carries the content with it.
+        widget.scrollTo(true, widget.scrollOffsetY - fed.change.pan.y)
+        widget.scrollTo(false, widget.scrollOffsetX - fed.change.pan.x)
+        return true
+      if widget.touchHeld:
+        widget.scrollTo(true, widget.touchFrom.y - (event.mousePos.y - widget.touchStart.y))
+        widget.scrollTo(false, widget.touchFrom.x - (event.mousePos.x - widget.touchStart.x))
+        widget.flingX.track(event.mousePos.x)
+        widget.flingY.track(event.mousePos.y)
+        return true
       if widget.dragAxis == 0:
         return false
       let vertical = widget.dragAxis == 1
@@ -208,6 +264,15 @@ defineWidget(ScrollView):
       return true
 
     on_mouse_up:
+      if event.pointerId != 0:
+        discard widget.fingers.feed(event)
+        return true
+      if widget.touchHeld:
+        widget.touchHeld = false
+        let fx = widget.flingX.release()
+        let fy = widget.flingY.release()
+        if fx or fy: widget.repaintAfter(FlingFrame, relayout = true)
+        return true
       if widget.dragAxis == 0:
         return false
       widget.dragAxis = 0

@@ -87,12 +87,12 @@ definePrimitive(ScrollBar):
     # Fixed on the cross axis, stretched by the parent on the main axis.
     if widget.vertical:
       if widget.bounds.width <= 0:
-        widget.bounds.width = currentTheme.scrollbarThickness
+        widget.bounds.width = fingerSized(currentTheme.scrollbarThickness)
       if widget.bounds.height <= 0:
         widget.bounds.height = 100.0'f32
     else:
       if widget.bounds.height <= 0:
-        widget.bounds.height = currentTheme.scrollbarThickness
+        widget.bounds.height = fingerSized(currentTheme.scrollbarThickness)
       if widget.bounds.width <= 0:
         widget.bounds.width = 100.0'f32
 
