@@ -185,6 +185,10 @@ type
     relayoutOnState*: bool     # Its look is computed in `layout`, so a press or hover change needs one
     focused*: bool             # Has keyboard focus
     focusable*: bool
+    chrome*: proc(bounds: Rect) {.closure.}
+      ## Draws in screen space, under a floating widget that is on the overlay
+      ## layer, before its texture. For what must not be clipped to its own
+      ## bounds, such as a soft shadow. nil for none.
     hint*: string
       ## Text for the help overlay to show beside this widget -- a key
       ## ("Ctrl+S"), or any note ("saves the file"). Set with `.hint(...)`;

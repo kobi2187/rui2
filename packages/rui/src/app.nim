@@ -869,6 +869,10 @@ proc compositeRoot(app: App) =
     # Then the overlay layer, in the order shown, above the whole tree.
     for overlay in overlays():
       if overlay.visible and overlay.cachedTexture.isSome:
+        # The chrome first: it may reach past the overlay's bounds, which its
+        # texture would clip away.
+        if overlay.chrome != nil:
+          overlay.chrome(overlay.bounds)
         drawRenderTexture(overlay.cachedTexture.get(),
                           overlay.bounds.x, overlay.bounds.y)
 

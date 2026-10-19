@@ -9,6 +9,7 @@
 ## one is active, Tab stays inside it (`focusScope`); a press on the page
 ## behind, or on anything that is not a window, deactivates it.
 
+import rui_drawing
 import rui_core
 import focus_manager
 
@@ -51,6 +52,7 @@ proc raiseWindow*(w: Widget) =
     stack.delete(stack.find(w))
     stack.add w
     hideOverlay(w)
+  w.chrome = floatingChrome()
   showOverlay(w, interactive = true)
   setActive(w)
 

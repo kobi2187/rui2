@@ -194,6 +194,12 @@ proc drawFloatingShadow*(rect: Rect, props: ThemeProps) =
                           color: Color(r: 0, g: 0, b: 0, a: 56),
                           radius: props.cornerRadius.get(0.0)))
 
+proc floatingChrome*(): proc(bounds: Rect) {.closure.} =
+  ## The chrome for a panel that floats above the page: its shadow, drawn in
+  ## screen space so it is not clipped to the panel's own texture.
+  result = proc(bounds: Rect) =
+    drawFloatingShadow(bounds, currentTheme.getThemeProps(Default, Normal))
+
 proc drawThemedBackground*(rect: Rect, props: ThemeProps,
                           pressed = false, hovered = false, well = false) =
   ## Draw background with state-based color selection. In a bevelled theme the
