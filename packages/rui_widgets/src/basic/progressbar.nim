@@ -50,13 +50,6 @@ proc render*(spec: ProgressFormat, value, maxValue: float): string =
   if spec.asPercent:
     result.add('%')
 
-proc progressFillInk*(fill: Color): Color =
-  ## The caption ink for text drawn over the filled part of the bar: white or
-  ## black, whichever contrasts more with the fill. The theme's own foreground
-  ## is no answer here -- it is the ink for the theme's text on its background,
-  ## and a bevelled theme makes that black, which vanishes on a blue fill.
-  if contrastRatio(WHITE, fill) >= contrastRatio(BLACK, fill): WHITE else: BLACK
-
 proc formatProgress*(value, maxValue: float, format: string): string =
   ## Render the caption for a progress value.
   ##
@@ -125,7 +118,7 @@ definePrimitive(ProgressBar):
                         formatProgress(widget.value, widget.maxValue, widget.format)
       # The caption straddles the fill's edge, so it is drawn twice: in the accent's
       # ink over the fill and in the plain ink over the trough, each clipped to its part.
-      let onFill = progressFillInk(props.activeColor.get(Color(r: 100, g: 150, b: 255, a: 255)))
+      let onFill = onFillInk(props.activeColor.get(Color(r: 100, g: 150, b: 255, a: 255)))
       let edge = widget.bounds.x + widget.bounds.width * clamp(progress, 0.0'f32, 1.0'f32)
       let fillPart = Rect(x: widget.bounds.x, y: widget.bounds.y,
                           width: edge - widget.bounds.x, height: widget.bounds.height)

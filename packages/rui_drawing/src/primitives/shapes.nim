@@ -20,6 +20,7 @@ type
     spread*: float32
     color*: raylib.Color
     offsetX*, offsetY*: float32
+    radius*: float32   ## the casting box's corner radius; 0 for square corners
 
 # ============================================================================
 # Basic Shapes
@@ -215,17 +216,20 @@ proc drawBezier*(x1, y1, cp1x, cp1y, cp2x, cp2y, x2, y2: float32,
 # ============================================================================
 
 proc drawShadow*(rect: Rect, shadow: Shadow) =
-  ## Draws a drop shadow effect
-  for i in 0..<int(shadow.blur):
-    let alpha = uint8(shadow.color.a.float32 * (1.0 - i.float32/shadow.blur))
+  ## A drop shadow of `rect`. With a blur it is a soft, rounded shadow from the
+  ## shader; with none it is a hard edge, one copy of the box moved by the offset.
+  if shadow.blur > 0 and drawSdfShadow(rect, shadow.radius, shadow.offsetX,
+                                       shadow.offsetY, shadow.blur, shadow.spread,
+                                       shadow.color):
+    return
+  # Stacked rectangles: the fallback with no GL context, and the hard edge.
+  let steps = max(1, int(shadow.blur))
+  for i in 0..<steps:
     let offset = i.float32
-    let shadowColor = raylib.Color(
-      r: shadow.color.r,
-      g: shadow.color.g,
-      b: shadow.color.b,
-      a: alpha
-    )
-
+    let fade = if shadow.blur > 0: 1.0 - offset / shadow.blur else: 1.0
+    let shadowColor = raylib.Color(r: shadow.color.r, g: shadow.color.g,
+                                   b: shadow.color.b,
+                                   a: uint8(shadow.color.a.float32 * fade))
     drawRectangle(
       int32(rect.x + shadow.offsetX - offset),
       int32(rect.y + shadow.offsetY - offset),

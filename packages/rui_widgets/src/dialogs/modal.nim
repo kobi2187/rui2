@@ -30,8 +30,7 @@ proc drawModalFrame*(bounds, panel: Rect, title: string, intent = ThemeIntent.De
   ## caller can draw its own content in the same colours.
   drawRect(bounds, Color(r: 0, g: 0, b: 0, a: 128))
   result = currentTheme.getThemeProps(intent, Normal)
-  drawShadow(panel, Shadow(offsetX: 3.0, offsetY: 3.0, blur: 0.0, spread: 0.0,
-                           color: Color(r: 0, g: 0, b: 0, a: 60)))
+  drawFloatingShadow(panel, result)
   drawThemedBackground(panel, result)
   drawThemedBorder(panel, result)
   let titleRect = Rect(x: panel.x, y: panel.y, width: panel.width, height: TitleBarHeight)

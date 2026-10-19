@@ -23,6 +23,7 @@
 
 import std/[options, strutils, tables]
 import theme_sys_core
+import theme_check
 import rui_core
 
 type
@@ -131,7 +132,7 @@ proc stateProps(spec: BrandSpec, base: ThemeProps, hue: Color,
     ThemeProps(backgroundColor: some(mix(bg, hue, 0.16)))
   of Focused:
     ThemeProps(borderColor: some(if spec.borderWidth >= 2: spec.border else: spec.accent),
-               focusRingColor: some(spec.accent.alpha(0.45)))
+               focusRingColor: some(spec.accent))
   of Disabled:
     ThemeProps(backgroundColor: some(mix(bg, spec.canvas, 0.5)),
                foregroundColor: some(mix(spec.text, spec.surface, 0.55)),
@@ -208,7 +209,7 @@ proc brandTheme*(spec: BrandSpec): Theme =
     activeColor: some(s.accent), focusColor: some(s.accent),
     hoverColor: some(mix(s.surface, s.accent, 0.08)),
     pressedColor: some(mix(s.surface, s.accent, 0.16)),
-    focusRingColor: some(s.accent.alpha(0.45))))
+    focusRingColor: some(s.accent)))
   result.base[Default] = default
 
   let hues = [(Info, s.info), (Success, s.success), (Warning, s.warning),
@@ -244,6 +245,10 @@ proc brandTheme*(spec: BrandSpec): Theme =
   else:
     result.states[Info][Hovered] = stateProps(s, primary, s.accent, Hovered)
     result.states[Info][Pressed] = stateProps(s, primary, s.accent, Pressed)
+
+  # Every caption and focus ring is held to its ratio; a pair the palette
+  # already reads is left as drawn.
+  makeReadable(result)
 
 # ----------------------------------------------------------------------------
 # The brands that ship

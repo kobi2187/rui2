@@ -90,7 +90,7 @@ definePrimitive(SegmentedControl):
     let props = widget.themeProps(widget.intent, crPointer, disabled = widget.disabled)
     let ink = props.foregroundColor.get(BLACK)
     let accent = props.activeColor.get(ink)
-    let onAccent = currentTheme.getThemeProps(ThemeIntent.Info).foregroundColor.get(WHITE)
+    let onAccent = onFillInk(accent)
     let style = props.captionStyle(ink, action = true)
     let radius = props.cornerRadius.get(4.0'f32)
     let stroke = props.strokeWidth

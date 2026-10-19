@@ -6,7 +6,7 @@
 ## on their own theme; the high-contrast themes shipped here are held to the
 ## strict thresholds in the tests.
 
-import std/[options, math, strformat]
+import std/[options, math, strformat, tables]
 import theme_sys_core
 import theme_types
 import rui_core
@@ -67,3 +67,68 @@ proc contrastProblems*(theme: Theme, textRatio = 4.5, uiRatio = 3.0): seq[Contra
         result.add ContrastProblem(
           where: IntentLabels[ord(intent)] & " / focused: focus ring",
           ratio: ratio, needed: uiRatio)
+
+proc inkMixed(a, b: Color, t: float32): Color =
+  ## `a` moved `t` of the way to `b`, opaque.
+  let u = clamp(t, 0.0'f32, 1.0'f32)
+  proc lerpByte(x, y: uint8): uint8 = uint8(float32(x) + (float32(y) - float32(x)) * u)
+  Color(r: lerpByte(a.r, b.r), g: lerpByte(a.g, b.g), b: lerpByte(a.b, b.b), a: 255)
+
+proc readableInk*(ink, bg: Color, minRatio: float): Color =
+  ## `ink`, moved toward black or white -- whichever contrasts more with `bg` --
+  ## in the smallest steps that reach `minRatio`. The hue is kept; only the
+  ## lightness moves. An ink that already reads is returned unchanged.
+  let opaqueBg = bg.over(Color(r: 255, g: 255, b: 255, a: 255))
+  if contrastRatio(ink.over(opaqueBg), opaqueBg) >= minRatio: return ink
+  let black = Color(r: 0, g: 0, b: 0, a: 255)
+  let white = Color(r: 255, g: 255, b: 255, a: 255)
+  let target = if contrastRatio(black, opaqueBg) >= contrastRatio(white, opaqueBg): black else: white
+  for i in 1 .. 40:
+    let c = inkMixed(ink, target, float32(i) / 40.0'f32)
+    if contrastRatio(c.over(opaqueBg), opaqueBg) >= minRatio: return c
+  target
+
+proc setInk(theme: var Theme, intent: ThemeIntent, state: ThemeState,
+            fg: Option[Color] = none(Color), ring: Option[Color] = none(Color)) =
+  ## Sets the caption ink or the focus ring of one intent and state: the base for
+  ## Normal, the state's override for the rest.
+  if state == Normal and fg.isSome:
+    var p = theme.base.getOrDefault(intent)
+    p.foregroundColor = fg
+    theme.base[intent] = p
+    return
+  var table = theme.states.getOrDefault(intent)
+  var p = table.getOrDefault(state)
+  if fg.isSome: p.foregroundColor = fg
+  if ring.isSome: p.focusRingColor = ring
+  table[state] = p
+  theme.states[intent] = table
+
+proc makeReadable*(theme: var Theme, textRatio = 4.5, uiRatio = 3.0) =
+  ## Brings every caption and focus ring of `theme` up to the given ratios -- the
+  ## same pairs contrastProblems checks. Only the failing pairs change, and only
+  ## their ink (or ring): backgrounds, hue and every pair that already passes stay
+  ## as the theme drew them, so a theme that is readable already is untouched.
+  for intent in ThemeIntent:
+    for state in [Normal, Hovered, Pressed, Selected]:
+      let props = theme.getThemeProps(intent, state)
+      if props.backgroundColor.isSome and props.foregroundColor.isSome:
+        let ink = props.foregroundColor.get
+        let fixed = readableInk(ink, props.backgroundColor.get, textRatio)
+        if fixed != ink:
+          theme.setInk(intent, state, fg = some(fixed))
+    let focused = theme.getThemeProps(intent, Focused)
+    if focused.focusRingColor.isSome or focused.borderColor.isSome:
+      let canvas = theme.canvasColor
+      let ring = focused.focusRingColor.get(focused.borderColor.get(canvas))
+      if contrastRatio(ring.over(canvas), canvas) < uiRatio:
+        theme.setInk(intent, Focused, ring = some(readableInk(ring, canvas, uiRatio)))
+
+proc onFillInk*(fill: Color): Color =
+  ## The ink that reads on a solid `fill` -- a checkmark in it, a caption on a
+  ## pressed segment, the text on a progress bar's fill: white or black, whichever
+  ## contrasts more. The theme's own text colour is no answer for this: it is the
+  ## ink on the theme's background, and themes differ on what that is.
+  let white = Color(r: 255, g: 255, b: 255, a: 255)
+  let black = Color(r: 0, g: 0, b: 0, a: 255)
+  if contrastRatio(white, fill) >= contrastRatio(black, fill): white else: black

@@ -10,6 +10,7 @@
 
 import rui_core
 import theme_sys_core
+import theme_check
 import primitives/[shapes, text, controls, indicators, panels]
 import pango_text  # drawTextPango
 import effects/rect_effects
@@ -175,6 +176,16 @@ proc drawBevelBody*(rect: Rect, props: ThemeProps, fill: Color,
                   max(1.0'f32, props.strokeWidth))
   true
 
+proc drawFloatingShadow*(rect: Rect, props: ThemeProps) =
+  ## The shadow under a panel that floats above the page: a menu, a dialog, a
+  ## window. A flat theme gets a soft shadow, feathered over its corner radius.
+  ## A bevelled theme (BeOS) has none: R5's windows and menus sat flat on the page.
+  if props.bevelStyle.get(Flat) != Flat:
+    return
+  drawShadow(rect, Shadow(offsetX: 0.0, offsetY: 6.0, blur: 14.0, spread: -2.0,
+                          color: Color(r: 0, g: 0, b: 0, a: 56),
+                          radius: props.cornerRadius.get(0.0)))
+
 proc drawThemedBackground*(rect: Rect, props: ThemeProps,
                           pressed = false, hovered = false, well = false) =
   ## Draw background with state-based color selection. In a bevelled theme the
@@ -213,7 +224,11 @@ proc drawThemedText*(text: string, x, y: float32, props: ThemeProps,
                     selected = false, centered = false) =
   ## Draw a caption in the theme's colour, size, weight and case.
   let textColor = if selected:
-                    Color(r: 255, g: 255, b: 255, a: 255)  # White on selected
+                    # The ink on the selected background: the theme's text colour,
+                    # moved toward black or white only as far as it takes to read there.
+                    readableInk(props.foregroundColor.get(Color(r: 0, g: 0, b: 0, a: 255)),
+                                props.backgroundColor.get(Color(r: 255, g: 255, b: 255, a: 255)),
+                                4.5)
                   else:
                     props.foregroundColor.get(Color(r: 60, g: 60, b: 60, a: 255))
   drawStyledText(text, x, y, props.captionStyle(textColor), centered)
@@ -284,11 +299,6 @@ proc drawButton*(rect: Rect, text: string, props: ThemeProps,
   drawInteractiveBox(rect, props, pressed, hovered, focused)
   drawThemedCenteredText(text, rect, props)
 
-proc onAccentColor(): Color =
-  ## Ink for marks drawn on the accent: the primary action's text colour.
-  currentTheme.getThemeProps(ThemeIntent.Info).foregroundColor.get(
-    Color(r: 255, g: 255, b: 255, a: 255))
-
 proc drawCheckbox*(rect: Rect, checked: bool, props: ThemeProps,
                    hovered = false, focused = false) =
   ## A check box: an outlined square, filled with the accent and ticked when
@@ -311,7 +321,7 @@ proc drawCheckbox*(rect: Rect, checked: bool, props: ThemeProps,
       drawLine(Vector2(x: x0, y: y1), Vector2(x: x1, y: y0), 2.0, ink)
   elif checked:
     drawBox(rect, radius, accent, accent, 0)
-    drawCheckmark(rect, onAccentColor(), max(2.0'f32, w * 1.25))
+    drawCheckmark(rect, onFillInk(accent), max(2.0'f32, w * 1.25))
   else:
     let bg = if hovered: props.hoverColor.get(props.backgroundColor.get(WHITE))
              else: props.backgroundColor.get(WHITE)
@@ -585,16 +595,24 @@ proc mixTab(panel: Color): Color =
   Color(r: uint8(panel.r.int * 9 div 10), g: uint8(panel.g.int * 9 div 10),
         b: uint8(panel.b.int * 9 div 10), a: 255)
 
+proc mixTone(a, b: Color, t: float32): Color =
+  ## `a` moved `t` of the way toward `b`, opaque.
+  proc lerp(x, y: uint8): uint8 = uint8(float32(x) + (float32(y) - float32(x)) * t)
+  Color(r: lerp(a.r, b.r), g: lerp(a.g, b.g), b: lerp(a.b, b.b), a: 255)
+
 proc drawTab*(rect: Rect, text: string, props: ThemeProps,
               active = false, hovered = false) =
   ## Tab = background + bottom indicator + centered text
   # Background
+  # An inactive tab sits between the panel and the window behind it, so it reads
+  # on either kind of theme: a dark theme's tab is not a light grey.
   let bgColor = if active:
                   props.backgroundColor.get(Color(r: 255, g: 255, b: 255, a: 255))
                 elif hovered:
                   props.hoverColor.get(Color(r: 240, g: 240, b: 240, a: 255))
                 else:
-                  Color(r: 220, g: 220, b: 220, a: 255)
+                  mixTone(props.backgroundColor.get(currentTheme.canvasColor),
+                          currentTheme.canvasColor, 0.5)
 
   let radius = props.cornerRadius.get(4.0)
   if props.bevelStyle.get(Flat) != Flat:
@@ -666,9 +684,14 @@ proc drawSpinnerButtons*(rect: Rect, props: ThemeProps,
 
 proc drawSpinner*(rect: Rect, value: string, props: ThemeProps,
                   upHovered = false, downHovered = false, focused = false) =
-  ## Spinner = interactive box + padded text + up/down buttons
+  ## Spinner = interactive box + text + up/down buttons. The value is centred on the
+  ## box whatever the theme's vertical padding: a theme with deep padding or a
+  ## heavy border must not push the digits off the bottom edge.
   drawInteractiveBox(rect, props, focused = focused)
-  drawThemedPaddedText(value, rect, props)
+  let style = props.captionStyle(props.foregroundColor.get(BLACK))
+  let left = props.padding.get(EdgeInsets()).left
+  let body = bodyRect(rect, props, false)   # inside the shadow and the border
+  drawStyledText(value, body.x + left, body.y + (body.height - style.fontSize) / 2, style)
   drawSpinnerButtons(rect, props, upHovered, downHovered)
 
 proc drawGroupBox*(rect: Rect, title: string, props: ThemeProps) =

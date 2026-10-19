@@ -10,6 +10,7 @@
 
 import std/[tables, options]
 import theme_sys_core
+import theme_check
 import rui_core
 import brand_themes
 export brand_themes
@@ -170,6 +171,7 @@ proc createJoyTheme*(): Theme =
     backgroundColor = makeColor(255, 220, 220),
     foregroundColor = makeColor(200, 50, 50)
   )
+  makeReadable(result)
 
 # Wide Theme (Spacious)
 proc createWideTheme*(): Theme =
@@ -206,6 +208,7 @@ proc createWideTheme*(): Theme =
     backgroundColor = makeColor(255, 245, 245),
     foregroundColor = makeColor(198, 40, 40)
   )
+  makeReadable(result)
 
 # Theme registry
 var builtinThemes* = initTable[string, Theme]()

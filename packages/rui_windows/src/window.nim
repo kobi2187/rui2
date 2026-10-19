@@ -131,8 +131,7 @@ definePrimitive(Window):
   render:
     let props = currentTheme.getThemeProps(Default, Normal)
     let active = activeWindow() == widget
-    drawShadow(widget.bounds, Shadow(offsetX: 3.0, offsetY: 3.0, blur: 0.0, spread: 0.0,
-                                     color: Color(r: 0, g: 0, b: 0, a: if active: 80 else: 40)))
+    drawFloatingShadow(widget.bounds, props)
     drawThemedBackground(widget.bounds, props)
     drawThemedBorder(widget.bounds, props)
     let bar = Rect(x: widget.bounds.x, y: widget.bounds.y,

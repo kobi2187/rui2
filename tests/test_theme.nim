@@ -452,11 +452,12 @@ suite "branded themes":
     check p.activeColor.get == spec.accent
     check p.focusColor.get == spec.accent
 
-  test "the primary action is solid accent":
+  test "the primary action is solid accent, with a caption that reads on it":
     let spec = oceanSpec()
     let p = brandTheme(spec).getThemeProps(ThemeIntent.Info, ThemeState.Normal)
     check p.backgroundColor.get == spec.accent
-    check p.foregroundColor.get == Color(r: 255, g: 255, b: 255, a: 255)
+    # White where white reads; a light accent takes a darker caption instead.
+    check contrastRatio(p.foregroundColor.get, spec.accent) >= 4.5
 
   test "hovering leans toward the accent; disabling fades":
     let spec = daylightSpec()
@@ -950,16 +951,33 @@ suite "theme: contrast":
       check problems.len == 0
       for p in problems: echo "  ", name, ": ", p
 
-  test "every shipped theme keeps its resting captions readable (3:1) and its ring visible":
+  test "every shipped theme meets WCAG AA for every caption and a 3:1 focus ring":
+    # Disabled controls are exempt (contrastProblems says so); everything a user
+    # reads or focuses is held to the ratio, in every theme shipped.
     let tm = newThemeManager()
-    var brands: seq[string]
-    for (key, _) in brandThemes(): brands.add key
     for name in tm.listThemes():
-      for p in contrastProblems(tm.get(name), textRatio = 3.0, uiRatio = 1.5):
-        # The five older themes predate the focus-ring rule: captions only.
-        if "normal" in p.where or ("focus ring" in p.where and name in brands):
-          checkpoint name & ": " & $p
-          fail()
+      for p in contrastProblems(tm.get(name), textRatio = 4.5, uiRatio = 3.0):
+        checkpoint name & ": " & $p
+        fail()
+
+  test "readableInk moves a failing ink only as far as it takes, keeping its hue":
+    let bg = Color(r: 255, g: 255, b: 255, a: 255)
+    # A pale amber caption on white fails; the ink comes back darker, still amber.
+    let amber = Color(r: 230, g: 170, b: 60, a: 255)
+    let fixed = readableInk(amber, bg, 4.5)
+    check contrastRatio(fixed, bg) >= 4.5
+    check fixed.r > fixed.b          # still warm
+    check fixed.r < amber.r          # darker, not replaced
+    # An ink that already reads is returned exactly as it was.
+    let black = Color(r: 20, g: 20, b: 20, a: 255)
+    check readableInk(black, bg, 4.5) == black
+
+  test "makeReadable leaves a theme that already reads untouched":
+    var t = createBeosTheme()
+    let before = t.base[Default]
+    makeReadable(t)
+    check t.base[Default].foregroundColor == before.foregroundColor
+    check contrastProblems(t).len == 0
 
   test "a theme with a washed-out caption is reported, with where and by how much":
     var t = newTheme("Faint")
