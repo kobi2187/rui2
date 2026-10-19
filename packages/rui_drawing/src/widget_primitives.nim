@@ -152,6 +152,14 @@ proc fieldColor*(props: ThemeProps): Color =
   if props.bevelStyle.get(Flat) != Flat: Color(r: 255, g: 255, b: 255, a: 255)
   else: props.backgroundColor.get(Color(r: 255, g: 255, b: 255, a: 255))
 
+proc placeholderInk*(props: ThemeProps): Color =
+  ## The ink for placeholder text in a field: the theme's text colour muted toward
+  ## the field, then held to 4.5:1 against it. A fixed grey read on some themes and
+  ## vanished on others; this one is derived from the theme that draws it.
+  let field = props.fieldColor
+  let text = props.foregroundColor.get(Color(r: 0, g: 0, b: 0, a: 255))
+  readableInk(inkMixed(text, field, 0.45), field, 4.5)
+
 proc bevelOf(props: ThemeProps, pressed = false): BevelStyle =
   ## The theme's bevel, flipped when pressed: a raised key pushed in goes sunken.
   result = props.bevelStyle.get(Flat)
@@ -299,6 +307,11 @@ proc drawButton*(rect: Rect, text: string, props: ThemeProps,
   drawInteractiveBox(rect, props, pressed, hovered, focused)
   drawThemedCenteredText(text, rect, props)
 
+proc mixTone*(a, b: Color, t: float32): Color =
+  ## `a` moved `t` of the way toward `b`, opaque.
+  proc lerp(x, y: uint8): uint8 = uint8(float32(x) + (float32(y) - float32(x)) * t)
+  Color(r: lerp(a.r, b.r), g: lerp(a.g, b.g), b: lerp(a.b, b.b), a: 255)
+
 proc drawCheckbox*(rect: Rect, checked: bool, props: ThemeProps,
                    hovered = false, focused = false) =
   ## A check box: an outlined square, filled with the accent and ticked when
@@ -325,7 +338,11 @@ proc drawCheckbox*(rect: Rect, checked: bool, props: ThemeProps,
   else:
     let bg = if hovered: props.hoverColor.get(props.backgroundColor.get(WHITE))
              else: props.backgroundColor.get(WHITE)
-    drawBox(rect, radius, bg, borderFor(props, focused, false), w)
+    # Hover tints the outline toward the accent: a fill change alone is too faint
+    # on a white box.
+    let outline = if hovered and not focused: mixTone(borderFor(props, false, false), accent, 0.5)
+                  else: borderFor(props, focused, false)
+    drawBox(rect, radius, bg, outline, w)
   if focused:
     drawThemedFocusRing(rect, props)
 
@@ -598,11 +615,6 @@ proc mixTab(panel: Color): Color =
   ## An inactive tab in a bevelled theme: the panel, a little darker.
   Color(r: uint8(panel.r.int * 9 div 10), g: uint8(panel.g.int * 9 div 10),
         b: uint8(panel.b.int * 9 div 10), a: 255)
-
-proc mixTone(a, b: Color, t: float32): Color =
-  ## `a` moved `t` of the way toward `b`, opaque.
-  proc lerp(x, y: uint8): uint8 = uint8(float32(x) + (float32(y) - float32(x)) * t)
-  Color(r: lerp(a.r, b.r), g: lerp(a.g, b.g), b: lerp(a.b, b.b), a: 255)
 
 proc drawTab*(rect: Rect, text: string, props: ThemeProps,
               active = false, hovered = false) =

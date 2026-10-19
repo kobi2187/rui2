@@ -27,6 +27,8 @@ definePrimitive(Rectangle):
     bevelHighlight: raylib.Color = WHITE
     bevelShadow: raylib.Color = GRAY
     bevelDark: raylib.Color = BLACK
+    ringWidth: float = 0.0       # a focus ring drawn inside a bevel (0: none)
+    ringColor: raylib.Color = BLACK
 
   render:
     # Fill and border in one shape, the border inside the bounds.
@@ -34,6 +36,13 @@ definePrimitive(Rectangle):
     if widget.bevel != Flat:
       drawBeveledRect(widget.bounds, widget.bevel, fill, 0.0, widget.bevelHighlight,
                       widget.bevelShadow, widget.bevelDark, max(1.0'f32, widget.borderWidth.float32))
+      if widget.ringWidth > 0:
+        # Inside the bevel, so the ring sits on the control and not on the edge.
+        let inset = max(1.0'f32, widget.borderWidth.float32)
+        drawRectangleLines(raylib.Rectangle(x: widget.bounds.x + inset, y: widget.bounds.y + inset,
+                                     width: widget.bounds.width - 2 * inset,
+                                     height: widget.bounds.height - 2 * inset),
+                           widget.ringWidth.float32, widget.ringColor)
       return
     drawBox(widget.bounds, widget.cornerRadius, fill,
             widget.borderColor, widget.borderWidth)

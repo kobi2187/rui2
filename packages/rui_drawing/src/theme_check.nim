@@ -68,7 +68,7 @@ proc contrastProblems*(theme: Theme, textRatio = 4.5, uiRatio = 3.0): seq[Contra
           where: IntentLabels[ord(intent)] & " / focused: focus ring",
           ratio: ratio, needed: uiRatio)
 
-proc inkMixed(a, b: Color, t: float32): Color =
+proc inkMixed*(a, b: Color, t: float32): Color =
   ## `a` moved `t` of the way to `b`, opaque.
   let u = clamp(t, 0.0'f32, 1.0'f32)
   proc lerpByte(x, y: uint8): uint8 = uint8(float32(x) + (float32(y) - float32(x)) * u)

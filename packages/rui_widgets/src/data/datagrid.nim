@@ -268,7 +268,7 @@ definePrimitive(DataGrid):
                           selected = false, hovered = false)
         drawText("Loading...", widget.bounds.x + CellPadX,
                  cellBaseline(rowY, rowH, props.cellFontSize),
-                 props.cellFontSize, PlaceholderColor)
+                 props.cellFontSize, placeholderInk(props))
         continue
 
       let rowIdx = widget.order[viewIdx]

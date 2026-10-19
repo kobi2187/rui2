@@ -116,7 +116,7 @@ definePrimitive(MenuItem):
                Color(r: fgColor.r, g: fgColor.g, b: fgColor.b, a: 160))
 
     if widget.disabled:
-      drawDisabledOverlay(widget.bounds)
+      drawDisabledOverlay(widget.bounds, currentTheme.canvasColor)
 
 proc selectable*(item: Widget): bool =
   ## Whether the keyboard may stop on `item`: a MenuItem that is neither a

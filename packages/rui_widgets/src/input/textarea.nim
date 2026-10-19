@@ -237,7 +237,6 @@ proc fromMasked*(text: string, index: int): int =
 
 const
   SelectionColor = Color(r: 100, g: 150, b: 255, a: 128)
-  PlaceholderColor = Color(r: 128, g: 128, b: 128, a: 255)
   ThemeColor* = Color(r: 0, g: 0, b: 0, a: 0)
     ## The default `color`: transparent means "the theme's foreground".
   ThemeFontSize* = 0.0'f32
@@ -908,18 +907,20 @@ definePrimitive(TextArea):
                               else: max(floor, content.measure().width + pad)
 
   render:
+    let props = widget.themeProps(widget.intent, crText, disabled = widget.disabled)
     if widget.framed:
-      let props = widget.themeProps(widget.intent, crText,
-                                    disabled = widget.disabled)
       if not drawBevelBody(widget.bounds, props, props.fieldColor, style = some(BeSunken)):
         drawInteractiveBox(widget.bounds, props, focused = widget.focused)
+      elif widget.focused:
+        # A bevelled field shows focus as a ring inside its sunken edge.
+        drawThemedFocusRing(widget.bounds, props)
 
     var content = widget.contentOf
     let inner = widget.lineRect(content.lineHeight)
     let showPlaceholder = widget.text.len == 0 and widget.editable
     if showPlaceholder:
       content.text = widget.placeholder
-      content.style.color = PlaceholderColor
+      content.style.color = placeholderInk(props)
 
     if not widget.editable or showPlaceholder:
       # Display text: one paint, with alignment, wrapping and markup.
@@ -953,7 +954,7 @@ definePrimitive(TextArea):
       drawLine(mid.x - r, mid.y + r, mid.x + r, mid.y - r, c, 2)
 
     if widget.disabled:
-      drawDisabledOverlay(widget.bounds)
+      drawDisabledOverlay(widget.bounds, currentTheme.canvasColor)
 
 # ============================================================================
 # The limited roles

@@ -120,4 +120,4 @@ definePrimitive(RadioGroup):
                      midY - style.fontSize / 2, style)
 
     if widget.disabled:
-      drawDisabledOverlay(widget.bounds)
+      drawDisabledOverlay(widget.bounds, currentTheme.canvasColor)

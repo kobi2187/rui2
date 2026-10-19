@@ -81,7 +81,9 @@ definePrimitive(Switch):
       right = r.x + r.width
     else:
       let accent = props.activeColor.get(Color(r: 80, g: 120, b: 255, a: 255))
-      let off = props.borderColor.get(Color(r: 190, g: 190, b: 190, a: 255))
+      let rest = props.borderColor.get(Color(r: 190, g: 190, b: 190, a: 255))
+      # Hover leans the off track toward the accent, so the control reads as live.
+      let off = if widget.hovered: mixTone(rest, accent, 0.5) else: rest
       let h = max(currentTheme.indicatorSize * 1.2'f32, 18.0'f32)
       let dims = switchTrack(h)
       let track = Rect(x: widget.bounds.x,

@@ -16,7 +16,6 @@ const
   AlternateRowColor* = Color(r: 245, g: 245, b: 245, a: 255)
   DefaultGridColor* = Color(r: 220, g: 220, b: 220, a: 255)
   DefaultInkColor* = Color(r: 40, g: 40, b: 40, a: 255)
-  PlaceholderColor* = Color(r: 150, g: 150, b: 150, a: 255)
   HeaderShade = Color(r: 0, g: 0, b: 0, a: 14)   # sets the header row apart
   CellPadX* = 4.0'f32
 

@@ -92,4 +92,4 @@ definePrimitive(ToolButton):
                TextAlign.Center)
 
     if widget.disabled:
-      drawDisabledOverlay(widget.bounds)
+      drawDisabledOverlay(widget.bounds, currentTheme.canvasColor)

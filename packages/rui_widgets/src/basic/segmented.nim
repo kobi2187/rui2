@@ -124,6 +124,10 @@ definePrimitive(SegmentedControl):
       let tw = measureText(o, text).width
       drawStyledText(o, seg.x + (seg.width - tw) / 2, seg.y + (seg.height - text.fontSize) / 2, text)
     if widget.focused:
-      drawBox(Rect(x: widget.bounds.x - 3, y: widget.bounds.y - 3, width: widget.bounds.width + 6,
-                   height: widget.bounds.height + 6), radius + 3, Color(r: 0, g: 0, b: 0, a: 0),
-              props.focusColor.get(accent), props.focusRingWidth.get(2.0'f32))
+      if bevelled:
+        # Inside the bevel: a ring outside the bounds would be clipped away.
+        drawThemedFocusRing(widget.bounds, props)
+      else:
+        drawBox(Rect(x: widget.bounds.x - 3, y: widget.bounds.y - 3, width: widget.bounds.width + 6,
+                     height: widget.bounds.height + 6), radius + 3, Color(r: 0, g: 0, b: 0, a: 0),
+                props.focusColor.get(accent), props.focusRingWidth.get(2.0'f32))

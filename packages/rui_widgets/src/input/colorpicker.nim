@@ -170,4 +170,4 @@ definePrimitive(ColorPicker):
                    widget.bounds.y + (widget.bounds.height - style.fontSize) / 2, style)
     if widget.isOpen:
       widget.popup.isDirty = true
-    if widget.disabled: drawDisabledOverlay(widget.bounds)
+    if widget.disabled: drawDisabledOverlay(widget.bounds, currentTheme.canvasColor)

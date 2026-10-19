@@ -235,4 +235,4 @@ definePrimitive(ComboBox):
       widget.list.isDirty = true
 
     if widget.disabled:
-      drawDisabledOverlay(boxRect)
+      drawDisabledOverlay(boxRect, currentTheme.canvasColor)

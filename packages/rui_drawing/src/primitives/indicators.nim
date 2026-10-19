@@ -217,6 +217,8 @@ proc drawFocusHighlight*(rect: Rect, color: raylib.Color) =
       raylib.Color(r: color.r, g: color.g, b: color.b, a: alpha)
     )
 
-proc drawDisabledOverlay*(rect: Rect) =
-  ## Draws a semi-transparent overlay for disabled UI elements
-  drawRect(rect, raylib.Color(r: 128, g: 128, b: 128, a: 128))
+proc drawDisabledOverlay*(rect: Rect, canvas: raylib.Color) =
+  ## Fades a disabled control toward the canvas behind it. A fixed grey read as a
+  ## light block on a dark theme and a dark smudge on a light one; the canvas is
+  ## the colour the control is fading into on any theme.
+  drawRect(rect, raylib.Color(r: canvas.r, g: canvas.g, b: canvas.b, a: 160))

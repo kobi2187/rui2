@@ -960,6 +960,16 @@ suite "theme: contrast":
         checkpoint name & ": " & $p
         fail()
 
+  test "every shipped theme's placeholder text reads at 4.5:1 on its field":
+    # A placeholder can be the only label a field has, so it is held to the same
+    # ratio as a caption, on the field it is drawn in.
+    let tm = newThemeManager()
+    for name in tm.listThemes():
+      let props = tm.get(name).getThemeProps(Default, Normal)
+      let ratio = contrastRatio(placeholderInk(props), props.fieldColor)
+      checkpoint name & ": placeholder " & $ratio
+      check ratio >= 4.5
+
   test "readableInk moves a failing ink only as far as it takes, keeping its hue":
     let bg = Color(r: 255, g: 255, b: 255, a: 255)
     # A pale amber caption on white fails; the ink comes back darker, still amber.
