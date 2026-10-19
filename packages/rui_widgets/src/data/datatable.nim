@@ -369,7 +369,7 @@ definePrimitive(DataTable):
         drawFocusRing(rowRect, props.borderColor.get(GRAY))   # the keyboard's row
 
       var texts: seq[string] = @[]
-      var ink = fgColor
+      var ink = rowInk(props, rowIdx in widget.selected, fgColor)
       if widget.source != nil:
         if widget.source.rowState(viewIdx) == rsPending:
           # Known to exist, not here yet: placeholders in the theme's disabled ink.

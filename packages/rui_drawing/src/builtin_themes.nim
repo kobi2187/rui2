@@ -117,7 +117,10 @@ proc createBeosTheme*(): Theme =
     base.backgroundColor = some(Color(r: 232, g: 232, b: 232, a: 255))   # R5 buttons are lighter than the panel
     base.foregroundColor = some(black)
     base.borderColor = some(grey96)
-    base.activeColor = some(beBlue)
+    # Be blue for the plain and primary controls; the status intents keep their
+    # hues, so a Danger badge still reads as danger.
+    if intent in {Default, Info}:
+      base.activeColor = some(beBlue)
     base.hoverColor = base.backgroundColor   # Be shows no hover effect
     base.pressedColor = some(pushed)
     base.fontFamily = none(string)

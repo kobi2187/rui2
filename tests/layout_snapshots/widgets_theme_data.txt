@@ -1,0 +1,21 @@
+VStack - @0,0 1000x620
+  Row - @16,16 968x243
+    VStack - @16,16 310x243
+      Label - @16,16 310x19
+      DataTable - @16,47 310x118 tabstop
+      Label - @16,177 310x19
+      Row - @16,208 310x23
+        Badge - @16,208 25x23
+        Badge - @51,208 49x23
+        Badge - @110,208 39x23
+        Badge - @159,208 47x23
+      Rating - @16,243 310x16 tabstop
+    VStack - @354,16 217x175
+      Label - @354,16 217x19
+      DatePicker - @354,47 217x31 tabstop
+        CalendarPopup - @354,78 238x222 floating
+      ColorPicker - @354,90 217x31 tabstop
+        ColorPopup - @354,121 236x220 floating
+      Label - @354,133 217x19
+      Card - @354,164 217x27
+        Label - @364,168 197x19

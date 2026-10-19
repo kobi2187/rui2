@@ -14,11 +14,15 @@ import std/options
 
 const BadgeMinHeight = 18.0'f32
 
-const BadgeText = Color(r: 255, g: 255, b: 255, a: 255)
+
+proc badgeFill(props: ThemeProps): Color =
+  ## The intent's strong colour: its accent hue (red for Danger), or its ink for a
+  ## theme that gives the intent no hue of its own.
+  props.activeColor.get(props.foregroundColor.get(Color(r: 200, g: 50, b: 50, a: 255)))
 
 proc badgeStyle(props: ThemeProps): TextStyle =
-  ## White on the intent's strong colour (its text colour: red for Danger).
-  props.captionStyle(BadgeText, size = 12.0)
+  ## The ink that reads on the badge's fill.
+  props.captionStyle(onFillInk(badgeFill(props)), size = 12.0)
 
 definePrimitive(Badge):
   props:
@@ -35,7 +39,7 @@ definePrimitive(Badge):
 
   render:
     let props = currentTheme.getThemeProps(widget.intent, Normal)
-    let fill = props.foregroundColor.get(Color(r: 200, g: 50, b: 50, a: 255))
+    let fill = badgeFill(props)
     drawBox(widget.bounds, widget.bounds.height / 2, fill, fill, 0)
     let style = badgeStyle(props)
     let m = measureText(widget.text, style)
