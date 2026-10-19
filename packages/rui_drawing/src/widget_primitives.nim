@@ -317,8 +317,8 @@ proc drawCheckbox*(rect: Rect, checked: bool, props: ThemeProps,
       let ink = props.foregroundColor.get(BLACK)
       let (x0, y0) = (rect.x + i, rect.y + i)
       let (x1, y1) = (rect.x + rect.width - i, rect.y + rect.height - i)
-      drawLine(Vector2(x: x0, y: y0), Vector2(x: x1, y: y1), 2.0, ink)
-      drawLine(Vector2(x: x0, y: y1), Vector2(x: x1, y: y0), 2.0, ink)
+      drawSmoothLine(Vector2(x: x0, y: y0), Vector2(x: x1, y: y1), 2.0, ink)
+      drawSmoothLine(Vector2(x: x0, y: y1), Vector2(x: x1, y: y0), 2.0, ink)
   elif checked:
     drawBox(rect, radius, accent, accent, 0)
     drawCheckmark(rect, onFillInk(accent), max(2.0'f32, w * 1.25))
@@ -340,25 +340,29 @@ proc drawRadioButton*(rect: Rect, selected: bool, props: ThemeProps,
   let ring = if selected: accent else: borderFor(props, focused, false)
   let bg = if hovered: props.hoverColor.get(props.backgroundColor.get(WHITE))
            else: props.backgroundColor.get(WHITE)
+  let c = Vector2(x: cx, y: cy)
   if props.bevelStyle.get(Flat) != Flat:
-    # A bevelled theme: a sunken round well -- dark arc above-left, light below-right.
-    let c = Vector2(x: cx, y: cy)
-    drawCircle(c, r, props.highlightColor.get(WHITE))
-    drawCircle(c, r - 1, bg)
-    drawRing(c, r - 1.5, r, 135, 315, 24, props.shadowColor.get(GRAY))
-    drawRing(c, r - 3.0, r - 1.5, 135, 315, 24, props.darkShadowColor.get(BLACK))
+    # A bevelled theme (BeOS): a sunken round well. The dark crescent above-left and
+    # the light edge below-right come from two discs, one moved by a pixel, so they
+    # are smooth-edged as the rest of the control is.
+    let light = props.highlightColor.get(WHITE)
+    let dark = props.darkShadowColor.get(BLACK)
+    let shade = props.shadowColor.get(GRAY)
+    drawSmoothDisc(c, r, dark)
+    drawSmoothDisc(Vector2(x: cx + 1, y: cy + 1), r - 1, light)
+    drawSmoothDisc(c, r - 2, shade)
+    drawSmoothDisc(Vector2(x: cx + 1, y: cy + 1), r - 3, bg)
     if selected:
-      drawCircle(c, r * 0.42, props.foregroundColor.get(BLACK))
+      drawSmoothDisc(c, r * 0.42, props.foregroundColor.get(BLACK))
     return
   let ringW = if selected: max(w, r * 0.3) else: w
-  drawCircle(Vector2(x: cx, y: cy), r, ring)
-  drawCircle(Vector2(x: cx, y: cy), max(0.0'f32, r - ringW), bg)
+  drawSmoothDisc(c, r, ring)
+  drawSmoothDisc(c, max(0.0'f32, r - ringW), bg)
   if selected:
-    drawCircle(Vector2(x: cx, y: cy), r * 0.38, accent)
+    drawSmoothDisc(c, r * 0.38, accent)
   if focused:
-    let ringColor = props.focusRingColor.get(accent)
-    drawRing(Vector2(x: cx, y: cy), max(0.0'f32, r - ringW - props.focusRingWidth.get(2.0)),
-             max(0.0'f32, r - ringW), 0, 360, 36, ringColor)
+    drawSmoothRing(c, max(0.0'f32, r - ringW), props.focusRingWidth.get(2.0),
+                   props.focusRingColor.get(accent))
 
 proc drawBeGroove*(x, width, cy: float32, props: ThemeProps) =
   ## A bevelled slider's track: a sunken groove, six pixels deep, centred on `cy`.

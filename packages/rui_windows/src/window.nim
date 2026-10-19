@@ -152,8 +152,8 @@ definePrimitive(Window):
       if widget.closable:
         let c = titleButton(widget.bounds, 0)
         let m = Point(x: c.x + c.width / 2, y: c.y + c.height / 2)
-        drawLine(m.x - 5, m.y - 5, m.x + 5, m.y + 5, ink, 2)
-        drawLine(m.x - 5, m.y + 5, m.x + 5, m.y - 5, ink, 2)
+        drawSmoothLine(Vector2(x: m.x - 5, y: m.y - 5), Vector2(x: m.x + 5, y: m.y + 5), 2, ink)
+        drawSmoothLine(Vector2(x: m.x - 5, y: m.y + 5), Vector2(x: m.x + 5, y: m.y - 5), 2, ink)
     if widget.maximizable:
       let b = titleButton(widget.bounds, zoomSlot(widget.closable))
       drawRectangleLines(int32(b.x + 8), int32(b.y + 8), int32(b.width - 16),
