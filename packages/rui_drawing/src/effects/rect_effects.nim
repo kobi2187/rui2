@@ -16,6 +16,7 @@ import std/options
 import rui_core
 import theme_types  # For BevelStyle - breaks circular dependency
 import theme_sys_core
+import ../primitives/sdf
 import raylib
 
 
@@ -308,6 +309,15 @@ proc drawGlowRect*(
 ) =
   ## Draws a rectangle with outer glow effect.
   ## Creates welcoming highlight for focused elements.
+  ##
+  ## The glow is the shadow shader with no offset: a halo that fades smoothly
+  ## over `glowRadius`. The stacked rectangles below are the fallback with no
+  ## GL context, and they show as bands.
+  let halo = Color(r: glowColor.r, g: glowColor.g, b: glowColor.b,
+                   a: uint8(clamp(glowOpacity, 0.0, 1.0) * 255.0))
+  if drawSdfShadow(bounds, cornerRadius, 0.0, 0.0, glowRadius / 2, glowRadius / 2, halo):
+    discard drawSdfBox(bounds, cornerRadius, 0.0, backgroundColor, backgroundColor)
+    return
 
   # Draw glow layers (expanding outward)
   let glowSteps = 4
