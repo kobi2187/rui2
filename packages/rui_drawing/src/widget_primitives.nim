@@ -544,21 +544,27 @@ proc drawScrollbar*(rect: Rect, contentSize, viewSize, offset: float32,
     hovered
   )
 
+proc selectedRowProps(props: ThemeProps): ThemeProps =
+  ## The props a selected menu or list row is drawn with: its caption in the ink
+  ## that reads on the accent fill the selection sits on. The theme's text colour
+  ## is the ink on its own background, which is not that fill.
+  let fill = props.activeColor.get(Color(r: 100, g: 150, b: 255, a: 255))
+  result = props
+  result.foregroundColor = some(onFillInk(fill))
+
 proc drawMenuItem*(rect: Rect, text: string, props: ThemeProps,
                    selected = false, hovered = false, hasSubmenu = false) =
   ## Menu item = selection background + padded text + optional arrow
   drawSelectionBackground(rect, props, selected, hovered)
-  drawThemedPaddedText(text, rect, props, selected)
+  let row = if selected: selectedRowProps(props) else: props
+  drawThemedPaddedText(text, rect, row)
 
   # Submenu arrow
   if hasSubmenu:
-    let padding = props.fieldInset
+    let padding = row.fieldInset
     let arrowX = rect.x + rect.width - padding - 8
     let arrowY = rect.y + rect.height / 2
-    let textColor = if selected:
-                      Color(r: 255, g: 255, b: 255, a: 255)
-                    else:
-                      props.foregroundColor.get(Color(r: 60, g: 60, b: 60, a: 255))
+    let textColor = row.foregroundColor.get(Color(r: 60, g: 60, b: 60, a: 255))
     drawRightArrow(arrowX, arrowY, 8.0, textColor)
 
 proc drawListItem*(rect: Rect, text: string, props: ThemeProps,
@@ -566,7 +572,7 @@ proc drawListItem*(rect: Rect, text: string, props: ThemeProps,
   ## List item = selection background + padded text
   ## (same as menu item but without submenu arrow)
   drawSelectionBackground(rect, props, selected, hovered)
-  drawThemedPaddedText(text, rect, props, selected)
+  drawThemedPaddedText(text, rect, if selected: selectedRowProps(props) else: props)
 
 proc drawComboBox*(rect: Rect, text: string, props: ThemeProps,
                    isOpen = false, hovered = false, focused = false) =

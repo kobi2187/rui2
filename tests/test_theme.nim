@@ -970,6 +970,15 @@ suite "theme: contrast":
       checkpoint name & ": placeholder " & $ratio
       check ratio >= 4.5
 
+  test "a selected row's caption reads on the accent of every shipped theme":
+    # The better of white and black always reaches about 4.6:1 on a fill, so a
+    # selection drawn with onFillInk meets AA whatever accent a theme picks.
+    let tm = newThemeManager()
+    for name in tm.listThemes():
+      let accent = tm.get(name).getThemeProps(Default, Normal).activeColor.get(Color(r: 0, g: 0, b: 0, a: 255))
+      checkpoint name & ": selected ink " & $contrastRatio(onFillInk(accent), accent)
+      check contrastRatio(onFillInk(accent), accent) >= 4.5
+
   test "readableInk moves a failing ink only as far as it takes, keeping its hue":
     let bg = Color(r: 255, g: 255, b: 255, a: 255)
     # A pale amber caption on white fails; the ink comes back darker, still amber.
