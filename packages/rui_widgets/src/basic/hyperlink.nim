@@ -61,12 +61,14 @@ definePrimitive(Hyperlink):
       widget.bounds.width = m.width
 
   render:
+    # The link's colour, held to 4.5:1 on the window behind it: a dark blue reads
+    # on white and vanishes on a dark theme, so it is lightened there, keeping
+    # its hue. A disabled link is meant to fade.
     let color = if widget.disabled:
                   Color(r: 160, g: 160, b: 160, a: 255)
-                elif widget.visited:
-                  widget.colorVisited
                 else:
-                  widget.colorUnvisited
+                  readableInk(if widget.visited: widget.colorVisited else: widget.colorUnvisited,
+                              currentTheme.canvasColor, 4.5)
 
     # One call, which centres the text and puts the underline under the
     # baseline. This used to offset the text by (height - 14) / 2 on top of a
