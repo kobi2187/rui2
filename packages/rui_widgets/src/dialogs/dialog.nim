@@ -38,8 +38,7 @@ template panelRectOf(w: untyped): Rect =
 
 template closeDialog(w: untyped) =
   w.isOpen = false
-  w.visible = false
-  w.isDirty = true
+  closeModal(w)
   if w.onClose != nil: w.onClose()
 
 definePrimitive(Dialog):
@@ -55,8 +54,7 @@ definePrimitive(Dialog):
     onClose()
 
   init:
-    widget.focusable = true
-    widget.visible = false
+    initModal(widget)
 
   events:
     on_mouse_down:
@@ -74,7 +72,7 @@ definePrimitive(Dialog):
       return false
 
   layout:
-    widget.bounds = overlayBounds()
+    widget.bounds = overlayBounds(widget)
     if widget.children.len > 0:
       let panel = panelRectOf(widget)
       widget.children[0].arrange(Rect(
@@ -88,9 +86,6 @@ definePrimitive(Dialog):
 
 proc show*(widget: Dialog) =
   widget.isOpen = true
-  widget.visible = true
-  widget.isDirty = true
-  widget.layoutDirty = true
-  wantFocus(widget)
+  openModal(widget)
 
 proc close*(widget: Dialog) = closeDialog(widget)

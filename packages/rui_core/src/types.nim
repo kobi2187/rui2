@@ -301,6 +301,12 @@ type
       ## `none` means the whole widget, which is what almost every container
       ## wants and what it costs nothing to leave alone.
     zIndex*: int
+    hitLayer*: int
+      ## The hit-test layer of this widget and everything inside it (the highest
+      ## of its own and its ancestors'). A higher layer takes the pointer from
+      ## everything on a lower one, however deeply that is nested: how a modal,
+      ## a shallow child of the root, keeps the page under it from its clicks.
+      ## 0 is the page.
     hasOverlay*: bool          # If true, children are sorted by z-index during rendering
 
     # Scripting support (app-level control)
@@ -809,6 +815,14 @@ proc treeDepth*(widget: Widget): int =
   var w = widget.parent
   while w != nil:
     inc result
+    w = w.parent
+
+proc effectiveHitLayer*(widget: Widget): int =
+  ## The layer `widget` is hit-tested on: the highest `hitLayer` from it up to
+  ## the root.
+  var w = widget
+  while w != nil:
+    result = max(result, w.hitLayer)
     w = w.parent
 
 proc unregisterWidgetLater(tree: WidgetTree, widget: Widget)

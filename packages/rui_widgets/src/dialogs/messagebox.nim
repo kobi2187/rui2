@@ -17,6 +17,8 @@ import raylib
 import messagebox_layout
 export messagebox_layout
 
+proc finish(widget: Widget, res: MessageBoxResult)
+
 definePrimitive(MessageBox):
   props:
     title: string = "Message"
@@ -34,6 +36,9 @@ definePrimitive(MessageBox):
   actions:
     onClose(res: MessageBoxResult)
 
+  init:
+    initModal(widget)
+
   events:
     on_mouse_down:
       if not widget.isVisible:
@@ -41,11 +46,7 @@ definePrimitive(MessageBox):
       let panel = panelRect(widget.bounds, widget.dialogWidth, widget.dialogHeight)
       for button in dialogButtons(panel, widget.buttons):
         if button.rect.contains(event.mousePos.x, event.mousePos.y):
-          widget.isVisible = false
-          widget.dialogResult = button.res
-          widget.isDirty = true
-          if widget.onClose != nil:
-            widget.onClose(button.res)
+          widget.finish(button.res)
           return true
       # A modal swallows every click, including the ones that miss a button.
       return true
@@ -77,16 +78,12 @@ definePrimitive(MessageBox):
                   mrNone
       if res == mrNone:
         return false
-      widget.isVisible = false
-      widget.dialogResult = res
-      widget.isDirty = true
-      if widget.onClose != nil:
-        widget.onClose(res)
+      widget.finish(res)
       return true
 
   layout:
     # Fill the screen so the dim overlay has somewhere to go.
-    widget.bounds = overlayBounds()
+    widget.bounds = overlayBounds(widget)
 
   render:
     if not widget.isVisible:
@@ -118,9 +115,18 @@ definePrimitive(MessageBox):
       drawButton(button.rect, button.label, bProps,
                  hovered = button.res == widget.hoverResult)
 
+proc finish(widget: Widget, res: MessageBoxResult) =
+  ## Close with `res`, the button or key that answered.
+  let box = MessageBox(widget)
+  box.isVisible = false
+  box.dialogResult = res
+  closeModal(box)
+  if box.onClose != nil:
+    box.onClose(res)
+
 proc show*(widget: MessageBox) =
   ## Display the dialog.
   widget.isVisible = true
   widget.dialogResult = mrNone
-  widget.isDirty = true
-  widget.layoutDirty = true
+  widget.hoverResult = mrNone
+  openModal(widget)
