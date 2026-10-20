@@ -140,7 +140,7 @@ proc pickersTab(store: Store): Widget =
         ColorPicker(value = accent.value, onChange = accent.setter).named("pickers.color")
         Label(text = $accent.value)
       Label(text = "FilePicker (embedded)")
-      FilePicker(mode = fpOpen, filters = @["*.nim"], initialPath = ".",
+      FilePicker(mode = fpOpen, filters = @["*.nim"], initialPath = getAppDir(),
                  multiSelect = true).named("pickers.files").size(600, 240)
 
 proc layoutTab(): Widget =
@@ -378,7 +378,7 @@ proc menusTab(g: Gallery): Widget =
   let confirm = newMessageBox(title = "Confirm", message = "Discard changes?",
                               messageType = mbQuestion, buttons = mbYesNoCancel).named("menus.messagebox")
   let fileDialog = newFileDialog(title = "Open Nim files", mode = fdOpen, filters = @["*.nim"],
-                                 initialPath = ".").named("menus.filedialog")
+                                 initialPath = getAppDir()).named("menus.filedialog")
   let dialog = newDialog(title = "Settings", dialogWidth = 320.0).named("menus.dialog")
   dialog.addChild(newCheckbox(text = "Remember me"))
   g.dialogs.add [Widget(confirm), Widget(fileDialog), Widget(dialog)]

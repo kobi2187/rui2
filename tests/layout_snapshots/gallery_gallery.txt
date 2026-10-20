@@ -112,9 +112,8 @@ VStack gallery @0,0 1000x720
             Row - @12,289 600x41
               Breadcrumbs - @12,295 422x28
                 Crumb - @12,297 18x24 tabstop
-                Crumb - @44,297 64x24 tabstop
-                Crumb - @122,297 53x24 tabstop
-                Crumb - @189,297 53x24 tabstop
+                Crumb - @44,297 49x24 tabstop
+                Crumb - @107,297 112x24 tabstop
               TextInput - @442,289 170x41 tabstop
             ListBox - @12,336 600x193 tabstop
     VStack - @0,83 1000x772 hidden
@@ -329,9 +328,8 @@ VStack gallery @0,0 1000x720
             Row - @122,152 496x41
               Breadcrumbs - @122,158 318x28
                 Crumb - @122,160 18x24 tabstop
-                Crumb - @154,160 64x24 tabstop
-                Crumb - @232,160 53x24 tabstop
-                Crumb - @299,160 53x24 tabstop
+                Crumb - @154,160 49x24 tabstop
+                Crumb - @217,160 112x24 tabstop
               TextInput - @448,152 170x41 tabstop
             ListBox - @122,199 496x355 tabstop
         SidePane - @628,152 250x402 tabstop

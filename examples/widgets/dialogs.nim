@@ -38,9 +38,11 @@ root.addChild(askBtn)
 
 # FileDialog ---------------------------------------------------------------
 # Browse, filter by name, and gather files from any folders into the Chosen
-# pane; Open hands them all over -- here as text, one path per line.
+# pane; Open hands them all over -- here as text, one path per line. The
+# pickers start in this program's own folder: a fixed place, where "." would
+# be wherever it was started from (and differ between machines in snapshots).
 let picker = newFileDialog(title = "Open Nim files", mode = fdOpen,
-                           filters = @["*.nim"], initialPath = ".").named("fileDialog")
+                           filters = @["*.nim"], initialPath = getAppDir()).named("fileDialog")
 picker.onSelect = proc(files: seq[string]) =
   report("filedialog -> " & $files.len & " file(s):\n" & files.asLines)
 picker.onCancel = proc() = report("filedialog cancelled")
@@ -53,7 +55,7 @@ root.addChild(openBtn)
 root.addChild(newLabel(text = "Embedded FilePicker (double-click a folder to enter):",
                        fontSize = 14.0).named("t1"))
 let embedded = newFilePicker(mode = fpOpen, filters = @["*.nim"],
-                             initialPath = ".", multiSelect = true).named("embedded").frame(width = 600, height = 260)
+                             initialPath = getAppDir(), multiSelect = true).named("embedded").frame(width = 600, height = 260)
 embedded.onSelect = proc(paths: HashSet[string]) =
   var picked: seq[string] = @[]
   for p in paths:
