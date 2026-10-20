@@ -130,13 +130,22 @@ proc drawArrow*(x, y, size: float32, angle: float32, color: raylib.Color) =
 # Atomic Parts (smallest building blocks)
 # ============================================================================
 
+proc restFill(props: ThemeProps): Color =
+  props.backgroundColor.get(Color(r: 240, g: 240, b: 240, a: 255))
+
+proc hoverFill*(props: ThemeProps): Color =
+  ## What goes behind a caption under the pointer: the theme's hover colour, or
+  ## else its background shaded away from the ink -- never a fixed light grey,
+  ## which under a dark theme's light text could not be read.
+  props.hoverColor.get(awayFrom(props.restFill, props.foregroundColor.get(BLACK), 0.10))
+
+proc pressedFill(props: ThemeProps): Color =
+  props.pressedColor.get(awayFrom(props.restFill, props.foregroundColor.get(BLACK), 0.20))
+
 proc backgroundFor(props: ThemeProps, pressed, hovered: bool): Color =
-  if pressed:
-    props.pressedColor.get(props.backgroundColor.get(Color(r: 200, g: 200, b: 200, a: 255)))
-  elif hovered:
-    props.hoverColor.get(props.backgroundColor.get(Color(r: 220, g: 220, b: 220, a: 255)))
-  else:
-    props.backgroundColor.get(Color(r: 240, g: 240, b: 240, a: 255))
+  if pressed: props.pressedFill
+  elif hovered: props.hoverFill
+  else: props.restFill
 
 proc borderFor(props: ThemeProps, focused, active: bool): Color =
   if focused:
@@ -300,8 +309,7 @@ proc drawSelectionBackground*(rect: Rect, props: ThemeProps,
     let selColor = props.activeColor.get(Color(r: 100, g: 150, b: 255, a: 255))
     drawRect(rect, selColor)
   elif hovered:
-    let hoverColor = props.hoverColor.get(Color(r: 240, g: 240, b: 240, a: 255))
-    drawRect(rect, hoverColor)
+    drawRect(rect, hoverFill(props))
 
 # ============================================================================
 # Widget Primitives (compose compound parts)
@@ -637,7 +645,7 @@ proc drawTab*(rect: Rect, text: string, props: ThemeProps,
   let bgColor = if active:
                   props.backgroundColor.get(Color(r: 255, g: 255, b: 255, a: 255))
                 elif hovered:
-                  props.hoverColor.get(Color(r: 240, g: 240, b: 240, a: 255))
+                  hoverFill(props)
                 else:
                   mixTone(props.backgroundColor.get(currentTheme.canvasColor),
                           currentTheme.canvasColor, 0.5)
@@ -673,10 +681,12 @@ proc drawTab*(rect: Rect, text: string, props: ThemeProps,
   let textColor = if active:
                     props.foregroundColor.get(Color(r: 60, g: 60, b: 60, a: 255))
                   else:
-                    # the ink dimmed, not a fixed grey: stays readable (>= 4.5:1) on any tab fill
+                    # the ink dimmed, then held to 4.5:1 on the fill it is on -- the
+                    # hover fill included
                     let ink = props.foregroundColor.get(Color(r: 60, g: 60, b: 60, a: 255))
-                    Color(r: uint8((ink.r.int + 90) div 2),
-                          g: uint8((ink.g.int + 90) div 2), b: uint8((ink.b.int + 90) div 2), a: 255)
+                    readableInk(Color(r: uint8((ink.r.int + 90) div 2),
+                                      g: uint8((ink.g.int + 90) div 2),
+                                      b: uint8((ink.b.int + 90) div 2), a: 255), bgColor, 4.5)
   let style = props.captionStyle(textColor, action = true)
   drawStyledText(fittedText(text, style, rect.width - 8), rect.x + rect.width/2,
                  rect.y + (rect.height - style.fontSize) / 2, style, centered = true)
@@ -696,7 +706,7 @@ proc drawSpinnerButtons*(rect: Rect, props: ThemeProps,
     height: buttonHeight
   )
   if upHovered:
-    drawRect(upRect, props.hoverColor.get(Color(r: 240, g: 240, b: 240, a: 255)))
+    drawRect(upRect, hoverFill(props))
   drawUpArrow(upRect.x + buttonWidth/2, upRect.y + buttonHeight/2, 6.0, textColor)
 
   # Down button
@@ -707,7 +717,7 @@ proc drawSpinnerButtons*(rect: Rect, props: ThemeProps,
     height: buttonHeight
   )
   if downHovered:
-    drawRect(downRect, props.hoverColor.get(Color(r: 240, g: 240, b: 240, a: 255)))
+    drawRect(downRect, hoverFill(props))
   drawDownArrow(downRect.x + buttonWidth/2, downRect.y + buttonHeight/2, 6.0, textColor)
 
 proc drawSpinner*(rect: Rect, value: string, props: ThemeProps,

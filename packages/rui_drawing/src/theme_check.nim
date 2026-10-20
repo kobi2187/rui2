@@ -42,6 +42,13 @@ const
   IntentLabels = ["default", "info", "success", "warning", "danger"]
   CheckedStates = [Normal, Hovered, Pressed, Selected]
 
+proc captionFills(props: ThemeProps): seq[(Color, string)] =
+  ## Every fill the caption of `props` is drawn on: its background, and the
+  ## hover and pressed fills that replace it under the pointer.
+  if props.backgroundColor.isSome: result.add (props.backgroundColor.get, "caption")
+  if props.hoverColor.isSome: result.add (props.hoverColor.get, "caption on hover")
+  if props.pressedColor.isSome: result.add (props.pressedColor.get, "caption when pressed")
+
 proc contrastProblems*(theme: Theme, textRatio = 4.5, uiRatio = 3.0): seq[ContrastProblem] =
   ## Every caption/background pair under `textRatio` (4.5 is WCAG AA, 7 is AAA)
   ## and every focus ring under `uiRatio` (3 is the AA floor for UI parts).
@@ -49,13 +56,16 @@ proc contrastProblems*(theme: Theme, textRatio = 4.5, uiRatio = 3.0): seq[Contra
   for intent in ThemeIntent:
     for state in CheckedStates:
       let props = theme.getThemeProps(intent, state)
-      if props.backgroundColor.isSome and props.foregroundColor.isSome:
-        let bg = props.backgroundColor.get.over(Color(r: 255, g: 255, b: 255, a: 255))
-        let ratio = contrastRatio(props.foregroundColor.get, bg)
-        if ratio < textRatio:
-          result.add ContrastProblem(
-            where: IntentLabels[ord(intent)] & " / " & ($state).toLowerAscii & ": caption",
-            ratio: ratio, needed: textRatio)
+      if props.foregroundColor.isSome:
+        # The caption sits on the background, and on the hover and pressed fills
+        # a widget paints behind the same caption while the pointer is on it.
+        for (fill, what) in captionFills(props):
+          let bg = fill.over(Color(r: 255, g: 255, b: 255, a: 255))
+          let ratio = contrastRatio(props.foregroundColor.get.over(bg), bg)
+          if ratio < textRatio:
+            result.add ContrastProblem(
+              where: IntentLabels[ord(intent)] & " / " & ($state).toLowerAscii & ": " & what,
+              ratio: ratio, needed: textRatio)
     let focused = theme.getThemeProps(intent, Focused)
     if focused.focusRingColor.isSome or focused.borderColor.isSome:
       # The ring is drawn outside the control, so it is seen against the window
@@ -89,34 +99,65 @@ proc readableInk*(ink, bg: Color, minRatio: float): Color =
   target
 
 proc setInk(theme: var Theme, intent: ThemeIntent, state: ThemeState,
-            fg: Option[Color] = none(Color), ring: Option[Color] = none(Color)) =
-  ## Sets the caption ink or the focus ring of one intent and state: the base for
-  ## Normal, the state's override for the rest.
-  if state == Normal and fg.isSome:
+            fg: Option[Color] = none(Color), ring: Option[Color] = none(Color),
+            hover: Option[Color] = none(Color), pressed: Option[Color] = none(Color)) =
+  ## Sets the caption ink, the hover or pressed fill, or the focus ring of one
+  ## intent and state: the base for Normal, the state's override for the rest.
+  template apply(p: var ThemeProps) =
+    if fg.isSome: p.foregroundColor = fg
+    if ring.isSome: p.focusRingColor = ring
+    if hover.isSome: p.hoverColor = hover
+    if pressed.isSome: p.pressedColor = pressed
+  if state == Normal and ring.isNone:
     var p = theme.base.getOrDefault(intent)
-    p.foregroundColor = fg
+    apply(p)
     theme.base[intent] = p
     return
   var table = theme.states.getOrDefault(intent)
   var p = table.getOrDefault(state)
-  if fg.isSome: p.foregroundColor = fg
-  if ring.isSome: p.focusRingColor = ring
+  apply(p)
   table[state] = p
   theme.states[intent] = table
 
+proc awayFrom*(fill, ink: Color, t: float32): Color =
+  ## `fill` moved `t` of the way from `ink`: darker under a lighter ink, lighter
+  ## under a darker one -- a shade of the fill that only gains contrast with it.
+  let white = Color(r: 255, g: 255, b: 255, a: 255)
+  let black = Color(r: 0, g: 0, b: 0, a: 255)
+  inkMixed(fill, (if luminance(ink) > luminance(fill): black else: white), t)
+
 proc makeReadable*(theme: var Theme, textRatio = 4.5, uiRatio = 3.0) =
   ## Brings every caption and focus ring of `theme` up to the given ratios -- the
-  ## same pairs contrastProblems checks. Only the failing pairs change, and only
+  ## same pairs contrastProblems checks, the hover and pressed fills included. Only the failing pairs change, and only
   ## their ink (or ring): backgrounds, hue and every pair that already passes stay
   ## as the theme drew them, so a theme that is readable already is untouched.
   for intent in ThemeIntent:
     for state in [Normal, Hovered, Pressed, Selected]:
-      let props = theme.getThemeProps(intent, state)
-      if props.backgroundColor.isSome and props.foregroundColor.isSome:
-        let ink = props.foregroundColor.get
+      var props = theme.getThemeProps(intent, state)
+      if props.foregroundColor.isNone: continue
+      let ink = props.foregroundColor.get
+      if props.backgroundColor.isSome:
         let fixed = readableInk(ink, props.backgroundColor.get, textRatio)
         if fixed != ink:
           theme.setInk(intent, state, fg = some(fixed))
+          props = theme.getThemeProps(intent, state)
+      elif props.hoverColor.isSome:
+        theme.setInk(intent, state, fg = some(readableInk(ink, props.hoverColor.get, textRatio)))
+        props = theme.getThemeProps(intent, state)
+      # A hover or pressed fill the caption does not read on -- typically one an
+      # intent inherits from Default while setting its own background -- becomes
+      # a shade of that background instead, moved away from the ink: still a
+      # visible change under the pointer, and never less readable than at rest.
+      let readInk = props.foregroundColor.get
+      proc reads(fill: Color): bool =
+        let bg = fill.over(Color(r: 255, g: 255, b: 255, a: 255))
+        contrastRatio(readInk.over(bg), bg) >= textRatio
+      let base = props.backgroundColor
+      if base.isSome:
+        if props.hoverColor.isSome and not reads(props.hoverColor.get):
+          theme.setInk(intent, state, hover = some(awayFrom(base.get, readInk, 0.10)))
+        if props.pressedColor.isSome and not reads(props.pressedColor.get):
+          theme.setInk(intent, state, pressed = some(awayFrom(base.get, readInk, 0.20)))
     let focused = theme.getThemeProps(intent, Focused)
     if focused.focusRingColor.isSome or focused.borderColor.isSome:
       let canvas = theme.canvasColor

@@ -246,9 +246,9 @@ proc brandTheme*(spec: BrandSpec): Theme =
     result.states[Info][Hovered] = stateProps(s, primary, s.accent, Hovered)
     result.states[Info][Pressed] = stateProps(s, primary, s.accent, Pressed)
 
-  # Every caption and focus ring is held to its ratio; a pair the palette
-  # already reads is left as drawn.
-  makeReadable(result)
+  # Every caption and focus ring is held to its ratio -- AAA for a high-contrast
+  # brand -- and a pair the palette already reads is left as drawn.
+  makeReadable(result, textRatio = (if s.highContrast: 7.0 else: 4.5))
 
 # ----------------------------------------------------------------------------
 # The brands that ship
