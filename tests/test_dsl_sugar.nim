@@ -180,3 +180,29 @@ suite "widgets yui asks for":
     let search = newSearchInput()
     check search.placeholder == "Search"
     check not search.multiline
+
+suite "props redraw when set":
+  test "setting a prop from outside asks for a layout and a repaint, once":
+    let b = newButton(text = "Go")
+    let host = newVStack()
+    host.addChild(b)
+    b.layoutDirty = false; b.isDirty = false; host.isDirty = false
+    b.text = "Go"                        # the same value: nothing to do
+    check not b.layoutDirty and not b.isDirty
+    b.text = "Stop"
+    check b.text == "Stop"
+    check b.layoutDirty and b.isDirty and host.isDirty   # up to the root
+
+  test "a prop's getter is a var: changing it in place still works":
+    let l = newListBox(items = @["a"])
+    l.items.add "b"
+    check l.items == @["a", "b"]
+
+  test "state assigned from outside redraws too: a Label's text":
+    let l = newLabel(text = "count 0")      # `text` is TextArea state, not a prop
+    let host = newVStack()
+    host.addChild(l)
+    l.layoutDirty = false; l.isDirty = false; host.isDirty = false
+    l.text = "count 1"
+    check l.text == "count 1"
+    check l.layoutDirty and l.isDirty and host.isDirty

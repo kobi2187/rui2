@@ -998,6 +998,35 @@ suite "theme: contrast":
     check t.base[Default].foregroundColor == before.foregroundColor
     check contrastProblems(t).len == 0
 
+  test "a caption that cannot be read on its hover fill is reported, and makeReadable fixes the fill":
+    # Info sets its own light background and inherits nothing else: the dark
+    # hover fill comes from the theme, as an intent inheriting Default's would.
+    var t = newTheme("Mixed")
+    let white = Color(r: 255, g: 255, b: 255, a: 255)
+    let navy = Color(r: 40, g: 44, b: 80, a: 255)
+    let sky = Color(r: 200, g: 215, b: 255, a: 255)
+    t.base[Info] = ThemeProps(backgroundColor: some(sky),
+                              foregroundColor: some(Color(r: 20, g: 40, b: 120, a: 255)),
+                              hoverColor: some(navy), pressedColor: some(navy))
+    let problems = contrastProblems(t)
+    check problems.len > 0
+    check "info / normal: caption on hover" in problems[0].where
+    makeReadable(t)
+    check contrastProblems(t).len == 0
+    let p = t.getThemeProps(Info, Normal)
+    check p.backgroundColor.get == sky                  # the background stays
+    check p.hoverColor.get != sky                       # hover still shows
+    check p.hoverColor.get != p.pressedColor.get        # and pressing differs again
+    check contrastRatio(p.foregroundColor.get, p.hoverColor.get.over(white)) >= 4.5
+
+  test "hoverFill shades the background away from the ink when the theme sets no hover":
+    let dark = ThemeProps(backgroundColor: some(Color(r: 30, g: 30, b: 34, a: 255)),
+                          foregroundColor: some(Color(r: 235, g: 235, b: 235, a: 255)))
+    let h = hoverFill(dark)
+    check h != dark.backgroundColor.get                 # a visible change...
+    check h.r < 30                                      # ...darker, under light ink
+    check contrastRatio(dark.foregroundColor.get, h) >= 4.5
+
   test "a theme with a washed-out caption is reported, with where and by how much":
     var t = newTheme("Faint")
     t.base[Default] = ThemeProps(backgroundColor: some(Color(r: 255, g: 255, b: 255, a: 255)),

@@ -237,6 +237,7 @@ definePrimitive(DataTable):
       widget.hoverRow = -1
       widget.vbar.hover = false
     widget.hoverRow = -1       # nothing is under the pointer yet
+    widget.ensureEditors()     # the filter boxes exist from the start, not first layout
 
   events:
     on_mouse_up:
@@ -438,6 +439,7 @@ proc bindSource*(table: DataTable, source: RowSource) =
           table.columns.add DataColumn(id: name, title: name, width: 120,
                                        sortable: source.canSort, filterable: source.canFilter,
                                        filterKinds: {fkContains})
+      table.ensureEditors()      # the new columns' filter boxes, now, not at next layout
   proc mapColumns() =
     table.columnMap.setLen(0)
     for i, col in table.columns:

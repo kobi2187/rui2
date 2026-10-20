@@ -34,3 +34,6 @@ export indexedstack
 
 import containers/drawer
 export drawer
+
+import containers/sidepane
+export sidepane

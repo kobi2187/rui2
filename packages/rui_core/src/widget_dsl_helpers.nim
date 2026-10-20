@@ -180,31 +180,52 @@ proc makeActionDef*(action: NimNode): ActionDef =
 # Code Generation - Fields
 # ============================================================================
 
+proc propTypeNode(prop: PropDef): NimNode =
+  ## A fresh ident for the prop's type, so nothing binds from the calling scope.
+  if prop.typ.kind == nnkIdent: newIdentNode(prop.typ.strVal) else: prop.typ
+
 proc genPropField*(prop: PropDef): NimNode =
-  ## Generate exported field definition for prop
+  ## The field behind a prop: private to the widget's module, which reads and
+  ## writes it directly. Everyone else goes through the accessors genPropAccessors
+  ## makes, so assigning a prop from outside redraws the widget by itself.
   # DON'T use the captured ident node - create a completely fresh one
   # This prevents any symbol binding from the calling scope
   let fieldName = newIdentNode(prop.name.strVal)
-  let exportedName = nnkPostfix.newTree(ident("*"), fieldName)
+  nnkIdentDefs.newTree(fieldName, propTypeNode(prop), prop.default)
 
-  # For type, also create fresh ident
-  let typeNode = if prop.typ.kind == nnkIdent:
-    newIdentNode(prop.typ.strVal)
-  else:
-    prop.typ
-
-  nnkIdentDefs.newTree(exportedName, typeNode, prop.default)
+proc genPropAccessors*(typeName: NimNode, prop: PropDef): NimNode =
+  ## The public face of a prop: `w.text` reads it (a `var`, so `w.items.add x`
+  ## still works, without a redraw, as before), and `w.text = v` sets it and --
+  ## when the value changed -- asks for a layout and a repaint. Forgetting that
+  ## left a widget showing its old value until something else moved it.
+  let name = prop.name.strVal
+  let getter = nnkPostfix.newTree(ident("*"), ident(name))
+  let setter = nnkPostfix.newTree(ident("*"),
+                                  nnkAccQuoted.newTree(ident(name & "=")))
+  let field = ident(name)
+  let typ = propTypeNode(prop)
+  let w = ident("w")
+  let v = ident("v")
+  result = newStmtList()
+  result.add quote do:
+    proc `getter`(`w`: `typeName`): var `typ` {.inline.} = `w`.`field`
+    proc `setter`(`w`: `typeName`, `v`: `typ`) =
+      # Only plain values are compared: `compiles(a == b)` says yes to some
+      # objects whose `==` then fails to instantiate. For anything else an
+      # unneeded redraw is cheap and a missed one is the bug this prevents.
+      when `v` is SomeNumber or `v` is string or `v` is bool or `v` is enum or `v` is char:
+        if `w`.`field` == `v`: return
+      `w`.`field` = `v`
+      `w`.layoutDirty = true
+      `w`.markDirtyToRoot()
 
 proc genStateField*(state: StateDef): NimNode =
-  ## Generate plain type field for state.
-  ## Exported, like props: state is read by app code and by the scripting
-  ## bridge, both of which live outside the widget's defining module.
+  ## The field behind a state variable: private to the widget's module, like a
+  ## prop's. App code and the scripting bridge read it, and set it, through
+  ## the same accessors (genPropAccessors), so `label.text = "..."` from
+  ## outside redraws the label -- it used to change the field and nothing else.
   let fieldName = newIdentNode(state.name.strVal)
-  nnkIdentDefs.newTree(
-    nnkPostfix.newTree(ident("*"), fieldName),
-    state.typ,
-    newEmptyNode()
-  )
+  nnkIdentDefs.newTree(fieldName, state.typ, newEmptyNode())
 
 proc actionProcType*(action: ActionDef): NimNode =
   ## `proc(x: T, y: U): R {.closure.}` for one declared action.

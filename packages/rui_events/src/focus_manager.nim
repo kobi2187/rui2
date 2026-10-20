@@ -380,9 +380,12 @@ proc handleKeyboardEvent*(fm: FocusManager, event: GuiEvent,
 
   # A chord with Ctrl or Alt that the focused widget does not use goes to its
   # ancestors, innermost first: how a TabControl hears Ctrl+Tab, or a menu
-  # bar its Alt keys, while focus sits on a control inside it. Plain keys
-  # (the arrows, Tab) do not bubble, so they stay with focus navigation.
-  if fm.focusedWidget != nil and (kmCtrl in event.mods or kmAlt in event.mods):
+  # bar its Alt keys, while focus sits on a control inside it. So does Escape:
+  # cancelling belongs to whatever encloses the focus -- a dialog closes on it
+  # while its text field has the keyboard. Other plain keys (the arrows, Tab)
+  # do not bubble, so they stay with focus navigation.
+  if fm.focusedWidget != nil and
+     (kmCtrl in event.mods or kmAlt in event.mods or event.key == KeyboardKey.Escape):
     var w = fm.focusedWidget.parent
     while w != nil:
       if w.visible and w.enabled and w.handleInput(event):

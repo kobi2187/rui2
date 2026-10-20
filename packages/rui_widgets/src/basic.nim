@@ -29,6 +29,9 @@ export iconbutton
 import basic/listbox
 export listbox
 
+import basic/breadcrumbs
+export breadcrumbs
+
 import basic/listview
 export listview
 

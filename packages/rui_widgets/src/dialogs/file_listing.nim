@@ -77,3 +77,31 @@ proc listEntries*(path: string, filters: seq[string] = @[],
   result = @[ParentEntry] & dirs & files
   assert result.len >= 1 and result[0] == ParentEntry,
          "the parent entry must always be first so the user can navigate out"
+
+proc globMatch(name, pattern: string): bool =
+  ## `*` any run, `?` any one character; everything else literal. Both lower case.
+  var n, p = 0
+  var star = -1
+  var mark = 0
+  while n < name.len:
+    if p < pattern.len and (pattern[p] == '?' or pattern[p] == name[n]):
+      inc n; inc p
+    elif p < pattern.len and pattern[p] == '*':
+      star = p; mark = n; inc p
+    elif star >= 0:
+      p = star + 1; inc mark; n = mark
+    else:
+      return false
+  while p < pattern.len and pattern[p] == '*': inc p
+  p == pattern.len
+
+proc matchesName*(entry, pattern: string): bool =
+  ## The name filter a user types: empty lets everything through, one with `*`
+  ## or `?` is a glob over the whole name ("*.nim", "draft?"), anything else
+  ## is a piece of the name. Case is ignored; a directory's trailing "/" is not
+  ## part of its name. The parent entry always passes: it is the way out.
+  if entry == ParentEntry or pattern.strip.len == 0: return true
+  let name = (if entry.endsWith("/"): entry[0 ..< ^1] else: entry).toLowerAscii
+  let want = pattern.strip.toLowerAscii
+  if '*' in want or '?' in want: globMatch(name, want)
+  else: want in name

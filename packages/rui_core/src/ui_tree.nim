@@ -303,6 +303,10 @@ proc addChildrenTo(parent: NimNode, body: NimNode, dest: NimNode) =
   for stmt in body:
     addStatement(parent, stmt, dest)
 
+proc newEmbed*(w: Widget): Widget = w
+  ## `Embed(existing)` puts a widget built elsewhere -- one the code keeps a
+  ## reference to -- into a `ui:` tree.
+
 macro ui*(body: untyped): untyped =
   ## Build a widget tree. See the module comment for the four rules.
   ##

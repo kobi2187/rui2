@@ -130,13 +130,22 @@ proc drawArrow*(x, y, size: float32, angle: float32, color: raylib.Color) =
 # Atomic Parts (smallest building blocks)
 # ============================================================================
 
+proc restFill(props: ThemeProps): Color =
+  props.backgroundColor.get(Color(r: 240, g: 240, b: 240, a: 255))
+
+proc hoverFill*(props: ThemeProps): Color =
+  ## What goes behind a caption under the pointer: the theme's hover colour, or
+  ## else its background shaded away from the ink -- never a fixed light grey,
+  ## which under a dark theme's light text could not be read.
+  props.hoverColor.get(awayFrom(props.restFill, props.foregroundColor.get(BLACK), 0.10))
+
+proc pressedFill(props: ThemeProps): Color =
+  props.pressedColor.get(awayFrom(props.restFill, props.foregroundColor.get(BLACK), 0.20))
+
 proc backgroundFor(props: ThemeProps, pressed, hovered: bool): Color =
-  if pressed:
-    props.pressedColor.get(props.backgroundColor.get(Color(r: 200, g: 200, b: 200, a: 255)))
-  elif hovered:
-    props.hoverColor.get(props.backgroundColor.get(Color(r: 220, g: 220, b: 220, a: 255)))
-  else:
-    props.backgroundColor.get(Color(r: 240, g: 240, b: 240, a: 255))
+  if pressed: props.pressedFill
+  elif hovered: props.hoverFill
+  else: props.restFill
 
 proc borderFor(props: ThemeProps, focused, active: bool): Color =
   if focused:
@@ -300,8 +309,7 @@ proc drawSelectionBackground*(rect: Rect, props: ThemeProps,
     let selColor = props.activeColor.get(Color(r: 100, g: 150, b: 255, a: 255))
     drawRect(rect, selColor)
   elif hovered:
-    let hoverColor = props.hoverColor.get(Color(r: 240, g: 240, b: 240, a: 255))
-    drawRect(rect, hoverColor)
+    drawRect(rect, hoverFill(props))
 
 # ============================================================================
 # Widget Primitives (compose compound parts)
@@ -573,12 +581,88 @@ proc drawMenuItem*(rect: Rect, text: string, props: ThemeProps,
     let textColor = row.foregroundColor.get(Color(r: 60, g: 60, b: 60, a: 255))
     drawRightArrow(arrowX, arrowY, 8.0, textColor)
 
+type ChevronWay* = enum
+  cwRight, cwDown, cwLeft, cwUp
+
+proc drawChevron*(center: Vector2, size: float32, way: ChevronWay, color: Color,
+                  thickness = 2.0'f32) =
+  ## A chevron `size` across, pointing `way`, smooth-edged: what a collapsible
+  ## header shows -- right or left folded, down open.
+  let r = size / 2
+  let h = size / 4
+  let (a, tip, b) = case way
+    of cwRight: (Vector2(x: center.x - h, y: center.y - r), Vector2(x: center.x + h, y: center.y),
+                 Vector2(x: center.x - h, y: center.y + r))
+    of cwLeft: (Vector2(x: center.x + h, y: center.y - r), Vector2(x: center.x - h, y: center.y),
+                Vector2(x: center.x + h, y: center.y + r))
+    of cwDown: (Vector2(x: center.x - r, y: center.y - h), Vector2(x: center.x, y: center.y + h),
+                Vector2(x: center.x + r, y: center.y - h))
+    of cwUp: (Vector2(x: center.x - r, y: center.y + h), Vector2(x: center.x, y: center.y - h),
+              Vector2(x: center.x + r, y: center.y + h))
+  drawSmoothLine(a, tip, thickness, color)
+  drawSmoothLine(tip, b, thickness, color)
+
+type RowIcon* = enum
+  ## A small picture at the start of a list row.
+  riNone, riFolder, riFile, riParent
+
+const FolderTone = Color(r: 230, g: 176, b: 60, a: 255)   ## manila, in every theme
+
+proc drawRowIcon*(rect: Rect, icon: RowIcon, props: ThemeProps) =
+  ## `icon` drawn inside `rect` (a square), smooth-edged, in the row's ink: a
+  ## folder in manila with a tab, a page with its corner turned down, or the
+  ## arrow back up to the parent.
+  let ink = props.foregroundColor.get(BLACK)
+  let s = min(rect.width, rect.height)
+  let x = rect.x + (rect.width - s) / 2
+  let y = rect.y + (rect.height - s) / 2
+  let line = max(1.0'f32, s / 12)
+  case icon
+  of riNone: discard
+  of riFolder:
+    let edge = mixTone(FolderTone, BLACK, 0.35)
+    let tab = Rect(x: x + s * 0.06, y: y + s * 0.16, width: s * 0.42, height: s * 0.2)
+    drawBox(tab, s * 0.08, FolderTone, edge, line)
+    drawBox(Rect(x: x + s * 0.06, y: y + s * 0.28, width: s * 0.88, height: s * 0.58),
+            s * 0.1, FolderTone, edge, line)
+  of riFile:
+    let page = props.fieldColor
+    let (l, t, r, b) = (x + s * 0.2, y + s * 0.08, x + s * 0.8, y + s * 0.92)
+    let fold = s * 0.22
+    drawBox(Rect(x: l, y: t, width: r - l, height: b - t), s * 0.06, page, ink, line)
+    # the turned-down corner, shaded, with its crease
+    drawTriangleAnyWinding(Vector2(x: r - fold, y: t), Vector2(x: r - fold, y: t + fold),
+                           Vector2(x: r, y: t + fold), mixTone(page, ink, 0.25))
+    drawSmoothLine(Vector2(x: r - fold, y: t), Vector2(x: r - fold, y: t + fold), line, ink)
+    drawSmoothLine(Vector2(x: r - fold, y: t + fold), Vector2(x: r, y: t + fold), line, ink)
+    drawSmoothLine(Vector2(x: r - fold, y: t), Vector2(x: r, y: t + fold), line, ink)
+    for i in 0 .. 2:
+      let ly = t + s * (0.42 + 0.14 * float32(i))
+      drawSmoothLine(Vector2(x: l + s * 0.12, y: ly), Vector2(x: r - s * 0.12, y: ly),
+                     line * 0.8, mixTone(ink, page, 0.45))
+  of riParent:
+    # an arrow that goes up and turns left: "back to the folder above"
+    let cx = x + s * 0.62
+    drawSmoothLine(Vector2(x: cx, y: y + s * 0.85), Vector2(x: cx, y: y + s * 0.25), line * 1.4, ink)
+    drawSmoothLine(Vector2(x: cx, y: y + s * 0.2), Vector2(x: cx - s * 0.25, y: y + s * 0.45), line * 1.4, ink)
+    drawSmoothLine(Vector2(x: cx, y: y + s * 0.2), Vector2(x: cx + s * 0.25, y: y + s * 0.45), line * 1.4, ink)
+
 proc drawListItem*(rect: Rect, text: string, props: ThemeProps,
-                   selected = false, hovered = false, focused = false) =
-  ## List item = selection background + padded text
+                   selected = false, hovered = false, focused = false,
+                   icon = riNone) =
+  ## List item = selection background + optional icon + padded text
   ## (same as menu item but without submenu arrow)
   drawSelectionBackground(rect, props, selected, hovered)
-  drawThemedPaddedText(text, rect, if selected: selectedRowProps(props) else: props)
+  let row = if selected: selectedRowProps(props) else: props
+  if icon == riNone:
+    drawThemedPaddedText(text, rect, row)
+    return
+  let inset = props.fieldInset
+  let side = min(16.0'f32, rect.height - 4)
+  drawRowIcon(Rect(x: rect.x + inset, y: rect.y + (rect.height - side) / 2,
+                   width: side, height: side), icon, row)
+  drawThemedPaddedText(text, Rect(x: rect.x + side + 6, y: rect.y,
+                                  width: rect.width - side - 6, height: rect.height), row)
 
 proc drawComboBox*(rect: Rect, text: string, props: ThemeProps,
                    isOpen = false, hovered = false, focused = false) =
@@ -637,7 +721,7 @@ proc drawTab*(rect: Rect, text: string, props: ThemeProps,
   let bgColor = if active:
                   props.backgroundColor.get(Color(r: 255, g: 255, b: 255, a: 255))
                 elif hovered:
-                  props.hoverColor.get(Color(r: 240, g: 240, b: 240, a: 255))
+                  hoverFill(props)
                 else:
                   mixTone(props.backgroundColor.get(currentTheme.canvasColor),
                           currentTheme.canvasColor, 0.5)
@@ -673,10 +757,12 @@ proc drawTab*(rect: Rect, text: string, props: ThemeProps,
   let textColor = if active:
                     props.foregroundColor.get(Color(r: 60, g: 60, b: 60, a: 255))
                   else:
-                    # the ink dimmed, not a fixed grey: stays readable (>= 4.5:1) on any tab fill
+                    # the ink dimmed, then held to 4.5:1 on the fill it is on -- the
+                    # hover fill included
                     let ink = props.foregroundColor.get(Color(r: 60, g: 60, b: 60, a: 255))
-                    Color(r: uint8((ink.r.int + 90) div 2),
-                          g: uint8((ink.g.int + 90) div 2), b: uint8((ink.b.int + 90) div 2), a: 255)
+                    readableInk(Color(r: uint8((ink.r.int + 90) div 2),
+                                      g: uint8((ink.g.int + 90) div 2),
+                                      b: uint8((ink.b.int + 90) div 2), a: 255), bgColor, 4.5)
   let style = props.captionStyle(textColor, action = true)
   drawStyledText(fittedText(text, style, rect.width - 8), rect.x + rect.width/2,
                  rect.y + (rect.height - style.fontSize) / 2, style, centered = true)
@@ -696,7 +782,7 @@ proc drawSpinnerButtons*(rect: Rect, props: ThemeProps,
     height: buttonHeight
   )
   if upHovered:
-    drawRect(upRect, props.hoverColor.get(Color(r: 240, g: 240, b: 240, a: 255)))
+    drawRect(upRect, hoverFill(props))
   drawUpArrow(upRect.x + buttonWidth/2, upRect.y + buttonHeight/2, 6.0, textColor)
 
   # Down button
@@ -707,7 +793,7 @@ proc drawSpinnerButtons*(rect: Rect, props: ThemeProps,
     height: buttonHeight
   )
   if downHovered:
-    drawRect(downRect, props.hoverColor.get(Color(r: 240, g: 240, b: 240, a: 255)))
+    drawRect(downRect, hoverFill(props))
   drawDownArrow(downRect.x + buttonWidth/2, downRect.y + buttonHeight/2, 6.0, textColor)
 
 proc drawSpinner*(rect: Rect, value: string, props: ThemeProps,

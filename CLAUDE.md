@@ -14,6 +14,12 @@
   same gestures.
 - Anything that starts a drag takes the pointer (`capturePointer`) so the drag
   survives leaving the widget; the router releases it on mouse-up.
+- Composite widgets build their children in `init:`, not `layout:` (a debug build
+  warns otherwise), and keep typed refs to them in `state:`. Assigning a child's
+  prop or state field from outside its module redraws it (the generated setter);
+  changing one in place (`list.selection.clear()`, `list.items.add x`) does not,
+  so call `markDirtyToRoot()` after (and set `layoutDirty` if its size or
+  layout-time look depends on it).
 - Examples and the gallery use the real widgets and the `ui:` DSL; if a widget is
   wrong, fix the widget.
 - Run `./tools/run_tests.sh quick` and `tools/layout_snapshot.sh check` before pushing

@@ -7,7 +7,9 @@
 ## - Multi-selection (ctrl-click) and keyboard navigation
 ##
 ## ListBox is the keyboard-driven sibling of ListView: it keeps a focus row that
-## arrow keys move and Enter activates.
+## arrow keys move and Enter -- or a double-click -- activates. `icons`, when
+## given, puts a picture at the start of each row (a folder, a file).
+
 
 import rui_core
 import ../hover
@@ -16,6 +18,7 @@ import ../virtual_rows
 import ../list_input
 import ../seq_follow
 import ../scroll_drag
+import ../clicks
 import ../sources
 import std/[options, sets]
 
@@ -52,6 +55,7 @@ definePrimitive(ListBox):
     itemHeight: float32 = 0.0   # 0: the theme's row height
     visibleRows: int = 8
     multiSelect: bool = false
+    icons: seq[RowIcon] = @[]    # one per item, or none at all
     disabled: bool = false
     intent: ThemeIntent = Default
 
@@ -65,10 +69,11 @@ definePrimitive(ListBox):
     visibleEnd: int
     focusIndex: int
     hoverIndex: int
+    clicks: ClickRun             # tells a double-click on a row (clicks.nim)
 
   actions:
     onSelect(selection: HashSet[int])
-    onItemActivate(index: int)               # Enter on the focused row
+    onItemActivate(index: int)               # Enter on the focused row, or a double-click
     onLoadMore(startIndex: int, count: int)
     onScrollNearEnd()
 
@@ -126,6 +131,12 @@ definePrimitive(ListBox):
       widget.isDirty = true
       if widget.onSelect != nil:
         widget.onSelect(widget.selection)
+      # The second click of a double-click on the same row activates it, as
+      # Enter does.
+      if widget.clicks.countClick(event.timestamp, target = idx, most = 2) == 2:
+        widget.clicks.count = 0
+        if widget.onItemActivate != nil:
+          widget.onItemActivate(idx)
       return true
 
     on_key_down:
@@ -206,7 +217,8 @@ definePrimitive(ListBox):
       drawListItem(itemRect, text, props,
                    selected = itemIdx in widget.selection,
                    hovered = itemIdx == widget.hoverIndex,
-                   focused = widget.focused and itemIdx == widget.focusIndex)
+                   focused = widget.focused and itemIdx == widget.focusIndex,
+                   icon = (if itemIdx < widget.icons.len: widget.icons[itemIdx] else: riNone))
     endClip(clip)
 
     widget.vbar.drawBar(widget.barTrack, v.contentHeight(total), widget.bounds.height,
