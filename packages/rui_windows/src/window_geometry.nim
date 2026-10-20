@@ -61,8 +61,11 @@ func contentRect*(r: Rect): Rect =
        width: max(0.0'f32, r.width - contentPad * 2),
        height: max(0.0'f32, r.height - titleHeight - contentPad * 2))
 
-func titleButton*(r: Rect, slot: int): Rect =
-  ## The square buttons at the right end of the title bar; slot 0 is the
-  ## rightmost (close).
+func titleButton*(r: Rect, slot: int, leftEnd = false): Rect =
+  ## The square buttons along the title bar; slot 0 is the rightmost (close),
+  ## or the leftmost with `leftEnd`, where a BeOS tab keeps its close box.
+  if leftEnd:
+    return Rect(x: r.x + titleHeight * float32(slot), y: r.y,
+                width: titleHeight, height: titleHeight)
   Rect(x: r.x + r.width - titleHeight * float32(slot + 1), y: r.y,
        width: titleHeight, height: titleHeight)

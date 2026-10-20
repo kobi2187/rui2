@@ -10,6 +10,7 @@
 
 import rui_core
 import theme_sys_core
+import theme_check
 import primitives/[shapes, text, controls, indicators, panels]
 import pango_text  # drawTextPango
 import effects/rect_effects
@@ -151,6 +152,14 @@ proc fieldColor*(props: ThemeProps): Color =
   if props.bevelStyle.get(Flat) != Flat: Color(r: 255, g: 255, b: 255, a: 255)
   else: props.backgroundColor.get(Color(r: 255, g: 255, b: 255, a: 255))
 
+proc placeholderInk*(props: ThemeProps): Color =
+  ## The ink for placeholder text in a field: the theme's text colour muted toward
+  ## the field, then held to 4.5:1 against it. A fixed grey read on some themes and
+  ## vanished on others; this one is derived from the theme that draws it.
+  let field = props.fieldColor
+  let text = props.foregroundColor.get(Color(r: 0, g: 0, b: 0, a: 255))
+  readableInk(inkMixed(text, field, 0.45), field, 4.5)
+
 proc bevelOf(props: ThemeProps, pressed = false): BevelStyle =
   ## The theme's bevel, flipped when pressed: a raised key pushed in goes sunken.
   result = props.bevelStyle.get(Flat)
@@ -174,6 +183,22 @@ proc drawBevelBody*(rect: Rect, props: ThemeProps, fill: Color,
                   props.darkShadowColor.get(Color(r: 0, g: 0, b: 0, a: 255)),
                   max(1.0'f32, props.strokeWidth))
   true
+
+proc drawFloatingShadow*(rect: Rect, props: ThemeProps) =
+  ## The shadow under a panel that floats above the page: a menu, a dialog, a
+  ## window. A flat theme gets a soft shadow, feathered over its corner radius.
+  ## A bevelled theme (BeOS) has none: R5's windows and menus sat flat on the page.
+  if props.bevelStyle.get(Flat) != Flat:
+    return
+  drawShadow(rect, Shadow(offsetX: 0.0, offsetY: 6.0, blur: 14.0, spread: -2.0,
+                          color: Color(r: 0, g: 0, b: 0, a: 56),
+                          radius: props.cornerRadius.get(0.0)))
+
+proc floatingChrome*(): proc(bounds: Rect) {.closure.} =
+  ## The chrome for a panel that floats above the page: its shadow, drawn in
+  ## screen space so it is not clipped to the panel's own texture.
+  result = proc(bounds: Rect) =
+    drawFloatingShadow(bounds, currentTheme.getThemeProps(Default, Normal))
 
 proc drawThemedBackground*(rect: Rect, props: ThemeProps,
                           pressed = false, hovered = false, well = false) =
@@ -213,7 +238,11 @@ proc drawThemedText*(text: string, x, y: float32, props: ThemeProps,
                     selected = false, centered = false) =
   ## Draw a caption in the theme's colour, size, weight and case.
   let textColor = if selected:
-                    Color(r: 255, g: 255, b: 255, a: 255)  # White on selected
+                    # The ink on the selected background: the theme's text colour,
+                    # moved toward black or white only as far as it takes to read there.
+                    readableInk(props.foregroundColor.get(Color(r: 0, g: 0, b: 0, a: 255)),
+                                props.backgroundColor.get(Color(r: 255, g: 255, b: 255, a: 255)),
+                                4.5)
                   else:
                     props.foregroundColor.get(Color(r: 60, g: 60, b: 60, a: 255))
   drawStyledText(text, x, y, props.captionStyle(textColor), centered)
@@ -284,10 +313,10 @@ proc drawButton*(rect: Rect, text: string, props: ThemeProps,
   drawInteractiveBox(rect, props, pressed, hovered, focused)
   drawThemedCenteredText(text, rect, props)
 
-proc onAccentColor(): Color =
-  ## Ink for marks drawn on the accent: the primary action's text colour.
-  currentTheme.getThemeProps(ThemeIntent.Info).foregroundColor.get(
-    Color(r: 255, g: 255, b: 255, a: 255))
+proc mixTone*(a, b: Color, t: float32): Color =
+  ## `a` moved `t` of the way toward `b`, opaque.
+  proc lerp(x, y: uint8): uint8 = uint8(float32(x) + (float32(y) - float32(x)) * t)
+  Color(r: lerp(a.r, b.r), g: lerp(a.g, b.g), b: lerp(a.b, b.b), a: 255)
 
 proc drawCheckbox*(rect: Rect, checked: bool, props: ThemeProps,
                    hovered = false, focused = false) =
@@ -297,21 +326,29 @@ proc drawCheckbox*(rect: Rect, checked: bool, props: ThemeProps,
   let radius = min(props.cornerRadius.get(2.0), rect.width / 4)
   let accent = props.activeColor.get(Color(r: 100, g: 150, b: 255, a: 255))
   if props.bevelStyle.get(Flat) != Flat:
-    # A bevelled theme: a sunken well, the tick in the ink colour.
+    # A bevelled theme: a sunken well, marked with an X in the ink colour. R5
+    # marks a checked box with two strokes corner to corner, not a tick.
     let bg = if hovered: props.hoverColor.get(props.backgroundColor.get(WHITE))
              else: props.backgroundColor.get(WHITE)
     discard drawBevelBody(rect, props, bg, style = some(BeSunken))
     if checked:
-      drawCheckmark(Rect(x: rect.x + 2, y: rect.y + 2, width: rect.width - 4,
-                         height: rect.height - 4),
-                    props.foregroundColor.get(BLACK), max(2.0'f32, w * 1.25))
+      let i = 3.0'f32
+      let ink = props.foregroundColor.get(BLACK)
+      let (x0, y0) = (rect.x + i, rect.y + i)
+      let (x1, y1) = (rect.x + rect.width - i, rect.y + rect.height - i)
+      drawSmoothLine(Vector2(x: x0, y: y0), Vector2(x: x1, y: y1), 2.0, ink)
+      drawSmoothLine(Vector2(x: x0, y: y1), Vector2(x: x1, y: y0), 2.0, ink)
   elif checked:
     drawBox(rect, radius, accent, accent, 0)
-    drawCheckmark(rect, onAccentColor(), max(2.0'f32, w * 1.25))
+    drawCheckmark(rect, onFillInk(accent), max(2.0'f32, w * 1.25))
   else:
     let bg = if hovered: props.hoverColor.get(props.backgroundColor.get(WHITE))
              else: props.backgroundColor.get(WHITE)
-    drawBox(rect, radius, bg, borderFor(props, focused, false), w)
+    # Hover tints the outline toward the accent: a fill change alone is too faint
+    # on a white box.
+    let outline = if hovered and not focused: mixTone(borderFor(props, false, false), accent, 0.5)
+                  else: borderFor(props, focused, false)
+    drawBox(rect, radius, bg, outline, w)
   if focused:
     drawThemedFocusRing(rect, props)
 
@@ -326,25 +363,46 @@ proc drawRadioButton*(rect: Rect, selected: bool, props: ThemeProps,
   let ring = if selected: accent else: borderFor(props, focused, false)
   let bg = if hovered: props.hoverColor.get(props.backgroundColor.get(WHITE))
            else: props.backgroundColor.get(WHITE)
+  let c = Vector2(x: cx, y: cy)
   if props.bevelStyle.get(Flat) != Flat:
-    # A bevelled theme: a sunken round well -- dark arc above-left, light below-right.
-    let c = Vector2(x: cx, y: cy)
-    drawCircle(c, r, props.highlightColor.get(WHITE))
-    drawCircle(c, r - 1, bg)
-    drawRing(c, r - 1.5, r, 135, 315, 24, props.shadowColor.get(GRAY))
-    drawRing(c, r - 3.0, r - 1.5, 135, 315, 24, props.darkShadowColor.get(BLACK))
+    # A bevelled theme (BeOS): a sunken round well. The dark crescent above-left and
+    # the light edge below-right come from two discs, one moved by a pixel, so they
+    # are smooth-edged as the rest of the control is.
+    let light = props.highlightColor.get(WHITE)
+    let dark = props.darkShadowColor.get(BLACK)
+    let shade = props.shadowColor.get(GRAY)
+    drawSmoothDisc(c, r, dark)
+    drawSmoothDisc(Vector2(x: cx + 1, y: cy + 1), r - 1, light)
+    drawSmoothDisc(c, r - 2, shade)
+    drawSmoothDisc(Vector2(x: cx + 1, y: cy + 1), r - 3, bg)
     if selected:
-      drawCircle(c, r * 0.42, props.foregroundColor.get(BLACK))
+      drawSmoothDisc(c, r * 0.42, props.foregroundColor.get(BLACK))
     return
   let ringW = if selected: max(w, r * 0.3) else: w
-  drawCircle(Vector2(x: cx, y: cy), r, ring)
-  drawCircle(Vector2(x: cx, y: cy), max(0.0'f32, r - ringW), bg)
+  drawSmoothDisc(c, r, ring)
+  drawSmoothDisc(c, max(0.0'f32, r - ringW), bg)
   if selected:
-    drawCircle(Vector2(x: cx, y: cy), r * 0.38, accent)
+    drawSmoothDisc(c, r * 0.38, accent)
   if focused:
-    let ringColor = props.focusRingColor.get(accent)
-    drawRing(Vector2(x: cx, y: cy), max(0.0'f32, r - ringW - props.focusRingWidth.get(2.0)),
-             max(0.0'f32, r - ringW), 0, 360, 36, ringColor)
+    drawSmoothRing(c, max(0.0'f32, r - ringW), props.focusRingWidth.get(2.0),
+                   props.focusRingColor.get(accent))
+
+proc drawBeGroove*(x, width, cy: float32, props: ThemeProps) =
+  ## A bevelled slider's track: a sunken groove, six pixels deep, centred on `cy`.
+  let groove = Rect(x: x, y: cy - 3, width: width, height: 6)
+  discard drawBevelBody(groove, props, props.darkShadowColor.get(Color(r: 96, g: 96, b: 96, a: 255)),
+                        style = some(BeSunken))
+
+proc drawBeKnob*(x, cy, d: float32, props: ThemeProps) =
+  ## A bevelled slider's thumb: a raised block, centred on (`x`, `cy`), with three
+  ## dots of grip. Shared by Slider and RangeSlider, which use one knob each.
+  let face = props.backgroundColor.get(Color(r: 232, g: 232, b: 232, a: 255))
+  let blockW = max(10.0'f32, d * 0.7)
+  let knob = Rect(x: x - blockW / 2, y: cy - d / 2, width: blockW, height: d)
+  discard drawBevelBody(knob, props, face, style = some(BeRaised))
+  let grip = props.shadowColor.get(GRAY)
+  for k in -1 .. 1:
+    drawRect(Rect(x: knob.x + knob.width / 2 - 1, y: cy + float32(k) * 3 - 1, width: 2, height: 2), grip)
 
 proc drawSlider*(rect: Rect, value, minVal, maxVal: float32, props: ThemeProps,
                  dragging = false, hovered = false) =
@@ -359,19 +417,10 @@ proc drawSlider*(rect: Rect, value, minVal, maxVal: float32, props: ThemeProps,
   let cy = rect.y + rect.height / 2
   let track = Rect(x: rect.x, y: cy - th / 2, width: rect.width, height: th)
   if props.bevelStyle.get(Flat) != Flat:
-    # A bevelled theme (BeOS): a dark groove -- no fill -- and a small raised knob
-    # with three dots of grip.
+    # A bevelled theme (BeOS): a dark groove -- no fill -- and a small raised knob.
     let x = clamp(rect.x + rect.width * t, rect.x + d / 2, rect.x + rect.width - d / 2)
-    let face = props.backgroundColor.get(Color(r: 232, g: 232, b: 232, a: 255))
-    let groove = Rect(x: rect.x, y: cy - 3, width: rect.width, height: 6)
-    discard drawBevelBody(groove, props, props.darkShadowColor.get(Color(r: 96, g: 96, b: 96, a: 255)),
-                          style = some(BeSunken))
-    let blockW = max(10.0'f32, d * 0.7)
-    let knob = Rect(x: x - blockW / 2, y: cy - d / 2, width: blockW, height: d)
-    discard drawBevelBody(knob, props, face, style = some(BeRaised))
-    let grip = props.shadowColor.get(GRAY)
-    for k in -1 .. 1:
-      drawRect(Rect(x: knob.x + knob.width / 2 - 1, y: cy + float32(k) * 3 - 1, width: 2, height: 2), grip)
+    drawBeGroove(rect.x, rect.width, cy, props)
+    drawBeKnob(x, cy, d, props)
     return
   let rail = props.borderColor.get(Color(r: 200, g: 200, b: 200, a: 255))
   drawBox(track, radius, rail, rail, 0)
@@ -411,6 +460,76 @@ proc drawProgressBar*(rect: Rect, progress: float32, props: ThemeProps) =
       let accent = props.activeColor.get(Color(r: 100, g: 150, b: 255, a: 255))
       drawBox(inner, max(0.0'f32, min(radius - w, inner.width / 2)), accent, accent, 0)
 
+proc themeBevelled*(): bool =
+  ## True when the current theme draws bevels (BeOS): its scroll bars then have
+  ## arrow buttons at their ends.
+  currentTheme.getThemeProps(Default, Normal).bevelStyle.get(Flat) != Flat
+
+proc scrollEndSize(bar: Rect, bevelled: bool): float32 =
+  ## The side of each arrow button: a square the bar's thickness, or nothing.
+  if bevelled: min(bar.width, bar.height) else: 0.0'f32
+
+proc scrollBarEnds*(bar: Rect, bevelled = themeBevelled()): tuple[startEnd, stopEnd: Rect] =
+  ## The arrow buttons at the start (top or left) and stop (bottom or right) of
+  ## `bar`. Empty rects in a theme without bevels.
+  let e = scrollEndSize(bar, bevelled)
+  if bar.height >= bar.width:
+    (Rect(x: bar.x, y: bar.y, width: bar.width, height: e),
+     Rect(x: bar.x, y: bar.y + bar.height - e, width: bar.width, height: e))
+  else:
+    (Rect(x: bar.x, y: bar.y, width: e, height: bar.height),
+     Rect(x: bar.x + bar.width - e, y: bar.y, width: e, height: bar.height))
+
+proc scrollBarTrack*(bar: Rect, bevelled = themeBevelled()): Rect =
+  ## The part of `bar` that the thumb moves in: the whole bar, less the arrow
+  ## buttons. Every scroll bar's geometry -- drawing, hit tests, drags -- uses this,
+  ## so an arrow is never a press on the track.
+  let e = scrollEndSize(bar, bevelled)
+  if bar.height >= bar.width:
+    Rect(x: bar.x, y: bar.y + e, width: bar.width, height: max(0.0'f32, bar.height - 2 * e))
+  else:
+    Rect(x: bar.x + e, y: bar.y, width: max(0.0'f32, bar.width - 2 * e), height: bar.height)
+
+proc drawBeArrow(button: Rect, vertical, towardStart: bool, ink: Color) =
+  ## The outlined triangle on a scroll bar's arrow button.
+  let cx = button.x + button.width / 2
+  let cy = button.y + button.height / 2
+  let s = if towardStart: -1.0'f32 else: 1.0'f32
+  let (apex, b1, b2) =
+    if vertical:
+      (Vector2(x: cx, y: cy + 3 * s), Vector2(x: cx - 3.5, y: cy - 2.5 * s),
+       Vector2(x: cx + 3.5, y: cy - 2.5 * s))
+    else:
+      (Vector2(x: cx + 3 * s, y: cy), Vector2(x: cx - 2.5 * s, y: cy - 3.5),
+       Vector2(x: cx - 2.5 * s, y: cy + 3.5))
+  drawLine(apex, b1, 1.0, ink)
+  drawLine(b1, b2, 1.0, ink)
+  drawLine(b2, apex, 1.0, ink)
+
+proc drawBeScrollbar(bar: Rect, contentSize, viewSize, offset: float32, props: ThemeProps) =
+  ## R5's scroll bar: a raised arrow button at each end, the track between them
+  ## sunken, and a raised thumb with a grip square in its middle.
+  let vertical = bar.height >= bar.width
+  let ends = scrollBarEnds(bar, true)
+  let face = props.backgroundColor.get(WHITE)
+  let shadow = props.shadowColor.get(GRAY)
+  let ink = props.foregroundColor.get(BLACK)
+  let track = scrollBarTrack(bar, true)
+  # The track is the face darkened toward the shadow: R5's stippled grey.
+  let tone = Color(r: uint8(face.r.int - (face.r.int - shadow.r.int) * 4 div 10),
+                   g: uint8(face.g.int - (face.g.int - shadow.g.int) * 4 div 10),
+                   b: uint8(face.b.int - (face.b.int - shadow.b.int) * 4 div 10), a: 255)
+  discard drawBevelBody(track, props, tone, style = some(BeSunken))
+  let thumb = scrollThumb(track, contentSize, viewSize, offset)
+  discard drawBevelBody(thumb, props, face, style = some(BeRaised))
+  if thumb.width >= 9 and thumb.height >= 9:
+    drawRectangleLines(int32(thumb.x + thumb.width / 2 - 3.5), int32(thumb.y + thumb.height / 2 - 3.5),
+                       7, 7, shadow)
+  for (button, towardStart) in [(ends.startEnd, true), (ends.stopEnd, false)]:
+    if button.width > 0 and button.height > 0:
+      discard drawBevelBody(button, props, face, style = some(BeRaised))
+      drawBeArrow(button, vertical, towardStart, ink)
+
 proc drawScrollbar*(rect: Rect, contentSize, viewSize, offset: float32,
                    props: ThemeProps, hovered = false) =
   ## Scrollbar = reuse existing primitive with theme colors.
@@ -419,6 +538,9 @@ proc drawScrollbar*(rect: Rect, contentSize, viewSize, offset: float32,
   ## for a theme that sets no foreground, which the built-in light theme does
   ## not -- is a dark neutral. It was a light grey, and a 35% tint of light grey
   ## on a light background is invisible.
+  if props.bevelStyle.get(Flat) != Flat:
+    drawBeScrollbar(rect, contentSize, viewSize, offset, props)
+    return
   drawScrollbar(
     rect,
     contentSize,
@@ -428,21 +550,27 @@ proc drawScrollbar*(rect: Rect, contentSize, viewSize, offset: float32,
     hovered
   )
 
+proc selectedRowProps(props: ThemeProps): ThemeProps =
+  ## The props a selected menu or list row is drawn with: its caption in the ink
+  ## that reads on the accent fill the selection sits on. The theme's text colour
+  ## is the ink on its own background, which is not that fill.
+  let fill = props.activeColor.get(Color(r: 100, g: 150, b: 255, a: 255))
+  result = props
+  result.foregroundColor = some(onFillInk(fill))
+
 proc drawMenuItem*(rect: Rect, text: string, props: ThemeProps,
                    selected = false, hovered = false, hasSubmenu = false) =
   ## Menu item = selection background + padded text + optional arrow
   drawSelectionBackground(rect, props, selected, hovered)
-  drawThemedPaddedText(text, rect, props, selected)
+  let row = if selected: selectedRowProps(props) else: props
+  drawThemedPaddedText(text, rect, row)
 
   # Submenu arrow
   if hasSubmenu:
-    let padding = props.fieldInset
+    let padding = row.fieldInset
     let arrowX = rect.x + rect.width - padding - 8
     let arrowY = rect.y + rect.height / 2
-    let textColor = if selected:
-                      Color(r: 255, g: 255, b: 255, a: 255)
-                    else:
-                      props.foregroundColor.get(Color(r: 60, g: 60, b: 60, a: 255))
+    let textColor = row.foregroundColor.get(Color(r: 60, g: 60, b: 60, a: 255))
     drawRightArrow(arrowX, arrowY, 8.0, textColor)
 
 proc drawListItem*(rect: Rect, text: string, props: ThemeProps,
@@ -450,13 +578,22 @@ proc drawListItem*(rect: Rect, text: string, props: ThemeProps,
   ## List item = selection background + padded text
   ## (same as menu item but without submenu arrow)
   drawSelectionBackground(rect, props, selected, hovered)
-  drawThemedPaddedText(text, rect, props, selected)
+  drawThemedPaddedText(text, rect, if selected: selectedRowProps(props) else: props)
 
 proc drawComboBox*(rect: Rect, text: string, props: ThemeProps,
                    isOpen = false, hovered = false, focused = false) =
   ## Combo box = interactive box + padded text + down/up arrow
   drawInteractiveBox(rect, props, hovered = hovered, focused = focused)
   drawThemedPaddedText(text, rect, props)
+
+  if props.bevelStyle.get(Flat) != Flat:
+    # A bevelled theme (BeOS): the field is one raised button, its text on the
+    # left and a small arrow inside it at the right, as the Be menu field is.
+    let ink = props.foregroundColor.get(BLACK)
+    let (cx, cy) = (rect.x + rect.width - 10, rect.y + rect.height / 2)
+    if isOpen: drawUpArrow(cx, cy, 3.0, ink)
+    else: drawDownArrow(cx, cy, 3.0, ink)
+    return
 
   # Dropdown arrow
   let padding = props.fieldInset
@@ -469,6 +606,23 @@ proc drawComboBox*(rect: Rect, text: string, props: ThemeProps,
   else:
     drawDownArrow(arrowX, arrowY, 8.0, textColor)
 
+proc drawWindowTab*(bar: Rect, caption: string, props: ThemeProps,
+                    face: Color, active = true): Rect =
+  ## The BeOS window tab: a tab only as wide as its caption, hanging from the top
+  ## of the title bar, raised with a light edge above-left and a dark one
+  ## below-right. `face` is the theme's titleColor while the window is active;
+  ## an inactive tab is the bar's own colour, so only the caption says it is there.
+  ## The left 32px are the close box's space. Returns the tab's rect.
+  let style = props.captionStyle(BLACK, action = active)
+  let tabW = min(bar.width, measureText(caption, style).width + 56)
+  let tab = Rect(x: bar.x, y: bar.y, width: tabW, height: bar.height)
+  drawRect(tab, face)
+  let light = if active: Color(r: 255, g: 255, b: 80, a: 255) else: Color(r: 255, g: 255, b: 255, a: 255)
+  drawBeveledRect(tab, BeRaised, face, 0.0, light,
+                  Color(r: 152, g: 152, b: 152, a: 255), Color(r: 152, g: 152, b: 152, a: 255), 2.0)
+  drawStyledText(caption, tab.x + 32, tab.y + (tab.height - style.fontSize) / 2, style)
+  tab
+
 proc mixTab(panel: Color): Color =
   ## An inactive tab in a bevelled theme: the panel, a little darker.
   Color(r: uint8(panel.r.int * 9 div 10), g: uint8(panel.g.int * 9 div 10),
@@ -478,12 +632,15 @@ proc drawTab*(rect: Rect, text: string, props: ThemeProps,
               active = false, hovered = false) =
   ## Tab = background + bottom indicator + centered text
   # Background
+  # An inactive tab sits between the panel and the window behind it, so it reads
+  # on either kind of theme: a dark theme's tab is not a light grey.
   let bgColor = if active:
                   props.backgroundColor.get(Color(r: 255, g: 255, b: 255, a: 255))
                 elif hovered:
                   props.hoverColor.get(Color(r: 240, g: 240, b: 240, a: 255))
                 else:
-                  Color(r: 220, g: 220, b: 220, a: 255)
+                  mixTone(props.backgroundColor.get(currentTheme.canvasColor),
+                          currentTheme.canvasColor, 0.5)
 
   let radius = props.cornerRadius.get(4.0)
   if props.bevelStyle.get(Flat) != Flat:
@@ -555,9 +712,14 @@ proc drawSpinnerButtons*(rect: Rect, props: ThemeProps,
 
 proc drawSpinner*(rect: Rect, value: string, props: ThemeProps,
                   upHovered = false, downHovered = false, focused = false) =
-  ## Spinner = interactive box + padded text + up/down buttons
+  ## Spinner = interactive box + text + up/down buttons. The value is centred on the
+  ## box whatever the theme's vertical padding: a theme with deep padding or a
+  ## heavy border must not push the digits off the bottom edge.
   drawInteractiveBox(rect, props, focused = focused)
-  drawThemedPaddedText(value, rect, props)
+  let style = props.captionStyle(props.foregroundColor.get(BLACK))
+  let left = props.padding.get(EdgeInsets()).left
+  let body = bodyRect(rect, props, false)   # inside the shadow and the border
+  drawStyledText(value, body.x + left, body.y + (body.height - style.fontSize) / 2, style)
   drawSpinnerButtons(rect, props, upHovered, downHovered)
 
 proc drawGroupBox*(rect: Rect, title: string, props: ThemeProps) =

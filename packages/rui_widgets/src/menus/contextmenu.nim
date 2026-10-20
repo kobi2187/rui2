@@ -57,7 +57,7 @@ defineWidget(ContextMenu):
 
   render:
     if widget.isVisible:
-      widget.drawMenuPanel(widget.intent, shadow = true)
+      widget.drawMenuPanel(widget.intent)
 
 proc close*(widget: ContextMenu)
 

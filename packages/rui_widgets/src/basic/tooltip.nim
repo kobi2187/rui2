@@ -28,12 +28,9 @@ import std/[options, monotimes, times]
 
 import raylib except getTime   # the clock here is std/monotimes, which a test can drive
 
-const
-  TipBackground = Color(r: 255, g: 255, b: 225, a: 255)
-  TipText = Color(r: 20, g: 20, b: 20, a: 255)
-
 template tipStyle(size: float32): TextStyle =
-  TextStyle(fontFamily: "", fontSize: size, color: TipText,
+  ## The tip's text style; render sets the ink from the theme.
+  TextStyle(fontFamily: "", fontSize: size, color: Color(r: 0, g: 0, b: 0, a: 255),
             bold: false, italic: false, underline: false)
 
 # The floating box itself. Lives on the overlay layer, never in the tree.
@@ -50,8 +47,14 @@ definePrimitive(TooltipTip):
     widget.bounds.height = m.height + widget.padding * 2
 
   render:
-    drawTooltip(widget.text, widget.bounds, TipBackground, TipText,
-                tipStyle(widget.fontSize))
+    # The tip is a small panel of the theme: its Default fill and ink, which the
+    # contrast checks already hold to 4.5:1, so every theme's tips read.
+    let props = currentTheme.getThemeProps(Default, Normal)
+    let ink = props.foregroundColor.get(Color(r: 0, g: 0, b: 0, a: 255))
+    var style = tipStyle(widget.fontSize)
+    style.color = ink
+    drawTooltip(widget.text, widget.bounds, props.backgroundColor.get(Color(r: 255, g: 255, b: 255, a: 255)),
+                ink, style)
 
 proc tipOrigin*(pointer: Point, offsetX, offsetY: float32): Point =
   ## Where the tip's top-left goes: below and right of the pointer, clear of

@@ -268,7 +268,7 @@ definePrimitive(DataGrid):
                           selected = false, hovered = false)
         drawText("Loading...", widget.bounds.x + CellPadX,
                  cellBaseline(rowY, rowH, props.cellFontSize),
-                 props.cellFontSize, PlaceholderColor)
+                 props.cellFontSize, placeholderInk(props))
         continue
 
       let rowIdx = widget.order[viewIdx]
@@ -281,7 +281,8 @@ definePrimitive(DataGrid):
       var texts: seq[string] = @[]
       for colIdx, col in widget.columns:
         texts.add(cellText(widget.data[rowIdx], colIdx, col.formatFunc))
-      drawCells(widget.columns, widget.bounds.x, rowY, rowH, texts, fgColor,
+      drawCells(widget.columns, widget.bounds.x, rowY, rowH, texts,
+                rowInk(props, rowIdx in widget.selected, fgColor),
                 widget.showGrid, gridColor, props.cellFontSize)
 
       if widget.showGrid:

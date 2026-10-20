@@ -10,6 +10,7 @@
 
 import std/[tables, options]
 import theme_sys_core
+import theme_check
 import rui_core
 import brand_themes
 export brand_themes
@@ -70,6 +71,11 @@ proc createDarkTheme*(): Theme =
   ## "dark": the Midnight brand (brand_themes.nim).
   result = brandTheme(midnightSpec())
 
+const beosFontFamily = "Nimbus Sans, Liberation Sans, Helvetica, Arial, sans-serif"
+  ## BeOS shipped Swiss 721, a Helvetica-class sans. Pango takes this list in
+  ## order and uses the first family the machine has, so the look holds where
+  ## only the common fallbacks are installed.
+
 proc createBeosTheme*(): Theme =
   ## BeOS R4/R5: the grey panel, one-pixel bevels (white inside the top-left,
   ## soft grey inside the bottom-right), square corners, 12px sans, no hover
@@ -87,7 +93,7 @@ proc createBeosTheme*(): Theme =
   var spec = BrandSpec(
     name: "BeOS", accent: beBlue, onAccent: white,
     canvas: panel, surface: Color(r: 232, g: 232, b: 232, a: 255), text: black, border: grey96, radius: 0,
-    fontSize: 12, padding: 4, paddingX: 10, borderWidth: 2, focusRingWidth: 1,
+    fontFamily: beosFontFamily, fontSize: 12, padding: 4, paddingX: 10, borderWidth: 2, focusRingWidth: 1,
     controlHeight: 22, indicatorSize: 14, trackThickness: 6, thumbSize: 14,
     progressHeight: 14, rowHeight: 18, scrollbarThickness: 14, noTransitions: true)
   result = brandTheme(spec)
@@ -111,7 +117,10 @@ proc createBeosTheme*(): Theme =
     base.backgroundColor = some(Color(r: 232, g: 232, b: 232, a: 255))   # R5 buttons are lighter than the panel
     base.foregroundColor = some(black)
     base.borderColor = some(grey96)
-    base.activeColor = some(beBlue)
+    # Be blue for the plain and primary controls; the status intents keep their
+    # hues, so a Danger badge still reads as danger.
+    if intent in {Default, Info}:
+      base.activeColor = some(beBlue)
     base.hoverColor = base.backgroundColor   # Be shows no hover effect
     base.pressedColor = some(pushed)
     base.fontFamily = none(string)
@@ -124,8 +133,11 @@ proc createBeosTheme*(): Theme =
                                                 focusRingColor: some(beBlue))
     result.states[intent][Selected] = ThemeProps(backgroundColor: some(grey152),
                                                  foregroundColor: some(black))
+    # R5's disabled label grey is 128 (its own B_DISABLED_LABEL_COLOR), measured on
+    # the disabled "Open" in the file dialog screenshot.
     var off = ThemeProps(backgroundColor: some(panel),
-                         foregroundColor: some(grey152), bevelStyle: some(BeRaised))
+                         foregroundColor: some(Color(r: 128, g: 128, b: 128, a: 255)),
+                         bevelStyle: some(BeRaised))
     result.states[intent][Disabled] = off
 
 # Joy Theme (Playful)
@@ -162,6 +174,7 @@ proc createJoyTheme*(): Theme =
     backgroundColor = makeColor(255, 220, 220),
     foregroundColor = makeColor(200, 50, 50)
   )
+  makeReadable(result)
 
 # Wide Theme (Spacious)
 proc createWideTheme*(): Theme =
@@ -198,6 +211,7 @@ proc createWideTheme*(): Theme =
     backgroundColor = makeColor(255, 245, 245),
     foregroundColor = makeColor(198, 40, 40)
   )
+  makeReadable(result)
 
 # Theme registry
 var builtinThemes* = initTable[string, Theme]()

@@ -118,7 +118,7 @@ definePrimitive(ProgressBar):
                         formatProgress(widget.value, widget.maxValue, widget.format)
       # The caption straddles the fill's edge, so it is drawn twice: in the accent's
       # ink over the fill and in the plain ink over the trough, each clipped to its part.
-      let onFill = currentTheme.getThemeProps(ThemeIntent.Info).foregroundColor.get(textColor)
+      let onFill = onFillInk(props.activeColor.get(Color(r: 100, g: 150, b: 255, a: 255)))
       let edge = widget.bounds.x + widget.bounds.width * clamp(progress, 0.0'f32, 1.0'f32)
       let fillPart = Rect(x: widget.bounds.x, y: widget.bounds.y,
                           width: edge - widget.bounds.x, height: widget.bounds.height)

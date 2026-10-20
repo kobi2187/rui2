@@ -50,8 +50,8 @@ proc drawCheckmark*(rect: Rect, color: raylib.Color, thickness = 2.0f32) =
            y: rect.y + rect.height * 0.2)
   ]
 
-  drawLine(points[0], points[1], thickness, color)
-  drawLine(points[1], points[2], thickness, color)
+  drawSmoothLine(points[0], points[1], thickness, color)
+  drawSmoothLine(points[1], points[2], thickness, color)
 
 proc drawRadioCircle*(rect: Rect, selected: bool, color: raylib.Color) =
   ## Draws a radio button circle

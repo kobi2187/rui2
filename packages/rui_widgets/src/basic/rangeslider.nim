@@ -112,14 +112,21 @@ definePrimitive(RangeSlider):
     let props = widget.themeProps(widget.intent, crPointer, disabled = widget.disabled,
                                   pressed = widget.dragging)
     let t = widget.bounds
-    let thick = max(currentTheme.trackThickness, 4.0'f32)
     let cy = t.y + t.height / 2
+    let lx = thumbCenter(t, widget.low, widget.minValue, widget.maxValue)
+    let hx = thumbCenter(t, widget.high, widget.minValue, widget.maxValue)
+    if props.bevelStyle.get(Flat) != Flat:
+      # A bevelled theme (BeOS): the same groove and knob as a Slider, one per end.
+      drawBeGroove(t.x, t.width, cy, props)
+      let d = max(currentTheme.thumbSize, 12.0'f32)
+      drawBeKnob(lx, cy, d, props)
+      drawBeKnob(hx, cy, d, props)
+      return
+    let thick = max(currentTheme.trackThickness, 4.0'f32)
     let track = Rect(x: t.x, y: cy - thick / 2, width: t.width, height: thick)
     let accent = props.activeColor.get(Color(r: 80, g: 120, b: 255, a: 255))
     let rail = props.borderColor.get(Color(r: 200, g: 200, b: 200, a: 255))
     drawBox(track, thick / 2, rail, rail, 0)
-    let lx = thumbCenter(t, widget.low, widget.minValue, widget.maxValue)
-    let hx = thumbCenter(t, widget.high, widget.minValue, widget.maxValue)
     drawBox(Rect(x: lx, y: track.y, width: max(0.0'f32, hx - lx), height: thick),
             thick / 2, accent, accent, 0)
     let d = max(currentTheme.thumbSize, 12.0'f32)

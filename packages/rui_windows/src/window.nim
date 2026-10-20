@@ -32,6 +32,15 @@ proc toggleMaximized*(wid: Widget)
 proc moveBy(wid: Widget, dx, dy: float32)
 proc resizeBy(wid: Widget, dx, dy: float32)
 
+proc tabbedTitle(): bool =
+  ## A theme with a titleColor (BeOS) draws the title as a tab, with its close box
+  ## inside the tab on the left, so the zoom box moves to the right end alone.
+  currentTheme.titleColor.isSome
+
+proc zoomSlot(closable: bool): int =
+  ## The slot of the zoom box: second from the right beside a right-hand close box.
+  if closable and not tabbedTitle(): 1 else: 0
+
 definePrimitive(Window):
   props:
     title: string = "Window"
@@ -68,10 +77,10 @@ definePrimitive(Window):
     on_mouse_down:
       let p = event.mousePos
       let r = widget.bounds
-      if widget.closable and titleButton(r, 0).contains(p.x, p.y):
+      if widget.closable and titleButton(r, 0, leftEnd = tabbedTitle()).contains(p.x, p.y):
         closeWindow(widget)
         return true
-      if widget.maximizable and titleButton(r, if widget.closable: 1 else: 0).contains(p.x, p.y):
+      if widget.maximizable and titleButton(r, zoomSlot(widget.closable)).contains(p.x, p.y):
         toggleMaximized(widget)
         return true
       let edges = if widget.resizable and not widget.maximized: edgesAt(r, p) else: {}
@@ -122,23 +131,30 @@ definePrimitive(Window):
   render:
     let props = currentTheme.getThemeProps(Default, Normal)
     let active = activeWindow() == widget
-    drawShadow(widget.bounds, Shadow(offsetX: 3.0, offsetY: 3.0, blur: 0.0, spread: 0.0,
-                                     color: Color(r: 0, g: 0, b: 0, a: if active: 80 else: 40)))
     drawThemedBackground(widget.bounds, props)
     drawThemedBorder(widget.bounds, props)
     let bar = Rect(x: widget.bounds.x, y: widget.bounds.y,
                    width: widget.bounds.width, height: titleHeight)
-    let titleProps = currentTheme.getThemeProps(Default, if active: Selected else: Normal)
-    drawThemedBackground(bar, titleProps, hovered = false)
-    drawThemedPaddedText(widget.title, bar, props)   # body ink: legible on every theme's active bar
     let ink = props.foregroundColor.get(BLACK)
-    if widget.closable:
-      let c = titleButton(widget.bounds, 0)
-      let m = Point(x: c.x + c.width / 2, y: c.y + c.height / 2)
-      drawLine(m.x - 5, m.y - 5, m.x + 5, m.y + 5, ink, 2)
-      drawLine(m.x - 5, m.y + 5, m.x + 5, m.y - 5, ink, 2)
+    if tabbedTitle():
+      # BeOS: the bar is the window's own panel, and the title hangs from it as a
+      # tab, coloured only while the window is active. The close box sits inside it.
+      let face = if active: currentTheme.titleColor.get else: props.backgroundColor.get(WHITE)
+      discard drawWindowTab(bar, widget.title, props, face, active)
+      if widget.closable:
+        let c = titleButton(widget.bounds, 0, leftEnd = true)
+        drawRectangleLines(int32(c.x + 10), int32(c.y + 10), 9, 9, ink)
+    else:
+      let titleProps = currentTheme.getThemeProps(Default, if active: Selected else: Normal)
+      drawThemedBackground(bar, titleProps, hovered = false)
+      drawThemedPaddedText(widget.title, bar, props)   # body ink: legible on every theme's active bar
+      if widget.closable:
+        let c = titleButton(widget.bounds, 0)
+        let m = Point(x: c.x + c.width / 2, y: c.y + c.height / 2)
+        drawSmoothLine(Vector2(x: m.x - 5, y: m.y - 5), Vector2(x: m.x + 5, y: m.y + 5), 2, ink)
+        drawSmoothLine(Vector2(x: m.x - 5, y: m.y + 5), Vector2(x: m.x + 5, y: m.y - 5), 2, ink)
     if widget.maximizable:
-      let b = titleButton(widget.bounds, if widget.closable: 1 else: 0)
+      let b = titleButton(widget.bounds, zoomSlot(widget.closable))
       drawRectangleLines(int32(b.x + 8), int32(b.y + 8), int32(b.width - 16),
                          int32(b.height - 16), ink)
 

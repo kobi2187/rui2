@@ -1,0 +1,25 @@
+VStack - @0,0 1000x620
+  MenuBar - @16,16 968x28 tabstop
+    Menu - @16,44 182x69 floating
+      MenuItem - @20,48 174x18
+      MenuItem - @20,66 174x18
+      MenuItem - @20,84 174x7
+      MenuItem - @20,91 174x18
+    Menu - @69,44 0x0 floating
+      MenuItem - @0,0 64x18 hidden
+      MenuItem - @0,0 78x18 hidden
+      MenuItem - @0,0 82x18 hidden
+  Label - @16,58 968x19
+  ComboBox - @16,91 968x31 tabstop
+    ComboList - @16,122 968x72 floating
+  Button - @16,136 968x27 tabstop
+    Rectangle - @16,136 968x27
+    Label - @26,140 948x19
+  ContextMenu - @420,150 180x62 focused tabstop floating
+    MenuItem - @424,154 172x18
+    MenuItem - @424,172 172x18
+    MenuItem - @424,190 172x18
+  Tooltip - @16,253 968x27
+    Button - @16,253 968x27 tabstop
+      Rectangle - @16,253 968x27
+      Label - @26,257 948x19

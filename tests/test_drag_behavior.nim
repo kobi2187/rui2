@@ -4,6 +4,7 @@
 import std/unittest
 import rui
 import ui_harness
+import scroll_drag
 
 type Draggable = object
   name: string
@@ -72,3 +73,49 @@ suite "every draggable widget keeps its drag off the widget":
     r.moveTo(s.bounds.x + s.bounds.width + 50, 295)    # past the end and far below
     check s.value >= 99
     r.release(5, 295)
+
+suite "scroll bar arrows (BeOS) and the track they leave":
+
+  let bar = Rect(x: 0, y: 0, width: 14, height: 100)
+
+  test "a bevelled theme's track is the bar less a thickness-square arrow at each end":
+    let saved = currentTheme
+    defer: setCurrentTheme(saved)
+    setCurrentTheme(createBeosTheme())
+    let track = scrollBarTrack(bar)
+    check track == Rect(x: 0, y: 14, width: 14, height: 72)
+    let ends = scrollBarEnds(bar)
+    check ends.startEnd == Rect(x: 0, y: 0, width: 14, height: 14)
+    check ends.stopEnd == Rect(x: 0, y: 86, width: 14, height: 14)
+
+  test "a flat theme has no arrows: the track is the whole bar":
+    let saved = currentTheme
+    defer: setCurrentTheme(saved)
+    setCurrentTheme(createLightTheme())
+    check scrollBarTrack(bar) == bar
+    check scrollBarEnds(bar).startEnd.height == 0   # empty: no arrow to press
+
+  test "a press on an arrow steps one line; a press on the track still pages":
+    let saved = currentTheme
+    defer: setCurrentTheme(saved)
+    setCurrentTheme(createBeosTheme())
+    check barPress(bar, 500, 100, 0, Point(x: 7, y: 5)).kind == bpStepUp
+    check barPress(bar, 500, 100, 0, Point(x: 7, y: 95)).kind == bpStepDown
+    check barPress(bar, 500, 100, 0, Point(x: 7, y: 80)).kind == bpPageDown
+    var bar2 = VBar()
+    var scrollY = 0.0'f32
+    check barDown(bar2, bar, 500, 100, 100, scrollY, Point(x: 7, y: 95))
+    check scrollY == barArrowStep
+    check not bar2.dragging
+    check barDown(bar2, bar, 500, 100, 100, scrollY, Point(x: 7, y: 5))
+    check scrollY == 0.0'f32
+
+  test "dragging the thumb maps the pointer through the track, not the whole bar":
+    let saved = currentTheme
+    defer: setCurrentTheme(saved)
+    setCurrentTheme(createBeosTheme())
+    # The thumb's own length sets the travel: dragged to the far end of the
+    # track (the top of the bottom arrow), the offset is the whole of the slack.
+    let len = thumbRect(bar, 500, 100, 0).height
+    check barDragTo(bar, 500, 100, 0, 14 + 72 - len) == 400.0'f32
+    check barDragTo(bar, 500, 100, 0, 14) == 0.0'f32

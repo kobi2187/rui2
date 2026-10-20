@@ -245,7 +245,7 @@ definePrimitive(ListView):
 
     drawThemedBorder(widget.bounds, props, widget.focused)
     if widget.disabled:
-      drawDisabledOverlay(widget.bounds)
+      drawDisabledOverlay(widget.bounds, currentTheme.canvasColor)
 
 proc bindSource*(list: ListView, source: RowSource) =
   ## Show the rows of `source`, asking it only for the ones on screen. Rows it

@@ -452,11 +452,12 @@ suite "branded themes":
     check p.activeColor.get == spec.accent
     check p.focusColor.get == spec.accent
 
-  test "the primary action is solid accent":
+  test "the primary action is solid accent, with a caption that reads on it":
     let spec = oceanSpec()
     let p = brandTheme(spec).getThemeProps(ThemeIntent.Info, ThemeState.Normal)
     check p.backgroundColor.get == spec.accent
-    check p.foregroundColor.get == Color(r: 255, g: 255, b: 255, a: 255)
+    # White where white reads; a light accent takes a darker caption instead.
+    check contrastRatio(p.foregroundColor.get, spec.accent) >= 4.5
 
   test "hovering leans toward the accent; disabling fades":
     let spec = daylightSpec()
@@ -950,16 +951,52 @@ suite "theme: contrast":
       check problems.len == 0
       for p in problems: echo "  ", name, ": ", p
 
-  test "every shipped theme keeps its resting captions readable (3:1) and its ring visible":
+  test "every shipped theme meets WCAG AA for every caption and a 3:1 focus ring":
+    # Disabled controls are exempt (contrastProblems says so); everything a user
+    # reads or focuses is held to the ratio, in every theme shipped.
     let tm = newThemeManager()
-    var brands: seq[string]
-    for (key, _) in brandThemes(): brands.add key
     for name in tm.listThemes():
-      for p in contrastProblems(tm.get(name), textRatio = 3.0, uiRatio = 1.5):
-        # The five older themes predate the focus-ring rule: captions only.
-        if "normal" in p.where or ("focus ring" in p.where and name in brands):
-          checkpoint name & ": " & $p
-          fail()
+      for p in contrastProblems(tm.get(name), textRatio = 4.5, uiRatio = 3.0):
+        checkpoint name & ": " & $p
+        fail()
+
+  test "every shipped theme's placeholder text reads at 4.5:1 on its field":
+    # A placeholder can be the only label a field has, so it is held to the same
+    # ratio as a caption, on the field it is drawn in.
+    let tm = newThemeManager()
+    for name in tm.listThemes():
+      let props = tm.get(name).getThemeProps(Default, Normal)
+      let ratio = contrastRatio(placeholderInk(props), props.fieldColor)
+      checkpoint name & ": placeholder " & $ratio
+      check ratio >= 4.5
+
+  test "a selected row's caption reads on the accent of every shipped theme":
+    # The better of white and black always reaches about 4.6:1 on a fill, so a
+    # selection drawn with onFillInk meets AA whatever accent a theme picks.
+    let tm = newThemeManager()
+    for name in tm.listThemes():
+      let accent = tm.get(name).getThemeProps(Default, Normal).activeColor.get(Color(r: 0, g: 0, b: 0, a: 255))
+      checkpoint name & ": selected ink " & $contrastRatio(onFillInk(accent), accent)
+      check contrastRatio(onFillInk(accent), accent) >= 4.5
+
+  test "readableInk moves a failing ink only as far as it takes, keeping its hue":
+    let bg = Color(r: 255, g: 255, b: 255, a: 255)
+    # A pale amber caption on white fails; the ink comes back darker, still amber.
+    let amber = Color(r: 230, g: 170, b: 60, a: 255)
+    let fixed = readableInk(amber, bg, 4.5)
+    check contrastRatio(fixed, bg) >= 4.5
+    check fixed.r > fixed.b          # still warm
+    check fixed.r < amber.r          # darker, not replaced
+    # An ink that already reads is returned exactly as it was.
+    let black = Color(r: 20, g: 20, b: 20, a: 255)
+    check readableInk(black, bg, 4.5) == black
+
+  test "makeReadable leaves a theme that already reads untouched":
+    var t = createBeosTheme()
+    let before = t.base[Default]
+    makeReadable(t)
+    check t.base[Default].foregroundColor == before.foregroundColor
+    check contrastProblems(t).len == 0
 
   test "a theme with a washed-out caption is reported, with where and by how much":
     var t = newTheme("Faint")
@@ -1157,3 +1194,9 @@ suite "BeOS theme":
     check be.getThemeProps(Default, Disabled).foregroundColor.get.r > 100
   test "it carries its own name":
     check createBeosTheme().name == "Classic BeOS"
+  test "its type is a Helvetica-class sans, with fallbacks, as Swiss 721 was":
+    check be.typography.primaryFont.get("").startsWith("Nimbus Sans")
+    check "Helvetica" in be.typography.primaryFont.get("")
+  test "its window titles are tabs, and a theme without a titleColor is not":
+    check be.titleColor.isSome
+    check createLightTheme().titleColor.isNone

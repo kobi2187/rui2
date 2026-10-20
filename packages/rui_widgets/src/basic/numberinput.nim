@@ -147,4 +147,4 @@ definePrimitive(NumberInput):
     drawSpinner(widget.bounds, display, props,
                 widget.upHovered, widget.downHovered, widget.editing or widget.focused)
     if widget.disabled:
-      drawDisabledOverlay(widget.bounds)
+      drawDisabledOverlay(widget.bounds, currentTheme.canvasColor)

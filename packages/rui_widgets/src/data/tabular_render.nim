@@ -13,10 +13,8 @@ import rui_drawing
 import tabular
 
 const
-  AlternateRowColor* = Color(r: 245, g: 245, b: 245, a: 255)
   DefaultGridColor* = Color(r: 220, g: 220, b: 220, a: 255)
   DefaultInkColor* = Color(r: 40, g: 40, b: 40, a: 255)
-  PlaceholderColor* = Color(r: 150, g: 150, b: 150, a: 255)
   HeaderShade = Color(r: 0, g: 0, b: 0, a: 14)   # sets the header row apart
   CellPadX* = 4.0'f32
 
@@ -51,12 +49,21 @@ proc drawColumnHeaders*[C](columns: openArray[C], originX, top, height: float32,
       drawLine(x + col.width, cell.y, x + col.width, cell.y + height, gridColor)
     x += col.width
 
+proc rowInk*(props: ThemeProps, selected: bool, normal: Color): Color =
+  ## The ink for a row's cells: on a selected row, which is filled with the
+  ## accent, the ink that reads on that fill; otherwise the row's own ink.
+  if selected: onFillInk(props.activeColor.get(Color(r: 100, g: 150, b: 255, a: 255)))
+  else: normal
+
 proc drawRowBackground*(rowRect: Rect, props: ThemeProps, viewIdx: int,
                         alternate, selected, hovered: bool) =
   ## Banding first, then selection over it -- a selected odd row must read as
   ## selected, not as a slightly different shade of stripe.
   if alternate and viewIdx mod 2 == 1:
-    drawRect(rowRect, AlternateRowColor)
+    # The stripe is the table's own fill nudged toward its ink: a fixed near-white
+    # stripe on a dark theme put light text on a light band.
+    let fill = props.backgroundColor.get(Color(r: 255, g: 255, b: 255, a: 255))
+    drawRect(rowRect, mixTone(fill, props.foregroundColor.get(Color(r: 0, g: 0, b: 0, a: 255)), 0.05))
   drawSelectionBackground(rowRect, props, selected = selected, hovered = hovered)
 
 proc drawRowGridLine*(rowRect: Rect, gridColor: Color) =

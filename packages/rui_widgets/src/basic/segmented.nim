@@ -90,7 +90,7 @@ definePrimitive(SegmentedControl):
     let props = widget.themeProps(widget.intent, crPointer, disabled = widget.disabled)
     let ink = props.foregroundColor.get(BLACK)
     let accent = props.activeColor.get(ink)
-    let onAccent = currentTheme.getThemeProps(ThemeIntent.Info).foregroundColor.get(WHITE)
+    let onAccent = onFillInk(accent)
     let style = props.captionStyle(ink, action = true)
     let radius = props.cornerRadius.get(4.0'f32)
     let stroke = props.strokeWidth
@@ -98,13 +98,23 @@ definePrimitive(SegmentedControl):
     let edges = segmentEdges(ws)
     # Scale the segments to the width the control was given.
     let scale = if edges[^1] > 0: widget.bounds.width / edges[^1] else: 1.0'f32
-    drawBox(widget.bounds, radius, props.backgroundColor.get(WHITE),
-            props.borderColor.get(ink), stroke)
+    let bevelled = props.bevelStyle.get(Flat) != Flat
+    if not bevelled:
+      drawBox(widget.bounds, radius, props.backgroundColor.get(WHITE),
+              props.borderColor.get(ink), stroke)
     for i, o in widget.options:
       let x0 = widget.bounds.x + edges[i] * scale
       let seg = Rect(x: x0, y: widget.bounds.y, width: ws[i] * scale, height: widget.bounds.height)
       var text = style
-      if i == widget.selectedIndex:
+      if bevelled:
+        # A bevelled theme (BeOS) has no segmented control: each segment is a button,
+        # and the chosen one stays pressed in.
+        let chosen = i == widget.selectedIndex
+        discard drawBevelBody(seg, props,
+                              if chosen: props.pressedColor.get(props.backgroundColor.get(WHITE))
+                              else: props.backgroundColor.get(WHITE),
+                              pressed = chosen)
+      elif i == widget.selectedIndex:
         drawBox(Rect(x: seg.x + stroke, y: seg.y + stroke, width: seg.width - stroke * 2,
                      height: seg.height - stroke * 2), max(0.0'f32, radius - stroke), accent, accent, 0)
         text.color = onAccent
@@ -114,6 +124,10 @@ definePrimitive(SegmentedControl):
       let tw = measureText(o, text).width
       drawStyledText(o, seg.x + (seg.width - tw) / 2, seg.y + (seg.height - text.fontSize) / 2, text)
     if widget.focused:
-      drawBox(Rect(x: widget.bounds.x - 3, y: widget.bounds.y - 3, width: widget.bounds.width + 6,
-                   height: widget.bounds.height + 6), radius + 3, Color(r: 0, g: 0, b: 0, a: 0),
-              props.focusColor.get(accent), props.focusRingWidth.get(2.0'f32))
+      if bevelled:
+        # Inside the bevel: a ring outside the bounds would be clipped away.
+        drawThemedFocusRing(widget.bounds, props)
+      else:
+        drawBox(Rect(x: widget.bounds.x - 3, y: widget.bounds.y - 3, width: widget.bounds.width + 6,
+                     height: widget.bounds.height + 6), radius + 3, Color(r: 0, g: 0, b: 0, a: 0),
+                props.focusColor.get(accent), props.focusRingWidth.get(2.0'f32))

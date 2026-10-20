@@ -11,6 +11,8 @@
 ## widget's repeat, if it wants one); a press anywhere else is not the bar's.
 
 import rui_core
+import rui_drawing
+import raylib
 import containers/scroll_geometry
 import virtual_rows
 import pointers
@@ -22,20 +24,32 @@ type BarPress* = enum
   bpThumb     ## on the thumb: start a drag
   bpPageUp    ## on the track above the thumb
   bpPageDown  ## on the track below it
+  bpStepUp    ## on the arrow at the top (or left) end: one line up
+  bpStepDown  ## on the arrow at the bottom (or right) end: one line down
 
-proc thumbRect*(track: Rect, contentH, viewH, scrollY: float32): Rect =
-  ## The thumb inside `track`; the whole track when everything fits.
+const barArrowStep* = 20.0'f32
+  ## How far one press of a scroll bar's arrow moves the rows.
+
+proc thumbRect*(bar: Rect, contentH, viewH, scrollY: float32): Rect =
+  ## The thumb inside `bar`'s track (the bar less its arrows); the whole track
+  ## when everything fits.
+  let track = scrollBarTrack(bar)
   let maxScroll = max(0.0'f32, contentH - viewH)
   let len = thumbLength(track.height, viewH, contentH)
   Rect(x: track.x, y: track.y + thumbOffset(track.height, len, scrollY, maxScroll),
        width: track.width, height: len)
 
-proc barPress*(track: Rect, contentH, viewH, scrollY: float32, p: Point):
+proc barPress*(bar: Rect, contentH, viewH, scrollY: float32, p: Point):
     tuple[kind: BarPress, grab: float32] =
   ## What a press at `p` means. `grab` is how far down the thumb it was taken.
-  if contentH <= viewH or not track.contains(p.x, p.y):
+  if contentH <= viewH or not bar.contains(p.x, p.y):
     return (bpNone, 0.0'f32)
-  let thumb = thumbRect(track, contentH, viewH, scrollY)
+  let ends = scrollBarEnds(bar)
+  if ends.startEnd.contains(p.x, p.y):
+    return (bpStepUp, 0.0'f32)
+  if ends.stopEnd.contains(p.x, p.y):
+    return (bpStepDown, 0.0'f32)
+  let thumb = thumbRect(bar, contentH, viewH, scrollY)
   if p.y >= thumb.y and p.y <= thumb.y + thumb.height:
     (bpThumb, p.y - thumb.y)
   elif p.y < thumb.y:
@@ -43,9 +57,10 @@ proc barPress*(track: Rect, contentH, viewH, scrollY: float32, p: Point):
   else:
     (bpPageDown, 0.0'f32)
 
-proc barDragTo*(track: Rect, contentH, viewH, grab, pointerY: float32): float32 =
+proc barDragTo*(bar: Rect, contentH, viewH, grab, pointerY: float32): float32 =
   ## The scroll offset that puts the thumb where a drag, begun `grab` pixels down
   ## the thumb, has taken it. Clamped to the content.
+  let track = scrollBarTrack(bar)
   let maxScroll = max(0.0'f32, contentH - viewH)
   let len = thumbLength(track.height, viewH, contentH)
   let travel = track.height - len
@@ -55,9 +70,6 @@ proc barDragTo*(track: Rect, contentH, viewH, grab, pointerY: float32): float32 
 # ---------------------------------------------------------------------------
 # The whole bar, for a widget that keeps one `VBar` as state
 # ---------------------------------------------------------------------------
-
-import rui_drawing
-import raylib
 
 type VBar* = object
   dragging*: bool     ## the thumb is held
@@ -86,6 +98,12 @@ proc barDown*(bar: var VBar, track: Rect, contentH, viewH, page: float32,
   of bpThumb:
     bar.dragging = true
     bar.grab = press.grab
+    true
+  of bpStepUp:
+    scrollY = clamp(scrollY - barArrowStep, 0.0'f32, max(0.0'f32, contentH - viewH))
+    true
+  of bpStepDown:
+    scrollY = clamp(scrollY + barArrowStep, 0.0'f32, max(0.0'f32, contentH - viewH))
     true
   of bpPageUp, bpPageDown:
     if isTouch():

@@ -8,6 +8,15 @@ import ../value_input
 import rui_drawing
 import std/options
 
+proc valueAlong(bounds: Rect, vertical: bool, pos: Point,
+                minValue, maxValue: float32): float32 =
+  ## The value under `pos` along the thumb's track: the bar less its arrows.
+  let track = scrollBarTrack(bounds)
+  if vertical:
+    valueAtPointer(pos.y, track.y, track.height, minValue, maxValue, 0.0)
+  else:
+    valueAtPointer(pos.x, track.x, track.width, minValue, maxValue, 0.0)
+
 definePrimitive(ScrollBar):
   props:
     initialValue: float32 = 0.0
@@ -33,15 +42,24 @@ definePrimitive(ScrollBar):
     on_mouse_down:
       if widget.disabled:
         return false
+      # A press on an arrow button steps one wheel notch; it does not drag.
+      let ends = scrollBarEnds(widget.bounds)
+      let step = if ends.startEnd.contains(event.mousePos.x, event.mousePos.y): -widget.wheelStep
+                 elif ends.stopEnd.contains(event.mousePos.x, event.mousePos.y): widget.wheelStep
+                 else: 0.0'f32
+      if step != 0:
+        let stepped = clamp(widget.value + step, widget.minValue, widget.maxValue)
+        if stepped != widget.value:
+          widget.value = stepped
+          widget.isDirty = true
+          if widget.onChange != nil:
+            widget.onChange(stepped)
+        return true
       widget.dragging = true
       capturePointer(widget)
       # Jump straight to the clicked position, then keep tracking on move.
-      let newValue = if widget.vertical:
-          valueAtPointer(event.mousePos.y, widget.bounds.y, widget.bounds.height,
-                         widget.minValue, widget.maxValue, 0.0)
-        else:
-          valueAtPointer(event.mousePos.x, widget.bounds.x, widget.bounds.width,
-                         widget.minValue, widget.maxValue, 0.0)
+      let newValue = valueAlong(widget.bounds, widget.vertical, event.mousePos,
+                                widget.minValue, widget.maxValue)
       if newValue != widget.value:
         widget.value = newValue
         widget.isDirty = true
@@ -52,12 +70,8 @@ definePrimitive(ScrollBar):
     on_mouse_move:
       if not widget.dragging or widget.disabled:
         return false
-      let newValue = if widget.vertical:
-          valueAtPointer(event.mousePos.y, widget.bounds.y, widget.bounds.height,
-                         widget.minValue, widget.maxValue, 0.0)
-        else:
-          valueAtPointer(event.mousePos.x, widget.bounds.x, widget.bounds.width,
-                         widget.minValue, widget.maxValue, 0.0)
+      let newValue = valueAlong(widget.bounds, widget.vertical, event.mousePos,
+                                widget.minValue, widget.maxValue)
       if newValue != widget.value:
         widget.value = newValue
         widget.isDirty = true

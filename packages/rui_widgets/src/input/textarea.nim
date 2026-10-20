@@ -237,7 +237,6 @@ proc fromMasked*(text: string, index: int): int =
 
 const
   SelectionColor = Color(r: 100, g: 150, b: 255, a: 128)
-  PlaceholderColor = Color(r: 128, g: 128, b: 128, a: 255)
   ThemeColor* = Color(r: 0, g: 0, b: 0, a: 0)
     ## The default `color`: transparent means "the theme's foreground".
   ThemeFontSize* = 0.0'f32
@@ -272,12 +271,20 @@ template textRect*(widget: untyped): Rect =
        width: widget.bounds.width - widget.inset * 2 - widget.clearGutter,
        height: widget.bounds.height - widget.inset * 2)
 
+template barBevelled(widget: untyped): bool =
+  ## A multi-line editor in a bevelled theme (BeOS) has R5's full scroll bar
+  ## beside its text, so it reserves that width. Elsewhere the slim overlay sits
+  ## in the padding, as before.
+  widget.multiline and widget.editable and themeBevelled()
+
 template lineRect*(widget: untyped, lineH: float32): Rect =
   ## Where the lines start. A single-line field centres its line vertically,
   ## so an input given a height tighter than line + padding still reads as
   ## centred rather than sliding against its bottom edge.
   block:
     var r = widget.textRect
+    if widget.barBevelled:
+      r.width -= fingerSized(currentTheme.scrollbarThickness)
     if not widget.multiline and widget.editable:
       r.y = widget.bounds.y + (widget.bounds.height - lineH) / 2
       r.height = lineH
@@ -508,12 +515,18 @@ const ScrollBarWidth = 4.0'f32
 
 template scrollTrack*(widget: untyped, inner: Rect): Rect =
   ## Where the vertical scroll bar runs: in the frame's padding beside the
-  ## text when there is room, else over the text's right edge.
+  ## text when there is room, else over the text's right edge. In a bevelled
+  ## theme it is the full bar, just past the text that lineRect left room for.
+  ## The bar's own track (less its arrows) is scrollBarTrack of this.
   block:
-    let room = widget.bounds.x + widget.bounds.width - (inner.x + inner.width)
-    let x = if room >= ScrollBarWidth + 2: inner.x + inner.width + (room - ScrollBarWidth) / 2
-            else: inner.x + inner.width - ScrollBarWidth
-    Rect(x: x, y: inner.y, width: ScrollBarWidth, height: inner.height)
+    if widget.barBevelled:
+      Rect(x: inner.x + inner.width, y: inner.y,
+           width: fingerSized(currentTheme.scrollbarThickness), height: inner.height)
+    else:
+      let room = widget.bounds.x + widget.bounds.width - (inner.x + inner.width)
+      let x = if room >= ScrollBarWidth + 2: inner.x + inner.width + (room - ScrollBarWidth) / 2
+              else: inner.x + inner.width - ScrollBarWidth
+      Rect(x: x, y: inner.y, width: ScrollBarWidth, height: inner.height)
 
 template scrollThumb*(widget: untyped, lineH: float32, inner: Rect): Rect =
   ## The scroll bar's thumb, or an empty rect when everything fits.
@@ -522,7 +535,7 @@ template scrollThumb*(widget: untyped, lineH: float32, inner: Rect): Rect =
     if maxY <= 0:
       Rect()
     else:
-      let track = widget.scrollTrack(inner)
+      let track = scrollBarTrack(widget.scrollTrack(inner))
       let len = thumbLength(track.height, inner.height, inner.height + maxY)
       Rect(x: track.x, y: track.y + thumbOffset(track.height, len, widget.scrollY, maxY),
            width: track.width, height: len)
@@ -532,9 +545,10 @@ template scrollToThumbAt(widget: untyped, pointerY: float32, lineH: float32, inn
   block:
     let maxY = widget.maxScrollY(lineH, inner)
     let thumb = widget.scrollThumb(lineH, inner)
-    let travel = inner.height - thumb.height
+    let track = scrollBarTrack(widget.scrollTrack(inner))
+    let travel = track.height - thumb.height
     if travel > 0:
-      widget.scrollY = clamp((pointerY - widget.barGrab - inner.y) / travel * maxY, 0.0'f32, maxY)
+      widget.scrollY = clamp((pointerY - widget.barGrab - track.y) / travel * maxY, 0.0'f32, maxY)
       widget.isDirty = true
 
 template keepCaretInView(widget: untyped, content: TextContent, inner: Rect) =
@@ -701,7 +715,16 @@ definePrimitive(TextArea):
       let inner = widget.lineRect(lineH)
       let thumb = widget.scrollThumb(lineH, inner)
       if thumb.height > 0:
-        let track = widget.scrollTrack(inner)
+        let bar = widget.scrollTrack(inner)
+        let ends = scrollBarEnds(bar)
+        if ends.startEnd.contains(event.mousePos.x, event.mousePos.y) or
+           ends.stopEnd.contains(event.mousePos.x, event.mousePos.y):
+          # An arrow button: one line, not a drag.
+          let step = if ends.startEnd.contains(event.mousePos.x, event.mousePos.y): -lineH else: lineH
+          widget.scrollY = clamp(widget.scrollY + step, 0.0'f32, widget.maxScrollY(lineH, inner))
+          widget.isDirty = true
+          return true
+        let track = scrollBarTrack(bar)
         let hitTrack = Rect(x: track.x - 3, y: track.y, width: track.width + 6,
                             height: track.height)
         if hitTrack.contains(event.mousePos.x, event.mousePos.y):
@@ -884,18 +907,20 @@ definePrimitive(TextArea):
                               else: max(floor, content.measure().width + pad)
 
   render:
+    let props = widget.themeProps(widget.intent, crText, disabled = widget.disabled)
     if widget.framed:
-      let props = widget.themeProps(widget.intent, crText,
-                                    disabled = widget.disabled)
       if not drawBevelBody(widget.bounds, props, props.fieldColor, style = some(BeSunken)):
         drawInteractiveBox(widget.bounds, props, focused = widget.focused)
+      elif widget.focused:
+        # A bevelled field shows focus as a ring inside its sunken edge.
+        drawThemedFocusRing(widget.bounds, props)
 
     var content = widget.contentOf
     let inner = widget.lineRect(content.lineHeight)
     let showPlaceholder = widget.text.len == 0 and widget.editable
     if showPlaceholder:
       content.text = widget.placeholder
-      content.style.color = PlaceholderColor
+      content.style.color = placeholderInk(props)
 
     if not widget.editable or showPlaceholder:
       # Display text: one paint, with alignment, wrapping and markup.
@@ -906,7 +931,13 @@ definePrimitive(TextArea):
 
     # The scroll bar, when there is more text than fits: a slim thumb in the
     # theme's border colour, stronger while held or hovered.
-    if widget.editable and widget.multiline:
+    if widget.barBevelled:
+      # R5's bar, always there beside a multi-line editor, as its scroll view draws it.
+      let props = widget.themeProps(widget.intent, crText)
+      let contentH = inner.height + widget.maxScrollY(content.lineHeight, inner)
+      drawScrollbar(widget.scrollTrack(inner), contentH, inner.height, widget.scrollY,
+                    props, widget.hovered)
+    elif widget.editable and widget.multiline:
       let thumb = widget.scrollThumb(content.lineHeight, inner)
       if thumb.height > 0:
         let props = widget.themeProps(widget.intent, crText)
@@ -923,7 +954,7 @@ definePrimitive(TextArea):
       drawLine(mid.x - r, mid.y + r, mid.x + r, mid.y - r, c, 2)
 
     if widget.disabled:
-      drawDisabledOverlay(widget.bounds)
+      drawDisabledOverlay(widget.bounds, currentTheme.canvasColor)
 
 # ============================================================================
 # The limited roles

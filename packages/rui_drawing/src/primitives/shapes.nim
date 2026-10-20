@@ -20,21 +20,52 @@ type
     spread*: float32
     color*: raylib.Color
     offsetX*, offsetY*: float32
+    radius*: float32   ## the casting box's corner radius; 0 for square corners
 
 # ============================================================================
 # Basic Shapes
 # ============================================================================
 
 proc drawTriangleAnyWinding*(a, b, c: Vector2, color: raylib.Color) =
-  ## raylib's drawTriangle only draws counter-clockwise triangles and silently
-  ## culls the rest. That hid the down and left arrows (Spinner and
-  ## NumberInput showed only their up arrow) and any arc drawn with increasing
-  ## angles. This orders the points so it draws whichever way they arrive.
+  ## A filled triangle, smooth-edged, whichever way its points arrive. raylib's
+  ## drawTriangle only draws counter-clockwise triangles and silently culls the
+  ## rest; that hid the down and left arrows (Spinner and NumberInput showed only
+  ## their up arrow). The fallback orders the points for it.
+  if drawSdfTriangle(a, b, c, color):
+    return
   let cross = (b.x - a.x) * (c.y - a.y) - (b.y - a.y) * (c.x - a.x)
   if cross > 0:
     drawTriangle(a, c, b, color)
   else:
     drawTriangle(a, b, c, color)
+
+proc drawSmoothLine*(a, b: Vector2, thickness: float32, color: raylib.Color) =
+  ## A stroke with round ends and smooth edges. raylib's drawLine is aliased, and
+  ## so stair-steps a checkmark or a cross.
+  if drawSdfSegment(a, b, thickness, color):
+    return
+  drawLine(a, b, thickness, color)
+
+proc drawSmoothRing*(center: Vector2, radius, width: float32, color: raylib.Color) =
+  ## A circle outline `width` thick, drawn inside `radius`, smooth-edged.
+  if radius <= 0 or width <= 0:
+    return
+  let clear = raylib.Color(r: 0, g: 0, b: 0, a: 0)
+  if drawSdfBox(Rect(x: center.x - radius, y: center.y - radius,
+                     width: radius * 2, height: radius * 2),
+                radius, width, clear, color):
+    return
+  drawRing(center, radius - width, radius, 0, 360, 48, color)
+
+proc drawSmoothDisc*(center: Vector2, radius: float32, color: raylib.Color) =
+  ## A filled circle, smooth-edged.
+  if radius <= 0:
+    return
+  if drawSdfBox(Rect(x: center.x - radius, y: center.y - radius,
+                     width: radius * 2, height: radius * 2),
+                radius, 0, color, color):
+    return
+  drawCircle(center, radius, color)
 
 proc drawRect*(rect: Rect, color: raylib.Color, filled = true) =
   ## Draws a rectangle with optional fill
@@ -215,17 +246,20 @@ proc drawBezier*(x1, y1, cp1x, cp1y, cp2x, cp2y, x2, y2: float32,
 # ============================================================================
 
 proc drawShadow*(rect: Rect, shadow: Shadow) =
-  ## Draws a drop shadow effect
-  for i in 0..<int(shadow.blur):
-    let alpha = uint8(shadow.color.a.float32 * (1.0 - i.float32/shadow.blur))
+  ## A drop shadow of `rect`. With a blur it is a soft, rounded shadow from the
+  ## shader; with none it is a hard edge, one copy of the box moved by the offset.
+  if shadow.blur > 0 and drawSdfShadow(rect, shadow.radius, shadow.offsetX,
+                                       shadow.offsetY, shadow.blur, shadow.spread,
+                                       shadow.color):
+    return
+  # Stacked rectangles: the fallback with no GL context, and the hard edge.
+  let steps = max(1, int(shadow.blur))
+  for i in 0..<steps:
     let offset = i.float32
-    let shadowColor = raylib.Color(
-      r: shadow.color.r,
-      g: shadow.color.g,
-      b: shadow.color.b,
-      a: alpha
-    )
-
+    let fade = if shadow.blur > 0: 1.0 - offset / shadow.blur else: 1.0
+    let shadowColor = raylib.Color(r: shadow.color.r, g: shadow.color.g,
+                                   b: shadow.color.b,
+                                   a: uint8(shadow.color.a.float32 * fade))
     drawRectangle(
       int32(rect.x + shadow.offsetX - offset),
       int32(rect.y + shadow.offsetY - offset),

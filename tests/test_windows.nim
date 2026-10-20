@@ -41,6 +41,11 @@ suite "window geometry":
 
   let r = Rect(x: 100, y: 100, width: 200, height: 150)
 
+  test "a BeOS tab keeps its close box at the left end, the zoom box at the right":
+    check titleButton(r, 0, leftEnd = true).x == r.x
+    check titleButton(r, 0).x == r.x + r.width - titleHeight
+    check titleButton(r, 0, leftEnd = true).width == titleHeight
+
   test "edges under a point":
     check edgesAt(r, Point(x: 150, y: 150)) == {}
     check edgesAt(r, Point(x: 101, y: 150)) == {edgeLeft}

@@ -132,6 +132,13 @@ defineWidget(Button):
       bg.bevelShadow = props.shadowColor.get(GRAY)
       bg.bevelDark = props.darkShadowColor.get(BLACK)
       bg.borderWidth = props.strokeWidth
+      # The focus ring sits inside the bevel: a bevelled theme shows focus by a
+      # ring, not by a fatter border.
+      if widget.focused:
+        bg.ringWidth = props.focusRingWidth.get(2.0)
+        bg.ringColor = props.focusRingColor.get(props.focusColor.get(BLACK))
+      else:
+        bg.ringWidth = 0.0
 
     # Centred label
     textLabel.text = caption

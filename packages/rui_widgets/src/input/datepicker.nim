@@ -203,4 +203,4 @@ definePrimitive(DatePicker):
                  props, widget.isOpen, widget.hovered, widget.focused)
     if widget.isOpen:
       widget.popup.isDirty = true
-    if widget.disabled: drawDisabledOverlay(widget.bounds)
+    if widget.disabled: drawDisabledOverlay(widget.bounds, currentTheme.canvasColor)

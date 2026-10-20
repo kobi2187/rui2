@@ -90,4 +90,4 @@ definePrimitive(IconButton):
       drawThemedCenteredText(widget.iconText, widget.bounds, props)
 
     if widget.disabled:
-      drawDisabledOverlay(widget.bounds)
+      drawDisabledOverlay(widget.bounds, currentTheme.canvasColor)

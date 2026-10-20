@@ -1,0 +1,89 @@
+VStack - @0,0 1120x600
+  Row - @16,16 1088x19
+    Label - @16,16 48x19
+    Label - @78,16 53x19
+    Label - @145,16 63x19
+    Label - @222,16 62x19
+    Label - @298,16 62x19
+    Label - @374,16 65x19
+  Row - @16,49 1088x27
+    Label - @16,53 46x19
+    Button - @76,49 66x27 tabstop
+      Rectangle - @76,49 66x27
+      Label - @86,53 46x19
+    Button - @156,49 66x27 tabstop
+      Rectangle - @156,49 66x27
+      Label - @166,53 46x19
+    Button - @236,49 66x27 tabstop
+      Rectangle - @236,49 66x27
+      Label - @246,53 46x19
+    Button - @316,49 66x27 focused tabstop
+      Rectangle - @316,49 66x27
+      Label - @326,53 46x19
+    Button - @396,49 66x27 tabstop
+      Rectangle - @396,49 66x27
+      Label - @406,53 46x19
+  Row - @16,90 1088x27
+    Label - @16,94 55x19
+    Button - @85,90 75x27 tabstop
+      Rectangle - @85,90 75x27
+      Label - @95,94 55x19
+    Button - @174,90 75x27 tabstop
+      Rectangle - @174,90 75x27
+      Label - @184,94 55x19
+    Button - @263,90 75x27 tabstop
+      Rectangle - @263,90 75x27
+      Label - @273,94 55x19
+    Button - @352,90 75x27 focused tabstop
+      Rectangle - @352,90 75x27
+      Label - @362,94 55x19
+    Button - @441,90 75x27 tabstop
+      Rectangle - @441,90 75x27
+      Label - @451,94 55x19
+  Row - @16,131 1088x19
+    Label - @16,131 72x19
+    Checkbox - @102,131 38x19 tabstop
+    Checkbox - @154,131 38x19 tabstop
+    Checkbox - @206,131 38x19 tabstop
+    Checkbox - @258,131 38x19 focused tabstop
+    Checkbox - @310,131 38x19 tabstop
+  Row - @16,164 1088x19
+    Label - @16,164 48x19
+    Switch - @78,164 56x19 tabstop
+    Switch - @148,164 56x19 tabstop
+    Switch - @218,164 56x19 tabstop
+    Switch - @289,164 56x19 focused tabstop
+    Switch - @359,164 56x19 tabstop
+  Row - @16,197 1088x31
+    Label - @16,203 63x19
+    TextInput - @93,197 200x31 tabstop
+    TextInput - @307,197 200x31 tabstop
+    TextInput - @521,197 200x31 tabstop
+    TextInput - @735,197 200x31 focused tabstop
+    TextInput - @949,197 200x31 tabstop
+  Row - @16,242 1088x31
+    Label - @16,248 82x19
+    ComboBox - @112,242 93x31 tabstop
+      ComboList - @112,273 93x24 floating
+    ComboBox - @219,242 93x31 tabstop
+      ComboList - @219,273 93x24 floating
+    ComboBox - @326,242 93x31 tabstop
+      ComboList - @326,273 93x24 floating
+    ComboBox - @433,242 93x31 focused tabstop
+      ComboList - @433,273 93x24 floating
+    ComboBox - @540,242 93x31 tabstop
+      ComboList - @540,273 93x24 floating
+  Row - @16,287 1088x24
+    Label - @16,289 42x19
+    Slider - @72,287 248x24 tabstop
+    Slider - @334,287 248x24 tabstop
+    Slider - @596,287 248x24 tabstop
+    Slider - @858,287 248x24 focused tabstop
+    Slider - @1120,287 248x24 tabstop
+  Row - @16,325 1088x31
+    Label - @16,331 82x19
+    SegmentedControl - @112,325 110x31 tabstop
+    SegmentedControl - @236,325 110x31 tabstop
+    SegmentedControl - @360,325 110x31 tabstop
+    SegmentedControl - @484,325 110x31 focused tabstop
+    SegmentedControl - @608,325 110x31 tabstop

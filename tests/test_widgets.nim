@@ -116,6 +116,12 @@ suite "basic widgets":
     check res["success"].getBool()
     check w.value == 42.0
 
+  test "a caption or mark on a solid fill is white or black, whichever reads on it":
+    # The BeOS theme's blue fill took black caption ink -- the theme's text
+    # colour -- which vanished on it. The ink is chosen against the fill.
+    check onFillInk(Color(r: 0, g: 0, b: 229, a: 255)) == Color(r: 255, g: 255, b: 255, a: 255)
+    check onFillInk(Color(r: 255, g: 203, b: 0, a: 255)) == Color(r: 0, g: 0, b: 0, a: 255)
+
   test "Slider seeds state from initialValue":
     let w = newSlider(initialValue = 25.0'f32, minValue = 0.0'f32,
                       maxValue = 100.0'f32)
