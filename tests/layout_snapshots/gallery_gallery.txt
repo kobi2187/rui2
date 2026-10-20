@@ -311,7 +311,7 @@ VStack gallery @0,0 1000x720
         Label live.log @12,267 560x130
         Label - @12,407 976x23
         TextArea live.doc @12,440 700x220 tabstop
-  MessageBox menus.messagebox @0,0 0x0
-  FileDialog menus.filedialog @0,0 0x0
-  Dialog menus.dialog @0,0 0x0 hidden tabstop
-    Checkbox - @-144,3 288x23 tabstop
+  MessageBox menus.messagebox @0,0 1000x720 hidden tabstop
+  FileDialog menus.filedialog @0,0 1000x720 hidden tabstop
+  Dialog menus.dialog @0,0 1000x720 hidden tabstop
+    Checkbox - @356,363 288x23 tabstop

@@ -4,6 +4,12 @@
 ## to dim what is behind it: renderPass draws each widget into a render texture
 ## sized to its own bounds, so a dialog sized to its panel could not paint an
 ## overlay around itself. The panel is then centred inside those bounds.
+##
+## A modal is on its own hit-test layer (`ModalLayer`), above the page: it is a
+## shallow child of the root, and without the layer whatever lay under its
+## buttons -- nested deeper, so preferred -- took their clicks and the dialog
+## could never be closed. Closed, it is invisible, so it leaves the hit-test
+## tree and the page has the pointer back.
 
 import rui_core
 import rui_drawing
@@ -12,11 +18,41 @@ import raylib
 
 const TitleBarHeight* = 30.0'f32
 
-proc overlayBounds*(): Rect =
-  ## The full-screen rect a modal should occupy.
+proc overlayBounds*(widget: Widget): Rect =
+  ## The rect a modal should occupy: its root's, which is the app's whole area,
+  ## or the screen while it is not yet in a tree that has been laid out.
+  var root = widget
+  while root.parent != nil: root = root.parent
+  if root != widget and root.bounds.width > 0 and root.bounds.height > 0:
+    return root.bounds
   Rect(x: 0, y: 0,
        width: float32(getScreenWidth()),
        height: float32(getScreenHeight()))
+
+const ModalLayer* = 100
+
+proc initModal*(widget: Widget) =
+  ## For a modal's `init`: closed, on the modal layer, and able to take keys.
+  widget.hitLayer = ModalLayer
+  widget.visible = false
+  widget.focusable = true
+
+proc openModal*(widget: Widget) =
+  ## Show it above the page, taking every click and the keyboard.
+  widget.visible = true
+  widget.isDirty = true
+  widget.layoutDirty = true
+  widget.markDirtyToRoot()
+  wantFocus(widget)
+
+proc closeModal*(widget: Widget) =
+  ## Take it off the screen and out of the hit-test tree.
+  widget.visible = false
+  widget.isDirty = true
+  # Hidden, it is skipped by the layout check, so it is the parent that asks for
+  # the pass that takes it out of the hit-test tree.
+  if widget.parent != nil: widget.parent.layoutDirty = true
+  widget.markDirtyToRoot()
 
 proc panelRect*(bounds: Rect, width, height: float32): Rect =
   ## The dialog box, centred in the overlay.

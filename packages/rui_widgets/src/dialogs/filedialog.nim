@@ -28,6 +28,8 @@ template openDirectory*(widget: untyped, path: string) =
   widget.selectedIndex = -1
   widget.scrollY = 0
 
+proc dismiss(widget: Widget, accepted: bool)
+
 definePrimitive(FileDialog):
   props:
     title: string = "Select File"
@@ -50,6 +52,9 @@ definePrimitive(FileDialog):
     onSelect(files: seq[string])
     onCancel()
 
+  init:
+    initModal(widget)
+
   events:
     on_mouse_down:
       if not widget.isVisible:
@@ -57,17 +62,13 @@ definePrimitive(FileDialog):
       let panel = panelRect(widget.bounds, widget.dialogWidth, widget.dialogHeight)
 
       if cancelRect(panel).contains(event.mousePos.x, event.mousePos.y):
-        widget.isVisible = false
-        widget.accepted = false
-        widget.isDirty = true
+        widget.dismiss(accepted = false)
         if widget.onCancel != nil:
           widget.onCancel()
         return true
 
       if okRect(panel).contains(event.mousePos.x, event.mousePos.y):
-        widget.isVisible = false
-        widget.accepted = true
-        widget.isDirty = true
+        widget.dismiss(accepted = true)
         if widget.onSelect != nil and widget.selectedIndex >= 0 and
            widget.selectedIndex < widget.files.len:
           widget.onSelect(@[widget.currentPath / widget.files[widget.selectedIndex]])
@@ -120,9 +121,7 @@ definePrimitive(FileDialog):
       if not widget.isVisible:
         return false
       if event.key == Escape:
-        widget.isVisible = false
-        widget.accepted = false
-        widget.isDirty = true
+        widget.dismiss(accepted = false)
         if widget.onCancel != nil:
           widget.onCancel()
         return true
@@ -130,7 +129,7 @@ definePrimitive(FileDialog):
 
   layout:
     # Fill the screen so the dim overlay has somewhere to go.
-    widget.bounds = overlayBounds()
+    widget.bounds = overlayBounds(widget)
 
   render:
     if not widget.isVisible:
@@ -159,6 +158,12 @@ definePrimitive(FileDialog):
     drawButton(okRect(panel), okLabelFor(widget.mode), props)
     drawButton(cancelRect(panel), "Cancel", props)
 
+proc dismiss(widget: Widget, accepted: bool) =
+  let dialog = FileDialog(widget)
+  dialog.isVisible = false
+  dialog.accepted = accepted
+  closeModal(dialog)
+
 proc show*(widget: FileDialog) =
   ## Display the dialog and read the starting directory.
   widget.isVisible = true
@@ -170,5 +175,4 @@ proc show*(widget: FileDialog) =
     widget.currentPath = widget.initialPath
   widget.files = listEntries(widget.currentPath, widget.filters,
                              widget.mode == fdDirectory)
-  widget.isDirty = true
-  widget.layoutDirty = true
+  openModal(widget)

@@ -965,6 +965,9 @@ proc openWindow(app: App) =
   quietRaylibLog()
   initWindow(app.window.width.int32, app.window.height.int32, app.window.title)
   setTargetFPS(app.window.fps.int32)
+  # raylib closes the window on Escape by default; here Escape belongs to the
+  # widgets -- it cancels a dialog, closes a menu -- and quitting is the app's call.
+  setExitKey(KeyboardKey.Null)
   useClipboard(systemClipboard())
   if not app.window.resizable:
     return

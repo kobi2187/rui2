@@ -165,6 +165,9 @@ proc findWidgetsAt*(system: HitTestSystem, x, y: float32): seq[Widget] =
 
   # Sort front-to-back.
   #
+  # The layer comes first: a modal (layer above 0) takes the pointer from the
+  # whole page under it, which is nested deeper and would otherwise win.
+  #
   # z-index alone is not enough: every widget in a plain container has z-index
   # 0, so a click inside a Button also matches its enclosing VStack and the
   # window root, and whichever the interval tree happened to yield first won --
@@ -172,7 +175,9 @@ proc findWidgetsAt*(system: HitTestSystem, x, y: float32): seq[Widget] =
   # are therefore broken by tree depth: the more deeply nested widget is the one
   # drawn on top and the one the user aimed at.
   result.sort(proc(a, b: Widget): int =
-    result = cmp(b.zIndex, a.zIndex)
+    result = cmp(b.effectiveHitLayer, a.effectiveHitLayer)
+    if result == 0:
+      result = cmp(b.zIndex, a.zIndex)
     if result == 0:
       result = cmp(b.treeDepth, a.treeDepth)
   )
