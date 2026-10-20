@@ -169,6 +169,12 @@ Dragging moved the window exactly with the pointer in each.
    - moves the window when its background is dragged. Buttons, fields and
      the like keep their clicks.
    - `app.shaped` tells the app which method it got.
+   - **Size and position:** the window takes the skin's size
+     (`fitWindow = true`). `app.placeShape(x, y)` puts the visible shape's
+     top-left at (x, y), the skin's transparent margin accounted for.
+     `app.shapeBounds` is the shape's rectangle on screen, and
+     `app.placeWindow(x, y)` places the window itself, for any app. All of
+     these work before `run`.
 4. **Check it.** `examples/shaped/skin_app.nim` is the example.
    `tests/gl/shaped_window.nim` checks under Xvfb that the method chosen
    there is the OS shape and that the app exits cleanly.

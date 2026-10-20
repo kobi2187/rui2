@@ -41,6 +41,12 @@ suite "masks to regions":
     check coarse.len < fine.len
     check coarseTime < fineTime
 
+suite "the shape's bounds":
+  test "the bounding box is where the visible shape is, inside a margin":
+    let rects = @[ShapeRect(x: 20, y: 60, w: 380, h: 300), ShapeRect(x: 150, y: 10, w: 120, h: 50)]
+    check rects.boundingBox == ShapeRect(x: 20, y: 10, w: 380, h: 350)
+    check newSeq[ShapeRect]().boundingBox == ShapeRect()
+
 suite "choosing a method":
   test "X11: compositor gives see-through with click-through; without, an OS shape":
     var c = ShapeCaps(platform: spX11, x11: true, shapeExt: true, compositor: true, argbVisual: true)

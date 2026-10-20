@@ -107,6 +107,10 @@ proc clearColor*(sw: ShapedWindow): Color =
 
 proc describe*(sw: ShapedWindow): string = $sw.meth & ": " & describe(sw.meth)
 
+proc shapeBox*(sw: ShapedWindow): ShapeRect =
+  ## The visible shape's bounding box, in window coordinates.
+  sw.lastRects.boundingBox
+
 proc setShapeRects*(sw: var ShapedWindow, rects: seq[ShapeRect]) =
   ## Give the window this shape (the see-through methods draw it themselves;
   ## this sets the regions the OS clips to or passes clicks by). Skipped when

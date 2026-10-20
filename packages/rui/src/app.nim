@@ -100,6 +100,7 @@ type
 
     # Control
     shouldClose*: bool
+    pendingWindowPos: Option[(int, int)]   # placeWindow before the window exists
     when defined(ruiShaped):
       shaped*: ShapedWindow          # the method this machine got (-d:ruiShaped)
       shapeWanted: bool
@@ -108,6 +109,8 @@ type
       shapeSkin: Option[Texture2D]   # none before closeWindow: a texture outliving the GL context crashes
       shapeFunc: proc(x, y: float32): float32 {.closure.}
       shapeDrag: DragMove
+      shapeFitWindow: bool             # size the window to the skin
+      pendingShapePos: Option[(int, int)]  # placeShape before the shape is known
 
     # Idling
     idleWhenClean*: bool
@@ -489,13 +492,16 @@ proc setWindowSize*(app: App, width, height: int) =
   app.tree.anyDirty = true  # Trigger relayout
 
 when defined(ruiShaped):
-  proc setWindowShape*(app: App, skinPng: string, softEdges = true, clickThrough = true) =
+  proc setWindowShape*(app: App, skinPng: string, softEdges = true, clickThrough = true,
+                       fitWindow = true) =
     ## Make the window the shape of `skinPng`: its alpha is the outline, its
     ## pixels are drawn behind the widgets. Call before `run`. The method
     ## (see-through, OS-clipped, or a plain rectangle where neither works) is
     ## chosen when the window opens, from what the machine can do; the window
     ## is undecorated and a fixed size, and dragging its background moves it.
+    ## `fitWindow`: the window takes the skin's size, whatever newApp was given.
     app.shapeWanted = true
+    app.shapeFitWindow = fitWindow
     app.shapeSkinPath = skinPng
     app.shapeSoftEdges = softEdges
     app.shapeClickThrough = clickThrough
@@ -519,6 +525,25 @@ when defined(ruiShaped):
     app.shapeFunc = inside
     app.shaped.setShape(app.window.width, app.window.height, inside, step)
 
+  proc shapeBounds*(app: App): Rect =
+    ## Where the visible shape is on the screen: its bounding box, which in a
+    ## skin with a transparent margin is not the window's rectangle. For
+    ## snapping, docking or keeping it on screen.
+    let box = app.shaped.shapeBox
+    let p = getWindowPosition()
+    Rect(x: p.x + box.x.float32, y: p.y + box.y.float32,
+         width: box.w.float32, height: box.h.float32)
+
+  proc placeShape*(app: App, x, y: int) =
+    ## Put the visible shape's top-left corner at (x, y) on the screen -- not
+    ## the window's, which sits a skin's margin further out. Before `run` it
+    ## takes effect when the window opens.
+    if not isWindowReady():
+      app.pendingShapePos = some((x, y))
+      return
+    let box = app.shaped.shapeBox
+    setWindowPosition(int32(x - box.x), int32(y - box.y))
+
   proc applyWindowShape(app: App) =
     ## After the window opens: learn what it got, give it its shape, load the skin.
     app.shaped.confirm()
@@ -532,6 +557,10 @@ when defined(ruiShaped):
     elif app.shapeFunc != nil:
       app.shaped.setShape(app.window.width, app.window.height, app.shapeFunc, step = 1)
     echo "  Window shape: ", app.shaped.describe()
+    if app.pendingShapePos.isSome:
+      let (x, y) = app.pendingShapePos.get
+      app.pendingShapePos = none((int, int))
+      app.placeShape(x, y)
 
   proc dragByBackground(app: App) =
     ## A press on the background -- nothing that takes a click itself -- and a
@@ -548,6 +577,17 @@ else:
     {.error: "setWindowShape needs the rui_shaped package: build with -d:ruiShaped".}
   template reshapeWindow*(app: App, args: varargs[untyped]) =
     {.error: "reshapeWindow needs the rui_shaped package: build with -d:ruiShaped".}
+  template placeShape*(app: App, args: varargs[untyped]) =
+    {.error: "placeShape needs the rui_shaped package: build with -d:ruiShaped".}
+  template shapeBounds*(app: App): untyped =
+    {.error: "shapeBounds needs the rui_shaped package: build with -d:ruiShaped".}
+
+proc placeWindow*(app: App, x, y: int) =
+  ## Put the window's top-left corner at (x, y) on the screen. Before `run`
+  ## it takes effect when the window opens. (For a shaped window, placeShape
+  ## places the visible shape instead.)
+  if isWindowReady(): setWindowPosition(x.int32, y.int32)
+  else: app.pendingWindowPos = some((x, y))
 
 proc setWindowResizable*(app: App, resizable: bool) =
   ## Enable or disable window resizing
@@ -1053,7 +1093,16 @@ proc openWindow(app: App) =
       # and a see-through framebuffer where a compositor can show one).
       app.shaped = prepareShapedWindow(app.shapeSoftEdges, app.shapeClickThrough,
                                        backdrop = currentTheme.canvasColor())
+      if app.shapeFitWindow and app.shapeSkinPath.len > 0:
+        # The window is the skin: its size, not whatever newApp was given.
+        let skin = loadImage(app.shapeSkinPath)       # CPU only: no window needed
+        if skin.width > 0:
+          app.window.width = skin.width
+          app.window.height = skin.height
   initWindow(app.window.width.int32, app.window.height.int32, app.window.title)
+  if app.pendingWindowPos.isSome:
+    let (x, y) = app.pendingWindowPos.get
+    setWindowPosition(x.int32, y.int32)
   when defined(ruiShaped):
     if app.shapeWanted: app.applyWindowShape()
   setTargetFPS(app.window.fps.int32)

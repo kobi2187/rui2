@@ -85,3 +85,17 @@ proc rectsFromFunc*(width, height: int, inside: proc(x, y: float32): float32,
     let x = r.x * s
     let y = r.y * s
     result.add ShapeRect(x: x, y: y, w: min(r.w * s, width - x), h: min(r.h * s, height - y))
+
+proc boundingBox*(rects: seq[ShapeRect]): ShapeRect =
+  ## The smallest rectangle holding the whole shape: where its visible
+  ## top-left is, and how big it really is, inside a window with a margin.
+  ## Empty (all zero) for an empty shape.
+  if rects.len == 0: return
+  var x0 = rects[0].x
+  var y0 = rects[0].y
+  var x1 = rects[0].x + rects[0].w
+  var y1 = rects[0].y + rects[0].h
+  for r in rects:
+    x0 = min(x0, r.x); y0 = min(y0, r.y)
+    x1 = max(x1, r.x + r.w); y1 = max(y1, r.y + r.h)
+  ShapeRect(x: x0, y: y0, w: x1 - x0, h: y1 - y0)

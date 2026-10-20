@@ -11,7 +11,8 @@ import std/os
 
 let app = newApp("RUI2 - Shaped", 420, 420)
 app.setTheme("midnight")
-app.setWindowShape(currentSourcePath().parentDir / "skin.png")
+app.setWindowShape(currentSourcePath().parentDir / "skin.png")   # the window takes its size
+app.placeShape(60, 40)       # the visible shape's corner, not the window's (the skin has a margin)
 
 var count = 0
 let counter = newLabel(text = "Clicked 0 times").named("counter")
