@@ -17,7 +17,7 @@ import preferences_file
 export preferences_file
 import system_scheme
 export system_scheme
-from rui_widgets import HelpOverlay, newHelpOverlay, FocusRing, newFocusRing,
+from rui_widgets import HelpOverlay, newHelpOverlay, hints, `hints=`, FocusRing, newFocusRing,
   Toast, newToast, MenuBar, findMenuBar, openFromKeyboard
 export event_source, event_routing, inspect
 export rui_core
@@ -643,10 +643,8 @@ proc syncFocusRings*(app: App) =
   if app.helpVisible:
     # Widgets move and appear while help is up (and before the first layout):
     # keep the badges on what is really there.
-    let hints = collectHints(app.tree.root)
-    if hints != app.helpOverlay.hints:
-      app.helpOverlay.hints = hints
-      app.helpOverlay.isDirty = true
+    let marks = collectHints(app.tree.root)
+    app.helpOverlay.hints = marks        # a prop: setting it repaints when it changed
   let focused = app.focusManager.focusedWidget
   let group = app.focusManager.activeGroup
   let navigating = app.keyboardMode and not app.helpVisible

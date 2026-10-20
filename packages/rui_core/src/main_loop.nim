@@ -313,7 +313,10 @@ proc layoutPass*(widget: Widget) =
   ## If a widget's bounds change it is marked for re-rendering.
   inc layoutPassNumber
   widget.propagateLayoutDirty()
-  widget.layoutWalk()
+  let outer = inLayoutPass
+  inLayoutPass = true
+  try: widget.layoutWalk()
+  finally: inLayoutPass = outer
   # Ended: what this pass measured is good only while its widget stays
   # clean. Without this, a widget marked dirty after the pass would answer
   # from this pass's memory until the next one began.

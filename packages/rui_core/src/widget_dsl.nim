@@ -104,6 +104,12 @@ proc buildWidgetType(name: NimNode, sections: WidgetSections): NimNode =
 # Constructor Generation - Build newWidget() Proc
 # ============================================================================
 
+proc buildPropAccessors(name: NimNode, sections: WidgetSections): NimNode =
+  ## The getter and dirty-marking setter of every prop (genPropAccessors).
+  result = newStmtList()
+  for prop in sections.props:
+    result.add genPropAccessors(makeWidgetTypeName(name), prop)
+
 proc buildConstructorParams(sections: WidgetSections): seq[NimNode] =
   ## Build parameter list for constructor
   result = @[]
@@ -595,6 +601,7 @@ macro definePrimitive*(name: untyped, body: untyped): untyped =
 
   # Generate type
   result.add(buildWidgetType(name, sections))
+  result.add(buildPropAccessors(name, sections))
 
   # Generate constructor
   result.add(buildConstructor(name, sections))
@@ -624,6 +631,7 @@ macro defineWidget*(name: untyped, body: untyped): untyped =
 
   # Generate type
   result.add(buildWidgetType(name, sections))
+  result.add(buildPropAccessors(name, sections))
 
   # Generate constructor
   result.add(buildConstructor(name, sections))
@@ -652,13 +660,31 @@ proc removeChild*(parent: Widget, child: Widget) =
   parent.layoutDirty = true
   parent.isDirty = true
 
+var lateWarned {.used.}: seq[string]
+
+proc warnLateChildren(parent: Widget) {.used.} =
+  ## A widget got its first child in the middle of a layout pass: it builds its
+  ## children in `layout` instead of `init`. Until that first layout they do not
+  ## exist, so the gallery, the inspector, scripts and tests looking at a fresh
+  ## tree cannot find them (Breadcrumbs' crumbs went missing this way). Said
+  ## once per widget type, in debug builds only.
+  let kind = parent.getTypeName()
+  if kind in lateWarned: return
+  lateWarned.add kind
+  stderr.writeLine "rui: " & kind & " creates its children during layout; " &
+    "build them in `init:` so they exist before the first frame"
+
 proc addChild*(parent: Widget, child: Widget) =
   ## Add child widget to parent.
   ##
   ## Bumps the tree's structure version so anything caching a walk of the tree
   ## -- the focus chain -- knows to rebuild. Without it a widget added after the
   ## first Tab press was unreachable by keyboard forever.
+  when not defined(release):
+    if inLayoutPass and not parent.hadChildren:
+      warnLateChildren(parent)
   parent.children.add(child)
+  parent.hadChildren = true
   child.parent = parent
   noteStructureChanged()
 

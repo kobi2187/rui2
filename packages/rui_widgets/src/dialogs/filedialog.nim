@@ -94,10 +94,8 @@ definePrimitive(FileDialog):
       if dlg.mode == fdSave and paths.len == 1:
         for p in paths:
           if not dirExists(p): dlg.nameBox.replaceText(p.lastPathPart)
-      if dlg.addButton != nil and dlg.addButton.disabled != (paths.len == 0):
-        dlg.addButton.disabled = paths.len == 0
-        dlg.addButton.layoutDirty = true       # a Button works its colours out in layout
-        dlg.addButton.markDirtyToRoot()
+      if dlg.addButton != nil:
+        dlg.addButton.disabled = paths.len == 0     # a prop: the setter redraws it
 
     var body: Widget = widget.picker.flex()
     if collects(widget.mode, widget.multiple):
@@ -180,16 +178,12 @@ proc chosenChanged(widget: Widget) =
     for p in dlg.chosen:
       rows.add chosenLabel(p)
       icons.add (if dirExists(p): riFolder else: riFile)
-    dlg.chosenList.items = rows
+    dlg.chosenList.items = rows                 # props: their setters redraw
     dlg.chosenList.icons = icons
-    dlg.chosenList.selection.clear()
-    dlg.chosenList.layoutDirty = true
+    dlg.chosenList.selection.clear()            # state: no setter, so repaint by hand
     dlg.chosenList.markDirtyToRoot()
     dlg.pane.summary = (if dlg.chosen.len > 0: $dlg.chosen.len else: "")
-    dlg.pane.markDirtyToRoot()
   dlg.okButton.text = okLabelFor(dlg.mode, dlg.chosen.len)
-  dlg.okButton.layoutDirty = true
-  dlg.okButton.markDirtyToRoot()
 
 proc addChosen*(widget: Widget, paths: seq[string]) =
   ## Add `paths` to the Chosen pane, once each, in order. Directories are only

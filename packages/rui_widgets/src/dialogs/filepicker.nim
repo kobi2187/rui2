@@ -121,12 +121,11 @@ proc rebuildList(widget: Widget) =
       # the folder icon says it is a folder; the "/" listEntries marks it with need not
       names.add (if entry != ParentEntry and entry.isDirectoryEntry: entry[0 ..< ^1] else: entry)
   let list = picker.list
-  list.items = names
+  list.items = names                    # props: their setters redraw
   list.icons = icons
-  list.selection.clear()
+  list.selection.clear()               # state: no setter, so repaint by hand
   list.focusIndex = 0
   list.scrollY = 0
-  list.layoutDirty = true
   list.markDirtyToRoot()
   if picker.selectedFiles.len > 0:
     picker.selectedFiles.clear()
@@ -141,7 +140,6 @@ proc openDirectory*(widget: Widget, path: string) =
   picker.currentPath = full
   picker.fileList = listEntries(full, picker.filters, picker.mode == fpDirectory)
   picker.crumbs.path = full
-  picker.crumbs.layoutDirty = true
   picker.rebuildList()
   if picker.onPathChange != nil: picker.onPathChange(full)
 

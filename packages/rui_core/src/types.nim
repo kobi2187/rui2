@@ -301,6 +301,10 @@ type
       ## `none` means the whole widget, which is what almost every container
       ## wants and what it costs nothing to leave alone.
     zIndex*: int
+    hadChildren*: bool
+      ## Set once the widget has had a child. Lets a debug build tell a widget
+      ## that builds its children late (in its first layout) from one that is
+      ## only replacing them (widget_dsl.nim `addChild`).
     hitLayer*: int
       ## The hit-test layer of this widget and everything inside it (the highest
       ## of its own and its ancestors'). A higher layer takes the pointer from
@@ -731,6 +735,8 @@ var measureEpoch* = 0
   ## widget dirty from every place that can change those.
 
 var layoutPassNumber* = 0
+var inLayoutPass* = false
+  ## True while `layoutPass` (main_loop.nim) is running.
   ## Which layout pass this is. A measurement taken in this pass stays good
   ## for the rest of it even if its widget is dirty -- the pass is what
   ## cleans it.
