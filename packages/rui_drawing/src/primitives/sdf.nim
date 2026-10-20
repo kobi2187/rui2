@@ -152,8 +152,8 @@ type
     failed: bool                # compiled badly once: do not try again
 
 var
-  white: Texture2D              # a 1x1 white texture, stretched to draw a quad
-  hasWhite = false
+  white: ptr Texture2D          # a 1x1 white texture, stretched to draw a quad;
+                                # a pointer, never freed, for the same reason as below
   boxState: ptr GlShader        # created on first use, never freed (see below)
   shadowState: ptr GlShader
   segmentState: ptr GlShader
@@ -175,9 +175,9 @@ proc loadGlShader(slot: var ptr GlShader, fragment: string,
     return nil
   for name in names:
     slot.locs.add getShaderLocation(slot.shader, name)
-  if not hasWhite:
-    white = loadTextureFromImage(genImageColor(1, 1, White))
-    hasWhite = true
+  if white == nil:
+    white = create(Texture2D)
+    white[] = loadTextureFromImage(genImageColor(1, 1, White))
   slot
 
 proc ready(slot: var ptr GlShader, fragment: string,
@@ -192,7 +192,7 @@ proc norm(c: Color): Vector4 =
 proc drawQuad(s: ptr GlShader, quad: Rect) =
   ## The white texture stretched over `quad`, through the shader.
   beginShaderMode(s.shader)
-  drawTexture(white, Rectangle(x: 0, y: 0, width: 1, height: 1),
+  drawTexture(white[], Rectangle(x: 0, y: 0, width: 1, height: 1),
               Rectangle(x: quad.x, y: quad.y, width: quad.width, height: quad.height),
               Vector2(x: 0, y: 0), 0.0, White)
   endShaderMode()

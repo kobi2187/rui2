@@ -133,7 +133,7 @@ if [ "$MODE" = "quick" ] || [ "$MODE" = "isolated" ] || [ "$MODE" = "full" ]; th
 fi
 
 if [ "$MODE" = "examples" ] || [ "$MODE" = "full" ]; then
-  ls examples/*.nim examples/gallery/gallery.nim examples/widgets/*.nim examples/baby/*.nim examples/tutorial/*.nim 2>/dev/null \
+  ls examples/*.nim examples/gallery/gallery.nim examples/widgets/*.nim examples/baby/*.nim examples/tutorial/*.nim examples/shaped/*.nim 2>/dev/null \
     | xargs -P "$JOBS" -I{} bash -c 'example_compile {}' | sort | tally "examples compile"
 fi
 

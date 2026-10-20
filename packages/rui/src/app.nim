@@ -30,6 +30,11 @@ export script_manager # Export script manager
 export hittest_system # Export hit test system
 import raylib
 import std/[monotimes, times, os, options]
+when defined(ruiShaped):
+  # Non-rectangular windows (packages/rui_shaped), only when asked for: an app
+  # built without -d:ruiShaped carries none of it.
+  import rui_shaped
+  export rui_shaped
 
 # ============================================================================
 # Application State
@@ -95,6 +100,14 @@ type
 
     # Control
     shouldClose*: bool
+    when defined(ruiShaped):
+      shaped*: ShapedWindow          # the method this machine got (-d:ruiShaped)
+      shapeWanted: bool
+      shapeSoftEdges, shapeClickThrough: bool
+      shapeSkinPath: string          # a PNG: its alpha is the shape, its pixels the look
+      shapeSkin: Option[Texture2D]   # none before closeWindow: a texture outliving the GL context crashes
+      shapeFunc: proc(x, y: float32): float32 {.closure.}
+      shapeDrag: DragMove
 
     # Idling
     idleWhenClean*: bool
@@ -474,6 +487,67 @@ proc setWindowSize*(app: App, width, height: int) =
   app.window.width = width
   app.window.height = height
   app.tree.anyDirty = true  # Trigger relayout
+
+when defined(ruiShaped):
+  proc setWindowShape*(app: App, skinPng: string, softEdges = true, clickThrough = true) =
+    ## Make the window the shape of `skinPng`: its alpha is the outline, its
+    ## pixels are drawn behind the widgets. Call before `run`. The method
+    ## (see-through, OS-clipped, or a plain rectangle where neither works) is
+    ## chosen when the window opens, from what the machine can do; the window
+    ## is undecorated and a fixed size, and dragging its background moves it.
+    app.shapeWanted = true
+    app.shapeSkinPath = skinPng
+    app.shapeSoftEdges = softEdges
+    app.shapeClickThrough = clickThrough
+    app.window.resizable = false
+
+  proc setWindowShape*(app: App, inside: proc(x, y: float32): float32 {.closure.},
+                       softEdges = true, clickThrough = true) =
+    ## A procedural shape: `inside` gives 0 outside .. 1 inside for a point of
+    ## the window. The app draws the look itself (a background widget, a
+    ## shader); outside the shape stays see-through or clipped.
+    app.shapeWanted = true
+    app.shapeFunc = inside
+    app.shapeSoftEdges = softEdges
+    app.shapeClickThrough = clickThrough
+    app.window.resizable = false
+
+  proc reshapeWindow*(app: App, inside: proc(x, y: float32): float32 {.closure.}, step = 3) =
+    ## Change a procedural shape while running (an animated outline). The
+    ## click region is sampled every `step` pixels; an unchanged shape is not
+    ## resent.
+    app.shapeFunc = inside
+    app.shaped.setShape(app.window.width, app.window.height, inside, step)
+
+  proc applyWindowShape(app: App) =
+    ## After the window opens: learn what it got, give it its shape, load the skin.
+    app.shaped.confirm()
+    if app.shapeSkinPath.len > 0:
+      var img = loadImage(app.shapeSkinPath)
+      app.shaped.setShape(img)
+      # The compositor blends premultiplied colour: a straight-alpha skin would
+      # leave a light fringe along its soft edges.
+      imageAlphaPremultiply(img)
+      app.shapeSkin = some(loadTextureFromImage(img))
+    elif app.shapeFunc != nil:
+      app.shaped.setShape(app.window.width, app.window.height, app.shapeFunc, step = 1)
+    echo "  Window shape: ", app.shaped.describe()
+
+  proc dragByBackground(app: App) =
+    ## A press on the background -- nothing that takes a click itself -- and a
+    ## drag move the window: it has no title bar to be moved by.
+    let m = getMousePosition()
+    var allow = false
+    if isMouseButtonPressed(MouseButton.Left):
+      var hit = overlayAt(m.x, m.y)
+      if hit == nil: hit = app.hitTestSystem.getWidgetAt(m.x, m.y)
+      allow = hit == nil or focusTargetFor(hit) == nil
+    app.shapeDrag.update(app.shaped, allowStart = allow)
+else:
+  template setWindowShape*(app: App, args: varargs[untyped]) =
+    {.error: "setWindowShape needs the rui_shaped package: build with -d:ruiShaped".}
+  template reshapeWindow*(app: App, args: varargs[untyped]) =
+    {.error: "reshapeWindow needs the rui_shaped package: build with -d:ruiShaped".}
 
 proc setWindowResizable*(app: App, resizable: bool) =
   ## Enable or disable window resizing
@@ -887,7 +961,19 @@ proc renderFrame(app: App) =
     beginDrawing()
     # The window surround follows the active theme rather than a hardcoded
     # RayWhite, so a dark theme does not leave a light border around the UI.
-    clearBackground(currentTheme.canvasColor())
+    when defined(ruiShaped):
+      if app.shapeWanted:
+        # See-through (or the backdrop, clipped away by an OS shape), then the
+        # skin behind the widgets.
+        clearBackground(app.shaped.clearColor)
+        if app.shapeSkin.isSome:
+          beginBlendMode(BlendMode.AlphaPremultiply)
+          drawTexture(app.shapeSkin.get, 0, 0, White)
+          endBlendMode()
+      else:
+        clearBackground(currentTheme.canvasColor())
+    else:
+      clearBackground(currentTheme.canvasColor())
 
     app.compositeRoot()
     if app.beingScripted:
@@ -961,7 +1047,15 @@ proc quietRaylibLog() =
 
 proc openWindow(app: App) =
   quietRaylibLog()
+  when defined(ruiShaped):
+    if app.shapeWanted:
+      # Before the window exists: the method decides its flags (undecorated,
+      # and a see-through framebuffer where a compositor can show one).
+      app.shaped = prepareShapedWindow(app.shapeSoftEdges, app.shapeClickThrough,
+                                       backdrop = currentTheme.canvasColor())
   initWindow(app.window.width.int32, app.window.height.int32, app.window.title)
+  when defined(ruiShaped):
+    if app.shapeWanted: app.applyWindowShape()
   setTargetFPS(app.window.fps.int32)
   # raylib closes the window on Escape by default; here Escape belongs to the
   # widgets -- it cancels a dialog, closes a menu -- and quitting is the app's call.
@@ -1115,6 +1209,8 @@ proc run*(app: App, maxFrames: int = -1) =
     if app.tree.root != nil: freeTextureTree(app.tree.root)
     for overlay in overlays(): freeTextureTree(overlay)
     clearTextCache()                  # glyph textures are global, freed the same way
+    when defined(ruiShaped):
+      app.shapeSkin = none(Texture2D)   # a GPU texture too: unloaded now, not after
     closeWindow()
   app.announce()
 
@@ -1125,6 +1221,8 @@ proc run*(app: App, maxFrames: int = -1) =
     inc framesRun
 
     let frameStart = getMonoTime()
+    when defined(ruiShaped):
+      if app.shapeWanted: app.dragByBackground()
     let painted = app.step()
     let stepped = getMonoTime()
     app.applyCursor()

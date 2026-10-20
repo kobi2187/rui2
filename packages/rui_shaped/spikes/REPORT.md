@@ -149,6 +149,30 @@ Verified here: the example (`../examples/skin_app.nim`) picked `smOsShape`
 with no compositor and `smTransparentInput` under xcompmgr and under picom.
 Dragging moved the window exactly with the pointer in each.
 
+## Using it in a RUI app
+
+1. **Turn it on.** Build with `-d:ruiShaped`. A `<app>.nims` beside the app
+   containing `switch("define", "ruiShaped")` does it for a plain `nim c`.
+   Without the flag `rui` doesn't import the package, and `setWindowShape`
+   is a compile error that names the flag.
+2. **Give the shape.** Call `app.setWindowShape("skin.png")` before
+   `app.run()`. The PNG's alpha is the outline, and its pixels are drawn
+   behind the widget tree. For a procedural shape, use
+   `app.setWindowShape(inside)`, and `app.reshapeWindow(inside)` to change it
+   while running.
+3. **What the App does:**
+   - picks the method before the window opens;
+   - confirms it afterwards;
+   - applies the shape;
+   - clears to see-through (or the theme's canvas, for the OS shape and the
+     rectangle);
+   - moves the window when its background is dragged. Buttons, fields and
+     the like keep their clicks.
+   - `app.shaped` tells the app which method it got.
+4. **Check it.** `examples/shaped/skin_app.nim` is the example.
+   `tests/gl/shaped_window.nim` checks under Xvfb that the method chosen
+   there is the OS shape and that the app exits cleanly.
+
 ## Things that bit, and are handled
 
 - **Dragging an undecorated window.** It has no title bar, so the app has to

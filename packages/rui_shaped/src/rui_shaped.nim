@@ -23,6 +23,13 @@
 ##   endDrawing()
 ## ```
 ##
+## In a RUI app this is all done by the App: build with `-d:ruiShaped` (a
+## `<app>.nims` with `switch("define", "ruiShaped")` does it) and call
+## `app.setWindowShape("skin.png")` before `app.run()`; dragging the background
+## moves the window (examples/shaped/skin_app.nim). Without the flag rui does
+## not import this package, and calling setWindowShape is a compile error that
+## says so.
+##
 ## Measured trade-offs and platform notes: spikes/REPORT.md.
 
 import raylib
@@ -166,10 +173,12 @@ proc screenPointer(sw: ShapedWindow): (bool, Vector2) =
   else: discard
   (false, Vector2())
 
-proc update*(d: var DragMove, sw: ShapedWindow) =
+proc update*(d: var DragMove, sw: ShapedWindow, allowStart = true) =
   ## Call once a frame. A press that reaches the window (only the shape, for
   ## the click-through methods) and a drag moves the window with the pointer.
-  if isMouseButtonPressed(MouseButton.Left):
+  ## `allowStart` false: this press belongs to something else (a button, a
+  ## field) and must not start a drag.
+  if isMouseButtonPressed(MouseButton.Left) and allowStart:
     let (ok, p) = sw.screenPointer()
     let win = getWindowPosition()
     d.active = true
