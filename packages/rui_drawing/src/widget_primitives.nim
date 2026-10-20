@@ -581,12 +581,88 @@ proc drawMenuItem*(rect: Rect, text: string, props: ThemeProps,
     let textColor = row.foregroundColor.get(Color(r: 60, g: 60, b: 60, a: 255))
     drawRightArrow(arrowX, arrowY, 8.0, textColor)
 
+type ChevronWay* = enum
+  cwRight, cwDown, cwLeft, cwUp
+
+proc drawChevron*(center: Vector2, size: float32, way: ChevronWay, color: Color,
+                  thickness = 2.0'f32) =
+  ## A chevron `size` across, pointing `way`, smooth-edged: what a collapsible
+  ## header shows -- right or left folded, down open.
+  let r = size / 2
+  let h = size / 4
+  let (a, tip, b) = case way
+    of cwRight: (Vector2(x: center.x - h, y: center.y - r), Vector2(x: center.x + h, y: center.y),
+                 Vector2(x: center.x - h, y: center.y + r))
+    of cwLeft: (Vector2(x: center.x + h, y: center.y - r), Vector2(x: center.x - h, y: center.y),
+                Vector2(x: center.x + h, y: center.y + r))
+    of cwDown: (Vector2(x: center.x - r, y: center.y - h), Vector2(x: center.x, y: center.y + h),
+                Vector2(x: center.x + r, y: center.y - h))
+    of cwUp: (Vector2(x: center.x - r, y: center.y + h), Vector2(x: center.x, y: center.y - h),
+              Vector2(x: center.x + r, y: center.y + h))
+  drawSmoothLine(a, tip, thickness, color)
+  drawSmoothLine(tip, b, thickness, color)
+
+type RowIcon* = enum
+  ## A small picture at the start of a list row.
+  riNone, riFolder, riFile, riParent
+
+const FolderTone = Color(r: 230, g: 176, b: 60, a: 255)   ## manila, in every theme
+
+proc drawRowIcon*(rect: Rect, icon: RowIcon, props: ThemeProps) =
+  ## `icon` drawn inside `rect` (a square), smooth-edged, in the row's ink: a
+  ## folder in manila with a tab, a page with its corner turned down, or the
+  ## arrow back up to the parent.
+  let ink = props.foregroundColor.get(BLACK)
+  let s = min(rect.width, rect.height)
+  let x = rect.x + (rect.width - s) / 2
+  let y = rect.y + (rect.height - s) / 2
+  let line = max(1.0'f32, s / 12)
+  case icon
+  of riNone: discard
+  of riFolder:
+    let edge = mixTone(FolderTone, BLACK, 0.35)
+    let tab = Rect(x: x + s * 0.06, y: y + s * 0.16, width: s * 0.42, height: s * 0.2)
+    drawBox(tab, s * 0.08, FolderTone, edge, line)
+    drawBox(Rect(x: x + s * 0.06, y: y + s * 0.28, width: s * 0.88, height: s * 0.58),
+            s * 0.1, FolderTone, edge, line)
+  of riFile:
+    let page = props.fieldColor
+    let (l, t, r, b) = (x + s * 0.2, y + s * 0.08, x + s * 0.8, y + s * 0.92)
+    let fold = s * 0.22
+    drawBox(Rect(x: l, y: t, width: r - l, height: b - t), s * 0.06, page, ink, line)
+    # the turned-down corner, shaded, with its crease
+    drawTriangleAnyWinding(Vector2(x: r - fold, y: t), Vector2(x: r - fold, y: t + fold),
+                           Vector2(x: r, y: t + fold), mixTone(page, ink, 0.25))
+    drawSmoothLine(Vector2(x: r - fold, y: t), Vector2(x: r - fold, y: t + fold), line, ink)
+    drawSmoothLine(Vector2(x: r - fold, y: t + fold), Vector2(x: r, y: t + fold), line, ink)
+    drawSmoothLine(Vector2(x: r - fold, y: t), Vector2(x: r, y: t + fold), line, ink)
+    for i in 0 .. 2:
+      let ly = t + s * (0.42 + 0.14 * float32(i))
+      drawSmoothLine(Vector2(x: l + s * 0.12, y: ly), Vector2(x: r - s * 0.12, y: ly),
+                     line * 0.8, mixTone(ink, page, 0.45))
+  of riParent:
+    # an arrow that goes up and turns left: "back to the folder above"
+    let cx = x + s * 0.62
+    drawSmoothLine(Vector2(x: cx, y: y + s * 0.85), Vector2(x: cx, y: y + s * 0.25), line * 1.4, ink)
+    drawSmoothLine(Vector2(x: cx, y: y + s * 0.2), Vector2(x: cx - s * 0.25, y: y + s * 0.45), line * 1.4, ink)
+    drawSmoothLine(Vector2(x: cx, y: y + s * 0.2), Vector2(x: cx + s * 0.25, y: y + s * 0.45), line * 1.4, ink)
+
 proc drawListItem*(rect: Rect, text: string, props: ThemeProps,
-                   selected = false, hovered = false, focused = false) =
-  ## List item = selection background + padded text
+                   selected = false, hovered = false, focused = false,
+                   icon = riNone) =
+  ## List item = selection background + optional icon + padded text
   ## (same as menu item but without submenu arrow)
   drawSelectionBackground(rect, props, selected, hovered)
-  drawThemedPaddedText(text, rect, if selected: selectedRowProps(props) else: props)
+  let row = if selected: selectedRowProps(props) else: props
+  if icon == riNone:
+    drawThemedPaddedText(text, rect, row)
+    return
+  let inset = props.fieldInset
+  let side = min(16.0'f32, rect.height - 4)
+  drawRowIcon(Rect(x: rect.x + inset, y: rect.y + (rect.height - side) / 2,
+                   width: side, height: side), icon, row)
+  drawThemedPaddedText(text, Rect(x: rect.x + side + 6, y: rect.y,
+                                  width: rect.width - side - 6, height: rect.height), row)
 
 proc drawComboBox*(rect: Rect, text: string, props: ThemeProps,
                    isOpen = false, hovered = false, focused = false) =

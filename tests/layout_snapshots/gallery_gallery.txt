@@ -107,7 +107,16 @@ VStack gallery @0,0 1000x720
             ColorPopup - @84,242 236x220 floating
           Label - @276,201 84x23
         Label - @12,254 976x23
-        FilePicker pickers.files @12,289 600x240 tabstop
+        FilePicker pickers.files @12,289 600x240
+          VStack - @12,289 600x240
+            Row - @12,289 600x41
+              Breadcrumbs - @12,295 422x28
+                Crumb - @12,297 18x24 tabstop
+                Crumb - @44,297 64x24 tabstop
+                Crumb - @122,297 53x24 tabstop
+                Crumb - @189,297 53x24 tabstop
+              TextInput - @442,289 170x41 tabstop
+            ListBox - @12,336 600x193 tabstop
     VStack - @0,83 1000x772 hidden
       Column layout @12,95 976x748
         Wrap - @12,95 976x102
@@ -313,5 +322,38 @@ VStack gallery @0,0 1000x720
         TextArea live.doc @12,440 700x220 tabstop
   MessageBox menus.messagebox @0,0 1000x720 hidden tabstop
   FileDialog menus.filedialog @0,0 1000x720 hidden tabstop
+    VStack - @122,152 756x446
+      HStack - @122,152 756x402
+        FilePicker - @122,152 496x402
+          VStack - @122,152 496x402
+            Row - @122,152 496x41
+              Breadcrumbs - @122,158 318x28
+                Crumb - @122,160 18x24 tabstop
+                Crumb - @154,160 64x24 tabstop
+                Crumb - @232,160 53x24 tabstop
+                Crumb - @299,160 53x24 tabstop
+              TextInput - @448,152 170x41 tabstop
+            ListBox - @122,199 496x355 tabstop
+        SidePane - @628,152 250x402 tabstop
+          VStack - @628,178 250x376
+            ListBox - @634,184 238x319 tabstop
+            Row - @634,509 238x39
+              Button - @634,509 106x39 tabstop
+                Rectangle - @634,509 106x39
+                Label - @650,517 74x23
+              Button - @746,509 80x39 tabstop
+                Rectangle - @746,509 80x39
+                Label - @762,517 48x23
+      Row - @122,564 756x34
+        Button - @122,561 151x39 tabstop
+          Rectangle - @122,561 151x39
+          Label - @138,569 119x23
+        Row - @281,581 405x0
+        Button - @694,561 94x39 tabstop
+          Rectangle - @694,561 94x39
+          Label - @710,569 62x23
+        Button - @796,561 82x39 tabstop
+          Rectangle - @796,561 82x39
+          Label - @812,569 50x23
   Dialog menus.dialog @0,0 1000x720 hidden tabstop
     Checkbox - @356,363 288x23 tabstop

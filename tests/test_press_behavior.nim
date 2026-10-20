@@ -73,11 +73,25 @@ let subjects = @[
       b,
     effects: proc(w: Widget): int = counts,
     disable: proc(w: Widget) = Expander(w).disabled = true),
+  Subject(name: "Crumb",
+    make: proc(): Widget =
+      let b = newCrumb(text = "docs"); counts = 0
+      b.onClick = proc() = inc counts
+      b,
+    effects: proc(w: Widget): int = counts,
+    disable: proc(w: Widget) = Crumb(w).disabled = true),
+  Subject(name: "SidePane",
+    make: proc(): Widget =
+      let b = newSidePane(title = "Chosen", width = 200); counts = 0
+      b.onToggle = proc(v: bool) = inc counts
+      b,
+    effects: proc(w: Widget): int = counts,
+    disable: proc(w: Widget) = SidePane(w).disabled = true),
 ]
 
 proc target(w: Widget): Point =
   ## Where to press: the middle, except an Expander, whose header is the top.
-  if w.getTypeName() == "Expander": Point(x: w.bounds.x + 10, y: w.bounds.y + 8)
+  if w.getTypeName() in ["Expander", "SidePane"]: Point(x: w.bounds.x + 10, y: w.bounds.y + 8)
   else: centre(w)
 
 suite "every button-like widget presses the same way":

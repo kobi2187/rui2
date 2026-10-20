@@ -34,6 +34,7 @@ import rui_core
 import text_buffer
 export text_buffer
 import ../text_content
+import ../clicks
 export text_content
 import rui_drawing
 import ../containers/scroll_geometry
@@ -415,21 +416,6 @@ template travel(widget: untyped, forward: bool): bool =
       widget.writeBack(buf, beforeText)
     moved
 
-template multiClickWindow(): Duration =
-  ## The user's double-click speed.
-  initDuration(milliseconds = prefs.doubleClickMs)
-
-template countClick(widget: untyped, at: MonoTime): int =
-  ## 1, 2 or 3: a click, a double-click or a triple-click. A click within the
-  ## window of the last one continues the run; anything slower starts over.
-  block:
-    if widget.clickCount > 0 and at - widget.lastClickAt <= multiClickWindow():
-      widget.clickCount = min(widget.clickCount + 1, 3)
-    else:
-      widget.clickCount = 1
-    widget.lastClickAt = at
-    widget.clickCount
-
 template ctrlKey(widget: untyped, event: GuiEvent): bool =
   ## The Ctrl shortcuts. False for a Ctrl chord this widget does not use, so
   ## the key still reaches focus navigation and the application.
@@ -678,8 +664,7 @@ definePrimitive(TextArea):
     dragging: bool
     goalColumn: int              # Column Up/Down aim for; -1 outside a run
     history: EditHistory         # Undo/redo; a script sees only the depths
-    clickCount: int              # 1..3 within a multi-click run, 0 before any
-    lastClickAt: MonoTime
+    clicks: ClickRun             # a click, double- or triple-click (clicks.nim)
     scrollX: float32             # How far the text is scrolled, so the caret
     scrollY: float32             # stays in view
     revealCaret: bool            # scroll to the caret at the next paint
@@ -738,7 +723,7 @@ definePrimitive(TextArea):
           widget.scrollToThumbAt(event.mousePos.y, lineH, inner)
           return true
       let at = widget.indexAt(event.mousePos)
-      case widget.countClick(event.timestamp)
+      case widget.clicks.countClick(event.timestamp)
       of 2:
         if widget.secret:
           widget.edit: buf.selectAll()           # no word lengths to reveal

@@ -7,6 +7,48 @@ VStack root @0,0 680x560
     Rectangle - @20,107 640x39
     Label - @36,115 608x23
   Label t1 @20,158 640x23
-  FilePicker embedded @20,193 600x260 tabstop
+  FilePicker embedded @20,193 600x260
+    VStack - @20,193 600x260
+      Row - @20,193 600x41
+        Breadcrumbs - @20,199 422x28
+          Crumb - @20,201 18x24 tabstop
+          Crumb - @52,201 64x24 tabstop
+          Crumb - @130,201 53x24 tabstop
+          Crumb - @197,201 53x24 tabstop
+        TextInput - @450,193 170x41 tabstop
+      ListBox - @20,240 600x213 tabstop
   MessageBox confirm @0,0 680x560 hidden tabstop
   FileDialog fileDialog @0,0 680x560 hidden tabstop
+    VStack - @22,72 636x446
+      HStack - @22,72 636x402
+        FilePicker - @22,72 376x402
+          VStack - @22,72 376x402
+            Row - @22,72 376x41
+              Breadcrumbs - @22,78 198x28
+                Crumb - @0,8 18x24 hidden tabstop
+                Crumb - @32,8 64x24 hidden tabstop
+                Crumb - @55,80 53x24 tabstop
+                Crumb - @122,80 53x24 tabstop
+              TextInput - @228,72 170x41 tabstop
+            ListBox - @22,119 376x355 tabstop
+        SidePane - @408,72 250x402 tabstop
+          VStack - @408,98 250x376
+            ListBox - @414,104 238x319 tabstop
+            Row - @414,429 238x39
+              Button - @414,429 106x39 tabstop
+                Rectangle - @414,429 106x39
+                Label - @430,437 74x23
+              Button - @526,429 80x39 tabstop
+                Rectangle - @526,429 80x39
+                Label - @542,437 48x23
+      Row - @22,484 636x34
+        Button - @22,481 151x39 tabstop
+          Rectangle - @22,481 151x39
+          Label - @38,489 119x23
+        Row - @181,501 285x0
+        Button - @474,481 94x39 tabstop
+          Rectangle - @474,481 94x39
+          Label - @490,489 62x23
+        Button - @576,481 82x39 tabstop
+          Rectangle - @576,481 82x39
+          Label - @592,489 50x23

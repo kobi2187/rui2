@@ -30,7 +30,7 @@
 ##
 ## No macro involved, same scripting support.
 
-import std/[json, strutils, options]
+import std/[json, strutils, options, sets, algorithm]
 import types
 
 type
@@ -198,6 +198,16 @@ proc baseScriptableState*(widget: Widget, typeName: string): JsonNode =
       "height": widget.bounds.height
     }
   }
+
+proc `%`*[T](s: HashSet[T]): JsonNode =
+  ## A set (a list's selection) as a sorted array of its items. Without this,
+  ## `compiles(%value)` below said yes to a HashSet -- it is an object -- and the
+  ## generic object encoder then failed on its internals, breaking the build
+  ## of any widget whose prop list happened to change the instantiation order.
+  var items: seq[T]
+  for x in s: items.add x
+  when compiles(items.sort()): items.sort()
+  %items
 
 template reportField*(dst: JsonNode, widget: Widget, key: string,
                       value: untyped) =

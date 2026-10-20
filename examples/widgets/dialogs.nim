@@ -1,6 +1,7 @@
 ## Dialogs
 ##
 ## MessageBox and FileDialog as modals, FilePicker embedded in the page.
+## The FileDialog collects files from several folders into its Chosen pane.
 ##
 ## The two modals size their bounds to the whole screen. That is not laziness:
 ## renderPass draws every widget into a render texture sized to its own bounds,
@@ -36,12 +37,12 @@ askBtn.onClick = proc() = confirm.show()
 root.addChild(askBtn)
 
 # FileDialog ---------------------------------------------------------------
-let picker = newFileDialog(title = "Open a Nim file", mode = fdOpen,
-                           filters = @["*.nim"], initialPath = ".",
-                           dialogWidth = 600.0,
-                           dialogHeight = 400.0).named("fileDialog")
+# Browse, filter by name, and gather files from any folders into the Chosen
+# pane; Open hands them all over -- here as text, one path per line.
+let picker = newFileDialog(title = "Open Nim files", mode = fdOpen,
+                           filters = @["*.nim"], initialPath = ".").named("fileDialog")
 picker.onSelect = proc(files: seq[string]) =
-  report("filedialog -> " & files.join(", "))
+  report("filedialog -> " & $files.len & " file(s):\n" & files.asLines)
 picker.onCancel = proc() = report("filedialog cancelled")
 
 let openBtn = newButton(text = "Show FileDialog").named("openBtn")

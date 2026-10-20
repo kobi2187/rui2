@@ -8,6 +8,13 @@ import rui
 import ui_harness
 from raylib import KeyboardKey
 
+proc buttonNamed(root: Widget, text: string): Widget =
+  ## The Button captioned `text` somewhere under `root`.
+  if root of Button and Button(root).text == text: return root
+  for c in root.children:
+    let hit = c.buttonNamed(text)
+    if hit != nil: return hit
+
 type Modal = object
   name: string
   make: proc(): Widget
@@ -29,10 +36,7 @@ let modals = @[
         make: proc(): Widget = newFileDialog(dialogWidth = 360.0, dialogHeight = 240.0),
         show: proc(w: Widget) = FileDialog(w).show(),
         isOpen: proc(w: Widget): bool = FileDialog(w).isVisible,
-        answer: proc(w: Widget): Point =
-          let d = FileDialog(w)
-          let b = cancelRect(panelRect(d.bounds, d.dialogWidth, d.dialogHeight))
-          Point(x: b.x + b.width / 2, y: b.y + b.height / 2)),
+        answer: proc(w: Widget): Point = centre(w.buttonNamed("Cancel"))),
   Modal(name: "Dialog",
         make: proc(): Widget =
           let d = newDialog(title = "x", closeOnBackdrop = true)

@@ -1,19 +1,24 @@
 ## FilePicker Widget - RUI2
 ##
-## An embeddable file picker: a path strip on top, a scrollable directory
-## listing below. Unlike FileDialog it is not modal and has no buttons -- drop
-## it into any container and listen to onSelect.
+## An embeddable file browser, built from real widgets: Breadcrumbs for the
+## path (click a step to go back up to it), a SearchInput that filters the
+## names as you type ("draft", "*.nim"), and a ListBox of the directory with a
+## folder or page icon on each row. Not modal and without buttons -- drop it
+## into any container; FileDialog is this picker in a modal with buttons.
+##
+## A click selects (ctrl-click adds, with `multiSelect`); a double-click or
+## Enter opens a folder, or *activates* a file (`onActivate`): what a dialog
+## takes as "open this one".
 
 import rui_core
 import rui_drawing
 import file_listing
-import ../virtual_rows
-import ../list_input
-import std/[options, os, sets, strutils]
+import ../basic/[breadcrumbs, listbox]
+import ../input/textarea
+import ../layout/flex
+import std/[os, sets]
 
-export virtual_rows, list_input
-
-import raylib
+export file_listing
 
 type
   FilePickerMode* = enum
@@ -21,29 +26,16 @@ type
     fpSave              # Save a file
     fpDirectory         # Choose a directory
 
-const
-  PathBarHeight = 28.0'f32
-  RowHeight = 20.0'f32
-  ListGap = 4.0'f32        ## Space between the path strip and the list
+const FilterWidth = 170.0'f32
 
-template listTopOf*(widget: untyped): float32 =
-  widget.bounds.y + PathBarHeight + ListGap
+proc iconFor(entry: string): RowIcon =
+  if entry == ParentEntry: riParent
+  elif entry.isDirectoryEntry: riFolder
+  else: riFile
 
-template viewportOf*(widget: untyped): RowViewport =
-  ## A template, not a proc: the FilePicker type does not exist until the macro
-  ## below has expanded, and the widget body needs this.
-  rowViewport(top = widget.listTopOf,
-              height = widget.bounds.height - PathBarHeight - ListGap,
-              rowHeight = RowHeight, scrollY = widget.scrollY)
-
-template openDirectory*(widget: untyped, path: string) =
-  ## Move to `path` and re-read it. The selection and scroll belong to the
-  ## directory you left, so both are dropped.
-  widget.currentPath = path
-  widget.fileList = listEntries(path, widget.filters,
-                                widget.mode == fpDirectory)
-  widget.selectedFiles.clear()
-  widget.scrollY = 0
+proc rebuildList(widget: Widget)
+proc openDirectory*(widget: Widget, path: string)
+proc pathOf*(widget: Widget, entry: string): string
 
 definePrimitive(FilePicker):
   props:
@@ -55,102 +47,110 @@ definePrimitive(FilePicker):
 
   state:
     currentPath: string
+    fileList: seq[string]        # the directory, ".." first, before the name filter
+    shown: seq[string]           # what the list shows: fileList through the name filter
+    nameFilter: string
     selectedFiles: HashSet[string]
-    fileList: seq[string]
-    scrollY: float32
-    hoverIndex: int
-    loaded: bool                 # Directory has been scanned at least once
+    crumbs: Breadcrumbs
+    filterBox: TextInput
+    list: ListBox
+    loaded: bool                 # the directory has been read at least once
 
   actions:
     onSelect(paths: HashSet[string])
     onPathChange(path: string)
+    onActivate(path: string)     # a double-click or Enter on a file
 
   init:
-    widget.focusable = true
-
-  events:
-    on_mouse_down:
-      let idx = viewportOf(widget).rowAt(event.mousePos.y, widget.fileList.len)
-      if idx < 0:
-        return false
-
-      let entry = widget.fileList[idx]
-      # Directories navigate; only files are selectable.
-      let dest = navigatedPath(widget.currentPath, entry)
-      if dest.len > 0:
-        widget.openDirectory(dest)
-        widget.isDirty = true
-        if widget.onPathChange != nil:
-          widget.onPathChange(widget.currentPath)
-        return true
-
-      # A single-select picker ignores ctrl rather than quietly multi-selecting.
-      let additive = widget.multiSelect and event.ctrl
-      updateSelection(widget.selectedFiles, widget.currentPath / entry, additive)
-
-      widget.isDirty = true
-      if widget.onSelect != nil:
-        widget.onSelect(widget.selectedFiles)
-      return true
-
-    on_mouse_move:
-      let newHover = viewportOf(widget).rowAt(event.mousePos.y,
-                                              widget.fileList.len)
-      if newHover != widget.hoverIndex:
-        widget.hoverIndex = newHover
-        widget.isDirty = true
-      return false
-
-    on_mouse_wheel:
-      let newScroll = viewportOf(widget).scrolledBy(event.wheelDelta,
-                                                    widget.fileList.len)
-      if newScroll != widget.scrollY:
-        widget.scrollY = newScroll
-        widget.isDirty = true
-      return true
+    let picker = widget
+    widget.crumbs = newBreadcrumbs(intent = widget.intent)
+    widget.crumbs.onNavigate = proc(path: string) = picker.openDirectory(path)
+    widget.filterBox = newSearchInput(placeholder = "Filter names")
+    widget.filterBox.onChange = proc(text: string) =
+      picker.nameFilter = text
+      picker.rebuildList()
+    widget.list = newListBox(multiSelect = widget.multiSelect, intent = widget.intent)
+    widget.list.onSelect = proc(rows: HashSet[int]) =
+      picker.selectedFiles.clear()
+      for i in rows:
+        if i < picker.shown.len and picker.shown[i] != ParentEntry:
+          picker.selectedFiles.incl picker.pathOf(picker.shown[i])
+      if picker.onSelect != nil: picker.onSelect(picker.selectedFiles)
+    widget.list.onItemActivate = proc(i: int) =
+      if i >= picker.shown.len: return
+      let entry = picker.shown[i]
+      let dest = navigatedPath(picker.currentPath, entry)
+      if dest.len > 0: picker.openDirectory(dest)
+      elif picker.onActivate != nil: picker.onActivate(picker.pathOf(entry))
+    let bar = newRow(spacing = 8.0, crossAxisAlignment = CrossAxisAlignment.center)
+    bar.addChild(widget.crumbs.flex())
+    bar.addChild(widget.filterBox.frame(width = FilterWidth))
+    let column = newVStack(spacing = 6.0)
+    column.addChild(bar)
+    column.addChild(widget.list.flex())
+    widget.addChild(column)
 
   layout:
     # First layout is also when the directory gets read: a picker built from the
     # DSL constructor has no chance to run code of its own before this.
     if not widget.loaded:
-      if widget.currentPath.len == 0:
-        widget.currentPath = widget.initialPath
-      widget.fileList = listEntries(widget.currentPath, widget.filters,
-                                    widget.mode == fpDirectory)
       widget.loaded = true
+      widget.openDirectory(if widget.currentPath.len > 0: widget.currentPath
+                           else: widget.initialPath)
+    if widget.bounds.width <= 0: widget.bounds.width = 420.0
+    if widget.bounds.height <= 0: widget.bounds.height = 300.0
+    widget.children[0].arrange(widget.bounds)
 
-    if widget.bounds.width <= 0:
-      widget.bounds.width = 300.0'f32
-    if widget.bounds.height <= 0:
-      widget.bounds.height = PathBarHeight + 4 + RowHeight * 10
+proc pathOf*(widget: Widget, entry: string): string =
+  ## The full path of a listed entry, without a directory's trailing "/".
+  let picker = FilePicker(widget)
+  picker.currentPath / (if entry.isDirectoryEntry and entry != ParentEntry: entry[0 ..< ^1]
+                        else: entry)
 
-  render:
-    let props = currentTheme.getThemeProps(widget.intent, Normal)
+proc rebuildList(widget: Widget) =
+  ## Show the directory through the name filter, with an icon per row. The
+  ## selection belonged to the rows that were there, so it goes.
+  let picker = FilePicker(widget)
+  picker.shown.setLen(0)
+  var icons: seq[RowIcon]
+  var names: seq[string]
+  for entry in picker.fileList:
+    if entry.matchesName(picker.nameFilter):
+      picker.shown.add entry
+      icons.add iconFor(entry)
+      # the folder icon says it is a folder; the "/" listEntries marks it with need not
+      names.add (if entry != ParentEntry and entry.isDirectoryEntry: entry[0 ..< ^1] else: entry)
+  let list = picker.list
+  list.items = names
+  list.icons = icons
+  list.selection.clear()
+  list.focusIndex = 0
+  list.scrollY = 0
+  list.layoutDirty = true
+  list.markDirtyToRoot()
+  if picker.selectedFiles.len > 0:
+    picker.selectedFiles.clear()
+    if picker.onSelect != nil: picker.onSelect(picker.selectedFiles)
 
-    let pathRect = Rect(x: widget.bounds.x, y: widget.bounds.y,
-                        width: widget.bounds.width, height: PathBarHeight)
-    drawInteractiveBox(pathRect, props)
-    drawThemedPaddedText(widget.currentPath, pathRect, props)
-
-    let v = viewportOf(widget)
-    let list = Rect(x: widget.bounds.x, y: v.top,
-                    width: widget.bounds.width, height: v.height)
-    drawThemedBackground(list, props)
-
-    let clip = beginClip(list)
-    for i in v.visibleRange(widget.fileList.len):
-      let entry = widget.fileList[i]
-      drawListItem(Rect(x: list.x, y: v.rowTop(i),
-                        width: list.width, height: RowHeight),
-                   entry, props,
-                   selected = (widget.currentPath / entry) in widget.selectedFiles,
-                   hovered = i == widget.hoverIndex)
-    endClip(clip)
-
-    drawThemedBorder(list, props)
+proc openDirectory*(widget: Widget, path: string) =
+  ## Go to `path` and read it: the breadcrumbs follow, the selection and scroll
+  ## belong to the directory you left. The name filter stays, as it does in
+  ## every file manager: you are looking for the same kind of thing.
+  let picker = FilePicker(widget)
+  let full = try: absolutePath(path).normalizedPath except OSError: path
+  picker.currentPath = full
+  picker.fileList = listEntries(full, picker.filters, picker.mode == fpDirectory)
+  picker.crumbs.path = full
+  picker.crumbs.layoutDirty = true
+  picker.rebuildList()
+  if picker.onPathChange != nil: picker.onPathChange(full)
 
 proc refresh*(widget: FilePicker) =
   ## Re-read the current directory, e.g. after something on disk changed.
-  widget.fileList = listEntries(widget.currentPath, widget.filters,
-                                widget.mode == fpDirectory)
-  widget.isDirty = true
+  widget.openDirectory(widget.currentPath)
+
+proc selectedPaths*(widget: FilePicker): seq[string] =
+  ## The selected entries as full paths, in the order they are listed.
+  for i, entry in widget.shown:
+    if i in widget.list.selection and entry != ParentEntry:
+      result.add widget.pathOf(entry)

@@ -380,8 +380,8 @@ proc menusTab(g: Gallery): Widget =
   ctx.addChild(newMenuItem(text = "Copy"))
   let confirm = newMessageBox(title = "Confirm", message = "Discard changes?",
                               messageType = mbQuestion, buttons = mbYesNoCancel).named("menus.messagebox")
-  let fileDialog = newFileDialog(title = "Open a Nim file", mode = fdOpen, filters = @["*.nim"],
-                                 initialPath = ".", dialogWidth = 560.0).named("menus.filedialog")
+  let fileDialog = newFileDialog(title = "Open Nim files", mode = fdOpen, filters = @["*.nim"],
+                                 initialPath = ".").named("menus.filedialog")
   let dialog = newDialog(title = "Settings", dialogWidth = 320.0).named("menus.dialog")
   dialog.addChild(newCheckbox(text = "Remember me"))
   g.dialogs.add [Widget(confirm), Widget(fileDialog), Widget(dialog)]

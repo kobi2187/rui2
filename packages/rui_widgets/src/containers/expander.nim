@@ -78,15 +78,8 @@ definePrimitive(Expander):
     let head = headerHeight(props)
     let color = props.foregroundColor.get(BLACK)
     # A chevron: points right collapsed, down open.
-    let cx = widget.bounds.x + head / 2
-    let cy = widget.bounds.y + head / 2
-    let r = head / 6
-    if widget.expanded:
-      drawLine(cx - r, cy - r / 2, cx, cy + r / 2, color, 2)
-      drawLine(cx, cy + r / 2, cx + r, cy - r / 2, color, 2)
-    else:
-      drawLine(cx - r / 2, cy - r, cx + r / 2, cy, color, 2)
-      drawLine(cx + r / 2, cy, cx - r / 2, cy + r, color, 2)
+    drawChevron(Vector2(x: widget.bounds.x + head / 2, y: widget.bounds.y + head / 2),
+                head / 3, if widget.expanded: cwDown else: cwRight, color)
     let style = props.captionStyle(color, action = true)
     drawStyledText(widget.title, widget.bounds.x + head,
                    widget.bounds.y + (head - style.fontSize) / 2, style)
