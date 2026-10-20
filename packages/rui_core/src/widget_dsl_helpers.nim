@@ -210,22 +210,22 @@ proc genPropAccessors*(typeName: NimNode, prop: PropDef): NimNode =
   result.add quote do:
     proc `getter`(`w`: `typeName`): var `typ` {.inline.} = `w`.`field`
     proc `setter`(`w`: `typeName`, `v`: `typ`) =
-      when compiles(`w`.`field` == `v`):
+      # Only plain values are compared: `compiles(a == b)` says yes to some
+      # objects whose `==` then fails to instantiate. For anything else an
+      # unneeded redraw is cheap and a missed one is the bug this prevents.
+      when `v` is SomeNumber or `v` is string or `v` is bool or `v` is enum or `v` is char:
         if `w`.`field` == `v`: return
       `w`.`field` = `v`
       `w`.layoutDirty = true
       `w`.markDirtyToRoot()
 
 proc genStateField*(state: StateDef): NimNode =
-  ## Generate plain type field for state.
-  ## Exported, like props: state is read by app code and by the scripting
-  ## bridge, both of which live outside the widget's defining module.
+  ## The field behind a state variable: private to the widget's module, like a
+  ## prop's. App code and the scripting bridge read it, and set it, through
+  ## the same accessors (genPropAccessors), so `label.text = "..."` from
+  ## outside redraws the label -- it used to change the field and nothing else.
   let fieldName = newIdentNode(state.name.strVal)
-  nnkIdentDefs.newTree(
-    nnkPostfix.newTree(ident("*"), fieldName),
-    state.typ,
-    newEmptyNode()
-  )
+  nnkIdentDefs.newTree(fieldName, state.typ, newEmptyNode())
 
 proc actionProcType*(action: ActionDef): NimNode =
   ## `proc(x: T, y: U): R {.closure.}` for one declared action.

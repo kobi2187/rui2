@@ -105,10 +105,15 @@ proc buildWidgetType(name: NimNode, sections: WidgetSections): NimNode =
 # ============================================================================
 
 proc buildPropAccessors(name: NimNode, sections: WidgetSections): NimNode =
-  ## The getter and dirty-marking setter of every prop (genPropAccessors).
+  ## The getter and dirty-marking setter of every prop and state variable
+  ## (genPropAccessors): assigned from outside the widget's module, either one
+  ## redraws it.
   result = newStmtList()
   for prop in sections.props:
     result.add genPropAccessors(makeWidgetTypeName(name), prop)
+  for state in sections.state:
+    result.add genPropAccessors(makeWidgetTypeName(name),
+                                PropDef(name: state.name, typ: state.typ, default: newEmptyNode()))
 
 proc buildConstructorParams(sections: WidgetSections): seq[NimNode] =
   ## Build parameter list for constructor

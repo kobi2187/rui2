@@ -38,6 +38,19 @@ suite "shaped window":
   test "the window takes the skin's size":
     check seenSize == (420'i32, 420'i32)
 
+  test "the skin stops short of the window's corner, so the widgets are laid out in its box":
+    let box = app.shaped.shapeBox
+    let content = app.contentBounds
+    check content == Rect(x: box.x.float32, y: box.y.float32,
+                          width: box.w.float32, height: box.h.float32)
+    check root.bounds.x == content.x and root.bounds.width == content.width
+
+  test "a BeOS-style shape (a tab over a full body) keeps the whole window":
+    let tabbed = newApp("tabbed", 400, 300)
+    tabbed.setWindowShape(proc(x, y: float32): float32 =
+      if y < 24: (if x < 150: 1 else: 0) else: 1)
+    check tabbed.contentBounds == Rect(x: 0, y: 0, width: 400, height: 300)
+
   test "placeShape puts the visible shape's corner where asked, not the window's":
     let box = app.shaped.shapeBox
     check box.x > 0 and box.y > 0              # the skin has a transparent margin

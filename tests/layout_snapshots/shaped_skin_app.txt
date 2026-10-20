@@ -1,4 +1,4 @@
-Column - @0,0 420x420
+Column - @20,10 381x351
   Label - @70,130 181x23
   Label - @70,163 161x23
   Label counter @70,196 141x23

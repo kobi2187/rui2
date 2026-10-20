@@ -47,6 +47,23 @@ suite "the shape's bounds":
     check rects.boundingBox == ShapeRect(x: 20, y: 10, w: 380, h: 350)
     check newSeq[ShapeRect]().boundingBox == ShapeRect()
 
+suite "where the widgets go":
+  test "a shape reaching the window's bottom-right corner lets content use the whole window":
+    # a BeOS-style window: a rectangle with the corner beside its tab cut away
+    let tabbed = @[ShapeRect(x: 0, y: 0, w: 150, h: 24),      # the title tab
+                   ShapeRect(x: 0, y: 24, w: 400, h: 276)]    # the body below it
+    check tabbed.boundingBox.contentArea(400, 300) == ShapeRect(x: 0, y: 0, w: 400, h: 300)
+
+  test "a shape inside a margin holds the content to its box":
+    check ShapeRect(x: 19, y: 9, w: 382, h: 352).contentArea(420, 420) ==
+          ShapeRect(x: 19, y: 9, w: 382, h: 352)
+    # reaching the right edge but not the bottom is still short of the corner
+    check ShapeRect(x: 0, y: 0, w: 420, h: 300).contentArea(420, 420) ==
+          ShapeRect(x: 0, y: 0, w: 420, h: 300)
+
+  test "no shape at all: the whole window":
+    check ShapeRect().contentArea(300, 200) == ShapeRect(x: 0, y: 0, w: 300, h: 200)
+
 suite "choosing a method":
   test "X11: compositor gives see-through with click-through; without, an OS shape":
     var c = ShapeCaps(platform: spX11, x11: true, shapeExt: true, compositor: true, argbVisual: true)

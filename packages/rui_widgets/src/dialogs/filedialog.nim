@@ -180,7 +180,7 @@ proc chosenChanged(widget: Widget) =
       icons.add (if dirExists(p): riFolder else: riFile)
     dlg.chosenList.items = rows                 # props: their setters redraw
     dlg.chosenList.icons = icons
-    dlg.chosenList.selection.clear()            # state: no setter, so repaint by hand
+    dlg.chosenList.selection.clear()            # changed in place: no setter runs, so repaint by hand
     dlg.chosenList.markDirtyToRoot()
     dlg.pane.summary = (if dlg.chosen.len > 0: $dlg.chosen.len else: "")
   dlg.okButton.text = okLabelFor(dlg.mode, dlg.chosen.len)

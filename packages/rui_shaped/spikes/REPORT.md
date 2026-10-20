@@ -175,6 +175,15 @@ Dragging moved the window exactly with the pointer in each.
      `app.shapeBounds` is the shape's rectangle on screen, and
      `app.placeWindow(x, y)` places the window itself, for any app. All of
      these work before `run`.
+   - **Where the widgets go:** a shape that reaches the window's bottom-right
+     corner (a rectangle with a tab cut away, BeOS-style) lets the content
+     use the whole window, overflow into the cut-away corner included. One
+     that stops short of it is an odd shape inside a margin, and the root is
+     laid out in the shape's bounding box instead, so wrapping and
+     stretching containers stop at the shape. `setWindowShape(...,
+     contentArea = some(rect))` sets the area outright, for a round skin's
+     safe area. `app.contentBounds` reports it. It's computed from the
+     PNG's alpha on the CPU, so headless layout dumps see it too.
 4. **Check it.** `examples/shaped/skin_app.nim` is the example.
    `tests/gl/shaped_window.nim` checks under Xvfb that the method chosen
    there is the OS shape and that the app exits cleanly.

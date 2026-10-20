@@ -197,3 +197,12 @@ suite "props redraw when set":
     let l = newListBox(items = @["a"])
     l.items.add "b"
     check l.items == @["a", "b"]
+
+  test "state assigned from outside redraws too: a Label's text":
+    let l = newLabel(text = "count 0")      # `text` is TextArea state, not a prop
+    let host = newVStack()
+    host.addChild(l)
+    l.layoutDirty = false; l.isDirty = false; host.isDirty = false
+    l.text = "count 1"
+    check l.text == "count 1"
+    check l.layoutDirty and l.isDirty and host.isDirty

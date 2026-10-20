@@ -17,7 +17,9 @@ app.placeShape(60, 40)       # the visible shape's corner, not the window's (the
 var count = 0
 let counter = newLabel(text = "Clicked 0 times").named("counter")
 let root = ui:
-  Column(spacing = 10.0, padding = EdgeInsets(left: 70, top: 130, right: 150, bottom: 0),
+  # Laid out in the shape's box (the skin stops short of the window's corner),
+  # so the padding counts from the shape, not the window.
+  Column(spacing = 10.0, padding = EdgeInsets(left: 50, top: 120, right: 130, bottom: 0),
          crossAxisAlignment = CrossAxisAlignment.start):
     Label(text = "A shaped window", bold = true)
     Label(text = "Drag me to move")

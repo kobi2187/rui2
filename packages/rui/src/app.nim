@@ -109,8 +109,8 @@ type
       shapeSkin: Option[Texture2D]   # none before closeWindow: a texture outliving the GL context crashes
       shapeFunc: proc(x, y: float32): float32 {.closure.}
       shapeDrag: DragMove
-      shapeFitWindow: bool             # size the window to the skin
       pendingShapePos: Option[(int, int)]  # placeShape before the shape is known
+      shapeContent: Option[Rect]       # where the root is laid out (contentArea)
 
     # Idling
     idleWhenClean*: bool
@@ -231,6 +231,13 @@ proc setStore*(app: App, store: Store) =
   ## Set the application store
   app.store = store
 
+proc rootRect(app: App): Rect =
+  ## Where the root widget is laid out: the window, or -- for a shaped window
+  ## whose shape stops short of the window's corner -- the shape's box.
+  when defined(ruiShaped):
+    if app.shapeContent.isSome: return app.shapeContent.get
+  Rect(x: 0, y: 0, width: app.window.width.float32, height: app.window.height.float32)
+
 proc setRootWidget*(app: App, root: Widget) =
   ## Set the root widget and trigger initial layout + render.
   ##
@@ -246,9 +253,7 @@ proc setRootWidget*(app: App, root: Widget) =
   # through addChild, so the structure version would not notice on its own.
   app.focusManager.markDirty()
   app.hoverTracker.clear()
-  root.bounds = Rect(x: 0, y: 0,
-                     width: app.window.width.float32,
-                     height: app.window.height.float32)
+  root.bounds = app.rootRect
   root.layoutDirty = true
   root.isDirty = true
   app.tree.anyDirty = true
@@ -492,23 +497,51 @@ proc setWindowSize*(app: App, width, height: int) =
   app.tree.anyDirty = true  # Trigger relayout
 
 when defined(ruiShaped):
+  proc settleContent(app: App, rects: seq[ShapeRect], contentArea: Option[Rect]) =
+    ## Decide where the widgets go (rui_shaped's contentArea, or the app's own
+    ## rect) and move the root there if it is already set.
+    let r = if contentArea.isSome: contentArea.get
+            else:
+              let c = rects.boundingBox.contentArea(app.window.width, app.window.height)
+              Rect(x: c.x.float32, y: c.y.float32, width: c.w.float32, height: c.h.float32)
+    app.shapeContent = some(r)
+    if app.tree.root != nil:
+      app.tree.root.bounds = r
+      app.tree.root.layoutDirty = true
+      app.tree.root.isDirty = true
+
   proc setWindowShape*(app: App, skinPng: string, softEdges = true, clickThrough = true,
-                       fitWindow = true) =
+                       fitWindow = true, contentArea = none(Rect)) =
     ## Make the window the shape of `skinPng`: its alpha is the outline, its
     ## pixels are drawn behind the widgets. Call before `run`. The method
     ## (see-through, OS-clipped, or a plain rectangle where neither works) is
     ## chosen when the window opens, from what the machine can do; the window
     ## is undecorated and a fixed size, and dragging its background moves it.
     ## `fitWindow`: the window takes the skin's size, whatever newApp was given.
+    ## The widgets are laid out in the window when the shape reaches its
+    ## bottom-right corner, else in the shape's box (see contentArea);
+    ## `contentArea` sets that rect (window coordinates) instead -- a round
+    ## skin's safe area, say.
     app.shapeWanted = true
-    app.shapeFitWindow = fitWindow
     app.shapeSkinPath = skinPng
     app.shapeSoftEdges = softEdges
     app.shapeClickThrough = clickThrough
     app.window.resizable = false
+    # The skin's size and outline are known now, on the CPU, with no window:
+    # layout (and a headless layout dump) sees the same content rect as the app.
+    let skin = loadImage(skinPng)
+    if skin.width <= 0: return
+    if fitWindow:
+      app.window.width = skin.width
+      app.window.height = skin.height
+    let colors = loadImageColors(skin)
+    var m = AlphaMask(width: skin.width, height: skin.height,
+                      alpha: newSeq[uint8](skin.width * skin.height))
+    for i in 0 ..< m.alpha.len: m.alpha[i] = colors[i].a
+    app.settleContent(m.toRects, contentArea)
 
   proc setWindowShape*(app: App, inside: proc(x, y: float32): float32 {.closure.},
-                       softEdges = true, clickThrough = true) =
+                       softEdges = true, clickThrough = true, contentArea = none(Rect)) =
     ## A procedural shape: `inside` gives 0 outside .. 1 inside for a point of
     ## the window. The app draws the look itself (a background widget, a
     ## shader); outside the shape stays see-through or clipped.
@@ -517,6 +550,8 @@ when defined(ruiShaped):
     app.shapeSoftEdges = softEdges
     app.shapeClickThrough = clickThrough
     app.window.resizable = false
+    app.settleContent(rectsFromFunc(app.window.width, app.window.height, inside, step = 2),
+                      contentArea)
 
   proc reshapeWindow*(app: App, inside: proc(x, y: float32): float32 {.closure.}, step = 3) =
     ## Change a procedural shape while running (an animated outline). The
@@ -524,6 +559,11 @@ when defined(ruiShaped):
     ## resent.
     app.shapeFunc = inside
     app.shaped.setShape(app.window.width, app.window.height, inside, step)
+
+  proc contentBounds*(app: App): Rect =
+    ## Where the widgets are laid out, in window coordinates: the whole
+    ## window, the shape's box, or the app's contentArea.
+    app.rootRect
 
   proc shapeBounds*(app: App): Rect =
     ## Where the visible shape is on the screen: its bounding box, which in a
@@ -1093,12 +1133,6 @@ proc openWindow(app: App) =
       # and a see-through framebuffer where a compositor can show one).
       app.shaped = prepareShapedWindow(app.shapeSoftEdges, app.shapeClickThrough,
                                        backdrop = currentTheme.canvasColor())
-      if app.shapeFitWindow and app.shapeSkinPath.len > 0:
-        # The window is the skin: its size, not whatever newApp was given.
-        let skin = loadImage(app.shapeSkinPath)       # CPU only: no window needed
-        if skin.width > 0:
-          app.window.width = skin.width
-          app.window.height = skin.height
   initWindow(app.window.width.int32, app.window.height.int32, app.window.title)
   if app.pendingWindowPos.isSome:
     let (x, y) = app.pendingWindowPos.get

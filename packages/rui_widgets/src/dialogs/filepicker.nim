@@ -123,7 +123,7 @@ proc rebuildList(widget: Widget) =
   let list = picker.list
   list.items = names                    # props: their setters redraw
   list.icons = icons
-  list.selection.clear()               # state: no setter, so repaint by hand
+  list.selection.clear()               # changed in place: no setter runs, so repaint by hand
   list.focusIndex = 0
   list.scrollY = 0
   list.markDirtyToRoot()

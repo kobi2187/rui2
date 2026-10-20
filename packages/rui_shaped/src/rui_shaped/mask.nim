@@ -99,3 +99,18 @@ proc boundingBox*(rects: seq[ShapeRect]): ShapeRect =
     x0 = min(x0, r.x); y0 = min(y0, r.y)
     x1 = max(x1, r.x + r.w); y1 = max(y1, r.y + r.h)
   ShapeRect(x: x0, y: y0, w: x1 - x0, h: y1 - y0)
+
+proc contentArea*(box: ShapeRect, windowW, windowH: int): ShapeRect =
+  ## Where an app's widgets may go in a shaped window. A shape that reaches
+  ## the window's bottom-right corner -- a rectangle with a tab cut out, as
+  ## BeOS windows are -- lets the content use the whole window, overflowing
+  ## into the cut-away corner as such a window's content does. One that stops
+  ## short of it is an odd shape inside a margin, and the content is held to
+  ## the shape's bounding box, so containers do not lay widgets out where
+  ## nothing will be seen.
+  if box.w <= 0 or box.h <= 0:
+    return ShapeRect(x: 0, y: 0, w: windowW, h: windowH)
+  if box.x + box.w >= windowW and box.y + box.h >= windowH:
+    ShapeRect(x: 0, y: 0, w: windowW, h: windowH)
+  else:
+    box
