@@ -1,0 +1,33 @@
+Row - @0,0 760x520
+  Drawer drawer @0,0 170x520
+    Column - @0,0 170x520
+      Label - @14,14 68x23
+      Button goInbox @14,45 84x39 tabstop
+        Rectangle - @14,45 84x39
+        Label - @30,53 52x23
+      Button goCalendar @14,92 115x39 tabstop
+        Rectangle - @14,92 115x39
+        Label - @30,100 83x23
+      Button goNotes @14,139 85x39 tabstop
+        Rectangle - @14,139 85x39
+        Label - @30,147 53x23
+  Expanded - @170,0 590x520
+    Column - @170,0 590x520
+      Row - @186,16 558x39
+        Button menu @186,16 83x39 tabstop
+          Rectangle - @186,16 83x39
+          Label - @202,24 51x23
+        Button grow @277,16 79x39 tabstop
+          Rectangle - @277,16 79x39
+          Label - @293,24 47x23
+      Column moving @186,65 558x53
+        Label growing @186,65 558x24
+        Label follower @186,95 558x23
+      Expanded - @186,128 558x376
+        Accordion sections @186,128 558x376
+          Expander inbox @186,128 558x320 tabstop
+            ListBox mail @186,156 558x292 tabstop
+          Expander calendar @186,452 558x24 tabstop
+            Label today @0,0 400x23 clipped=214x0 hidden
+          Expander notes @186,480 558x24 tabstop
+            TextArea noteText @0,0 240x133 clipped=54x0 hidden tabstop

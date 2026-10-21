@@ -57,21 +57,30 @@ definePrimitive(Expander):
     let props = widget.themeProps(widget.intent, crPointer)
     let head = headerHeight(props)
     let titleW = measureText(widget.title, props.captionStyle(BLACK)).width + head
+    # The room under the header when a parent gave this a height: more than
+    # the content's own while it is open in an Accordion, and, while one is
+    # easing shut, what is left of it -- the content stays in sight until then.
+    let room = widget.bounds.height - head - contentGap(widget)
     var inner = Size()
     if widget.children.len > 0:
       let child = widget.children[0]
-      child.visible = widget.expanded
-      if widget.expanded:
+      child.visible = widget.expanded or room > 1
+      if child.visible:
         inner = child.measure(if widget.bounds.width > 0:
                                 unbounded().withWidth(widget.bounds.width)
                               else: unbounded())
     if widget.bounds.width <= 0: widget.bounds.width = max(titleW, inner.width)
     if widget.bounds.height <= 0:
       widget.bounds.height = head + (if widget.expanded: contentGap(widget) + inner.height else: 0.0'f32)
-    if widget.expanded and widget.children.len > 0:
-      widget.children[0].arrange(Rect(
-        x: widget.bounds.x, y: widget.bounds.y + head + contentGap(widget),
-        width: widget.bounds.width, height: inner.height))
+    if widget.children.len > 0 and widget.children[0].visible:
+      let child = widget.children[0]
+      # Content that asks for the leftover room (`.flex()`) gets it.
+      let h = if widget.expanded and child.flexGrow > 0: max(inner.height, room)
+              else: inner.height
+      child.arrange(Rect(x: widget.bounds.x, y: widget.bounds.y + head + contentGap(widget),
+                         width: widget.bounds.width, height: h))
+    widget.childClip = some(Rect(x: 0, y: head, width: widget.bounds.width,
+                                 height: max(0.0'f32, widget.bounds.height - head)))   # widget-local
 
   render:
     let props = widget.themeProps(widget.intent, crPointer, disabled = widget.disabled)

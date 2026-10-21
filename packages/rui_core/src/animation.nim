@@ -103,7 +103,10 @@ type
     epoch: int               ## `settleEpoch` as of its last `follow`
 
 proc newAnimated*[T](initial: T): Animated[T] =
-  Animated[T](value: initial, origin: initial, target: initial, seen: true)
+  # Made now, so it belongs to the current theme: a theme set before it was
+  # made is no reason to snap its first trip.
+  Animated[T](value: initial, origin: initial, target: initial, seen: true,
+              epoch: settleEpoch)
 
 proc isRunning*[T](a: Animated[T]): bool = a.running
 proc target*[T](a: Animated[T]): T = a.target

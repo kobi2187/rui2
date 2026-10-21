@@ -64,6 +64,7 @@ const elementMap*: seq[ElementMap] = @[
   em("dialog", "Dialog", mapSame, "MessageBox is the ready-made alert/confirm"),
   em("drawer", "Drawer", mapSame, "in the flow, not over the content"),
   em("expander", "Expander", mapSame),
+  em("accordion", "Accordion", mapSame, "one Expander open at a time"),
   em("spacer", "Spacer", mapSame),
   em("divider", "Separator", mapRename),
   # -- basic widgets ---------------------------------------------------------

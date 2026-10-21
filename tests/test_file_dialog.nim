@@ -157,9 +157,9 @@ suite "FileDialog":
     r.doubleClick(d.picker.list.rowCentre(d.picker.rowOf("notes.md")))
     r.click(d.pane.bounds.x + 60, d.pane.bounds.y + 10)      # its header
     check not d.pane.expanded
-    # It eases to the strip over the theme's transition time; what it is
-    # heading for is its measured size (headless frames do not advance easing).
-    check d.pane.measure(unbounded()).width == d.pane.stripWidth
+    # It eases to the strip over the theme's transition time (and measures
+    # where it is on the way, so what is beside it moves with it).
+    check d.pane.slide.target == 0.0
     check d.pane.summary == "1"
     r.click(d.pane.bounds.x + 8, d.pane.bounds.y + 60)       # anywhere on the strip
     check d.pane.expanded

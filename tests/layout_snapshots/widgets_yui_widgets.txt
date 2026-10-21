@@ -26,5 +26,5 @@ Row - @0,0 760x460
               ProgressBar - @216,268 240x14
           Label - @200,223 272x75 hidden
         Expander - @200,312 115x24 tabstop
-          Padding - @0,0 177x31 hidden
-            Checkbox - @0,4 177x23 tabstop
+          Padding - @0,0 177x31 clipped=0x0 hidden
+            Checkbox - @0,4 177x23 clipped=0x0 tabstop

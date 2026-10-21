@@ -66,10 +66,15 @@ proc preferencesFromJson*(node: JsonNode): tuple[prefs: Preferences,
         for c in result.prefs.keys.conflicts:
           result.problems.add "keys: " & c
       of "motion":
+        # YAML reads a bare `motion: off` as the boolean false (and `on` as
+        # true): take those as meant.
+        if value.kind == JBool:
+          result.prefs.reduceMotion = not value.getBool
+          continue
         case value.getStr.toLowerAscii
-        of "full": result.prefs.reduceMotion = false
-        of "reduced": result.prefs.reduceMotion = true
-        else: raise newException(ValueError, "expected full or reduced")
+        of "full", "on": result.prefs.reduceMotion = false
+        of "reduced", "off", "none": result.prefs.reduceMotion = true
+        else: raise newException(ValueError, "expected full or reduced (or off)")
       of "scroll":
         let v = value.getFloat
         if v < 0.1 or v > 10: raise newException(ValueError, "expected 0.1 to 10")

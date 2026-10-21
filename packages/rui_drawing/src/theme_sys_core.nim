@@ -254,6 +254,12 @@ proc transitionSeconds*(theme: Theme): float32 =
   ## if it names none. 0 makes every change instant.
   theme.animation.durationFast.get(120.0'f32) / 1000.0'f32
 
+proc layoutSeconds*(theme: Theme): float32 =
+  ## How long a container takes to move its children to their new places
+  ## (`animateLayout`): the theme's `animation.durationNormal`, 240 ms if it
+  ## names none. 0 makes layouts snap, whatever the containers ask for.
+  theme.animation.durationNormal.get(240.0'f32) / 1000.0'f32
+
 proc scrollbarThickness*(theme: Theme): float32 = theme.metrics.scrollbarThickness.get(12.0)
 
 template themedSize*(explicit: float32, themed: untyped): float32 =

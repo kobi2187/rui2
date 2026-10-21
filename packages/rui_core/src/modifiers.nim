@@ -56,6 +56,14 @@ proc unframe*[T: Widget](widget: T): T =
   widget.layoutDirty = true
   widget
 
+proc animateLayout*[T: Widget](widget: T, on = true): T =
+  ## Ease the children to their new places when this container reflows (a
+  ## panel growing, its siblings giving way) instead of snapping them. Snaps
+  ## anyway when the user's preferences say `motion: reduced`.
+  widget.animateLayout = on
+  widget.layoutDirty = true
+  widget
+
 proc flex*[T: Widget](widget: T, weight = 1.0'f32): T =
   ## Take `weight` shares of the leftover main-axis space in a VStack or
   ## HStack (CSS flex-grow). `flex(0)` turns it off.
