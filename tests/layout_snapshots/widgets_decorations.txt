@@ -1,0 +1,16 @@
+Center - @0,0 700x400
+  Column - @49,149 602x102
+    Label - @49,149 602x24
+    Row - @51,207 598x44
+      Button festive @51,207 130x44 tabstop
+        Rectangle - @51,207 130x44
+        Label - @67,217 98x23
+      Button urgent @207,207 130x44 tabstop
+        Rectangle - @207,207 130x44
+        Label - @223,217 98x23
+      Button selected @363,207 130x44 tabstop
+        Rectangle - @363,207 130x44
+        Label - @379,217 98x23
+      Button comet @519,207 130x44 tabstop
+        Rectangle - @519,207 130x44
+        Label - @535,217 98x23

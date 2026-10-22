@@ -17,6 +17,7 @@
 
 import std/tables
 import types
+import freeze
 
 var
   layer: seq[Widget]
@@ -96,6 +97,36 @@ proc isWithin*(widget, scope: Widget): bool =
       return true
     w = w.parent
   false
+
+proc onPage*(widget: Widget): bool =
+  ## Whether `widget` is there to be seen: it and every ancestor visible, it
+  ## has a size, and it is not on a page frozen behind a modal (freeze.nim) --
+  ## a still picture is not a place for anything to move round.
+  if widget == nil or widget.bounds.width <= 0 or widget.bounds.height <= 0:
+    return false
+  var w = widget
+  var root = widget
+  while w != nil:
+    if not w.visible: return false
+    root = w
+    w = w.parent
+  let modal = frozenBy(root)
+  modal == nil or widget.isWithin(modal)
+
+proc followWidget*(overlay, target: Widget, margin: float32, show: bool) =
+  ## Keep `overlay` on the overlay layer `margin` beyond `target`'s bounds
+  ## while `show` and the target is on the page (`onPage`); off it otherwise.
+  ## What a focus ring and a decoration both do, every frame.
+  if not show or not target.onPage:
+    if overlay in layer: hideOverlay(overlay)
+    return
+  let want = Rect(x: target.bounds.x - margin, y: target.bounds.y - margin,
+                  width: target.bounds.width + margin * 2,
+                  height: target.bounds.height + margin * 2)
+  if overlay.bounds != want:
+    overlay.bounds = want
+    overlay.isDirty = true
+  if overlay notin layer: showOverlay(overlay)
 
 proc containsPointer*(widget: Widget): bool =
   ## Whether the pointer is over this widget or anything inside it.

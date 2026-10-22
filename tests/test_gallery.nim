@@ -9,6 +9,7 @@ const notInTheGallery = {
   # owned by the App rather than placed in a tree
   "Toast": "shown by app.toast(...)",
   "FocusRing": "the App's own focus outline",
+  "Decoration": "drawn along another widget (`adorn`): examples/widgets/decorations.nim",
   "HelpOverlay": "the App's keyboard help",
   # parts of other widgets, shown inside them when opened
   "CalendarPopup": "DatePicker's popup",

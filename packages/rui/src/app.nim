@@ -18,7 +18,8 @@ export preferences_file
 import system_scheme
 export system_scheme
 from rui_widgets import HelpOverlay, newHelpOverlay, hints, `hints=`, FocusRing, newFocusRing,
-  Toast, newToast, MenuBar, findMenuBar, openFromKeyboard
+  Toast, newToast, MenuBar, findMenuBar, openFromKeyboard,
+  Effect, Decoration, syncDecorations, adornPath
 export event_source, event_routing, inspect
 export rui_core
 export event_manager   # Export for users to access eventManager
@@ -111,6 +112,7 @@ type
       shapeDrag: DragMove
       pendingShapePos: Option[(int, int)]  # placeShape before the shape is known
       shapeContent: Option[Rect]       # where the root is laid out (contentArea)
+      shapeOutline: Option[Path]       # the shape's edge, traced (window coordinates)
 
     # Idling
     idleWhenClean*: bool
@@ -539,6 +541,10 @@ when defined(ruiShaped):
                       alpha: newSeq[uint8](skin.width * skin.height))
     for i in 0 ..< m.alpha.len: m.alpha[i] = colors[i].a
     app.settleContent(m.toRects, contentArea)
+    let mask = m
+    let traced = traceOutlines(mask.width, mask.height,
+                               proc(x, y: int): float32 = mask.at(x, y).float32 / 255)
+    if traced.len > 0: app.shapeOutline = some(traced[0])
 
   proc setWindowShape*(app: App, inside: proc(x, y: float32): float32 {.closure.},
                        softEdges = true, clickThrough = true, contentArea = none(Rect)) =
@@ -552,6 +558,9 @@ when defined(ruiShaped):
     app.window.resizable = false
     app.settleContent(rectsFromFunc(app.window.width, app.window.height, inside, step = 2),
                       contentArea)
+    let traced = traceOutlines(app.window.width, app.window.height,
+                               proc(x, y: int): float32 = inside(x.float32 + 0.5, y.float32 + 0.5))
+    if traced.len > 0: app.shapeOutline = some(traced[0])
 
   proc reshapeWindow*(app: App, inside: proc(x, y: float32): float32 {.closure.}, step = 3) =
     ## Change a procedural shape while running (an animated outline). The
@@ -769,26 +778,28 @@ proc helpKeyPressed(app: App, event: GuiEvent): bool =
 const RingGap = 3.0'f32
 const GroupGap = 6.0'f32
 
-proc ringRect(target: Rect, gap: float32): Rect =
-  Rect(x: target.x - gap, y: target.y - gap,
-       width: target.width + gap * 2, height: target.height + gap * 2)
-
 proc placeRing(ring: var FocusRing, group: bool, target: Widget, gap: float32,
                show: bool) =
   ## Show `ring` round `target`, or take it away. Creating it lazily keeps an
   ## app that is only ever driven by the mouse from paying for either.
-  if not show or target == nil or not target.visible or target.bounds.width <= 0:
-    if ring != nil and ring in overlays():
-      hideOverlay(ring)
-    return
   if ring == nil:
+    if not show or not target.onPage: return
     ring = newFocusRing(group = group)
-  let want = ringRect(target.bounds, gap)
-  if ring.bounds != want:
-    ring.bounds = want
-    ring.isDirty = true
-  if ring notin overlays():
-    showOverlay(ring)
+  ring.followWidget(target, gap, show)
+
+proc windowOutline*(app: App): Path =
+  ## The window's edge, in window coordinates, clockwise from its top-left:
+  ## a shaped window's traced outline (-d:ruiShaped), else its rectangle.
+  when defined(ruiShaped):
+    if app.shapeOutline.isSome: return app.shapeOutline.get
+  rectPath(Rect(x: 0, y: 0, width: app.window.width.float32,
+                height: app.window.height.float32))
+
+proc adornWindow*(app: App, effect: Effect, path = none(Path), inset = 0.0'f32): Decoration {.discardable.} =
+  ## Draw `effect` round the window: along `path` if given (your own points,
+  ## window coordinates), else the window's outline -- a shaped window's
+  ## traced edge. `inset` keeps it inside, for a hard-edged (OS-clipped) shape.
+  adornPath(cast[pointer](app), path.get(app.windowOutline), effect, inset)
 
 proc syncFocusRings*(app: App) =
   ## Put the rings where focus is: firm round the focused widget, softer round
@@ -963,6 +974,9 @@ proc refreshLayout*(app: App) =
     # layoutPass, because it clears the flags it checks.
     layoutWillRun = app.tree.root.layoutDirty or app.tree.root.anyChildLayoutDirty()
     app.tree.root.layoutPass()
+  syncDecorations(cast[pointer](app), app.tree.root,
+                  Rect(x: 0, y: 0, width: app.window.width.float32,
+                       height: app.window.height.float32))
   for overlay in overlays():
     overlay.layoutPass()
 

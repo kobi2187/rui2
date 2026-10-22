@@ -17,3 +17,7 @@ import pango_text;          export pango_text      # glyph cache, cursor + hit-t
 import primitives/text;       export text
 # primitives/text_cache was deleted: 428 lines with no callers anywhere. The
 # real glyph and measurement caches live in pango_text, exported above.
+import primitives/sdf
+export drawSdfBox, drawSdfShadow, drawSdfSegment, drawSdfTriangle
+  # smooth boxes, soft shadows, lines and triangles: what a decoration's own
+  # painter (rui_widgets decoration.nim) draws with
