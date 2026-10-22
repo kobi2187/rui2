@@ -48,6 +48,12 @@ picker.onSelect = proc(files: seq[string]) =
   report("filedialog -> " & $files.len & " file(s):\n" & files.asLines)
 picker.onCancel = proc() = report("filedialog cancelled")
 
+# What is drawn over the frozen page behind a modal: barrier tape behind
+# every one, faint hazard stripes behind this one. Drawn once, when the page
+# is pictured, so it costs nothing while the dialog waits.
+setBackdropPainter(cautionTape("WAITING FOR AN ANSWER"))
+setBackdropPainter(picker, hazardStripes(), backdropCaption("Frozen", atTop = false))
+
 let openBtn = newButton(text = "Show FileDialog").named("openBtn")
 openBtn.onClick = proc() = picker.show()
 root.addChild(openBtn)

@@ -1023,7 +1023,7 @@ proc takePicture(app: App, modal: Widget) =
     drawRenderTexture(app.tree.root.cachedTexture.get(),
                       app.tree.root.bounds.x, app.tree.root.bounds.y)
   endTextureMode()
-  setBackdrop(modal, makeBackdrop(screen, currentTheme))
+  setBackdrop(modal, makeBackdrop(screen, currentTheme, backdropPainterFor(modal)))
   # It is drawn inside the modal's texture: repaint that with it.
   modal.isDirty = true
 

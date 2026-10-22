@@ -10,10 +10,112 @@
 ## Pixels stay premultiplied all the way, as widget textures are; the tint only
 ## covers what was there, so a shaped window's see-through parts stay clear.
 ## Without a window (headless tests) nothing is drawn but the plain tint.
+##
+## The theme filters the page; a *painter* draws on it. Set one for the app,
+## or for one modal, and it is drawn over the filtered picture as it is taken
+## -- once, baked in, so even a busy one costs nothing while the dialog waits:
+##
+## ```nim
+## setBackdropPainter(cautionTape("WAITING FOR YOU"))      # every modal
+## setBackdropPainter(saveDialog, backdropCaption("Frozen"))  # just this one
+## setBackdropPainter(proc(area: Rect) =                   # your own
+##   drawStyledText("Frozen", area.x + 20, area.y + 20, myStyle))
+## ```
+##
+## A painter set while a modal is open shows the next time its picture is
+## taken (a resize, a theme change, the next time it opens).
 
 import raylib, rlgl
 import rui_core
 import theme_sys_core
+import widget_primitives
+import primitives/[text, sdf]
+import std/[tables, math]
+
+type BackdropPainter* = proc(area: Rect) {.closure.}
+  ## Draws over the frozen page, in window coordinates; `area` is the window.
+
+var appPainter: BackdropPainter
+var modalPainters = initTable[pointer, BackdropPainter]()
+
+proc setBackdropPainter*(painters: varargs[BackdropPainter]) =
+  ## What is drawn over the frozen page behind every modal, in order; none
+  ## clears it.
+  let all = @painters
+  if all.len == 0:
+    appPainter = nil
+  else:
+    appPainter = proc(area: Rect) =
+      for p in all: p(area)
+
+proc setBackdropPainter*(modal: Widget, painters: varargs[BackdropPainter]) =
+  ## The same for one modal, in place of the app's; none goes back to it.
+  let key = cast[pointer](modal)
+  let all = @painters
+  if all.len == 0:
+    modalPainters.del key
+  else:
+    modalPainters[key] = proc(area: Rect) =
+      for p in all: p(area)
+
+proc backdropPainterFor*(modal: Widget): BackdropPainter =
+  ## The painter for `modal`'s backdrop: its own, else the app's, else nil.
+  modalPainters.getOrDefault(cast[pointer](modal), appPainter)
+
+# ----------------------------------------------------------------------------
+# Ready-made painters
+# ----------------------------------------------------------------------------
+
+proc stripesIn(band: Rect, stripe: float32, color: Color, offset = 0.0'f32) =
+  ## Diagonal stripes (45 degrees, rising to the right) filling `band`. Each
+  ## is exactly the band's height; what runs past its ends is cut by the
+  ## picture's own edge (a band spans the window).
+  let h = band.height
+  var x = band.x - h + offset mod (stripe * 2)
+  while x < band.x + band.width:
+    let a = Vector2(x: x, y: band.y + h)
+    let b = Vector2(x: x + h, y: band.y)
+    let c = Vector2(x: x + h + stripe, y: band.y)
+    let d = Vector2(x: x + stripe, y: band.y + h)
+    if not drawSdfTriangle(a, b, c, color): drawTriangle(a, c, b, color)
+    if not drawSdfTriangle(a, c, d, color): drawTriangle(a, d, c, color)
+    x += stripe * 2
+
+proc hazardStripes*(color = Color(r: 255, g: 196, b: 0, a: 70), stripe = 30.0'f32): BackdropPainter =
+  ## Faint diagonal stripes over the whole page: under construction, don't
+  ## touch.
+  result = proc(area: Rect) = stripesIn(area, stripe, color)
+
+proc cautionTape*(label = "", band = 34.0'f32,
+                  tape = Color(r: 255, g: 204, b: 0, a: 255),
+                  ink = Color(r: 20, g: 20, b: 20, a: 255)): BackdropPainter =
+  ## Barrier tape across the top and bottom of the page -- yellow and black
+  ## stripes -- with `label` along it, if given.
+  result = proc(area: Rect) =
+    for y in [area.y + band * 0.6, area.y + area.height - band * 1.6]:
+      let r = Rect(x: area.x, y: y, width: area.width, height: band)
+      drawRectangle(Rectangle(x: r.x, y: r.y, width: r.width, height: r.height), tape)
+      stripesIn(r, band * 0.55, ink)
+      if label.len > 0:
+        let style = TextStyle(fontSize: band * 0.5, color: ink, bold: true)
+        let w = measureText(label, style).width + band
+        var x = area.x + band
+        while x < area.x + area.width:
+          let plate = Rectangle(x: x - band * 0.3, y: y + band * 0.12,
+                                width: w - band * 0.4, height: band * 0.76)
+          drawRectangle(plate, tape)
+          drawStyledText(label, x, y + (band - style.fontSize) / 2, style)
+          x += w * 3
+
+proc backdropCaption*(text: string, size = 22.0'f32,
+                      color = Color(r: 255, g: 255, b: 255, a: 200),
+                      atTop = true): BackdropPainter =
+  ## A word over the page -- "Frozen", "Waiting for your answer" -- centred at
+  ## its top (or bottom), clear of the dialog in the middle.
+  result = proc(area: Rect) =
+    let style = TextStyle(fontSize: size, color: color, bold: true)
+    let y = if atTop: area.y + size else: area.y + area.height - size * 2
+    drawStyledText(text, area.x + area.width / 2, y, style, centered = true)
 
 const backdropFragment = """
 #version 330
@@ -76,9 +178,11 @@ proc loaded(): ptr BackdropShader =
   effect.tint = getShaderLocation(effect.shader, "tint")
   effect
 
-proc makeBackdrop*(picture: RenderTexture2D, theme: Theme): RenderTexture2D =
-  ## `picture` (the window as it was) in `theme`'s backdrop look, as a new
-  ## texture the same size. Without the shader, the plain tint over it.
+proc makeBackdrop*(picture: RenderTexture2D, theme: Theme,
+                   painter: BackdropPainter = nil): RenderTexture2D =
+  ## `picture` (the window as it was) in `theme`'s backdrop look, with
+  ## `painter`'s drawing over it, as a new texture the same size. Without the
+  ## shader, the plain tint over it.
   let w = picture.texture.width
   let h = picture.texture.height
   result = loadRenderTexture(w, h)
@@ -101,6 +205,9 @@ proc makeBackdrop*(picture: RenderTexture2D, theme: Theme): RenderTexture2D =
       drawRenderTexture(picture, 0, 0)
   if s == nil:
     drawRectangle(0, 0, w, h, tint)
+  if painter != nil:
+    paintingIntoTexture:
+      painter(Rect(x: 0, y: 0, width: w.float32, height: h.float32))
   endTextureMode()
 
 proc drawBackdrop*(modal: Widget, bounds: Rect) =

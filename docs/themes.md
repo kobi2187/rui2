@@ -90,6 +90,22 @@ hint: {background: "#00AAFF", borderWidth: 4, uppercase: false}
 indicatorSize trackThickness thumbSize progressHeight rowHeight
 scrollbarThickness`.
 
+`backdrop:` is how the page looks behind an open modal. While a dialog is
+open the page is frozen -- not laid out or painted, a still picture -- and this
+is the picture's look, worked out once when the dialog opens: `color` tints it
+(its alpha is how much), `blur` softens it (pixels), `saturation` fades its
+colour (1 as it was, 0 grey). Unset, it is half-transparent black. Aurora
+frosts the page, Midnight sinks it, Graphite greys it.
+
+```yaml
+backdrop: {color: "#F6F3FE99", blur: 6, saturation: 0.8}
+```
+
+What is *drawn* on the frozen page is code, not theme: `setBackdropPainter`
+(for every modal, or one) takes ready-made painters -- `cautionTape("WAITING
+FOR AN ANSWER")`, `hazardStripes()`, `backdropCaption("Frozen")` -- or any
+`proc(area: Rect)`. It runs once, when the page is pictured.
+
 Hover-versus-focus priority is the theme's too:
 
 ```yaml
@@ -139,8 +155,9 @@ YAML or JSON, chosen by extension. `ThemeManager.addSearchPath(dir)` makes
 - `themeManager.describe("leaf")` prints what each level of an inheritance chain
   changed, nearest first (`describeChange(parent, child)` is the pure form).
 - The file format has an `animation:` section: `durationFast` (ms; what the
-  widgets use for state fades, 0 for instant), `durationNormal`, `durationSlow`
-  and `defaultEasing`.
+  widgets use for state fades, 0 for instant), `durationNormal` (what a
+  container with `.animateLayout()` takes to move its children), `durationSlow`
+  and `defaultEasing`. The user's `motion:` preference overrides them all.
 - `contrastProblems(theme, textRatio = 4.5, uiRatio = 3.0)` lists every caption
   under the ratio (per intent and state) and every focus ring that does not stand
   out from the window behind it. The `contrast` and `contrast-dark` themes

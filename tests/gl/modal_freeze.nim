@@ -14,6 +14,9 @@ let root = newVStack()
 root.addChild(label)
 root.addChild(box)
 app.setRootWidget(root)
+var painted = 0
+let counting: BackdropPainter = proc(area: Rect) = inc painted
+setBackdropPainter(counting)                 # runs when the page is pictured
 
 proc brightness(): int =
   let shot = loadImageFromScreen()
@@ -43,6 +46,8 @@ app.onFrame = proc() =
 app.run(maxFrames = 10)                        # ends with the modal open
 if behind >= before:
   problems.add "the page behind the dialog is not darker (" & $before & " -> " & $behind & ")"
+if painted != 1:
+  problems.add "the backdrop painter ran " & $painted & " times, not once"
 for p in problems: echo p
 if problems.len > 0: quit 1
 echo "exited cleanly"

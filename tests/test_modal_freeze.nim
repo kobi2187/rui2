@@ -108,6 +108,26 @@ backdrop:
     expect ValueError:
       discard parseTheme("backdrop:\n  tint: red\n", tffYaml, noExtends)
 
+  test "a painter draws over it: the modal's own, else the app's, else none":
+    let a = newMessageBox(title = "A", message = "a")
+    let b = newMessageBox(title = "B", message = "b")
+    var calls: seq[string]
+    let appWide: BackdropPainter = proc(area: Rect) = calls.add "app"
+    let own: BackdropPainter = proc(area: Rect) = calls.add "own"
+    let more: BackdropPainter = proc(area: Rect) = calls.add "more"
+    check backdropPainterFor(a) == nil
+    setBackdropPainter(appWide)
+    setBackdropPainter(b, own, more)
+    backdropPainterFor(a)(Rect())
+    backdropPainterFor(b)(Rect())
+    check calls == @["app", "own", "more"]      # several run in order
+    setBackdropPainter(b)                       # none: back to the app's
+    calls.setLen(0)
+    backdropPainterFor(b)(Rect())
+    check calls == @["app"]
+    setBackdropPainter()
+    check backdropPainterFor(a) == nil
+
   test "some built-in themes have their own: frosted Aurora, grey Graphite":
     check getBuiltinTheme("aurora").backdropBlur > 0
     check getBuiltinTheme("graphite").backdropSaturation == 0
