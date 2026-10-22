@@ -63,6 +63,7 @@ type
     noTransitions*: bool      ## every state change is instant
     highContrast*: bool       ## hover, press and selection invert (ink on surface becomes
                               ## surface on ink) and the focus ring is the opaque accent
+    backdrop*: BackdropStyle  ## the page behind an open modal; half-dark if unset
 
 # ----------------------------------------------------------------------------
 # Colour arithmetic
@@ -160,6 +161,7 @@ proc brandTheme*(spec: BrandSpec): Theme =
   if not s.shadowColor.isSet: s.shadowColor = s.text
 
   result = newTheme(s.name)
+  result.backdrop = s.backdrop
   result.brandPalette = BrandPalette(
     primaryColor: some(s.accent), accentColor: some(s.accent),
     surfaceColor: some(s.canvas), neutralLight: some(s.border),
@@ -266,13 +268,19 @@ proc midnightSpec*(): BrandSpec =
             onAccent: hex"#0E1016",
             canvas: hex"#0E1016", surface: hex"#181B24",
             text: hex"#E6E8EF", border: hex"#2A2F3D", radius: 6,
-            success: hex"#34D399", warning: hex"#FBBF24", danger: hex"#F87171")
+            success: hex"#34D399", warning: hex"#FBBF24", danger: hex"#F87171",
+            # the page sinks into the night: darker, softer, faded
+            backdrop: BackdropStyle(color: some(hex"#05060ACC"), blur: some(3.0'f32),
+                                    saturation: some(0.5'f32)))
 
 proc auroraSpec*(): BrandSpec =
   ## Lavender light, violet accent, generous rounding.
   BrandSpec(name: "Aurora", accent: hex"#7C3AED",
             canvas: hex"#F6F3FE", surface: hex"#FFFFFF",
-            text: hex"#221B35", border: hex"#E3DAF7", radius: 10)
+            text: hex"#221B35", border: hex"#E3DAF7", radius: 10,
+            # frosted glass: the page blurred under a pale lavender wash
+            backdrop: BackdropStyle(color: some(hex"#F6F3FE99"), blur: some(6.0'f32),
+                                    saturation: some(0.8'f32)))
 
 proc oceanSpec*(): BrandSpec =
   ## Airy blue-grey with a sky accent.
@@ -307,7 +315,9 @@ proc graphiteSpec*(): BrandSpec =
             onAccent: hex"#0B0C0E",
             canvas: hex"#101113", surface: hex"#1B1C20",
             text: hex"#E4E6EA", border: hex"#2C2E34", radius: 3,
-            success: hex"#34D399", warning: hex"#FBBF24", danger: hex"#FB7185")
+            success: hex"#34D399", warning: hex"#FBBF24", danger: hex"#FB7185",
+            # all business: the page greyed out, nothing pulls at the eye
+            backdrop: BackdropStyle(color: some(hex"#00000099"), saturation: some(0.0'f32)))
 
 proc punchSpec*(): BrandSpec =
   ## Fat and bold: slab outlines in ink, hard offset shadows that buttons sink

@@ -939,11 +939,30 @@ proc refreshLayout*(app: App) =
   if app.tree.root == nil:
     return
 
-  # Does anything actually need laying out this frame? Asked before layoutPass,
-  # because it clears the flags it checks.
-  let layoutWillRun = app.tree.root.layoutDirty or
-                      app.tree.root.anyChildLayoutDirty()
-  app.tree.root.layoutPass()
+  var layoutWillRun: bool
+  let top = frozenBy(app.tree.root)
+  if top != nil:
+    # A modal is open: the page behind it stands still (freeze.nim). It is
+    # laid out only when it has to be pictured again -- just after the modal
+    # opened, after a resize or a theme change -- and then without the modal,
+    # so the picture shows the page alone. The rest of the time only the
+    # modal is laid out.
+    if needsPagePass(top, app.tree.root):
+      top.visible = false
+      app.tree.root.layoutPass()
+      top.visible = true
+      pagePassed(top, app.tree.root)
+      # Rare (an open, a resize, a theme change), and the modal may have
+      # been laid out with the page, which leaves nothing dirty to say so:
+      # the hit-test tree is rebuilt with the modal in it.
+      layoutWillRun = true
+    layoutWillRun = layoutWillRun or top.layoutDirty or top.anyChildLayoutDirty()
+    top.layoutPass()
+  else:
+    # Does anything actually need laying out this frame? Asked before
+    # layoutPass, because it clears the flags it checks.
+    layoutWillRun = app.tree.root.layoutDirty or app.tree.root.anyChildLayoutDirty()
+    app.tree.root.layoutPass()
   for overlay in overlays():
     overlay.layoutPass()
 
@@ -959,6 +978,41 @@ proc refreshLayout*(app: App) =
   # to follow layout because a widget can be added during it.
   app.tree.registerWidgetRecursive(app.tree.root)
 
+proc drawWindowBackground(app: App) =
+  ## What is behind the widget tree. The window surround follows the active
+  ## theme rather than a hardcoded RayWhite, so a dark theme does not leave a
+  ## light border around the UI.
+  when defined(ruiShaped):
+    if app.shapeWanted:
+      # See-through (or the backdrop, clipped away by an OS shape), then the
+      # skin behind the widgets.
+      clearBackground(app.shaped.clearColor)
+      if app.shapeSkin.isSome:
+        beginBlendMode(BlendMode.AlphaPremultiply)
+        drawTexture(app.shapeSkin.get, 0, 0, White)
+        endBlendMode()
+    else:
+      clearBackground(currentTheme.canvasColor())
+  else:
+    clearBackground(currentTheme.canvasColor())
+
+proc takePicture(app: App, modal: Widget) =
+  ## The window as it is -- background and page, without `modal` -- through
+  ## the theme's backdrop look, kept as the picture `modal` draws behind it.
+  ## Needs a window; without one the modal falls back to a plain tint.
+  if not isWindowReady() or app.tree.root.cachedTexture.isNone:
+    return
+  var screen = loadRenderTexture(getScreenWidth(), getScreenHeight())
+  beginTextureMode(screen)
+  app.drawWindowBackground()
+  compositingTextures:
+    drawRenderTexture(app.tree.root.cachedTexture.get(),
+                      app.tree.root.bounds.x, app.tree.root.bounds.y)
+  endTextureMode()
+  setBackdrop(modal, makeBackdrop(screen, currentTheme))
+  # It is drawn inside the modal's texture: repaint that with it.
+  modal.isDirty = true
+
 proc updateLayoutAndRender(app: App): bool =
   ## Lay out, then paint whatever is dirty into the widget textures. Returns
   ## whether anything was painted -- which is what decides if the frame needs
@@ -972,7 +1026,21 @@ proc updateLayoutAndRender(app: App): bool =
   # scrolls into view.
   renderView = some(Rect(x: 0, y: 0, width: getScreenWidth().float32,
                          height: getScreenHeight().float32))
-  if app.tree.root.isDirty or app.tree.root.anyChildDirty():
+  let top = frozenBy(app.tree.root)
+  if top != nil:
+    # Frozen behind a modal: the page is painted only to be pictured, and the
+    # modal is the only thing that paints itself from frame to frame.
+    if needsPicture(top):
+      top.visible = false
+      if app.tree.root.isDirty or app.tree.root.anyChildDirty():
+        app.tree.root.renderPass()
+      top.visible = true
+      app.takePicture(top)
+      result = true
+    if top.isDirty or top.anyChildDirty():
+      top.renderPass()
+      result = true
+  elif app.tree.root.isDirty or app.tree.root.anyChildDirty():
     app.tree.root.renderPass()
     result = true
   for overlay in overlays():
@@ -1014,8 +1082,13 @@ proc drawScriptingIndicator() =
 proc compositeRoot(app: App) =
   ## Widget textures hold premultiplied colour (see main_loop), so they reach
   ## the screen through the premultiplied blend too.
+  let top = frozenBy(app.tree.root)
   compositingTextures:
-    if app.tree.root != nil and app.tree.root.cachedTexture.isSome:
+    if top != nil and top.cachedTexture.isSome:
+      # A modal is open: it carries the frozen page as its backdrop, so it is
+      # the whole picture.
+      drawRenderTexture(top.cachedTexture.get(), top.bounds.x, top.bounds.y)
+    elif app.tree.root != nil and app.tree.root.cachedTexture.isSome:
       drawRenderTexture(app.tree.root.cachedTexture.get(),
                         app.tree.root.bounds.x, app.tree.root.bounds.y)
     # Then the overlay layer, in the order shown, above the whole tree.
@@ -1039,22 +1112,7 @@ proc renderFrame(app: App) =
   ## whatever the window itself draws over it.
   perfTime(phScreen):
     beginDrawing()
-    # The window surround follows the active theme rather than a hardcoded
-    # RayWhite, so a dark theme does not leave a light border around the UI.
-    when defined(ruiShaped):
-      if app.shapeWanted:
-        # See-through (or the backdrop, clipped away by an OS shape), then the
-        # skin behind the widgets.
-        clearBackground(app.shaped.clearColor)
-        if app.shapeSkin.isSome:
-          beginBlendMode(BlendMode.AlphaPremultiply)
-          drawTexture(app.shapeSkin.get, 0, 0, White)
-          endBlendMode()
-      else:
-        clearBackground(currentTheme.canvasColor())
-    else:
-      clearBackground(currentTheme.canvasColor())
-
+    app.drawWindowBackground()
     app.compositeRoot()
     if app.beingScripted:
       drawScriptingIndicator()
@@ -1291,6 +1349,7 @@ proc run*(app: App, maxFrames: int = -1) =
     # released afterwards they crash (SIGSEGV in `=destroy`).
     if app.tree.root != nil: freeTextureTree(app.tree.root)
     for overlay in overlays(): freeTextureTree(overlay)
+    thawAll()                         # a modal's frozen picture is a texture too
     clearTextCache()                  # glyph textures are global, freed the same way
     when defined(ruiShaped):
       app.shapeSkin = none(Texture2D)   # a GPU texture too: unloaded now, not after

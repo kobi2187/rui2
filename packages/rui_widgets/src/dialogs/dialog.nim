@@ -82,7 +82,7 @@ definePrimitive(Dialog):
 
   render:
     if not widget.isOpen: return
-    discard drawModalFrame(widget.bounds, panelRectOf(widget), widget.title)
+    discard drawModalFrame(widget, panelRectOf(widget), widget.title)
 
 proc show*(widget: Dialog) =
   widget.isOpen = true

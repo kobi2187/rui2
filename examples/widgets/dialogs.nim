@@ -15,6 +15,7 @@ import rui
 import std/[options, os, sets, strutils]
 
 let app = newApp("RUI2 - Dialogs", 680, 560)
+if paramCount() >= 1: app.setTheme(paramStr(1))   # e.g. aurora: a frosted backdrop
 
 let root = newVStack(spacing = 12.0, padding = 20.0).named("root")
 let summary = newLabel(text = "no dialog result yet", fontSize = 15.0).named("summary")

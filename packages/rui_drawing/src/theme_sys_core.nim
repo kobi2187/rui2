@@ -67,6 +67,15 @@ type
     durationSlow*: Option[float32]    # Slow transitions (e.g., 400ms)
     defaultEasing*: Option[AnimationEasing]
 
+  BackdropStyle* = object
+    ## What a modal's frozen page looks like behind it: tinted by `color`
+    ## (its alpha is how much), blurred by `blur` pixels, and its colour kept
+    ## at `saturation` (1 as it was, 0 grey). Worked out once, when the
+    ## modal opens, so a heavy blur costs nothing while the dialog waits.
+    color*: Option[Color]
+    blur*: Option[float32]
+    saturation*: Option[float32]
+
   # Branding: Custom Assets
   BrandAssets* = object
     logoPath*: Option[string]               # Path to company logo
@@ -184,6 +193,7 @@ type
 
     metrics*: ControlMetrics              # Control geometry
     hint*: HintStyle                      # Help-overlay hint badges
+    backdrop*: BackdropStyle              # The page behind an open modal
 
     statePreference*: array[ControlRole, StatePreference]
       ## Hover-or-focus-first, per control role. Read on every lookup from the
@@ -259,6 +269,15 @@ proc layoutSeconds*(theme: Theme): float32 =
   ## (`animateLayout`): the theme's `animation.durationNormal`, 240 ms if it
   ## names none. 0 makes layouts snap, whatever the containers ask for.
   theme.animation.durationNormal.get(240.0'f32) / 1000.0'f32
+
+proc backdropColor*(theme: Theme): Color =
+  ## The tint over the page behind a modal: half-transparent black unless the
+  ## theme names one.
+  theme.backdrop.color.get(Color(r: 0, g: 0, b: 0, a: 128))
+
+proc backdropBlur*(theme: Theme): float32 = max(0.0'f32, theme.backdrop.blur.get(0.0))
+proc backdropSaturation*(theme: Theme): float32 =
+  clamp(theme.backdrop.saturation.get(1.0), 0.0'f32, 1.0'f32)
 
 proc scrollbarThickness*(theme: Theme): float32 = theme.metrics.scrollbarThickness.get(12.0)
 
