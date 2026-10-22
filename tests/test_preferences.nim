@@ -54,7 +54,7 @@ suite "preferences":
 
   test "defaults are the stable RUI defaults":
     let p = defaultPreferences()
-    check not p.reduceMotion
+    check p.motion == motionSystem          # follow the desktop
     check p.scrollSpeed == 1.0
     check p.caretBlinkMs == 500
     check p.doubleClickMs == 400
@@ -72,7 +72,7 @@ doubleClickMs: 600
 colorScheme: dark
 """)
     check problems.len == 0
-    check p.reduceMotion
+    check p.motion == motionReduced
     check p.scrollSpeed == 2.5
     check p.caretBlinkMs == 0
     check p.doubleClickMs == 600
@@ -90,10 +90,10 @@ keys:
 """)
     check p.doubleClickMs == 600            # the good one still applies
     check p.scrollSpeed == 1.0              # the bad ones keep their defaults
-    check not p.reduceMotion
+    check p.motion == motionSystem
     check p.keys.matches(nextGroup, chord("Tab").key, {})
     check problems.len == 4
-    check problems.join("\n").contains("motion: expected full or reduced")
+    check problems.join("\n").contains("motion: expected system, full, reduced or none")
     check problems.join("\n").contains("colour: unknown setting; allowed:")
 
   test "a file that is not even YAML falls back to the defaults":
@@ -127,15 +127,28 @@ suite "preferences drive behaviour":
     let saved = prefs
   teardown:
     applyPreferences(saved)
-    animationsEnabled = true
+    motion = motionFull
 
-  test "reduced motion turns animations off":
+  test "reduced motion stops easing but not effects; none stops both":
     var p = defaultPreferences()
-    p.reduceMotion = true
+    p.motion = motionReduced
     applyPreferences(p)
-    check not animationsEnabled
-    applyPreferences(defaultPreferences())
-    check animationsEnabled
+    check not easingAllowed() and effectsAllowed()
+    p.motion = motionNone
+    applyPreferences(p)
+    check not easingAllowed() and not effectsAllowed()
+    p.motion = motionFull
+    applyPreferences(p)
+    check easingAllowed() and effectsAllowed()
+
+  test "system follows the desktop, as the platform tools report it":
+    check parseSystemMotion("false\n") == motionNone          # GNOME animations off
+    check parseSystemMotion("true\n") == motionFull
+    check parseSystemMotion("1\n") == motionReduced            # macOS Reduce motion
+    check parseSystemMotion("    MinAnimate    REG_SZ    0") == motionNone
+    check parseSystemMotion("No such key") == motionFull
+    check effectiveMotion(motionSystem, motionNone) == motionNone
+    check effectiveMotion(motionReduced, motionNone) == motionReduced
 
   test "a new focus manager starts from the user's keys":
     var p = defaultPreferences()

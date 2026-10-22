@@ -18,7 +18,8 @@ export preferences_file
 import system_scheme
 export system_scheme
 from rui_widgets import HelpOverlay, newHelpOverlay, hints, `hints=`, FocusRing, newFocusRing,
-  Toast, newToast, MenuBar, findMenuBar, openFromKeyboard
+  Toast, newToast, MenuBar, findMenuBar, openFromKeyboard,
+  Effect, Decoration, syncDecorations, adornPath
 export event_source, event_routing, inspect
 export rui_core
 export event_manager   # Export for users to access eventManager
@@ -111,6 +112,7 @@ type
       shapeDrag: DragMove
       pendingShapePos: Option[(int, int)]  # placeShape before the shape is known
       shapeContent: Option[Rect]       # where the root is laid out (contentArea)
+      shapeOutline: Option[Path]       # the shape's edge, traced (window coordinates)
 
     # Idling
     idleWhenClean*: bool
@@ -539,6 +541,10 @@ when defined(ruiShaped):
                       alpha: newSeq[uint8](skin.width * skin.height))
     for i in 0 ..< m.alpha.len: m.alpha[i] = colors[i].a
     app.settleContent(m.toRects, contentArea)
+    let mask = m
+    let traced = traceOutlines(mask.width, mask.height,
+                               proc(x, y: int): float32 = mask.at(x, y).float32 / 255)
+    if traced.len > 0: app.shapeOutline = some(traced[0])
 
   proc setWindowShape*(app: App, inside: proc(x, y: float32): float32 {.closure.},
                        softEdges = true, clickThrough = true, contentArea = none(Rect)) =
@@ -552,6 +558,9 @@ when defined(ruiShaped):
     app.window.resizable = false
     app.settleContent(rectsFromFunc(app.window.width, app.window.height, inside, step = 2),
                       contentArea)
+    let traced = traceOutlines(app.window.width, app.window.height,
+                               proc(x, y: int): float32 = inside(x.float32 + 0.5, y.float32 + 0.5))
+    if traced.len > 0: app.shapeOutline = some(traced[0])
 
   proc reshapeWindow*(app: App, inside: proc(x, y: float32): float32 {.closure.}, step = 3) =
     ## Change a procedural shape while running (an animated outline). The
@@ -769,26 +778,28 @@ proc helpKeyPressed(app: App, event: GuiEvent): bool =
 const RingGap = 3.0'f32
 const GroupGap = 6.0'f32
 
-proc ringRect(target: Rect, gap: float32): Rect =
-  Rect(x: target.x - gap, y: target.y - gap,
-       width: target.width + gap * 2, height: target.height + gap * 2)
-
 proc placeRing(ring: var FocusRing, group: bool, target: Widget, gap: float32,
                show: bool) =
   ## Show `ring` round `target`, or take it away. Creating it lazily keeps an
   ## app that is only ever driven by the mouse from paying for either.
-  if not show or target == nil or not target.visible or target.bounds.width <= 0:
-    if ring != nil and ring in overlays():
-      hideOverlay(ring)
-    return
   if ring == nil:
+    if not show or not target.onPage: return
     ring = newFocusRing(group = group)
-  let want = ringRect(target.bounds, gap)
-  if ring.bounds != want:
-    ring.bounds = want
-    ring.isDirty = true
-  if ring notin overlays():
-    showOverlay(ring)
+  ring.followWidget(target, gap, show)
+
+proc windowOutline*(app: App): Path =
+  ## The window's edge, in window coordinates, clockwise from its top-left:
+  ## a shaped window's traced outline (-d:ruiShaped), else its rectangle.
+  when defined(ruiShaped):
+    if app.shapeOutline.isSome: return app.shapeOutline.get
+  rectPath(Rect(x: 0, y: 0, width: app.window.width.float32,
+                height: app.window.height.float32))
+
+proc adornWindow*(app: App, effect: Effect, path = none(Path), inset = 0.0'f32): Decoration {.discardable.} =
+  ## Draw `effect` round the window: along `path` if given (your own points,
+  ## window coordinates), else the window's outline -- a shaped window's
+  ## traced edge. `inset` keeps it inside, for a hard-edged (OS-clipped) shape.
+  adornPath(cast[pointer](app), path.get(app.windowOutline), effect, inset)
 
 proc syncFocusRings*(app: App) =
   ## Put the rings where focus is: firm round the focused widget, softer round
@@ -885,6 +896,25 @@ proc handleMenuKeys(app: App, event: GuiEvent): bool =
   if result:
     app.tree.anyDirty = true
 
+const SlowHandler = initDuration(milliseconds = 200)
+var slowWarned: seq[pointer]
+
+proc noteSlowHandler(app: App, event: GuiEvent, took: Duration) =
+  ## Debug builds: an event whose handling held the UI thread so long that the
+  ## window visibly froze is reported once per widget, with the cure. (Work
+  ## that blocks belongs in runInBackground.)
+  if took < SlowHandler: return
+  let w = if event.kind in {evKeyDown, evChar}: app.focusManager.focusedWidget
+          else: pointerWidget()
+  let key = cast[pointer](w)
+  if key in slowWarned: return
+  slowWarned.add key
+  let who = if w == nil: "the app"
+            else: w.getTypeName & (if w.stringId.len > 0: " \"" & w.stringId & "\"" else: "")
+  stderr.writeLine "[rui] handling a ", event.kind, " on ", who, " held the UI thread for ",
+    took.inMilliseconds, " ms: the window could not redraw or take input meanwhile. ",
+    "Move slow work into runInBackground(work, done)."
+
 proc handleEvent(app: App, event: GuiEvent) =
   ## Route one event. The work is in event_routing.nim; this is the three-way
   ## split between window, pointer and keyboard, and the dirty bookkeeping.
@@ -939,11 +969,33 @@ proc refreshLayout*(app: App) =
   if app.tree.root == nil:
     return
 
-  # Does anything actually need laying out this frame? Asked before layoutPass,
-  # because it clears the flags it checks.
-  let layoutWillRun = app.tree.root.layoutDirty or
-                      app.tree.root.anyChildLayoutDirty()
-  app.tree.root.layoutPass()
+  var layoutWillRun: bool
+  let top = frozenBy(app.tree.root)
+  if top != nil:
+    # A modal is open: the page behind it stands still (freeze.nim). It is
+    # laid out only when it has to be pictured again -- just after the modal
+    # opened, after a resize or a theme change -- and then without the modal,
+    # so the picture shows the page alone. The rest of the time only the
+    # modal is laid out.
+    if needsPagePass(top, app.tree.root):
+      top.visible = false
+      app.tree.root.layoutPass()
+      top.visible = true
+      pagePassed(top, app.tree.root)
+      # Rare (an open, a resize, a theme change), and the modal may have
+      # been laid out with the page, which leaves nothing dirty to say so:
+      # the hit-test tree is rebuilt with the modal in it.
+      layoutWillRun = true
+    layoutWillRun = layoutWillRun or top.layoutDirty or top.anyChildLayoutDirty()
+    top.layoutPass()
+  else:
+    # Does anything actually need laying out this frame? Asked before
+    # layoutPass, because it clears the flags it checks.
+    layoutWillRun = app.tree.root.layoutDirty or app.tree.root.anyChildLayoutDirty()
+    app.tree.root.layoutPass()
+  syncDecorations(cast[pointer](app), app.tree.root,
+                  Rect(x: 0, y: 0, width: app.window.width.float32,
+                       height: app.window.height.float32))
   for overlay in overlays():
     overlay.layoutPass()
 
@@ -959,6 +1011,41 @@ proc refreshLayout*(app: App) =
   # to follow layout because a widget can be added during it.
   app.tree.registerWidgetRecursive(app.tree.root)
 
+proc drawWindowBackground(app: App) =
+  ## What is behind the widget tree. The window surround follows the active
+  ## theme rather than a hardcoded RayWhite, so a dark theme does not leave a
+  ## light border around the UI.
+  when defined(ruiShaped):
+    if app.shapeWanted:
+      # See-through (or the backdrop, clipped away by an OS shape), then the
+      # skin behind the widgets.
+      clearBackground(app.shaped.clearColor)
+      if app.shapeSkin.isSome:
+        beginBlendMode(BlendMode.AlphaPremultiply)
+        drawTexture(app.shapeSkin.get, 0, 0, White)
+        endBlendMode()
+    else:
+      clearBackground(currentTheme.canvasColor())
+  else:
+    clearBackground(currentTheme.canvasColor())
+
+proc takePicture(app: App, modal: Widget) =
+  ## The window as it is -- background and page, without `modal` -- through
+  ## the theme's backdrop look, kept as the picture `modal` draws behind it.
+  ## Needs a window; without one the modal falls back to a plain tint.
+  if not isWindowReady() or app.tree.root.cachedTexture.isNone:
+    return
+  var screen = loadRenderTexture(getScreenWidth(), getScreenHeight())
+  beginTextureMode(screen)
+  app.drawWindowBackground()
+  compositingTextures:
+    drawRenderTexture(app.tree.root.cachedTexture.get(),
+                      app.tree.root.bounds.x, app.tree.root.bounds.y)
+  endTextureMode()
+  setBackdrop(modal, makeBackdrop(screen, currentTheme, backdropPainterFor(modal)))
+  # It is drawn inside the modal's texture: repaint that with it.
+  modal.isDirty = true
+
 proc updateLayoutAndRender(app: App): bool =
   ## Lay out, then paint whatever is dirty into the widget textures. Returns
   ## whether anything was painted -- which is what decides if the frame needs
@@ -972,7 +1059,21 @@ proc updateLayoutAndRender(app: App): bool =
   # scrolls into view.
   renderView = some(Rect(x: 0, y: 0, width: getScreenWidth().float32,
                          height: getScreenHeight().float32))
-  if app.tree.root.isDirty or app.tree.root.anyChildDirty():
+  let top = frozenBy(app.tree.root)
+  if top != nil:
+    # Frozen behind a modal: the page is painted only to be pictured, and the
+    # modal is the only thing that paints itself from frame to frame.
+    if needsPicture(top):
+      top.visible = false
+      if app.tree.root.isDirty or app.tree.root.anyChildDirty():
+        app.tree.root.renderPass()
+      top.visible = true
+      app.takePicture(top)
+      result = true
+    if top.isDirty or top.anyChildDirty():
+      top.renderPass()
+      result = true
+  elif app.tree.root.isDirty or app.tree.root.anyChildDirty():
     app.tree.root.renderPass()
     result = true
   for overlay in overlays():
@@ -1014,8 +1115,13 @@ proc drawScriptingIndicator() =
 proc compositeRoot(app: App) =
   ## Widget textures hold premultiplied colour (see main_loop), so they reach
   ## the screen through the premultiplied blend too.
+  let top = frozenBy(app.tree.root)
   compositingTextures:
-    if app.tree.root != nil and app.tree.root.cachedTexture.isSome:
+    if top != nil and top.cachedTexture.isSome:
+      # A modal is open: it carries the frozen page as its backdrop, so it is
+      # the whole picture.
+      drawRenderTexture(top.cachedTexture.get(), top.bounds.x, top.bounds.y)
+    elif app.tree.root != nil and app.tree.root.cachedTexture.isSome:
       drawRenderTexture(app.tree.root.cachedTexture.get(),
                         app.tree.root.bounds.x, app.tree.root.bounds.y)
     # Then the overlay layer, in the order shown, above the whole tree.
@@ -1039,22 +1145,7 @@ proc renderFrame(app: App) =
   ## whatever the window itself draws over it.
   perfTime(phScreen):
     beginDrawing()
-    # The window surround follows the active theme rather than a hardcoded
-    # RayWhite, so a dark theme does not leave a light border around the UI.
-    when defined(ruiShaped):
-      if app.shapeWanted:
-        # See-through (or the backdrop, clipped away by an OS shape), then the
-        # skin behind the widgets.
-        clearBackground(app.shaped.clearColor)
-        if app.shapeSkin.isSome:
-          beginBlendMode(BlendMode.AlphaPremultiply)
-          drawTexture(app.shapeSkin.get, 0, 0, White)
-          endBlendMode()
-      else:
-        clearBackground(currentTheme.canvasColor())
-    else:
-      clearBackground(currentTheme.canvasColor())
-
+    app.drawWindowBackground()
     app.compositeRoot()
     if app.beingScripted:
       drawScriptingIndicator()
@@ -1180,7 +1271,13 @@ proc pumpEvents*(app: App) =
     # 3. Process events with time budget
     discard app.eventManager.processEvents(
       app.eventManager.currentBudget,
-      proc(event: GuiEvent) = app.handleEvent(event))
+      proc(event: GuiEvent) =
+        when defined(release):
+          app.handleEvent(event)
+        else:
+          let started = getMonoTime()
+          app.handleEvent(event)
+          app.noteSlowHandler(event, getMonoTime() - started))
 
   # 4. Poll script commands
   perfTime(phScript):
@@ -1199,6 +1296,8 @@ proc stepHeadless*(app: App) =
   ## `run` read raylib directly and there was nothing to call.
   app.pollThemeWatch()
   app.pumpEvents()
+  if runPollers():                  # background work and data sources deliver here
+    app.tree.anyDirty = true
   app.refreshLayout()
 
 proc step*(app: App): bool {.discardable.} =
@@ -1291,6 +1390,8 @@ proc run*(app: App, maxFrames: int = -1) =
     # released afterwards they crash (SIGSEGV in `=destroy`).
     if app.tree.root != nil: freeTextureTree(app.tree.root)
     for overlay in overlays(): freeTextureTree(overlay)
+    thawAll()                         # a modal's frozen picture is a texture too
+    stopBackground()                  # finish and deliver queued jobs, stop the thread
     clearTextCache()                  # glyph textures are global, freed the same way
     when defined(ruiShaped):
       app.shapeSkin = none(Texture2D)   # a GPU texture too: unloaded now, not after

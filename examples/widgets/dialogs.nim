@@ -15,6 +15,7 @@ import rui
 import std/[options, os, sets, strutils]
 
 let app = newApp("RUI2 - Dialogs", 680, 560)
+if paramCount() >= 1: app.setTheme(paramStr(1))   # e.g. aurora: a frosted backdrop
 
 let root = newVStack(spacing = 12.0, padding = 20.0).named("root")
 let summary = newLabel(text = "no dialog result yet", fontSize = 15.0).named("summary")
@@ -46,6 +47,12 @@ let picker = newFileDialog(title = "Open Nim files", mode = fdOpen,
 picker.onSelect = proc(files: seq[string]) =
   report("filedialog -> " & $files.len & " file(s):\n" & files.asLines)
 picker.onCancel = proc() = report("filedialog cancelled")
+
+# What is drawn over the frozen page behind a modal: barrier tape behind
+# every one, faint hazard stripes behind this one. Drawn once, when the page
+# is pictured, so it costs nothing while the dialog waits.
+setBackdropPainter(cautionTape("WAITING FOR AN ANSWER"))
+setBackdropPainter(picker, hazardStripes(), backdropCaption("Frozen", atTop = false))
 
 let openBtn = newButton(text = "Show FileDialog").named("openBtn")
 openBtn.onClick = proc() = picker.show()

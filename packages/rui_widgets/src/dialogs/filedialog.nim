@@ -167,7 +167,7 @@ definePrimitive(FileDialog):
     if not widget.isVisible: return
     let panel = panelRect(widget.bounds, min(widget.dialogWidth, widget.bounds.width - 20),
                           min(widget.dialogHeight, widget.bounds.height - 20))
-    discard drawModalFrame(widget.bounds, panel, widget.title)
+    discard drawModalFrame(widget, panel, widget.title)
 
 proc chosenChanged(widget: Widget) =
   ## The Chosen pane, its count and the Open button follow the list.

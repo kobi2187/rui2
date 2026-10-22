@@ -11,8 +11,13 @@ import theme_manager;      export theme_manager
 import theme_check;        export theme_check   # contrast ratios, contrastProblems
 import builtin_themes;     export builtin_themes
 import widget_primitives;  export widget_primitives
+import backdrop;           export backdrop     # a modal's frozen, themed page
 import pango_binding;       export pango_binding   # Pango/Cairo FFI
 import pango_text;          export pango_text      # glyph cache, cursor + hit-test API
 import primitives/text;       export text
 # primitives/text_cache was deleted: 428 lines with no callers anywhere. The
 # real glyph and measurement caches live in pango_text, exported above.
+import primitives/sdf
+export drawSdfBox, drawSdfShadow, drawSdfSegment, drawSdfTriangle
+  # smooth boxes, soft shadows, lines and triangles: what a decoration's own
+  # painter (rui_widgets decoration.nim) draws with

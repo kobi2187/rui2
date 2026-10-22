@@ -12,6 +12,7 @@
 ## Positions are the finger's; a widget scrolls by `-d`.
 
 import std/[monotimes, times, math]
+from rui_core import easingAllowed
 
 const
   FlingFrame* = 0.016          ## seconds between frames of a fling
@@ -52,10 +53,12 @@ proc track*(f: var Fling, pos: float32, now = getMonoTime()) =
     f.lastAt = now
 
 proc release*(f: var Fling, now = getMonoTime()): bool =
-  ## The finger lifts. True when it was moving fast enough for the content to run on.
+  ## The finger lifts. True when it was moving fast enough for the content to
+  ## run on -- a coast is easing, so never when the user's motion preference
+  ## is reduced or none: the content stops where the finger did.
   let rested = float((now - f.lastAt).inNanoseconds) / 1e9
   f.tracking = false
-  if abs(f.velocity) >= MinFlingSpeed and rested < StaleAfter:
+  if abs(f.velocity) >= MinFlingSpeed and rested < StaleAfter and easingAllowed():
     f.active = true
     f.stepAt = now
     return true

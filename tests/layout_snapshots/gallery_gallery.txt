@@ -4,8 +4,8 @@ VStack gallery @0,0 1000x720
       Label - @6,15 63x23
       ComboBox theme.picker @77,6 167x41 tabstop
         ComboList - @77,47 167x408 floating
-  TabControl tabs @0,53 1000x802 tabstop
-    VStack - @0,83 1000x772
+  TabControl tabs @0,53 1000x912 tabstop
+    VStack - @0,83 1000x882
       Column basics @12,95 976x319
         Label - @12,95 976x32
         Wrap - @12,139 976x35
@@ -61,7 +61,7 @@ VStack gallery @0,0 1000x720
           Separator - @406,373 1x24
           ProgressBar basics.progress @425,373 160x23
           Spinner - @603,373 94x28 tabstop
-    VStack - @0,83 1000x772 hidden
+    VStack - @0,83 1000x882 hidden
       Column input @12,95 976x358
         Label - @12,95 976x32
         Wrap - @12,137 976x32
@@ -90,7 +90,7 @@ VStack gallery @0,0 1000x720
             ComboList - @357,271 200x0 floating
         Label - @12,290 976x23
         TextArea input.area @12,323 520x130 tabstop
-    VStack - @0,83 1000x772 hidden
+    VStack - @0,83 1000x882 hidden
       Column pickers @12,95 976x434
         Wrap - @12,95 976x41
           Label - @12,95 43x23
@@ -116,9 +116,9 @@ VStack gallery @0,0 1000x720
                 Crumb - @107,297 112x24 tabstop
               TextInput - @442,289 170x41 tabstop
             ListBox - @12,336 600x193 tabstop
-    VStack - @0,83 1000x772 hidden
-      Column layout @12,95 976x748
-        Wrap - @12,95 976x102
+    VStack - @0,83 1000x882 hidden
+      Column layout @12,95 976x858
+        Wrap - @12,95 976x212
           Panel - @12,95 172x82
             Panel layout.panel @18,101 160x70
               Label - @28,111 140x50
@@ -131,107 +131,113 @@ VStack gallery @0,0 1000x720
           Panel - @584,95 212x102
             Expander layout.expander @590,101 200x90 tabstop
               Label - @590,129 200x23
-          Panel - @808,95 102x92
-            Drawer - @814,101 90x80
-              Label - @814,101 90x80
-        Wrap - @12,207 976x102
-          Panel - @12,207 332x102
-            SplitView layout.split @18,213 320x90
-              Label - @18,213 125x90
-              Label - @149,213 188x90
-          Panel - @356,207 232x92
-            Wrap - @362,213 220x80
-              Badge - @362,213 29x27
-              Badge - @397,213 30x27
-              Badge - @434,213 28x27
-              Badge - @469,213 64x27
-        Wrap - @12,319 976x96
-          Panel - @12,319 192x82
-            GridView - @18,325 180x70
-              Rectangle - @18,325 57x57
-              Rectangle - @79,325 57x57
-              Rectangle - @140,325 57x57
-          Panel - @216,319 252x96
-            Table - @222,325 240x84
-              TableRow - @222,325 240x41
-                Label - @222,334 54x23
-                TextInput - @284,325 178x41 tabstop
-              TableRow - @222,370 240x41
-                Label - @222,379 54x23
-                ComboBox - @284,370 178x41 tabstop
-                  ComboList - @284,411 178x48 floating
-          Panel - @480,319 132x72
-            Stack - @486,325 120x60
-              Rectangle - @486,325 0x0
-              Center - @486,325 49x23
-                Label - @486,325 49x23
-        Wrap - @12,425 976x132
-          Panel - @12,425 132x72
-            Align - @18,431 120x60
-              Label - @93,468 45x23
-          Panel - @156,425 132x72
-            Padding - @162,431 120x60
-              Label - @170,439 104x44
-          Panel - @300,425 112x52
-            SizedBox - @306,431 100x40
-              Label - @306,431 100x40
-          Panel - @424,425 112x52
-            ConstrainedBox - @430,431 100x40
-              Label - @430,431 100x40
-          Panel - @548,425 112x52
-            Container - @554,431 100x40
-              Label - @554,431 100x40
-          Panel - @672,425 232x42
-            Flex - @678,431 220x30
-              Expanded - @678,434 69x23
-                Label - @678,434 69x23
-              Flexible - @753,434 67x23
-                Label - @753,434 67x23
-              Spacer - @826,444 69x4
-          Panel - @12,505 132x52
-            Positioned - @18,511 120x40
-              Label - @18,511 120x40
-        Wrap - @12,567 976x242
-          Panel - @12,567 232x112
-            ScrollView layout.scroll @18,573 220x100
-              VStack - @26,581 125x544 clipped=125x84
-                Label - @30,585 117x23
-                Label - @30,612 117x23
-                Label - @30,639 117x23
-                Label - @30,666 117x23 clipped=117x0
-                Label - @30,693 117x23 clipped=117x0
-                Label - @30,720 117x23 clipped=117x0
-                Label - @30,747 117x23 clipped=117x0
-                Label - @30,774 117x23 clipped=117x0
-                Label - @30,801 117x23 clipped=117x0
-                Label - @30,828 117x23 clipped=117x0
-                Label - @30,855 117x23 clipped=117x0
-                Label - @30,882 117x23 clipped=117x0
-                Label - @30,909 117x23 clipped=117x0
-                Label - @30,936 117x23 clipped=117x0
-                Label - @30,963 117x23 clipped=117x0
-                Label - @30,990 117x23 clipped=117x0
-                Label - @30,1017 117x23 clipped=117x0
-                Label - @30,1044 117x23 clipped=117x0
-                Label - @30,1071 117x23 clipped=117x0
-                Label - @30,1098 117x23 clipped=117x0
-          Panel - @256,567 332x102
-            TabControl layout.nested @262,573 320x90 tabstop
-              Label - @262,601 320x62
-              Label - @262,601 320x62 hidden
-          Panel - @600,567 212x52
-            IndexedStack layout.indexed @606,573 200x40
-              Label - @606,573 200x40 hidden
-              Label - @606,573 200x40
-          Panel - @12,687 272x122
-            Dock layout.dock @18,693 260x110
-              Docked - @18,693 260x23
-                Label - @18,693 260x23
-              Docked - @18,716 29x87
-                Label - @18,716 29x87
-              Label - @47,716 231x87
-        StatusBar layout.status @12,819 976x24
-    VStack - @0,83 1000x772 hidden
+          Panel - @12,205 212x102
+            Accordion layout.accordion @18,211 200x90
+              Expander - @18,211 200x64 tabstop
+                Label - @18,239 200x23
+              Expander - @18,277 200x24 tabstop
+                Label - @0,0 64x23 clipped=46x0 hidden
+          Panel - @236,205 102x92
+            Drawer - @242,211 90x80
+              Label - @242,211 90x80
+        Wrap - @12,317 976x102
+          Panel - @12,317 332x102
+            SplitView layout.split @18,323 320x90
+              Label - @18,323 125x90
+              Label - @149,323 188x90
+          Panel - @356,317 232x92
+            Wrap - @362,323 220x80
+              Badge - @362,323 29x27
+              Badge - @397,323 30x27
+              Badge - @434,323 28x27
+              Badge - @469,323 64x27
+        Wrap - @12,429 976x96
+          Panel - @12,429 192x82
+            GridView - @18,435 180x70
+              Rectangle - @18,435 57x57
+              Rectangle - @79,435 57x57
+              Rectangle - @140,435 57x57
+          Panel - @216,429 252x96
+            Table - @222,435 240x84
+              TableRow - @222,435 240x41
+                Label - @222,444 54x23
+                TextInput - @284,435 178x41 tabstop
+              TableRow - @222,480 240x41
+                Label - @222,489 54x23
+                ComboBox - @284,480 178x41 tabstop
+                  ComboList - @284,521 178x48 floating
+          Panel - @480,429 132x72
+            Stack - @486,435 120x60
+              Rectangle - @486,435 0x0
+              Center - @486,435 49x23
+                Label - @486,435 49x23
+        Wrap - @12,535 976x132
+          Panel - @12,535 132x72
+            Align - @18,541 120x60
+              Label - @93,578 45x23
+          Panel - @156,535 132x72
+            Padding - @162,541 120x60
+              Label - @170,549 104x44
+          Panel - @300,535 112x52
+            SizedBox - @306,541 100x40
+              Label - @306,541 100x40
+          Panel - @424,535 112x52
+            ConstrainedBox - @430,541 100x40
+              Label - @430,541 100x40
+          Panel - @548,535 112x52
+            Container - @554,541 100x40
+              Label - @554,541 100x40
+          Panel - @672,535 232x42
+            Flex - @678,541 220x30
+              Expanded - @678,544 69x23
+                Label - @678,544 69x23
+              Flexible - @753,544 67x23
+                Label - @753,544 67x23
+              Spacer - @826,554 69x4
+          Panel - @12,615 132x52
+            Positioned - @18,621 120x40
+              Label - @18,621 120x40
+        Wrap - @12,677 976x242
+          Panel - @12,677 232x112
+            ScrollView layout.scroll @18,683 220x100
+              VStack - @26,691 125x544 clipped=125x84
+                Label - @30,695 117x23
+                Label - @30,722 117x23
+                Label - @30,749 117x23
+                Label - @30,776 117x23 clipped=117x0
+                Label - @30,803 117x23 clipped=117x0
+                Label - @30,830 117x23 clipped=117x0
+                Label - @30,857 117x23 clipped=117x0
+                Label - @30,884 117x23 clipped=117x0
+                Label - @30,911 117x23 clipped=117x0
+                Label - @30,938 117x23 clipped=117x0
+                Label - @30,965 117x23 clipped=117x0
+                Label - @30,992 117x23 clipped=117x0
+                Label - @30,1019 117x23 clipped=117x0
+                Label - @30,1046 117x23 clipped=117x0
+                Label - @30,1073 117x23 clipped=117x0
+                Label - @30,1100 117x23 clipped=117x0
+                Label - @30,1127 117x23 clipped=117x0
+                Label - @30,1154 117x23 clipped=117x0
+                Label - @30,1181 117x23 clipped=117x0
+                Label - @30,1208 117x23 clipped=117x0
+          Panel - @256,677 332x102
+            TabControl layout.nested @262,683 320x90 tabstop
+              Label - @262,711 320x62
+              Label - @262,711 320x62 hidden
+          Panel - @600,677 212x52
+            IndexedStack layout.indexed @606,683 200x40
+              Label - @606,683 200x40 hidden
+              Label - @606,683 200x40
+          Panel - @12,797 272x122
+            Dock layout.dock @18,803 260x110
+              Docked - @18,803 260x23
+                Label - @18,803 260x23
+              Docked - @18,826 29x87
+                Label - @18,826 29x87
+              Label - @47,826 231x87
+        StatusBar layout.status @12,929 976x24
+    VStack - @0,83 1000x882 hidden
       Row data @12,95 976x469
         Expanded - @12,95 384x469
           Column - @12,95 384x469
@@ -249,7 +255,7 @@ VStack gallery @0,0 1000x720
               TextInput - @554,128 156x22 tabstop
             Label - @412,324 576x23
             DataGrid data.grid @412,355 576x160 tabstop
-    VStack - @0,83 1000x772 hidden
+    VStack - @0,83 1000x882 hidden
       Column graphics @12,95 976x530
         Row - @12,95 976x190
           Expanded - @12,95 366x190
@@ -273,7 +279,7 @@ VStack gallery @0,0 1000x720
             ProgressBar - @556,585 140x14
           ImageWidget graphics.image @708,465 96x48
           DragDropArea graphics.drop @816,465 160x100 tabstop
-    VStack - @0,83 1000x772 hidden
+    VStack - @0,83 1000x882 hidden
       VStack menus @12,95 976x119
         MenuBar menus.bar @12,95 976x28 tabstop
           Menu menus.file @12,123 0x0 floating
@@ -299,7 +305,7 @@ VStack gallery @0,0 1000x720
           ContextMenu menus.context @28,198 0x0 floating
             MenuItem - @0,0 68x24 hidden
             MenuItem - @0,0 83x24 hidden
-    VStack - @0,83 1000x772 hidden
+    VStack - @0,83 1000x882 hidden
       Column live @12,95 976x565
         Label - @12,95 976x29
         Wrap - @12,134 976x32

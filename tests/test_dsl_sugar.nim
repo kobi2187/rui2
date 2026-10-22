@@ -174,7 +174,14 @@ suite "widgets yui asks for":
     check drawer.measure(unbounded()).width == 0
     Drawer(drawer).setOpen(true)
     inc layoutPassNumber                    # a new frame
+    # It measures where its slide is, so what is beside it gives way as it
+    # opens: nothing yet on the first frame...
+    check drawer.measure(unbounded()).width < 200
+    # ...and all of it at once when motion is off.
+    animationsEnabled = false
+    inc layoutPassNumber
     check drawer.measure(unbounded()).width == 200
+    animationsEnabled = true
 
   test "SearchInput is a one-line TextInput":
     let search = newSearchInput()

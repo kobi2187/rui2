@@ -37,3 +37,6 @@ export drawer
 
 import containers/sidepane
 export sidepane
+
+import containers/accordion
+export accordion

@@ -120,7 +120,10 @@ definePrimitive(SidePane):
       drawThemedFocusRing(header, props)
 
 method computeSize*(widget: SidePane, c: Constraints): Size =
-  let w = if widget.expanded: widget.width else: widget.stripWidth
+  # Where the fold is now, as for a Drawer: what is beside it moves with it.
+  let t = widget.slide.follow(widget, (if widget.expanded: 1.0'f32 else: 0.0'f32),
+                              currentTheme.transitionSeconds)
+  let w = widget.stripWidth + (widget.width - widget.stripWidth) * t
   var h = paneHeader()
   if widget.children.len > 0:
     h += widget.children[0].measure(unbounded().withWidth(widget.width)).height

@@ -1,5 +1,6 @@
 import std/[unittest, monotimes, times]
 import ../packages/rui_widgets/src/fling
+import rui_core
 
 let t0 = getMonoTime()
 proc at(ms: int): MonoTime = t0 + initDuration(milliseconds = ms)
@@ -17,6 +18,16 @@ suite "Fling":
       total += f.step(at(now))
     check total < -200                 # kept moving upwards
     check not f.active
+
+  test "a coast is easing: with motion reduced or none the content stops with the finger":
+    for level in [motionReduced, motionNone]:
+      motion = level
+      var f: Fling
+      f.begin(500, at(0))
+      for i in 1 .. 5: f.track(500 - i.float32 * 20, at(i * 16))
+      check not f.release(at(5 * 16 + 10))
+      check not f.active
+    motion = motionFull
 
   test "a slow drag does not fling":
     var f: Fling

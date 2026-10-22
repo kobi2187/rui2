@@ -7,6 +7,7 @@ import types;              export types
 import link;               export link
 import link_seq;           export link_seq
 import pollers;            export pollers
+import background;         export background
 import store;              export store
 import main_loop;          export main_loop
 import widget_dsl;         export widget_dsl
@@ -23,6 +24,8 @@ import preferences;       export preferences
 import clipboard;         export clipboard
 import modifiers;         export modifiers
 import overlays;          export overlays
+import freeze;            export freeze
+import outline;           export outline
 import input_mode;        export input_mode
 import popups;            export popups
 import perf;              export perf

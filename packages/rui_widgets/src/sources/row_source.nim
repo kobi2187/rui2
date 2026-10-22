@@ -120,6 +120,13 @@ proc unlisten*(s: RowSource, id: ListenerId) =
     s.polling = false
     removePoller(s.pollerId)
 
+proc stopPolling*(s: RowSource) =
+  ## Take the source's poller off the loop: for a source that is closing, whose
+  ## worker and queues are about to go.
+  if s.polling:
+    s.polling = false
+    removePoller(s.pollerId)
+
 proc listenerCount*(s: RowSource): int = s.listeners.len
 
 proc notify*(s: RowSource, change: SeqChange) =

@@ -91,7 +91,7 @@ definePrimitive(MessageBox):
 
     let intent = intentFor(widget.messageType)
     let panel = panelRect(widget.bounds, widget.dialogWidth, widget.dialogHeight)
-    let props = drawModalFrame(widget.bounds, panel, widget.title, intent)
+    let props = drawModalFrame(widget, panel, widget.title, intent)
 
     let iconRect = Rect(x: panel.x + 20, y: panel.y + 50, width: 32, height: 32)
     drawAlertSymbol(iconRect, alertLevelFor(widget.messageType),

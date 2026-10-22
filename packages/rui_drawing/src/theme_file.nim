@@ -112,6 +112,12 @@ type
     durationFast, durationNormal, durationSlow: Option[float32]
     defaultEasing: Option[string]
 
+  BackdropFile* {.sparse.} = object
+    ## The page behind a modal: `color` tints it ("#00000080"), `blur` softens
+    ## it (pixels), `saturation` fades its colour (1 as is, 0 grey).
+    color: Option[string]
+    blur, saturation: Option[float32]
+
   BrandFile* {.sparse.} = object
     ## A `brand:` section: the same choices as `BrandSpec`, colours as strings.
     ## Everything is optional; what is left out takes the spec's own default.
@@ -140,6 +146,7 @@ type
     metrics: Option[MetricsFile]
     hint: Option[HintFile]
     animation: Option[AnimationFile]
+    backdrop: Option[BackdropFile]
     brand: Option[BrandFile]
       ## A whole theme from a handful of brand choices (see brand_themes.nim).
       ## It replaces `extends`; `base` and `states` still override it.
@@ -386,6 +393,11 @@ proc toTheme*(tf: ThemeFile, resolver: proc(name: string): Theme): Theme =
     takeMotion durationSlow
     if a.defaultEasing.isSome:
       result.animation.defaultEasing = some(parseEasingName(a.defaultEasing.get()))
+  if tf.backdrop.isSome:
+    let b = tf.backdrop.get()
+    if b.color.isSome: result.backdrop.color = some(parseColor(b.color.get()))
+    if b.blur.isSome: result.backdrop.blur = b.blur
+    if b.saturation.isSome: result.backdrop.saturation = b.saturation
   if tf.metrics.isSome:
     let m = tf.metrics.get()
     template take(field: untyped) =
@@ -461,6 +473,8 @@ proc validateThemeNode*(root: JsonNode) =
     checkKeys(root["metrics"], "metrics", fieldNames(MetricsFile))
   if root.hasKey("animation"):
     checkKeys(root["animation"], "animation", fieldNames(AnimationFile))
+  if root.hasKey("backdrop"):
+    checkKeys(root["backdrop"], "backdrop", fieldNames(BackdropFile))
   if root.hasKey("brand"):
     checkKeys(root["brand"], "brand", fieldNames(BrandFile))
 
@@ -632,6 +646,12 @@ proc themeToJson*(theme: Theme): JsonNode =
     let name = $a.defaultEasing.get
     motion["defaultEasing"] = newJString(name[0 .. 0].toLowerAscii & name[1 .. ^1])
   if motion.len > 0: result["animation"] = motion
+  let bd = theme.backdrop
+  var backdrop = newJObject()
+  if bd.color.isSome: backdrop["color"] = newJString(formatColor(bd.color.get))
+  if bd.blur.isSome: backdrop["blur"] = num(bd.blur.get)
+  if bd.saturation.isSome: backdrop["saturation"] = num(bd.saturation.get)
+  if backdrop.len > 0: result["backdrop"] = backdrop
 
 proc yamlScalar(node: JsonNode): string =
   case node.kind

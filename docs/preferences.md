@@ -35,12 +35,21 @@ keys:
   prevInGroup: [Up, Left, K]
   leaveGroup: [Escape]
   showHelp: [F1, Shift+Slash]   # F1 or ?
-motion: full                    # full | reduced (no animations)
+motion: system                  # system | full | reduced (no easing) | none (nothing moves)
 scroll: 1.0                     # wheel multiplier, 0.1 to 10
 caretBlinkMs: 500               # half a blink period; 0 keeps the caret steady
 doubleClickMs: 400              # longest gap between clicks of a double-click
 colorScheme: system             # system | light | dark
 ```
+
+## Motion
+
+| `motion:` | what moves |
+|---|---|
+| `system` (default) | whatever the desktop is set to: GNOME's *Animations*, macOS's *Reduce motion*, Windows' window animations |
+| `full` | everything as designed |
+| `reduced` | no easing: fades, slides, a drawer opening, a flick's coast all land at once; continuous effects (lights running round a border) still run |
+| `none` (also `off`) | nothing moves at all: the fastest, plainest snapping |
 
 ## Keyboard navigation
 
@@ -80,7 +89,7 @@ vanish when you use the mouse.
 
 ```nim
 let app = newApp("Notes")       # reads the user's preferences; nothing to do
-prefs.reduceMotion              # read-only: honour it in anything custom you animate
+easingAllowed(), effectsAllowed() # ask before you animate anything custom
 prefs.colorScheme               # offer a light and a dark theme; start on the one asked for
 ```
 
@@ -99,4 +108,5 @@ a note that has no widget and no action.
 Do not rebind navigation keys or override scroll and double-click speed: that
 is the user's call, and being able to count on it is the point. Add your own
 shortcuts (Ctrl+S) as widget key handlers; they do not compete with navigation.
-`Animated` values respect `reduceMotion` automatically.
+`Animated` values, `.animateLayout()` containers and decorations respect
+the motion preference automatically.

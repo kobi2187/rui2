@@ -1,0 +1,6 @@
+Column - @20,10 381x351
+  Label - @70,130 248x23
+  Label - @70,163 161x23
+  Button closeBtn @70,196 82x39 tabstop
+    Rectangle - @70,196 82x39
+    Label - @86,204 50x23

@@ -1,9 +1,13 @@
 ## Shared geometry for modal dialogs.
 ##
-## A modal sizes its `bounds` to the whole screen, because that is the only way
-## to dim what is behind it: renderPass draws each widget into a render texture
-## sized to its own bounds, so a dialog sized to its panel could not paint an
-## overlay around itself. The panel is then centred inside those bounds.
+## A modal sizes its `bounds` to the whole screen, because it paints what is
+## behind it: renderPass draws each widget into a render texture sized to its
+## own bounds, so a dialog sized to its panel could not paint around itself.
+## The panel is then centred inside those bounds.
+##
+## While it is open the page behind it is frozen (rui_core freeze.nim): the
+## App keeps one picture of it, in the theme's backdrop look, which the modal
+## draws as its background, and only the modal is laid out and painted.
 ##
 ## A modal is on its own hit-test layer (`ModalLayer`), above the page: it is a
 ## shallow child of the root, and without the layer whatever lay under its
@@ -43,12 +47,14 @@ proc openModal*(widget: Widget) =
   widget.isDirty = true
   widget.layoutDirty = true
   widget.markDirtyToRoot()
+  freezeBehind(widget)          # the page behind it stops: a still picture (freeze.nim)
   wantFocus(widget)
 
 proc closeModal*(widget: Widget) =
   ## Take it off the screen and out of the hit-test tree.
   widget.visible = false
   widget.isDirty = true
+  thaw(widget)
   # Hidden, it is skipped by the layout check, so it is the parent that asks for
   # the pass that takes it out of the hit-test tree.
   if widget.parent != nil: widget.parent.layoutDirty = true
@@ -60,11 +66,13 @@ proc panelRect*(bounds: Rect, width, height: float32): Rect =
        y: bounds.y + (bounds.height - height) / 2,
        width: width, height: height)
 
-proc drawModalFrame*(bounds, panel: Rect, title: string, intent = ThemeIntent.Default): ThemeProps =
-  ## What every modal paints first: the dim backdrop over `bounds`, then the
-  ## shadowed themed panel with its title bar. Returns the panel's props so the
-  ## caller can draw its own content in the same colours.
-  drawRect(bounds, Color(r: 0, g: 0, b: 0, a: 128))
+proc drawModalFrame*(modal: Widget, panel: Rect, title: string,
+                     intent = ThemeIntent.Default): ThemeProps =
+  ## What every modal paints first: the backdrop over its whole area -- the
+  ## page frozen behind it, in the theme's backdrop look (backdrop.nim) --
+  ## then the shadowed themed panel with its title bar. Returns the panel's
+  ## props so the caller can draw its own content in the same colours.
+  drawBackdrop(modal, modal.bounds)
   result = currentTheme.getThemeProps(intent, Normal)
   drawFloatingShadow(panel, result)
   drawThemedBackground(panel, result)

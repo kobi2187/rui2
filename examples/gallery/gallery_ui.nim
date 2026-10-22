@@ -172,6 +172,12 @@ proc layoutTab(): Widget =
           Expander(title = "Expander", initialExpanded = true).named("layout.expander").size(200, 90):
             Label(text = "expanded content")
         Panel(padding = 6.0, cornerRadius = 0.0):
+          Accordion(spacing = 2.0).named("layout.accordion").size(200, 90):
+            Expander(title = "Open"):
+              Label(text = "one at a time")
+            Expander(title = "Folded", initialExpanded = false):
+              Label(text = "hidden")
+        Panel(padding = 6.0, cornerRadius = 0.0):
           Drawer(side = dsLeft, initialOpen = true, width = 90.0).size(220, 80):
             Label(text = "drawer")
       Wrap(spacing = 12.0, runSpacing = 8.0):

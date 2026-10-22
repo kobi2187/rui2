@@ -33,6 +33,7 @@
 ## is how they always behaved.
 
 import rui_core
+import ../layout_motion
 
 type FlexPlan = object
   sizes: seq[Size]          # each child's measured size
@@ -119,8 +120,8 @@ proc placeFlex[W](widget: W, plan: FlexPlan) =
                                           crossExtent, crossOf(size))
     let x = if horizontal: pad.left + pos else: pad.left + across
     let y = if horizontal: pad.top + across else: pad.top + pos
-    child.arrange(Rect(x: widget.bounds.x + x, y: widget.bounds.y + y,
-                       width: size.width, height: size.height))
+    arrangeMoving(widget, child, Rect(x: widget.bounds.x + x, y: widget.bounds.y + y,
+                                      width: size.width, height: size.height))
     pos += mainOf(size) + gap
 
 defineWidget(Flex):

@@ -305,6 +305,11 @@ type
       ## Set once the widget has had a child. Lets a debug build tell a widget
       ## that builds its children late (in its first layout) from one that is
       ## only replacing them (widget_dsl.nim `addChild`).
+    animateLayout*: bool
+      ## A container that eases its children to their new places when it
+      ## reflows (rui_widgets layout_motion.nim) instead of snapping them
+      ## there. Their bounds really move, so clicks follow. The user's
+      ## `motion: reduced` preference turns it back into snapping.
     hitLayer*: int
       ## The hit-test layer of this widget and everything inside it (the highest
       ## of its own and its ancestors'). A higher layer takes the pointer from

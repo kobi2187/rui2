@@ -52,7 +52,10 @@ definePrimitive(Drawer):
       drawThemedRect(widget.bounds, currentTheme.getThemeProps(widget.intent, Normal))
 
 method computeSize*(widget: Drawer, c: Constraints): Size =
-  let t = if widget.open: 1.0'f32 else: 0.0'f32
+  # Where the slide is now, not where it is going: the content beside it
+  # gives way as it moves rather than jumping to the end.
+  let t = widget.slide.follow(widget, (if widget.open: 1.0'f32 else: 0.0'f32),
+                              currentTheme.transitionSeconds)
   var h = 0.0'f32
   if widget.children.len > 0:
     h = widget.children[0].measure(unbounded().withWidth(widget.width)).height

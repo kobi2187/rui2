@@ -16,6 +16,7 @@
 import std/[json, strutils]
 import types
 import key_map
+import animation
 
 type
   ColorScheme* = enum
@@ -25,14 +26,14 @@ type
 
   Preferences* = object
     keys*: KeyMap
-    reduceMotion*: bool       ## no animations: every change lands at once
+    motion*: Motion           ## full, reduced (no easing) or none (nothing moves); system by default
     scrollSpeed*: float32     ## wheel multiplier, 0.1 .. 10 (1 = as the OS reports)
     caretBlinkMs*: int        ## half a blink period; 0 keeps the caret steady
     doubleClickMs*: int       ## the longest gap between clicks of a double-click
     colorScheme*: ColorScheme ## which look the user wants applications to prefer
 
 proc defaultPreferences*(): Preferences =
-  Preferences(keys: defaultKeyMap(), reduceMotion: false, scrollSpeed: 1.0,
+  Preferences(keys: defaultKeyMap(), motion: motionSystem, scrollSpeed: 1.0,
               caretBlinkMs: 500, doubleClickMs: 400, colorScheme: schemeSystem)
 
 var prefs* = defaultPreferences()
@@ -46,6 +47,18 @@ proc parseColorScheme(s: string): ColorScheme =
   of "dark": schemeDark
   else:
     raise newException(ValueError, "expected system, light or dark, not '" & s & "'")
+
+proc parseMotion(value: JsonNode): Motion =
+  # YAML reads a bare `motion: off` as the boolean false (and `on` as true):
+  # take those as meant.
+  if value.kind == JBool:
+    return (if value.getBool: motionFull else: motionNone)
+  case value.getStr.toLowerAscii
+  of "system", "auto": motionSystem
+  of "full", "on": motionFull
+  of "reduced", "no-easing": motionReduced
+  of "none", "off", "snappy": motionNone
+  else: raise newException(ValueError, "expected system, full, reduced or none")
 
 proc preferencesFromJson*(node: JsonNode): tuple[prefs: Preferences,
                                                  problems: seq[string]] =
@@ -66,10 +79,7 @@ proc preferencesFromJson*(node: JsonNode): tuple[prefs: Preferences,
         for c in result.prefs.keys.conflicts:
           result.problems.add "keys: " & c
       of "motion":
-        case value.getStr.toLowerAscii
-        of "full": result.prefs.reduceMotion = false
-        of "reduced": result.prefs.reduceMotion = true
-        else: raise newException(ValueError, "expected full or reduced")
+        result.prefs.motion = parseMotion(value)
       of "scroll":
         let v = value.getFloat
         if v < 0.1 or v > 10: raise newException(ValueError, "expected 0.1 to 10")

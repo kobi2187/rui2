@@ -57,3 +57,8 @@ proc nextRepaint*(): Option[MonoTime] =
 proc clearRepaints*() =
   ## Drop every timer. For tests, and for an app replacing its whole tree.
   pending.setLen(0)
+
+proc pendingRepaints*(): seq[tuple[widget: Widget, at: MonoTime]] =
+  ## Every timer still set: who asked, and for when. For tests and tools that
+  ## want to know what keeps an app awake.
+  for entry in pending: result.add((entry.widget, entry.at))
