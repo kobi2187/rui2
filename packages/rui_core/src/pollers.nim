@@ -29,8 +29,11 @@ proc removePoller*(id: int) =
 proc pollerCount*(): int = pollers.len
 
 proc runPollers*(): bool =
-  ## Run every poller; true when any had something new.
-  for poller in pollers:
+  ## Run every poller; true when any had something new. A poller may add or
+  ## remove pollers (one that delivered a background result removes itself),
+  ## so this runs over the list as it was when the round began.
+  let round = pollers
+  for poller in round:
     if poller.call(): result = true
 
 proc wakeMain*() =

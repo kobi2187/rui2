@@ -896,6 +896,25 @@ proc handleMenuKeys(app: App, event: GuiEvent): bool =
   if result:
     app.tree.anyDirty = true
 
+const SlowHandler = initDuration(milliseconds = 200)
+var slowWarned: seq[pointer]
+
+proc noteSlowHandler(app: App, event: GuiEvent, took: Duration) =
+  ## Debug builds: an event whose handling held the UI thread so long that the
+  ## window visibly froze is reported once per widget, with the cure. (Work
+  ## that blocks belongs in runInBackground.)
+  if took < SlowHandler: return
+  let w = if event.kind in {evKeyDown, evChar}: app.focusManager.focusedWidget
+          else: pointerWidget()
+  let key = cast[pointer](w)
+  if key in slowWarned: return
+  slowWarned.add key
+  let who = if w == nil: "the app"
+            else: w.getTypeName & (if w.stringId.len > 0: " \"" & w.stringId & "\"" else: "")
+  stderr.writeLine "[rui] handling a ", event.kind, " on ", who, " held the UI thread for ",
+    took.inMilliseconds, " ms: the window could not redraw or take input meanwhile. ",
+    "Move slow work into runInBackground(work, done)."
+
 proc handleEvent(app: App, event: GuiEvent) =
   ## Route one event. The work is in event_routing.nim; this is the three-way
   ## split between window, pointer and keyboard, and the dirty bookkeeping.
@@ -1252,7 +1271,13 @@ proc pumpEvents*(app: App) =
     # 3. Process events with time budget
     discard app.eventManager.processEvents(
       app.eventManager.currentBudget,
-      proc(event: GuiEvent) = app.handleEvent(event))
+      proc(event: GuiEvent) =
+        when defined(release):
+          app.handleEvent(event)
+        else:
+          let started = getMonoTime()
+          app.handleEvent(event)
+          app.noteSlowHandler(event, getMonoTime() - started))
 
   # 4. Poll script commands
   perfTime(phScript):
@@ -1271,6 +1296,8 @@ proc stepHeadless*(app: App) =
   ## `run` read raylib directly and there was nothing to call.
   app.pollThemeWatch()
   app.pumpEvents()
+  if runPollers():                  # background work and data sources deliver here
+    app.tree.anyDirty = true
   app.refreshLayout()
 
 proc step*(app: App): bool {.discardable.} =

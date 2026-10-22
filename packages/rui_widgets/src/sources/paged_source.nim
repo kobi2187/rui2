@@ -193,6 +193,7 @@ method poll*(s: PagedSource): bool =
       result = true
     s.notes.setLen(0)
     return
+  if s.thread == nil: return       # closed: its queues are gone
   while true:
     let got = s.results[].tryRecv()
     if not got.dataAvailable: break
@@ -256,6 +257,7 @@ method setFilters*(s: PagedSource, filters: seq[ColumnFilter]) =
   s.reconfigure()
 
 method close*(s: PagedSource) =
+  s.stopPolling()                  # nothing left to poll once the worker goes
   if s.mode == smInline:
     if s.inline != nil:
       s.inline.close()
