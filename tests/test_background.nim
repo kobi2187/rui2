@@ -1,6 +1,6 @@
 ## Slow work off the UI thread (background.nim): the frames keep coming while
 ## it runs, its result reaches `done` on the UI thread, a failure reaches
-## `failed`, and several can run at once.
+## `failed`, and the jobs queue on one dedicated thread, run in order.
 
 import std/[unittest, os, monotimes, times]
 import rui
@@ -42,6 +42,34 @@ suite "runInBackground":
                     proc(e: string) = err = e)
     r.waitFor(proc(): bool = err.len > 0)
     check err == "no network"
+
+  test "one dedicated thread: jobs run there one at a time, in the order asked":
+    let r = newRig(stack(newLabel(text = "x")))
+    var threads: seq[int]
+    var order: seq[int]
+    let t0 = getMonoTime()
+    for i in 1 .. 3:
+      closureScope:
+        let n = i
+        runInBackground(proc(): int = (sleep(100); n),
+                        proc(v: int) = order.add v)
+        runInBackground(proc(): int = getThreadId(), proc(id: int) = threads.add id)
+    check backgroundJobs() == 6
+    r.waitFor(proc(): bool = order.len == 3 and threads.len == 3)
+    check order == @[1, 2, 3]
+    check getMonoTime() - t0 >= initDuration(milliseconds = 300)   # one after another
+    check threads[0] == threads[1] and threads[1] == threads[2]     # always the same thread
+    check threads[0] != getThreadId()                              # and not the UI's
+
+  test "stopBackground finishes what is queued and delivers it; the next job starts it again":
+    var got: seq[int]
+    runInBackground(proc(): int = (sleep(50); 7), proc(v: int) = got.add v)
+    stopBackground()
+    check got == @[7] and backgroundJobs() == 0
+    let r = newRig(stack(newLabel(text = "x")))
+    runInBackground(proc(): int = 8, proc(v: int) = got.add v)
+    r.waitFor(proc(): bool = got.len == 2)
+    check got == @[7, 8]
 
   test "several at once, each delivered once; work with no result":
     let r = newRig(stack(newLabel(text = "x")))

@@ -1391,6 +1391,7 @@ proc run*(app: App, maxFrames: int = -1) =
     if app.tree.root != nil: freeTextureTree(app.tree.root)
     for overlay in overlays(): freeTextureTree(overlay)
     thawAll()                         # a modal's frozen picture is a texture too
+    stopBackground()                  # finish and deliver queued jobs, stop the thread
     clearTextCache()                  # glyph textures are global, freed the same way
     when defined(ruiShaped):
       app.shapeSkin = none(Texture2D)   # a GPU texture too: unloaded now, not after
