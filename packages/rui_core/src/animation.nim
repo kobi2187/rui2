@@ -20,9 +20,31 @@ import std/[monotimes, times, math]
 import types
 import repaint_timers
 
+type Motion* = enum
+  ## How much the user wants things to move (their preferences' `motion:`).
+  motionSystem    ## as the desktop is set (resolved when preferences apply)
+  motionFull      ## everything as designed
+  motionReduced   ## no easing: fades, slides and a flick's coast land at once;
+                  ## continuous effects (a decoration's lights) still run
+  motionNone      ## nothing moves at all: the fastest, plainest snapping
+
+var motion* = motionFull
+  ## The level in force (never motionSystem once preferences are applied).
+
 var animationsEnabled* = true
-  ## Off, every `follow` lands on its target at once. Scripted runs and tests
-  ## turn it off so what they read is the settled value, not a point on the way.
+  ## Off, every `follow` lands on its target at once and no effect runs.
+  ## Scripted runs and tests turn it off so what they read is the settled
+  ## value, not a point on the way. The user's choice is `motion`.
+
+proc easingAllowed*(): bool =
+  ## Whether a change may travel -- a fade, a slide, a flick's coast -- or
+  ## must land at once. Every easing in the toolkit asks this.
+  animationsEnabled and motion in {motionFull, motionSystem}
+
+proc effectsAllowed*(): bool =
+  ## Whether a continuous effect (lights running round a border, a pulse)
+  ## may move. Off, it shows still or not at all.
+  animationsEnabled and motion != motionNone
 
 var settleEpoch* = 0
   ## Bump to make every Animated snap to its next target instead of travelling
@@ -158,7 +180,7 @@ proc follow*[T](a: var Animated[T], widget: Widget, target: T,
   ## The one call a widget needs: this frame's value on the way to `target`.
   ## While it is still moving, the widget is laid out and repainted again next
   ## frame; once it arrives, nothing more is asked of the loop.
-  if not animationsEnabled or a.epoch != settleEpoch:
+  if not easingAllowed() or a.epoch != settleEpoch:
     a.jump(target)                 # also settles a trip already under way
     a.seen = true
     a.epoch = settleEpoch

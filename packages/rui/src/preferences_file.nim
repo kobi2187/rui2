@@ -15,6 +15,7 @@
 import std/[os, json, strutils]
 import yaml/tojson
 import rui_core
+import system_scheme
 
 proc preferencesPath*(): string =
   ## Where the user's preferences live on this machine.
@@ -44,9 +45,21 @@ proc loadPreferences*(path = preferencesPath()): tuple[prefs: Preferences,
     r.problems[i] = path & ": " & r.problems[i]
   r
 
+var askedSystem = false
+var systemAnswer = motionFull
+
+proc systemMotion(): Motion =
+  ## The desktop's motion setting, asked once: every App applies preferences,
+  ## and a test run makes hundreds.
+  if not askedSystem:
+    systemAnswer = detectSystemMotion()
+    askedSystem = true
+  systemAnswer
+
 proc applyPreferences*(p: Preferences) =
   ## Make `p` the preferences in force. (Navigation keys reach a FocusManager
   ## when it is created or told to refresh; see App.)
   prefs = p
   inc measureEpoch               # sizes may depend on them; measure afresh
-  animationsEnabled = not p.reduceMotion
+  motion = effectiveMotion(p.motion,
+                           if p.motion == motionSystem: systemMotion() else: motionFull)

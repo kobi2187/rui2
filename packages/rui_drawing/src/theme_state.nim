@@ -138,7 +138,7 @@ proc themeProps*(widget: Widget, intent: ThemeIntent,
   let target = currentTheme.getThemeProps(intent, state)
   let seconds = currentTheme.transitionSeconds
   let code = uint8(ord(state)) + 1
-  if not animationsEnabled or seconds <= 0 or widget.themeFadeEpoch != settleEpoch or
+  if not easingAllowed() or seconds <= 0 or widget.themeFadeEpoch != settleEpoch or
      widget.lastThemeState == 0:
     if widget.lastThemeState == 0:
       let id = widget.id

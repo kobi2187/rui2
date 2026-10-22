@@ -621,7 +621,8 @@ template paintEditable(widget: untyped, content: TextContent, inner: Rect) =
       let now = getTime()
       let x = ox + widget.lineShift(line, font, inner) + caret.x
       let y = oy + float32(row) * lineH
-      let half = prefs.caretBlinkMs.float / 1000.0
+      # A blink is motion: with `motion: none` the caret holds still.
+      let half = if motion == motionNone: 0.0 else: prefs.caretBlinkMs.float / 1000.0
       let caretOn = half <= 0 or int(now / half) mod 2 == 0   # 0: steady
       if caretOn and x >= inner.x and x <= inner.x + inner.width:
         drawLine(x, max(y, inner.y), x, min(y + lineH, inner.y + inner.height),

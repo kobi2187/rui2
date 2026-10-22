@@ -33,7 +33,7 @@ proc arrangeMoving*(container, child: Widget, target: Rect) =
   let key = cast[pointer](child)
   let local = target.relative(container.bounds)
   let seconds = currentTheme.layoutSeconds
-  if key notin moving or not animationsEnabled or seconds <= 0:
+  if key notin moving or not easingAllowed() or seconds <= 0:
     if key notin moving:
       # Forget it when it goes, so the table does not hold every widget a
       # container ever had.

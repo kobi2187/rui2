@@ -65,9 +65,9 @@ suite "containers that move their children":
     col.settle()
     check second.bounds.y == 90                        # 50 + 40, no lag
 
-  test "motion: reduced (the user's preference) snaps everything":
+  test "settled for a script (animationsEnabled off) snaps everything":
     let (col, first, second) = column(animated = true)
-    animationsEnabled = false                          # what `motion: reduced` sets
+    animationsEnabled = false
     discard first.frame(height = 120)
     col.settle()
     check second.bounds.y == 120
@@ -85,12 +85,22 @@ suite "containers that move their children":
     currentTheme = saved
 
 suite "the motion preference":
-  test "full, reduced, and off (which YAML reads as false) as another word for reduced":
-    for (value, reduced) in [("full", false), ("reduced", true), ("off", true),
-                             ("none", true), ("on", false)]:
+  test "full, reduced and none, in the words people use (and YAML's on/off)":
+    for (value, want) in [("full", motionFull), ("on", motionFull), ("system", motionSystem),
+                          ("reduced", motionReduced), ("none", motionNone),
+                          ("off", motionNone), ("snappy", motionNone)]:
       let (prefs, problems) = parsePreferences("motion: " & value & "\n")
       check problems.len == 0
-      check prefs.reduceMotion == reduced
+      check prefs.motion == want
+
+  test "reduced and none both make a reflow snap":
+    for level in [motionReduced, motionNone]:
+      motion = level
+      let (col, first, second) = column(animated = true)
+      discard first.frame(height = 120)
+      col.settle()
+      check second.bounds.y == 120
+    motion = motionFull
 
 suite "Accordion: one section open, the rest folded to their headers":
   proc accordion(): (Accordion, seq[Expander]) =
