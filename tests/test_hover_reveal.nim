@@ -99,15 +99,9 @@ suite "HoverReveal":
     check rd.turns == 1
     check not rd.bar.shown
 
-  test "it fades with motion on, and is fully there at once with motion none":
+  test "it shows at once, whatever the motion preference: no fade":
     let rd = reader()
     motion = motionFull
     rd.r.moveTo(centre(rd.bar))
-    check rd.bar.shown
-    check rd.bar.children[0].transparency > 0                # on its way in
-    motion = motionNone
-    rd.bar.reveal(false)
-    rd.r.frame(1)
-    rd.bar.reveal(true)
-    rd.r.frame(1)
-    check rd.bar.children[0].transparency == 0
+    check rd.bar.shown and rd.bar.children[0].visible     # the same frame
+    check pendingRepaints().len == 0                      # nothing on its way

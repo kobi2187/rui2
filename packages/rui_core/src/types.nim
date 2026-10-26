@@ -306,11 +306,6 @@ type
       ## Set once the widget has had a child. Lets a debug build tell a widget
       ## that builds its children late (in its first layout) from one that is
       ## only replacing them (widget_dsl.nim `addChild`).
-    transparency*: float32
-      ## 0 opaque (the default) .. 1 invisible: how faintly the parent
-      ## composites this widget's picture. For a container that fades its
-      ## contents in and out as one (HoverReveal); the widget itself paints
-      ## as always.
     animateLayout*: bool
       ## A container that eases its children to their new places when it
       ## reflows (rui_widgets layout_motion.nim) instead of snapping them

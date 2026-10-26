@@ -2,8 +2,8 @@
 ##
 ## The page is all you see. Along the bottom, and in the top-right corner,
 ## only a faint outline marks where the controls are; bring the pointer near
-## and they fade in (page turning and position at the bottom, text size in
-## the corner), and they fade out again a second after it leaves. Hidden, they
+## and they are there at once (page turning and position at the bottom, text
+## size in the corner), gone again a second after it leaves. Hidden, they
 ## cannot be clicked -- on a touch screen the first tap only reveals them.
 ##
 ##   nim c -r -d:useGraphics examples/widgets/reader.nim [theme]

@@ -4,8 +4,8 @@
 ## controls out of the way until they are wanted. Hidden, the container is no
 ## more than a faint outline of its bounds: its contents are not drawn and
 ## take no clicks. When the pointer comes within `reach` pixels, the container
-## and everything in it fade in and work as usual; when the pointer has been
-## away for `hideDelay` seconds, they fade out again. They stay while
+## and everything in it appear at once and work as usual; when the pointer has
+## been away for `hideDelay` seconds, they are gone again. They stay while
 ## something inside has keyboard focus (tabbed to, not clicked), or while the pointer is over a popup
 ## (a dropdown opened from inside). On a touch screen, where nothing hovers,
 ## the first tap on it only reveals it, and a tap elsewhere hides it.
@@ -24,8 +24,8 @@
 ##         Button(text = "Next")
 ## ```
 ##
-## The fade follows the user's motion preference (instant with `reduced` or
-## `none`). Hidden or fully shown it costs nothing per frame.
+## It shows and hides at once, never fading: what the reader reaches for is
+## simply there. Shown or hidden, it costs nothing per frame.
 
 import rui_core
 import rui_drawing
@@ -37,14 +37,12 @@ proc watchPointer(widget: Widget): bool
 definePrimitive(HoverReveal):
   props:
     reach: float32 = 24.0        ## how near the pointer reveals it, px beyond its bounds
-    hideDelay: float = 1.0       ## seconds after the pointer leaves before it fades out
+    hideDelay: float = 1.0       ## seconds after the pointer leaves before it hides
     padding: float32 = 8.0       ## inside its panel, round the content
     intent: ThemeIntent = Default
 
   state:
-    shown: bool                  ## wanted visible now
-    fade: Animated[float32]
-    level: float32               ## 0 hidden .. 1 shown, as drawn this frame
+    shown: bool
     awaySince: MonoTime          ## when the pointer left (for hideDelay)
     away: bool
     pollerId: int
@@ -65,13 +63,10 @@ definePrimitive(HoverReveal):
       return false
 
   layout:
-    let target = if widget.shown: 1.0'f32 else: 0.0'f32
-    widget.level = widget.fade.follow(widget, target, currentTheme.transitionSeconds * 1.5)
     if widget.children.len > 0:
       let content = widget.children[0]
       # Not there at all while hidden: not drawn, not hit-tested, not focusable.
-      content.visible = widget.level > 0.01
-      content.transparency = 1'f32 - widget.level
+      content.visible = widget.shown
       let p = widget.padding
       content.arrange(Rect(x: widget.bounds.x + p, y: widget.bounds.y + p,
                            width: max(0'f32, widget.bounds.width - 2 * p),
@@ -84,13 +79,13 @@ definePrimitive(HoverReveal):
     let edge = props.borderColor.get(Color(r: 128, g: 128, b: 128, a: 255))
     # Shown, a panel behind the controls so they read over the page; hidden,
     # only a faint outline of where they are.
-    let k = widget.level
-    let fill = Color(r: surface.r, g: surface.g, b: surface.b,
-                     a: uint8(surface.a.float32 * 0.92 * k))
-    let lineAlpha = 0.28'f32 + 0.72'f32 * k
-    let line = Color(r: edge.r, g: edge.g, b: edge.b, a: uint8(edge.a.float32 * lineAlpha))
-    drawRoundedRect(widget.bounds, r, fill)
-    drawRoundedRectLines(widget.bounds, r, 1.0, line)
+    if widget.shown:
+      drawRoundedRect(widget.bounds, r, Color(r: surface.r, g: surface.g, b: surface.b,
+                                              a: uint8(surface.a.float32 * 0.92)))
+      drawRoundedRectLines(widget.bounds, r, 1.0, edge)
+    else:
+      drawRoundedRectLines(widget.bounds, r, 1.0,
+                           Color(r: edge.r, g: edge.g, b: edge.b, a: uint8(edge.a.float32 * 0.28)))
 
 proc focusWithin(w: Widget): bool =
   if w.focused: return true
