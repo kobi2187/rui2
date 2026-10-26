@@ -14,6 +14,7 @@ real widgets together, then add behaviour to the result:
 | Work that takes long, off the UI thread | `runInBackground(work, done)` |
 | A widget that glides by fractions of a pixel | `.subpixel()` |
 | Text by lines (a reader, a teleprompter) | `wrapLines(text, style, width)`, `lineHeight(style)` |
+| A whole book, a page at a time, read lazily | `TextPager` over `newLinesSource` ([sources](sources.md#long-text-a-page-at-a-time)) |
 | Controls that show only when wanted | `HoverReveal` |
 | Lights, glows, ants along an outline | `widget.adorn(...)` |
 | Children that move instead of jumping | `.animateLayout()` |
@@ -39,6 +40,13 @@ area = Stack(fit = StackFit.expand).focusable():
 area.onTick(proc(dt: float) = move(speed * dt))       # each frame
 area.onKey(proc(k: KeyboardKey): bool = ...)           # Up/Down a line, Space pauses
 
+let book = newTextPager(newLinesSource("book.txt"), textStyle)
+proc showPages() =                                     # each Label holds one page
+  book.setArea(area.bounds.width, area.bounds.height)
+  current.text = book.pageAt(here).get.text            # (blank while still being read)
+  next.text = book.pageAt(nextStart()).get.text
+book.source.attach(area, proc(c: SeqChange) = showPages())   # as paragraphs arrive
+
 proc place() =
   above.cut = EdgeInsets(bottom: area.bounds.height - lineY)
   below.cut = EdgeInsets(top: lineY)
@@ -46,7 +54,8 @@ proc place() =
 ```
 
 Both pages are real, wrapped Labels: a different font, a theme or a selection
-works as it does anywhere else.
+works as it does anywhere else. The book is never loaded whole: the pager reads
+only the paragraphs on the two pages (and a stretch ahead), in the background.
 
 ## When it really is a drawing
 

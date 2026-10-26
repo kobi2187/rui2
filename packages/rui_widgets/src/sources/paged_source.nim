@@ -82,7 +82,16 @@ proc workerMain(ctx: WorkerCtx) {.thread.} =
     wake()
     return
   var counting = true
+  var counted = 0
   var generation = 0
+  var waiting: seq[Job]            # pages past what is counted so far: read once it is
+  proc readOne(job: Job) =
+    try:
+      let page = reader.readPage(job.pageNo, PageSize)
+      ctx.results[].send Result(kind: rkPage, pageNo: job.pageNo,
+                                generation: job.generation, page: page)
+    except CatchableError as e:
+      ctx.results[].send Result(kind: rkError, error: e.msg)
   while true:
     var job: Job
     var have = false
@@ -98,24 +107,29 @@ proc workerMain(ctx: WorkerCtx) {.thread.} =
       of jkStop:
         break
       of jkPage:
-        try:
-          let page = reader.readPage(job.pageNo, PageSize)
-          ctx.results[].send Result(kind: rkPage, pageNo: job.pageNo,
-                                    generation: job.generation, page: page)
-        except CatchableError as e:
-          ctx.results[].send Result(kind: rkError, error: e.msg)
+        # A page the count has not reached yet would come back short (or
+        # empty) and be kept as if whole: hold it until the count passes it.
+        if counting and (job.pageNo + 1) * PageSize > counted: waiting.add job
+        else: readOne(job)
       of jkConfigure:
         generation = job.generation
         try:
           let n = reader.configure(job.spec)
+          counted = n
           ctx.results[].send Result(kind: rkConfigured, generation: generation, count: n)
         except CatchableError as e:
           ctx.results[].send Result(kind: rkError, error: e.msg)
       wake()
     else:
       let step = reader.countStep(CountSlice)
+      counted = step.count
       ctx.results[].send Result(kind: rkCount, count: step.count, done: step.done)
       if step.done: counting = false
+      var still: seq[Job]
+      for j in waiting:
+        if counting and (j.pageNo + 1) * PageSize > counted: still.add j
+        else: readOne(j)
+      waiting = still
       wake()
   reader.close()
 

@@ -31,3 +31,26 @@ ui:
 - `close()` a source you made when you are done with it (it stops the worker).
 - Write your own: subclass `RowSource`, override `count`, `columns`, `cell`, and
   `rowState`/`want`/`poll` if you fetch asynchronously (see `paged_source.nim`).
+
+## Long text, a page at a time
+
+A book does not go into a Label. A `TextPager` takes it from a row source, one
+paragraph a row (a blank row is a blank line), and lays out pages that fit an
+area, only when they are asked for:
+
+```nim
+let book = newTextPager(newLinesSource("book.txt"), TextStyle(fontSize: 22))
+book.setArea(width, height)          # another size re-lays the pages
+book.page(41)                        # some(text), or none while its rows are coming
+book.pageAt(pos)                     # the page starting at a TextPos, and where the next starts
+book.source.attach(widget, proc(c: SeqChange) = refresh())   # pages as rows arrive
+```
+
+- Only the paragraphs a page shows are read (with a stretch ahead), in the
+  background; a page whose rows haven't arrived is `none` until they do.
+- Pages are found in order and only where each starts is kept; `pageAt` lays out
+  one page from any position without the pages before it (to reopen a book at a
+  saved place). `atEnd(pos)` tells the end apart from "not read yet".
+- Each page is its lines joined by `\n`, each already fitting the width, so a
+  wrapped Label of that width shows exactly that page.
+- `examples/widgets/wave_reader.nim` reads a 4,000-line book this way.
