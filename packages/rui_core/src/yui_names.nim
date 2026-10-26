@@ -65,6 +65,7 @@ const elementMap*: seq[ElementMap] = @[
   em("drawer", "Drawer", mapSame, "in the flow, not over the content"),
   em("expander", "Expander", mapSame),
   em("accordion", "Accordion", mapSame, "one Expander open at a time"),
+  em("hoverreveal", "HoverReveal", mapSame, "controls that show when the pointer comes near"),
   em("spacer", "Spacer", mapSame),
   em("divider", "Separator", mapRename),
   # -- basic widgets ---------------------------------------------------------

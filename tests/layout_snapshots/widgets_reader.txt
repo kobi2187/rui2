@@ -1,0 +1,24 @@
+Stack - @0,0 720x520
+  Padding - @0,0 720x520
+    Label page @70,60 580x370
+  Positioned - @90,446 540x56
+    HoverReveal pageBar @90,446 540x56
+      Row - @98,454 524x40 hidden
+        Button prev @98,454 76x39 tabstop
+          Rectangle - @98,454 76x39
+          Label - @114,462 44x23
+        Expanded - @184,462 234x24
+          Slider position @184,462 234x24 tabstop
+        Label where @428,462 106x23
+        Button next @544,454 78x39 tabstop
+          Rectangle - @544,454 78x39
+          Label - @560,462 46x23
+  Positioned - @582,14 120x52
+    HoverReveal textBar @582,14 120x52
+      Row - @590,22 104x36 hidden
+        Button smaller @590,20 51x39 tabstop
+          Rectangle - @590,20 51x39
+          Label - @606,28 19x23
+        Button larger @649,20 61x39 tabstop
+          Rectangle - @649,20 61x39
+          Label - @665,28 29x23

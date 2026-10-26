@@ -172,6 +172,9 @@ proc layoutTab(): Widget =
           Expander(title = "Expander", initialExpanded = true).named("layout.expander").size(200, 90):
             Label(text = "expanded content")
         Panel(padding = 6.0, cornerRadius = 0.0):
+          HoverReveal().named("layout.hoverreveal").size(200, 60):
+            Button(text = "shown on hover")
+        Panel(padding = 6.0, cornerRadius = 0.0):
           Accordion(spacing = 2.0).named("layout.accordion").size(200, 90):
             Expander(title = "Open"):
               Label(text = "one at a time")

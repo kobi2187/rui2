@@ -103,7 +103,12 @@ template compositingTextures*(body: untyped) =
   body
   endBlendMode()
 
-proc drawRenderTexture*(tex: RenderTexture2D, x, y: float32) =
+proc premultipliedTint*(transparency: float32): Color =
+  ## The tint that fades a premultiplied texture: every channel scaled alike.
+  let a = uint8(clamp(1'f32 - transparency, 0'f32, 1'f32) * 255)
+  Color(r: a, g: a, b: a, a: a)
+
+proc drawRenderTexture*(tex: RenderTexture2D, x, y: float32, tint = White) =
   ## Blit a cached render target with its top-left corner at (x, y).
   ##
   ## OpenGL stores framebuffer contents bottom-up, so a render texture drawn
@@ -121,7 +126,7 @@ proc drawRenderTexture*(tex: RenderTexture2D, x, y: float32) =
   drawTexture(tex.texture,
               Rectangle(x: 0, y: 0, width: w, height: -h),
               Vector2(x: round(x), y: round(y)),
-              White)
+              tint)
 
 proc intersect*(a, b: Rect): Rect =
   ## The overlapping part of two rectangles, or a zero-sized rect when they do
@@ -133,7 +138,7 @@ proc intersect*(a, b: Rect): Rect =
   let bottom = min(a.y + a.height, b.y + b.height)
   Rect(x: x, y: y, width: max(0.0'f32, right - x), height: max(0.0'f32, bottom - y))
 
-proc drawRenderTexturePart*(tex: RenderTexture2D, dest: Rect, clip: Rect) =
+proc drawRenderTexturePart*(tex: RenderTexture2D, dest: Rect, clip: Rect, tint = White) =
   ## Blit the part of a cached render target that falls inside `clip`.
   ##
   ## `dest` is where the whole texture would go; `clip` is in the same
@@ -176,7 +181,7 @@ proc drawRenderTexturePart*(tex: RenderTexture2D, dest: Rect, clip: Rect) =
               Rectangle(x: sx, y: sy, width: visible.width, height: -visible.height),
               Rectangle(x: visible.x, y: visible.y,
                         width: visible.width, height: visible.height),
-              Vector2(x: 0, y: 0), 0.0, White)
+              Vector2(x: 0, y: 0), 0.0, tint)
 
 proc compositeChildTexture*(child: Widget, offsetX, offsetY: float32) =
   ## Draw a child's cached texture at its position relative to parent
@@ -409,11 +414,12 @@ proc compositeChildren(widget: Widget, originalX, originalY: float32,
     when perfOn:                       # what the blit can touch: clipped to a partial update
       let reach = if only.isSome: intersect(dest, only.get()) else: dest
       perfCount(pcBlitPixels, int(reach.width * reach.height))
+    let tint = if child.transparency > 0: premultipliedTint(child.transparency) else: White
     if widget.childClip.isSome:
       drawRenderTexturePart(child.cachedTexture.get(), dest,
-                            widget.childClip.get())
+                            widget.childClip.get(), tint)
     else:
-      drawRenderTexture(child.cachedTexture.get(), dest.x, dest.y)
+      drawRenderTexture(child.cachedTexture.get(), dest.x, dest.y, tint)
 
 var partialRepaint* = true
   ## Repaint only the damaged area of a widget whose children repainted, instead
@@ -433,7 +439,7 @@ proc paintSignature(widget: Widget): int =
     h = h !& hash(child.id) !& hash(child.bounds.x) !& hash(child.bounds.y) !&
         hash(child.bounds.width) !& hash(child.bounds.height) !&
         hash(child.visible) !& hash(child.culled) !& hash(child.floating) !&
-        hash(child.zIndex) !& hash(child.cachedTexture.isSome)
+        hash(child.zIndex) !& hash(child.cachedTexture.isSome) !& hash(child.transparency)
   !$h
 
 proc textureFits(widget: Widget): bool =
