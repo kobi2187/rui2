@@ -42,7 +42,7 @@ proc dispatchBubbling*(widget: Widget, event: GuiEvent): bool =
   ## stopped at the Rectangle and the Button's onClick never fired.
   var w = widget
   while w != nil:
-    if w.handleInput(event):
+    if w.deliver(event):
       return true
     w = w.parent
   false
@@ -112,7 +112,7 @@ proc routeExtraPointer(router: EventRouter, event: GuiEvent): bool =
     if target != nil: capturePointer(target, id)
   if target == nil:
     return false
-  discard target.handleInput(event)
+  discard target.deliver(event)
   if event.kind == evMouseUp: releasePointer(id)
   if event.kind != evMouseMove: target.markDirtyToRoot()
   true
@@ -135,7 +135,7 @@ proc steal(router: EventRouter, event: GuiEvent, held: Widget): Widget =
   held.pressed = false
   releasePointer(0)
   capturePointer(s, 0)
-  discard s.handleInput(GuiEvent(kind: evMouseDown, priority: epHigh,
+  discard s.deliver(GuiEvent(kind: evMouseDown, priority: epHigh,
                                  timestamp: event.timestamp, mousePos: router.pressAt))
   s
 

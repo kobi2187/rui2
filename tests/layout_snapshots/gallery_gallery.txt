@@ -131,20 +131,25 @@ VStack gallery @0,0 1000x720
           Panel - @584,95 212x102
             Expander layout.expander @590,101 200x90 tabstop
               Label - @590,129 200x23
-          Panel - @12,205 212x72
-            HoverReveal layout.hoverreveal @18,211 200x60
-              Button - @26,219 184x44 hidden tabstop
-                Rectangle - @26,219 184x44
-                Label - @42,229 152x23
-          Panel - @236,205 212x102
-            Accordion layout.accordion @242,211 200x90
-              Expander - @242,211 200x64 tabstop
-                Label - @242,239 200x23
-              Expander - @242,277 200x24 tabstop
+          Panel - @808,95 172x52
+            Clip layout.clip @814,101 160x40
+              Label - @814,101 160x40 clipped=100x40
+          Panel - @12,205 72x52
+            Paint layout.paint @18,211 60x40
+          Panel - @96,205 212x72
+            HoverReveal layout.hoverreveal @102,211 200x60
+              Button - @110,219 184x44 hidden tabstop
+                Rectangle - @110,219 184x44
+                Label - @126,229 152x23
+          Panel - @320,205 212x102
+            Accordion layout.accordion @326,211 200x90
+              Expander - @326,211 200x64 tabstop
+                Label - @326,239 200x23
+              Expander - @326,277 200x24 tabstop
                 Label - @0,0 64x23 clipped=0x0 hidden
-          Panel - @460,205 102x92
-            Drawer - @466,211 90x80
-              Label - @466,211 90x80
+          Panel - @544,205 102x92
+            Drawer - @550,211 90x80
+              Label - @550,211 90x80
         Wrap - @12,317 976x102
           Panel - @12,317 332x102
             SplitView layout.split @18,323 320x90

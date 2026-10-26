@@ -12,3 +12,6 @@ export rectangle
 
 import primitives/circle
 export circle
+
+import primitives/paint
+export paint

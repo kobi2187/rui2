@@ -26,6 +26,7 @@ import modifiers;         export modifiers
 import overlays;          export overlays
 import freeze;            export freeze
 import outline;           export outline
+import timers;            export timers
 import input_mode;        export input_mode
 import popups;            export popups
 import perf;              export perf

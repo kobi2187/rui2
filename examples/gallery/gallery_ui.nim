@@ -172,6 +172,14 @@ proc layoutTab(): Widget =
           Expander(title = "Expander", initialExpanded = true).named("layout.expander").size(200, 90):
             Label(text = "expanded content")
         Panel(padding = 6.0, cornerRadius = 0.0):
+          Clip(cut = EdgeInsets(right: 60)).named("layout.clip").size(160, 40):
+            Label(text = "the right of this is cut off")
+        Panel(padding = 6.0, cornerRadius = 0.0):
+          Paint(onPaint = proc(area: Rect) =
+            discard drawSdfBox(area, area.height / 2, 2,
+                               Color(r: 120, g: 170, b: 255, a: 255),
+                               Color(r: 30, g: 60, b: 140, a: 255))).named("layout.paint").size(60, 40)
+        Panel(padding = 6.0, cornerRadius = 0.0):
           HoverReveal().named("layout.hoverreveal").size(200, 60):
             Button(text = "shown on hover")
         Panel(padding = 6.0, cornerRadius = 0.0):

@@ -306,6 +306,13 @@ type
       ## Set once the widget has had a child. Lets a debug build tell a widget
       ## that builds its children late (in its first layout) from one that is
       ## only replacing them (widget_dsl.nim `addChild`).
+    softClip*: bool
+      ## Its `childClip` is drawn to the sub-pixel: an edge between pixels
+      ## shows that row partly (Clip). Off, clips land on whole pixels.
+    subpixel*: bool
+      ## Its parent composites it at its exact position, smoothly filtered,
+      ## instead of snapping it to whole pixels -- for something gliding (a
+      ## moving rule); text inside it would blur, so only what needs it.
     animateLayout*: bool
       ## A container that eases its children to their new places when it
       ## reflows (rui_widgets layout_motion.nim) instead of snapping them
@@ -784,6 +791,30 @@ method handleInput*(widget: Widget, event: GuiEvent): bool {.base.}=
   ## Handle input event. Return true if handled (stops propagation).
   ## Base implementation returns false (not handled).
   result = false
+
+type EventHook* = proc(event: GuiEvent): bool {.closure.}
+  ## Input handling added to a widget from outside its type (`.onEvent`,
+  ## `.onKey` in modifiers.nim): how a plain container becomes interactive
+  ## without a widget type of its own.
+
+var eventHooks = initTable[pointer, EventHook]()
+
+proc eventHook*(widget: Widget): EventHook =
+  eventHooks.getOrDefault(cast[pointer](widget))
+
+proc `eventHook=`*(widget: Widget, hook: EventHook) =
+  let key = cast[pointer](widget)
+  if key notin eventHooks:
+    widget.disposers.add proc() = eventHooks.del key   # goes with its widget
+  eventHooks[key] = hook
+
+proc deliver*(widget: Widget, event: GuiEvent): bool =
+  ## Offer `event` to `widget`: its own handlers first, then anything added
+  ## to it from outside (`eventHook`). What the event router calls.
+  if widget.handleInput(event): return true
+  if eventHooks.len == 0: return false
+  let hook = widget.eventHook
+  hook != nil and hook(event)
 
 method handleScriptAction*(widget: Widget, action: string, params: JsonNode): JsonNode {.base.}=
   ## Handle a scripting action. Override in derived widgets.
