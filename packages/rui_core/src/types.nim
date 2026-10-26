@@ -376,6 +376,19 @@ type
 # Reactive System
 # ============================================================================
 
+let uiThread = getThreadId()      # module init runs on the main thread
+
+proc onUiThread*(): bool =
+  ## True on the UI thread -- the only one that may change Links and widgets.
+  ## Another thread sends to a Mailbox (mailbox.nim) instead.
+  getThreadId() == uiThread
+
+template assertUiThread*(what: string) =
+  ## Debug builds: stop a change to UI state made from another thread.
+  when not defined(release):
+    doAssert onUiThread(), what & " from another thread; send the value to a " &
+                           "Mailbox and change the state in its receiver"
+
 type
   Link*[T] = ref object
     ## Reactive cell. Read and write it through `value` / `value=` (or the

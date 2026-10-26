@@ -8,6 +8,7 @@ import link;               export link
 import link_seq;           export link_seq
 import pollers;            export pollers
 import background;         export background
+import mailbox;            export mailbox
 import store;              export store
 import main_loop;          export main_loop
 import widget_dsl;         export widget_dsl

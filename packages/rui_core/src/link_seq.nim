@@ -86,6 +86,7 @@ proc attach*[T](s: LinkSeq[T], widget: Widget,
 proc dependentCount*[T](s: LinkSeq[T]): int = s.dependentWidgets.len
 
 proc announce[T](s: LinkSeq[T], change: SeqChange) =
+  assertUiThread("a LinkSeq was changed")
   for widget in s.dependentWidgets:
     widget.layoutDirty = true
     if widget.parent != nil: widget.parent.layoutDirty = true

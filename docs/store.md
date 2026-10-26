@@ -112,3 +112,28 @@ the focus and the scroll position follow edits) or a `RowSource` for big data --
 see [sources.md](sources.md).
 
 Tests: `tests/test_link.nim`, `tests/test_store.nim`, `tests/test_link_seq.nim`.
+
+## From other threads
+
+State belongs to the UI thread. Another thread never changes a Link, a
+LinkSeq or a widget (debug builds stop it with an assertion); it **sends a
+message** to a `Mailbox`, and the mailbox's receiver, on the UI thread, makes
+the change:
+
+```nim
+let progress = newLink(0.0)
+let box = newMailbox(proc(done: float) = progress.value = done)   # UI thread
+
+proc download(box: Mailbox[float]) {.thread.} =
+  for part in 1 .. 10:
+    fetchPart(part)
+    box.send(part / 10)            # a copy goes into the queue; the UI is woken
+createThread(t, download, box)
+```
+
+- Messages are values (copied deeply), delivered in order, between frames.
+- `newMailbox(receive, latest = true)` delivers only the newest message of each
+  frame, for progress or positions.
+- `box.close()` stops delivery; a thread that sends later is harmless.
+- For one job with one result, `runInBackground(work, done)` does the thread
+  and the mailbox for you.

@@ -31,6 +31,10 @@ proc `value=`*[T](link: Link[T], newVal: T) =
   ## change needs no callback, only the dependents marked: O(n) in the widgets
   ## bound to THIS link, not in the whole tree. Marking is idempotent, so any
   ## number of sets in one frame cost one repaint.
+  ##
+  ## UI thread only (checked in debug builds): another thread sends its value
+  ## to a Mailbox, and the mailbox's receiver sets the Link.
+  assertUiThread("a Link was set")
   if link.val == newVal:
     return
   link.val = newVal

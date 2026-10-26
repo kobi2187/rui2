@@ -12,6 +12,7 @@ real widgets together, then add behaviour to the result:
 | Something every frame, at a speed | `.onTick(proc(dt: float))` |
 | Something every n seconds, or once later | `.every(n, action)`, `.after(n, action)` |
 | Work that takes long, off the UI thread | `runInBackground(work, done)` |
+| Values from threads of your own | `newMailbox(receive)`, `box.send(value)` ([state](store.md#from-other-threads)) |
 | A widget that glides by fractions of a pixel | `.subpixel()` |
 | Text by lines (a reader, a teleprompter) | `wrapLines(text, style, width)`, `lineHeight(style)` |
 | A whole book, a page at a time, read lazily | `TextPager` over `newLinesSource` ([sources](sources.md#long-text-a-page-at-a-time)) |
