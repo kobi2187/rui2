@@ -16,10 +16,12 @@ export types, options
 
 type
   ValidationState* = enum
-    Success, Error, Warning
+    ## Prefixed: ThemeIntent already has Success and Warning, and a bare name
+    ## two enums share needs its type spelled out wherever it is used.
+    vsSuccess, vsError, vsWarning
 
   AlertLevel* = enum
-    Info, Alert, Critical
+    alInfo, alAlert, alCritical     # prefixed for the same reason (ThemeIntent.Info)
 
 proc drawValidationMark*(rect: Rect, state: ValidationState,
                         color: Option[raylib.Color] = none(raylib.Color)) =
@@ -28,12 +30,12 @@ proc drawValidationMark*(rect: Rect, state: ValidationState,
   let center = (x: rect.x + rect.width/2, y: rect.y + rect.height/2)
   let markColor = if color.isSome: color.get else:
     case state
-    of Success: raylib.Color(r: 76, g: 175, b: 80, a: 255)    # Material Green
-    of Error: raylib.Color(r: 244, g: 67, b: 54, a: 255)      # Material Red
-    of Warning: raylib.Color(r: 255, g: 152, b: 0, a: 255)    # Material Orange
+    of vsSuccess: raylib.Color(r: 76, g: 175, b: 80, a: 255)    # Material Green
+    of vsError: raylib.Color(r: 244, g: 67, b: 54, a: 255)      # Material Red
+    of vsWarning: raylib.Color(r: 255, g: 152, b: 0, a: 255)    # Material Orange
 
   case state
-  of Success:
+  of vsSuccess:
     # Checkmark
     let points = [
       Vector2(x: center.x - size * 0.3, y: center.y),
@@ -43,7 +45,7 @@ proc drawValidationMark*(rect: Rect, state: ValidationState,
     drawLine(points[0], points[1], 2, markColor)
     drawLine(points[1], points[2], 2, markColor)
 
-  of Error:
+  of vsError:
     # X mark
     drawLine(
       Vector2(x: center.x - size * 0.3, y: center.y - size * 0.3),
@@ -56,7 +58,7 @@ proc drawValidationMark*(rect: Rect, state: ValidationState,
       2, markColor
     )
 
-  of Warning:
+  of vsWarning:
     # Triangle with exclamation mark
     let points = [
       Vector2(x: center.x, y: center.y - size * 0.3),
@@ -84,12 +86,12 @@ proc drawAlertSymbol*(rect: Rect, level: AlertLevel,
   let center = (x: rect.x + rect.width/2, y: rect.y + rect.height/2)
   let symbolColor = if color.isSome: color.get else:
     case level
-    of Info: raylib.Color(r: 33, g: 150, b: 243, a: 255)      # Material Blue
-    of Alert: raylib.Color(r: 255, g: 152, b: 0, a: 255)      # Material Orange
-    of Critical: raylib.Color(r: 244, g: 67, b: 54, a: 255)   # Material Red
+    of alInfo: raylib.Color(r: 33, g: 150, b: 243, a: 255)      # Material Blue
+    of alAlert: raylib.Color(r: 255, g: 152, b: 0, a: 255)      # Material Orange
+    of alCritical: raylib.Color(r: 244, g: 67, b: 54, a: 255)   # Material Red
 
   case level
-  of Info:
+  of alInfo:
     # Circle with 'i'
     drawCircleLines(int32(center.x), int32(center.y), size/2, symbolColor)
     drawCircle(int32(center.x), int32(center.y - size * 0.2), 2, symbolColor)
@@ -99,9 +101,9 @@ proc drawAlertSymbol*(rect: Rect, level: AlertLevel,
       2, symbolColor
     )
 
-  of Alert, Critical:
+  of alAlert, alCritical:
     # Octagon for critical, circle for alert
-    if level == Critical:
+    if level == alCritical:
       var points = newSeq[Vector2](8)
       for i in 0..7:
         let angle = PI/8 + i.float32 * PI/4

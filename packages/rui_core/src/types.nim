@@ -11,7 +11,8 @@ export sets, tables, options, json  # Export for use in other modules
 # whole module, which made the naming decorative and put every raylib proc,
 # type and enum field in scope in every module that imports rui_core. It cost
 # real workarounds: `TraceLogLevel`'s Info/Warning/Error collided with
-# rui_drawing's ThemeIntent, AlertLevel and ValidationState.
+# rui_drawing's ThemeIntent (and with AlertLevel and ValidationState, whose
+# values are prefixed now: alInfo, vsWarning).
 #
 # KeyboardKey is deliberately NOT here, for the same reason. Exporting an enum
 # type exposes its fields unqualified, and KeyboardKey has a `Menu` field that
