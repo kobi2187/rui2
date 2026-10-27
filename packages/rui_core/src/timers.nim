@@ -11,8 +11,12 @@
 ##   y += speed * dt)
 ## ```
 ##
+## They run in the frame loop, once a frame: the App's `runPollers()` (app.nim)
+## calls this module's poller, which calls each timer that is due, in the order
+## they were set -- a breakpoint there sees every one.
+##
 ## A timer runs while its widget is on the page: visible, its ancestors
-## visible, not behind a modal (overlays.nim `onPage`). Hidden, it waits --
+## visible, not behind a modal (pointer_state.nim `onPage`). Hidden, it waits --
 ## and an `onTick` resumes with the time since it resumed, not the time it was
 ## away, so nothing jumps. It goes with its widget (disposed) or `stopTimers`.
 ## Unlike animations these ignore the user's motion preference: what they
