@@ -8,11 +8,9 @@
 ## widget could not be built or unit-tested before the window opens. A missing
 ## file sets `loadFailed` and draws the placeholder rather than raising.
 ##
-## Textures live in a module-level `{.global.}` cache keyed by path, shared by
-## every ImageWidget in the process, so the same logo in twenty rows is one
-## upload. Nothing evicts from it -- naylib's Texture is move-only, and an image
-## a widget still points at must not be unloaded underneath it. The cache is
-## therefore bounded by the number of distinct paths an app ever shows.
+## Textures come from rui_drawing's shared cache (textures.nim `textureFor`),
+## keyed by path and shared with every other widget that shows a picture (an
+## Avatar), so the same logo in twenty rows is one upload.
 ##
 ## The fit modes follow CSS object-fit, and all five are computed against
 ## `bounds`, which `render` overwrites from the `width`/`height` props each
@@ -29,15 +27,12 @@
 
 import rui_core
 import ../press
-import std/[options, tables]
+import std/options
 import image_fit
 import rui_drawing
 export image_fit
 
 import raylib
-
-# Cache for loaded textures to avoid reloading
-var textureCache {.global.}: Table[string, Texture2D]
 
 
 template drawNotice(widget: untyped, message: string, tint: Color) =
@@ -91,40 +86,16 @@ definePrimitive(ImageWidget):
       widget.drawNotice("No image", GRAY)
       return
 
-    # Try to load texture if not already loaded
-    if not widget.textureLoaded and not widget.loadFailed:
-      if widget.imagePath in textureCache:
-        widget.textureLoaded = true
-      else:
-        try:
-          let texture = loadTexture(widget.imagePath)
-          if texture.id > 0:
-            textureCache[widget.imagePath] = texture
-            widget.textureLoaded = true
-          else:
-            widget.loadFailed = true
-        except:
-          widget.loadFailed = true
-
-    # Draw the texture if loaded
-    if widget.textureLoaded and widget.imagePath in textureCache:
-      # Borrow the cached texture (naylib Texture is move-only)
-      let texWidth = float(textureCache[widget.imagePath].width)
-      let texHeight = float(textureCache[widget.imagePath].height)
-
+    # The picture, from the shared cache (loaded on first use).
+    let tex = textureFor(widget.imagePath)
+    widget.textureLoaded = tex != nil
+    widget.loadFailed = textureFailed(widget.imagePath)
+    if tex != nil:
+      let texWidth = float(tex[].width)
+      let texHeight = float(tex[].height)
       let sourceRect = Rectangle(x: 0, y: 0, width: texWidth, height: texHeight)
-      let destRect = destinationFor(widget.fitMode, widget.bounds,
-                                    texWidth, texHeight)
-
-      # Draw the texture
-      drawTexture(
-        textureCache[widget.imagePath],
-        sourceRect,
-        destRect,
-        Vector2(x: 0, y: 0),
-        0.0,  # rotation
-        widget.tintColor
-      )
+      let destRect = destinationFor(widget.fitMode, widget.bounds, texWidth, texHeight)
+      drawTexture(tex[], sourceRect, destRect, Vector2(x: 0, y: 0), 0.0, widget.tintColor)
 
       # Optional: Draw border when hovered (if clickable)
       if widget.onClick != nil: # and widget.isHovered.get():

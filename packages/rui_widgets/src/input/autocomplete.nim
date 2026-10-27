@@ -32,6 +32,8 @@ proc suggestionsFor*(all: openArray[string], typed: string, limit: int): seq[str
   result = prefix & inside
   if result.len > limit: result.setLen(limit)
 
+proc listKey(widget: Widget, key: KeyboardKey): bool
+
 definePrimitive(Autocomplete):
   props:
     suggestions: seq[string] = @[]
@@ -89,22 +91,16 @@ definePrimitive(Autocomplete):
       else:
         field.setFieldOpen(field.list, false)
         if field.onSubmit != nil: field.onSubmit(text)
+    # Plain keys do not bubble from the focused field to its parents (the
+    # router keeps arrows for focus navigation), so the field hands on the
+    # ones it did not use: Up/Down/Escape move through or close the list.
+    widget.input.onKey(proc(key: KeyboardKey): bool = field.listKey(key))
     widget.addChild widget.input
     widget.addChild widget.list
 
   events:
     on_key_down:
-      # Reached by bubbling from the text field, which leaves Up/Down/Escape alone.
-      if widget.disabled or not widget.isOpen: return false
-      if event.key == KeyboardKey.Escape:
-        widget.setFieldOpen(widget.list, false)
-        return true
-      let moved = highlightKey(event.key, widget.matches.len, widget.hoverIndex)
-      if moved < 0 or event.key in {KeyboardKey.Home, KeyboardKey.End}: return false   # those edit the text
-      widget.hoverIndex = moved
-      widget.list.isDirty = true
-      widget.isDirty = true
-      return true
+      return widget.listKey(event.key)
 
   layout:
     let natural = widget.input.measure(constraintsOf(widget.bounds))
@@ -119,3 +115,18 @@ definePrimitive(Autocomplete):
     if widget.isOpen:
       widget.list.fieldProps = widget.themeProps(widget.intent, crText)
       widget.list.isDirty = true
+
+proc listKey(widget: Widget, key: KeyboardKey): bool =
+  ## A key the text field left: Up/Down move through the open list, Escape
+  ## closes it. True when used.
+  let widget = Autocomplete(widget)
+  if widget.disabled or not widget.isOpen: return false
+  if key == KeyboardKey.Escape:
+    widget.setFieldOpen(widget.list, false)
+    return true
+  let moved = highlightKey(key, widget.matches.len, widget.hoverIndex)
+  if moved < 0 or key in {KeyboardKey.Home, KeyboardKey.End}: return false   # those edit the text
+  widget.hoverIndex = moved
+  widget.list.isDirty = true
+  widget.isDirty = true
+  true

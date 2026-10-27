@@ -793,6 +793,9 @@ definePrimitive(TextArea):
 
       case event.key
       of Backspace:
+        # In an empty field there is nothing to delete: not used, so it reaches
+        # the parent (a chip input takes it to remove its last chip).
+        if widget.text.len == 0: return false
         widget.edit: discard buf.backspace()
         return true
 

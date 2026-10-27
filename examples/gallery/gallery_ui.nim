@@ -57,6 +57,11 @@ proc basicsTab(store: Store): Widget =
         Label(text = "<b>markup</b> and <i>style</i>", markup = true)
         Hyperlink(text = "a hyperlink", url = "https://example.com").named("basics.link")
         Badge(text = "new").named("basics.badge")
+        Avatar(name = "Ada Lovelace", status = asOnline).named("basics.avatar")
+        AvatarStack(names = @["Ada", "Grace Hopper", "Alan Turing", "Edsger", "Barbara"],
+                    maxShown = 3).named("basics.avatars")
+        Skeleton(shape = skCircle).named("basics.skeletonDot").size(32, 32)
+        Skeleton(shape = skText, lines = 2).named("basics.skeleton").size(120, 0)
         Icon(glyph = "★", size = 22).named("basics.icon")
       Wrap(spacing = 10.0, runSpacing = 8.0):
         Button(text = "Default").named("basics.save")
@@ -101,6 +106,9 @@ proc inputTab(store: Store): Widget =
         PasswordInput(initialText = "secret").named("input.password").size(160, 32)
         Label(text = "Search")
         SearchInput(initialText = "clear me").named("input.search").size(180, 32)
+        Label(text = "Tags")
+        ChipInput(initialChips = @["nim", "raylib"], suggestions = @["pango", "yaml", "sqlite"]
+                  ).named("input.chips").size(260, 0)
       Wrap(spacing = 12.0, runSpacing = 8.0):
         Label(text = "Number")
         NumberInput(initialValue = 3.0, minValue = -50.0, maxValue = 50.0).named("input.number")
@@ -111,6 +119,8 @@ proc inputTab(store: Store): Widget =
         Label(text = "ScrollBar")
         ScrollBar(initialValue = 20.0, minValue = 0.0, maxValue = 100.0,
                   vertical = false).named("input.scrollbar").size(160, 14)
+        Knob(label = "Gain", minValue = -24, maxValue = 12, initialValue = -6,
+             step = 0.5).named("input.knob")
       Wrap(spacing = 12.0, runSpacing = 8.0):
         Label(text = "Combo")
         ComboBox(items = @["Small", "Medium", "Large"], initialSelectedIndex = 1).named("input.combo")

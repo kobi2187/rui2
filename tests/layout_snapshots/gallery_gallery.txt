@@ -6,9 +6,9 @@ VStack gallery @0,0 1000x720
         ComboList - @77,47 167x408 floating
   TabControl tabs @0,53 1000x912 tabstop
     VStack - @0,83 1000x882
-      Column basics @12,95 976x319
+      Column basics @12,95 976x363
         Label - @12,95 976x32
-        Wrap - @12,139 976x35
+        Wrap - @12,139 976x79
           Label - @12,139 45x23
           Label - @73,139 45x23
           Label - @134,139 43x23
@@ -16,80 +16,90 @@ VStack gallery @0,0 1000x720
           Label - @297,139 170x23
           Hyperlink basics.link @483,139 104x23 tabstop
           Badge basics.badge @603,139 56x27
-          Icon basics.icon @675,139 26x35
-        Wrap - @12,186 976x39
-          Button basics.save @12,186 99x39 tabstop
-            Rectangle - @12,186 99x39
-            Label - @28,194 67x23
-          Button - @121,186 68x39 tabstop
-            Rectangle - @121,186 68x39
-            Label - @137,194 36x23
-          Button - @199,186 107x39 tabstop
-            Rectangle - @199,186 107x39
-            Label - @215,194 75x23
-          Button - @316,186 108x39 tabstop
-            Rectangle - @316,186 108x39
-            Label - @332,194 76x23
-          Button - @434,186 100x39 tabstop
-            Rectangle - @434,186 100x39
-            Label - @450,194 68x23
-          Button - @544,186 112x39 tabstop
-            Rectangle - @544,186 112x39
-            Label - @560,194 80x23
-          Button basics.counter @666,186 116x39 tabstop
-            Rectangle - @666,186 116x39
-            Label - @682,194 84x23
-        Wrap - @12,237 976x40
-          IconButton - @12,237 32x32 tabstop
-          IconButton - @54,237 32x32 tabstop
-          ToolBar - @96,237 68x40 group
-            ToolButton - @100,241 28x32 tabstop
-            ToolButton - @132,241 28x32 tabstop
-          Tooltip - @174,237 122x39
-            Button basics.hover @174,237 122x39 tabstop
-              Rectangle - @174,237 122x39
-              Label - @190,245 90x23
-        Wrap - @12,289 976x72
-          Checkbox basics.check @12,289 120x23 tabstop
-          Checkbox - @150,289 56x23 tabstop
-          Switch basics.switch @224,289 112x24 tabstop
-          RadioGroup basics.radios @354,289 80x72 tabstop
-          RadioButton - @452,289 139x23 tabstop
-        Wrap - @12,373 976x41
-          SegmentedControl - @12,373 222x41 tabstop
-          Rating basics.rating @252,373 136x24 tabstop
-          Separator - @406,373 1x24
-          ProgressBar basics.progress @425,373 160x23
-          Spinner - @603,373 94x28 tabstop
+          Avatar basics.avatar @675,139 36x36
+          AvatarStack basics.avatars @727,139 108x36
+          Skeleton basics.skeletonDot @851,139 32x32
+          Skeleton basics.skeleton @12,183 120x32
+          Icon basics.icon @148,183 26x35
+        Wrap - @12,230 976x39
+          Button basics.save @12,230 99x39 tabstop
+            Rectangle - @12,230 99x39
+            Label - @28,238 67x23
+          Button - @121,230 68x39 tabstop
+            Rectangle - @121,230 68x39
+            Label - @137,238 36x23
+          Button - @199,230 107x39 tabstop
+            Rectangle - @199,230 107x39
+            Label - @215,238 75x23
+          Button - @316,230 108x39 tabstop
+            Rectangle - @316,230 108x39
+            Label - @332,238 76x23
+          Button - @434,230 100x39 tabstop
+            Rectangle - @434,230 100x39
+            Label - @450,238 68x23
+          Button - @544,230 112x39 tabstop
+            Rectangle - @544,230 112x39
+            Label - @560,238 80x23
+          Button basics.counter @666,230 116x39 tabstop
+            Rectangle - @666,230 116x39
+            Label - @682,238 84x23
+        Wrap - @12,281 976x40
+          IconButton - @12,281 32x32 tabstop
+          IconButton - @54,281 32x32 tabstop
+          ToolBar - @96,281 68x40 group
+            ToolButton - @100,285 28x32 tabstop
+            ToolButton - @132,285 28x32 tabstop
+          Tooltip - @174,281 122x39
+            Button basics.hover @174,281 122x39 tabstop
+              Rectangle - @174,281 122x39
+              Label - @190,289 90x23
+        Wrap - @12,333 976x72
+          Checkbox basics.check @12,333 120x23 tabstop
+          Checkbox - @150,333 56x23 tabstop
+          Switch basics.switch @224,333 112x24 tabstop
+          RadioGroup basics.radios @354,333 80x72 tabstop
+          RadioButton - @452,333 139x23 tabstop
+        Wrap - @12,417 976x41
+          SegmentedControl - @12,417 222x41 tabstop
+          Rating basics.rating @252,417 136x24 tabstop
+          Separator - @406,417 1x24
+          ProgressBar basics.progress @425,417 160x23
+          Spinner - @603,417 94x28 tabstop
     VStack - @0,83 1000x882 hidden
-      Column input @12,95 976x358
+      Column input @12,95 976x490
         Label - @12,95 976x32
-        Wrap - @12,137 976x32
+        Wrap - @12,137 976x76
           Label - @12,137 37x23
           TextInput input.text @61,137 220x32 tabstop
           Label - @293,137 86x23
           TextInput input.password @391,137 160x32 tabstop
           Label - @563,137 63x23
           TextInput input.search @638,137 180x32 tabstop
-        Wrap - @12,179 976x50
-          Label - @12,179 75x23
-          NumberInput input.number @99,179 94x28 tabstop
-          Label - @205,179 53x23
-          Slider input.slider @270,179 220x28 tabstop
-          Label - @502,179 59x23
-          RangeSlider input.range @573,179 220x28 tabstop
-          Label - @805,179 82x23
-          ScrollBar input.scrollbar @12,215 160x14 tabstop
-        Wrap - @12,239 976x41
-          Label - @12,239 65x23
-          ComboBox input.combo @89,239 116x41 tabstop
-            ComboList - @89,280 116x72 floating
-          Label - @217,239 128x23
-          Autocomplete input.auto @357,239 200x32
-            TextInput - @357,239 200x32 tabstop
-            ComboList - @357,271 200x0 floating
-        Label - @12,290 976x23
-        TextArea input.area @12,323 520x130 tabstop
+          Label - @830,137 41x23
+          ChipInput input.chips @12,177 260x36
+            Autocomplete - @158,181 110x28
+              TextInput - @158,181 110x28 tabstop
+              ComboList - @158,209 110x0 floating
+        Wrap - @12,223 976x138
+          Label - @12,223 75x23
+          NumberInput input.number @99,223 94x28 tabstop
+          Label - @205,223 53x23
+          Slider input.slider @270,223 220x28 tabstop
+          Label - @502,223 59x23
+          RangeSlider input.range @573,223 220x28 tabstop
+          Label - @805,223 82x23
+          ScrollBar input.scrollbar @12,259 160x14 tabstop
+          Knob input.knob @184,259 64x102 tabstop
+        Wrap - @12,371 976x41
+          Label - @12,371 65x23
+          ComboBox input.combo @89,371 116x41 tabstop
+            ComboList - @89,412 116x72 floating
+          Label - @217,371 128x23
+          Autocomplete input.auto @357,371 200x32
+            TextInput - @357,371 200x32 tabstop
+            ComboList - @357,403 200x0 floating
+        Label - @12,422 976x23
+        TextArea input.area @12,455 520x130 tabstop
     VStack - @0,83 1000x882 hidden
       Column pickers @12,95 976x434
         Wrap - @12,95 976x41
