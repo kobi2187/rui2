@@ -14,3 +14,4 @@ import layout/wrap;   export wrap
 import layout/table;  export table
 import layout/dock;   export dock
 import layout/split;  export split
+import layout/masonry; export masonry

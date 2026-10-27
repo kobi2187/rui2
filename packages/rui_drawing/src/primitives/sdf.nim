@@ -58,6 +58,31 @@ void main() {
 }
 """
 
+const sdfImageFragment = """
+#version 330
+in vec2 fragTexCoord;
+in vec4 fragColor;
+out vec4 finalColor;
+
+uniform sampler2D texture0;
+uniform vec4 uvRect;       // the part of the texture drawn: u0, v0, u1, v1
+uniform vec2 boxSize;      // the box on screen, in pixels
+uniform float radius;
+
+float roundBox(vec2 p, vec2 half_, float r) {
+  vec2 q = abs(p) - half_ + r;
+  return length(max(q, 0.0)) + min(max(q.x, q.y), 0.0) - r;
+}
+
+void main() {
+  vec2 local = (fragTexCoord - uvRect.xy) / (uvRect.zw - uvRect.xy);   // 0..1 over the box
+  float d = roundBox((local - 0.5) * boxSize, boxSize * 0.5, radius);
+  float inside = 1.0 - smoothstep(-0.5, 0.5, d);
+  vec4 t = texture(texture0, fragTexCoord) * fragColor;
+  finalColor = vec4(t.rgb, t.a * inside);
+}
+"""
+
 const sdfShadowFragment = """
 #version 330
 in vec2 fragTexCoord;
@@ -158,6 +183,7 @@ var
   shadowState: ptr GlShader
   segmentState: ptr GlShader
   triangleState: ptr GlShader
+  imageState: ptr GlShader
 
 proc loadGlShader(slot: var ptr GlShader, fragment: string,
                   names: openArray[string]): ptr GlShader =
@@ -216,6 +242,28 @@ proc drawSdfBox*(rect: Rect, radius, borderWidth: float32,
   setShaderValue(s.shader, s.locs[5], norm(border))
   s.drawQuad(Rect(x: rect.x - margin, y: rect.y - margin,
                   width: rect.width + 2 * margin, height: rect.height + 2 * margin))
+  true
+
+proc drawSdfImage*(tex: Texture2D, src: Rectangle, rect: Rect, radius: float32,
+                   tint = White): bool =
+  ## The `src` part of `tex` stretched over `rect`, cut to a box with corners
+  ## of `radius` (half the short side: a circle), with the same smooth edge as
+  ## drawSdfBox. False when the shader cannot run here.
+  if rect.width <= 0 or rect.height <= 0 or tex.width <= 0 or tex.height <= 0:
+    return true
+  let s = imageState.ready(sdfImageFragment, ["uvRect", "boxSize", "radius"])
+  if s == nil: return false
+  let w = tex.width.float32
+  let h = tex.height.float32
+  setShaderValue(s.shader, s.locs[0], Vector4(x: src.x / w, y: src.y / h,
+                                              z: (src.x + src.width) / w,
+                                              w: (src.y + src.height) / h))
+  setShaderValue(s.shader, s.locs[1], Vector2(x: rect.width, y: rect.height))
+  setShaderValue(s.shader, s.locs[2], clamp(radius, 0'f32, min(rect.width, rect.height) / 2))
+  beginShaderMode(s.shader)
+  drawTexture(tex, src, Rectangle(x: rect.x, y: rect.y, width: rect.width, height: rect.height),
+              Vector2(x: 0, y: 0), 0.0, tint)
+  endShaderMode()
   true
 
 proc drawSdfShadow*(rect: Rect, radius, offsetX, offsetY, blur, spread: float32,

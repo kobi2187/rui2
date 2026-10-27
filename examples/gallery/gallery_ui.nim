@@ -46,6 +46,8 @@ proc basicsTab(store: Store): Widget =
   let counter = newButton(text = "Clicked 0",
                           onClick = proc() = clicks.value = clicks.value + 1).named("basics.counter")
   clicks.bindTo(counter, proc(n: int) = counter.text = "Clicked " & $n)
+  var helpButton: Button
+  var helpPop: Popover
   ui:
     Column(spacing = 12.0, crossAxisAlignment = CrossAxisAlignment.stretch).named("basics"):
       Label(text = "Labels", fontSize = 20.0, bold = true)
@@ -57,6 +59,15 @@ proc basicsTab(store: Store): Widget =
         Label(text = "<b>markup</b> and <i>style</i>", markup = true)
         Hyperlink(text = "a hyperlink", url = "https://example.com").named("basics.link")
         Badge(text = "new").named("basics.badge")
+        Avatar(name = "Ada Lovelace", status = asOnline).named("basics.avatar")
+        AvatarStack(names = @["Ada", "Grace Hopper", "Alan Turing", "Edsger", "Barbara"],
+                    maxShown = 3).named("basics.avatars")
+        Skeleton(shape = skCircle).named("basics.skeletonDot").size(32, 32)
+        Skeleton(shape = skText, lines = 2).named("basics.skeleton").size(120, 0)
+        Stepper(steps = @["Cart", "Address", "Pay"], initialCurrent = 1).named("basics.stepper").size(260, 0)
+        helpButton = Button(text = "Popover", onClick = proc() = helpPop.toggle(helpButton)).named("basics.popoverButton")
+        helpPop = Popover(width = 220.0).named("basics.popover"):
+          Label(text = "A popover holds anything: text, a form, buttons.", wrap = true)
         Icon(glyph = "★", size = 22).named("basics.icon")
       Wrap(spacing = 10.0, runSpacing = 8.0):
         Button(text = "Default").named("basics.save")
@@ -101,6 +112,9 @@ proc inputTab(store: Store): Widget =
         PasswordInput(initialText = "secret").named("input.password").size(160, 32)
         Label(text = "Search")
         SearchInput(initialText = "clear me").named("input.search").size(180, 32)
+        Label(text = "Tags")
+        ChipInput(initialChips = @["nim", "raylib"], suggestions = @["pango", "yaml", "sqlite"]
+                  ).named("input.chips").size(260, 0)
       Wrap(spacing = 12.0, runSpacing = 8.0):
         Label(text = "Number")
         NumberInput(initialValue = 3.0, minValue = -50.0, maxValue = 50.0).named("input.number")
@@ -111,6 +125,8 @@ proc inputTab(store: Store): Widget =
         Label(text = "ScrollBar")
         ScrollBar(initialValue = 20.0, minValue = 0.0, maxValue = 100.0,
                   vertical = false).named("input.scrollbar").size(160, 14)
+        Knob(label = "Gain", minValue = -24, maxValue = 12, initialValue = -6,
+             step = 0.5).named("input.knob")
       Wrap(spacing = 12.0, runSpacing = 8.0):
         Label(text = "Combo")
         ComboBox(items = @["Small", "Medium", "Large"], initialSelectedIndex = 1).named("input.combo")
@@ -191,6 +207,13 @@ proc layoutTab(): Widget =
         Panel(padding = 6.0, cornerRadius = 0.0):
           Drawer(side = dsLeft, initialOpen = true, width = 90.0).size(220, 80):
             Label(text = "drawer")
+        Panel(padding = 6.0, cornerRadius = 0.0):
+          Masonry(columns = 3, spacing = 4.0).named("layout.masonry").size(220, 0):
+            Rectangle(color = Color(r: 120, g: 160, b: 220, a: 255)).size(0, 40)
+            Rectangle(color = Color(r: 220, g: 160, b: 120, a: 255)).size(0, 20)
+            Rectangle(color = Color(r: 140, g: 200, b: 140, a: 255)).size(0, 30)
+            Rectangle(color = Color(r: 200, g: 140, b: 200, a: 255)).size(0, 25)
+            Rectangle(color = Color(r: 230, g: 210, b: 120, a: 255)).size(0, 35)
       Wrap(spacing = 12.0, runSpacing = 8.0):
         Panel(padding = 6.0, cornerRadius = 0.0):
           SplitView(initialRatio = 0.4).named("layout.split").size(320, 90):
@@ -287,6 +310,10 @@ proc dataTab(): Widget =
     let t = float(i) / 8000
     tone.add float32((sin(t * 220 * 2 * PI) + 0.5 * sin(t * 331 * 2 * PI)) * 0.6 * exp(-t))
   let toneView = newLink(wholeView(0.0, 3.0))
+  var activity = initTable[string, float]()          # 30 weeks of made-up activity
+  for i in 0 ..< 210:
+    let v = float((i * 37) mod 11) - 3
+    if v > 0: activity[isoDay(parse("2026-10-25", "yyyy-MM-dd", utc()) - initDuration(days = i))] = v
   let toneSamples = newSamples(tone, 8000)
   let toneMarks = newMarks(playhead = newLink(0.8), selection = newLink(span(1.2, 1.9)),
                            markers = @[marker(2.4, "fade")])   # shared by the wave and the lanes
@@ -324,6 +351,8 @@ proc dataTab(): Widget =
         Embed(table)
         Label(text = "DataGrid")
         Embed(grid)
+        Label(text = "CalendarHeatmap")
+        CalendarHeatmap(values = activity, endDate = "2026-10-25", weeks = 30).named("data.heatmap")
         Label(text = "Ruler and Waveform on one view (Ctrl+wheel zooms)")
         Ruler(view = toneView, ticks = secondTicks()).named("data.ruler").size(0, 26)
         Waveform(source = toneSamples, view = toneView, marks = toneMarks).named("data.wave").size(0, 90)
@@ -431,7 +460,14 @@ proc menusTab(g: Gallery): Widget =
   buttons.addChild(newButton(text = "MessageBox", onClick = proc() = confirm.show()).named("menus.openMessage"))
   buttons.addChild(newButton(text = "FileDialog", onClick = proc() = fileDialog.show()).named("menus.openFile"))
   buttons.addChild(newButton(text = "Dialog", onClick = proc() = dialog.show()).named("menus.openDialog"))
+  let palette = newCommandPalette(commands = @[
+    command("Show context menu", "", proc() = ctx.openAt(260.0, 180.0)),
+    command("Open MessageBox", "", proc() = confirm.show()),
+    command("Open FileDialog", "Ctrl+O", proc() = fileDialog.show()),
+    command("Open Dialog", "", proc() = dialog.show())]).named("menus.palette")
+  buttons.addChild(newButton(text = "Command palette", onClick = proc() = palette.open()).named("menus.openPalette"))
   body.addChild(ctx)
+  body.addChild(palette)
   page.addChild(body)
   page
 

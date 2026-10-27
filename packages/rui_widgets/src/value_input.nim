@@ -1,5 +1,5 @@
 ## What every "drag or key a number" control does with its input: Slider,
-## RangeSlider, ScrollBar. Pure functions on numbers, so each widget keeps only
+## RangeSlider, ScrollBar, Knob. Pure functions on numbers, so each widget keeps only
 ## its own geometry and which thumb moves.
 
 import std/math
@@ -48,6 +48,15 @@ proc isValueKey*(key: KeyboardKey): bool =
 proc valueAtPointer*(pos, trackStart, trackLength, minValue, maxValue, step: float32): float32 =
   ## A pointer at `pos` along a track, as a value on the grid.
   snapped(valueAtX(pos, trackStart, trackLength, minValue, maxValue), minValue, step)
+
+proc valueByDrag*(startValue, pixels, minValue, maxValue, step: float32,
+                  pixelsForRange = 200'f32): float32 =
+  ## The value a drag of `pixels` (positive raises: up, or right) has moved
+  ## `startValue` to, the whole range taking `pixelsForRange`: how a knob turns,
+  ## relative to where it was taken, so it never jumps. Clamped, on the grid.
+  let span = maxValue - minValue
+  let v = startValue + pixels / max(1'f32, pixelsForRange) * span
+  snapped(clamp(v, min(minValue, maxValue), max(minValue, maxValue)), minValue, step)
 
 proc zoomDirection*(key: KeyboardKey): int =
   ## +1 for + / =, -1 for -, 0 for any other key: what a pannable view's zoom keys mean.

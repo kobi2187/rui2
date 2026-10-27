@@ -16,7 +16,7 @@ import pango_text  # drawTextPango
 import effects/rect_effects
 
 import raylib
-import std/unicode
+import std/[unicode, math]
 
 export types, theme_sys_core
 
@@ -445,6 +445,32 @@ proc drawSlider*(rect: Rect, value, minVal, maxVal: float32, props: ThemeProps,
             props.foregroundColor.get(Color(r: 0, g: 0, b: 0, a: 255)), w)
   else:
     drawBox(thumb, thumbRadius, accent, accent, 0)
+
+proc drawKnob*(center: Vector2, radius, value, minVal, maxVal: float32,
+               props: ThemeProps, dragging = false) =
+  ## A knob: a 270-degree track round a round body, filled with the accent up
+  ## to the value, and a pointer on the body. The theme's rail, accent and ink.
+  let t = if maxVal > minVal: clamp((value - minVal) / (maxVal - minVal), 0.0, 1.0)
+          else: 0.0'f32
+  let accent = props.activeColor.get(Color(r: 100, g: 150, b: 255, a: 255))
+  let rail = props.borderColor.get(Color(r: 200, g: 200, b: 200, a: 255))
+  let ink = props.foregroundColor.get(Color(r: 40, g: 40, b: 40, a: 255))
+  let body = props.backgroundColor.get(Color(r: 245, g: 245, b: 245, a: 255))
+  let track = max(3'f32, min(currentTheme.trackThickness, radius * 0.3))
+  const startAngle = 135'f32           # bottom left, round over the top
+  const sweep = 270'f32
+  let segs = int32(max(24'f32, radius))
+  drawRing(center, radius - track, radius, startAngle, startAngle + sweep, segs, rail)
+  if t > 0:
+    drawRing(center, radius - track, radius, startAngle, startAngle + sweep * t, segs, accent)
+  let inner = radius - track - max(2'f32, radius * 0.08)
+  drawCircle(center, inner, body)
+  drawRing(center, inner - max(1'f32, props.strokeWidth), inner, 0, 360, segs,
+           ink.withAlpha(if dragging: 0.6 else: 0.3))
+  let a = degToRad(startAngle + sweep * t)
+  let tip = Vector2(x: center.x + cos(a) * inner * 0.8, y: center.y + sin(a) * inner * 0.8)
+  let base = Vector2(x: center.x + cos(a) * inner * 0.25, y: center.y + sin(a) * inner * 0.25)
+  drawLine(base, tip, max(2'f32, props.strokeWidth * 1.5), ink)
 
 proc drawProgressBar*(rect: Rect, progress: float32, props: ThemeProps) =
   ## A progress bar: the theme's rounding and outline, filled with the accent.
