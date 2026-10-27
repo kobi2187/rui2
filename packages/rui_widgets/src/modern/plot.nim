@@ -22,17 +22,24 @@ import rui_drawing
 import std/[options, math]
 import raylib
 import plot_scale
+import ../view_range
+import ../pointers
+import ../sources/samples
+import wave_draw
 export plot_scale
 
 type
   PlotKind* = enum
-    pkLine, pkArea, pkBar, pkScatter
+    pkLine, pkArea, pkBar, pkScatter,
+    pkWave         ## samples (an audio take, a sensor): drawn at any zoom (wave_draw)
 
   Series* = object
     name*: string
     kind*: PlotKind
     points*: seq[tuple[x, y: float]]
     color*: Option[Color]      ## from the theme's palette when unset
+    wave*: SampleSource        ## pkWave: x is seconds, y the samples (-1 .. 1)
+    channel*: int
 
 proc lineSeries*(name: string, points: seq[tuple[x, y: float]],
                  color = none(Color)): Series =
@@ -46,6 +53,12 @@ proc barSeries*(name: string, points: seq[tuple[x, y: float]],
 proc scatterSeries*(name: string, points: seq[tuple[x, y: float]],
                     color = none(Color)): Series =
   Series(name: name, kind: pkScatter, points: points, color: color)
+
+proc waveSeries*(name: string, source: SampleSource, channel = 0,
+                 color = none(Color)): Series =
+  ## A channel of samples, however many: summarised, so all of it draws at
+  ## once, and down to single samples when zoomed in (with `xView`).
+  Series(name: name, kind: pkWave, wave: source, channel: channel, color: color)
 
 proc seriesColor*(series: seq[Series], i: int): Color =
   ## The colour series `i` is drawn in: its own, else the theme's palette.
@@ -69,19 +82,42 @@ proc xRangeOf*(series: seq[Series]): tuple[lo, hi: float, any: bool] =
   var xs: seq[float]
   for s in series:
     for p in s.points: xs.add p.x
+    if s.kind == pkWave and s.wave != nil:
+      xs.add 0.0
+      xs.add s.wave.seconds
   span(xs)
 
-proc yRangeOf*(series: seq[Series], includeZero: bool): tuple[lo, hi: float, any: bool] =
+proc yRangeOf*(series: seq[Series], includeZero: bool,
+               xLo = -Inf, xHi = Inf): tuple[lo, hi: float, any: bool] =
+  ## The values' range -- of the points with x in `xLo .. xHi`, for a zoomed view.
   var ys: seq[float]
   for s in series:
-    for p in s.points: ys.add p.y
+    for p in s.points:
+      if p.x >= xLo and p.x <= xHi: ys.add p.y
+    if s.kind == pkWave:
+      ys.add -1.0
+      ys.add 1.0
     if includeZero and s.kind in {pkBar, pkArea}:
       ys.add 0.0
   span(ys)
 
+proc xViewOf*(series: seq[Series]): AxisView =
+  ## A view over all of the series' x range, to zoom and pan from (`xView`).
+  let xr = xRangeOf(series)
+  wholeView(xr.lo, xr.hi)
+
 proc layoutPlot*(series: seq[Series], area: Rect, includeZero: bool,
-                 yMin = NaN, yMax = NaN): PlotLayout =
-  ## Axis ranges and steps for `series`, drawn in `area`.
+                 yMin = NaN, yMax = NaN, view = none(AxisView)): PlotLayout =
+  ## Axis ranges and steps for `series`, drawn in `area`. With a `view`, x is
+  ## what it shows and y fits the points inside it.
+  if view.isSome:
+    let v = view.get.clampedTo(area.width)
+    let xLo = v.start
+    let xHi = v.stop(area.width)
+    let yr = yRangeOf(series, includeZero, xLo, xHi)
+    let ny = niceRange(if yMin.isNaN: yr.lo else: yMin, if yMax.isNaN: yr.hi else: yMax, 5)
+    return PlotLayout(area: area, xLo: xLo, xHi: xHi, yLo: ny.lo, yHi: ny.hi,
+                      xStep: niceStep(xHi - xLo, 6), yStep: ny.step)
   let xr = xRangeOf(series)
   let yr = yRangeOf(series, includeZero)
   var ylo = if yMin.isNaN: yr.lo else: yMin
@@ -115,6 +151,7 @@ proc nearestPoint*(series: openArray[Series], l: PlotLayout,
   var best = Inf.float32
   for i, s in series:
     for j, p in s.points:
+      if p.x < l.xLo or p.x > l.xHi: continue     # off a zoomed view
       let px = l.toPixel(p.x, p.y)
       let d = abs(px.x - x) * 4 + abs(px.y - y)
       if d < best:
@@ -132,8 +169,9 @@ template plotFrame*(widget: untyped): tuple[area: Rect, l: PlotLayout, tickStyle
     var tickStyle = props.captionStyle(ink)
     tickStyle.fontSize = max(10.0'f32, tickStyle.fontSize - 2)   # a little under the text size
     let titleStyle = props.captionStyle(ink, props.fontSize.get(14.0), action = true)
+    let view = if widget.xView != nil: some(widget.xView.value) else: none(AxisView)
     let probe = layoutPlot(widget.series, widget.bounds, widget.includeZero,
-                           widget.yMin, widget.yMax)
+                           widget.yMin, widget.yMax, view)
     var widest = 0.0'f32
     for t in ticksFor(probe.yLo, probe.yHi, probe.yStep):
       widest = max(widest, measureText(formatTick(t, probe.yStep), tickStyle).width)
@@ -144,7 +182,7 @@ template plotFrame*(widget: untyped): tuple[area: Rect, l: PlotLayout, tickStyle
                     y: widget.bounds.y + titleH + 8,
                     width: max(1.0'f32, widget.bounds.width - widest - 24),
                     height: max(1.0'f32, widget.bounds.height - titleH - lineH - legendH - 20))
-    (area, layoutPlot(widget.series, area, widget.includeZero, widget.yMin, widget.yMax),
+    (area, layoutPlot(widget.series, area, widget.includeZero, widget.yMin, widget.yMax, view),
      tickStyle, titleStyle, lineH, legendH)
 
 definePrimitive(Plot):
@@ -158,17 +196,40 @@ definePrimitive(Plot):
     yMin: float = NaN                 # NaN: from the data
     yMax: float = NaN
     showReadout: bool = true          # the value under the pointer
+    xView: Link[AxisView] = nil       # set: x zooms and pans (shared with other widgets)
     intent: ThemeIntent = Default
 
   state:
     hoverSeries: int                  # the point under the pointer; -1: none
     hoverIndex: int
+    input: ViewInput                  # drag and pinch on a zoomable x (view_range)
 
   init:
     widget.hoverSeries = -1
+    widget.multiPointer = true
 
   events:
+    on_mouse_down:
+      if widget.xView == nil: return false
+      let f = widget.plotFrame
+      if not f.area.contains(event.mousePos.x, event.mousePos.y) and event.pointerId == 0:
+        return false
+      return widget.input.viewDown(widget, event)
+
+    on_mouse_up:
+      if widget.xView == nil: return false
+      return widget.input.viewUp(event)
+
+    on_mouse_wheel:
+      if widget.xView == nil: return false
+      let f = widget.plotFrame
+      return viewWheel(widget.xView, event, f.area.x, f.area.width)
+
     on_mouse_move:
+      if widget.xView != nil:
+        let f = widget.plotFrame
+        if widget.input.viewMove(widget.xView, event, f.area.x, f.area.width):
+          return true
       if not widget.showReadout:
         return false
       let f = widget.plotFrame
@@ -182,6 +243,7 @@ definePrimitive(Plot):
       return false
 
   layout:
+    widget.followView(widget.xView)
     if widget.bounds.width <= 0:
       widget.bounds.width = 360.0f32
     if widget.bounds.height <= 0:
@@ -242,14 +304,22 @@ definePrimitive(Plot):
     let unit = abs(l.toPixel(1.0, l.yLo).x - l.toPixel(0.0, l.yLo).x)
     let zeroY = l.toPixel(l.xLo, clamp(0.0, l.yLo, l.yHi)).y
 
+    # On a zoomed view only what is inside the x range is drawn, clipped to
+    # the plot (a line leaving it is cut at the edge).
+    let zoomed = widget.xView != nil
+    var clip: ClipRect
+    if zoomed: clip = beginClip(area)
+    template inView(x: float): bool = x >= l.xLo and x <= l.xHi
     for i, s in widget.series:
       let color = seriesColor(widget.series, i)
       case s.kind
       of pkLine, pkArea:
         var prev: tuple[x, y: float32]
+        var prevX = 0.0
         for j, p in s.points:
           let px = l.toPixel(p.x, p.y)
-          if s.kind == pkArea and j > 0:
+          let seen = j > 0 and not (max(prevX, p.x) < l.xLo or min(prevX, p.x) > l.xHi)
+          if s.kind == pkArea and seen:
             let a = Vector2(x: prev.x, y: prev.y)
             let b = Vector2(x: px.x, y: px.y)
             let c = Vector2(x: px.x, y: zeroY)
@@ -257,19 +327,23 @@ definePrimitive(Plot):
             let fill = color.withAlpha(0.25)
             drawTriangleAnyWinding(a, b, c, fill)
             drawTriangleAnyWinding(a, c, d, fill)
-          if j > 0:
+          if seen:
             drawLine(prev.x, prev.y, px.x, px.y, color, line)
           prev = px
+          prevX = p.x
         for p in s.points:       # dots over the joins, so a fat line stays round
+          if not inView(p.x): continue
           let px = l.toPixel(p.x, p.y)
           drawCircle(Vector2(x: px.x, y: px.y), line * 0.75, color)
       of pkScatter:
         for p in s.points:
+          if not inView(p.x): continue
           let px = l.toPixel(p.x, p.y)
           drawCircle(Vector2(x: px.x, y: px.y), max(4.5'f32, line * 2), color)
       of pkBar:
         let slot = unit * 0.8 / float32(max(1, barCount))
         for p in s.points:
+          if zoomed and not inView(p.x): continue
           let px = l.toPixel(p.x, p.y)
           let left = px.x - unit * 0.4 + float32(barIndex) * slot
           let top = min(px.y, zeroY)
@@ -277,6 +351,11 @@ definePrimitive(Plot):
           drawBox(Rect(x: left, y: top, width: max(1.0'f32, slot - 1), height: max(1.0'f32, h)),
                   min(props.cornerRadius.get(2.0), slot / 2), color, ink, 0)
         inc barIndex
+      of pkWave:
+        let xv = fixedView(l.xLo, l.xHi, l.xLo, (l.xHi - l.xLo) / float(max(1'f32, area.width)))
+        s.wave.drawnBy(widget)
+        drawWave(s.wave, s.channel, xv, area, l.yLo, l.yHi, color, max(1'f32, line / 2))
+    if zoomed: endClip(clip)
 
     # Legend.
     if legendH > 0:

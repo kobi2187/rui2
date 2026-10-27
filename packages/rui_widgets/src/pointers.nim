@@ -20,7 +20,7 @@
 ## A pointer going down or up changes nothing by itself: the next move is measured
 ## from where the pointers are, so adding or lifting a finger never jumps.
 
-import std/[math, tables, algorithm]
+import std/[math, tables, algorithm, json]
 import rui_core
 
 type
@@ -35,6 +35,10 @@ type
     count*: int          ## pointers down
 
 proc count*(ps: Pointers): int = ps.at.len
+
+proc `%`*(ps: Pointers): JsonNode =
+  ## What scripting sees: how many are down (the generic encoder cannot do the table).
+  %*{"count": ps.at.len}
 proc has*(ps: Pointers, id: int): bool = id in ps.at
 proc pos*(ps: Pointers, id: int): Point = ps.at.getOrDefault(id)
 

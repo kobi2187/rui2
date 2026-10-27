@@ -260,14 +260,17 @@ VStack gallery @0,0 1000x720
             Label - @12,572 384x23
             TextView data.text @12,603 384x120 tabstop
               Label - @20,611 356x104
-        Expanded - @412,95 576x420
-          Column - @412,95 576x420
+        Expanded - @412,95 576x583
+          Column - @412,95 576x583
             Label - @412,95 576x23
             DataTable data.table @412,126 576x190 tabstop
               TextInput - @414,128 136x22 tabstop
               TextInput - @554,128 156x22 tabstop
             Label - @412,324 576x23
             DataGrid data.grid @412,355 576x160 tabstop
+            Label - @412,523 576x23
+            Ruler data.ruler @412,554 576x26
+            Waveform data.wave @412,588 576x90 tabstop
     VStack - @0,83 1000x882 hidden
       Column graphics @12,95 976x530
         Row - @12,95 976x190

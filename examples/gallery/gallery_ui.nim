@@ -282,6 +282,11 @@ proc dataTab(): Widget =
     gridRows.add GridRow(id: "g" & $i, values: @[%i, %("item " & $i), %(i * i)])
   var many: seq[string]
   for i in 0 ..< 10_000: many.add "row " & $i
+  var tone: seq[float32]               # three seconds of a fading chord
+  for i in 0 ..< 24_000:
+    let t = float(i) / 8000
+    tone.add float32((sin(t * 220 * 2 * PI) + 0.5 * sin(t * 331 * 2 * PI)) * 0.6 * exp(-t))
+  let toneView = newLink(wholeView(0.0, 3.0))
   var prose: seq[seq[string]]
   for i in 0 ..< 5_000:
     prose.add @["Paragraph " & $(i + 1) & ". Only the lines on screen are wrapped and " &
@@ -316,6 +321,9 @@ proc dataTab(): Widget =
         Embed(table)
         Label(text = "DataGrid")
         Embed(grid)
+        Label(text = "Ruler and Waveform on one view (Ctrl+wheel zooms)")
+        Ruler(view = toneView, ticks = secondTicks()).named("data.ruler").size(0, 26)
+        Waveform(source = newSamples(tone, 8000), view = toneView).named("data.wave").size(0, 90)
 
 proc samplePng(): string =
   ## A generated picture, so the gallery needs no asset. Twice as wide as tall,

@@ -1,6 +1,7 @@
 ## Plot: the scale arithmetic and the layout of axes, with no window.
 
-import std/[unittest, math, options]
+import std/[unittest, math, options, times]
+from raylib import KeyboardKey
 import rui
 
 suite "nice steps and ranges":
@@ -110,3 +111,56 @@ suite "plot hover readout":
     check (p.hoverSeries, p.hoverIndex) == (0, 3)
     discard p.handleInput(GuiEvent(kind: evMouseMove, mousePos: Point(x: 1, y: 1)))
     check p.hoverSeries == -1
+
+suite "plot on a zoomable x (xView)":
+  proc wave(): seq[tuple[x, y: float]] =
+    for i in 0 .. 1000: result.add (float(i), sin(float(i) / 50) * float(1 + i div 100))
+
+  proc chart(view: Link[AxisView]): Plot =
+    result = newPlot(series = @[lineSeries("w", wave())], xView = view)
+    result.bounds = Rect(x: 0, y: 0, width: 400, height: 240)
+    result.layout()
+
+  test "without a view nothing changes: x covers all the data":
+    let p = newPlot(series = @[lineSeries("w", wave())])
+    p.bounds = Rect(x: 0, y: 0, width: 400, height: 240)
+    check p.plotFrame.l.xLo <= 0 and p.plotFrame.l.xHi >= 1000
+
+  test "x is what the view shows, and y fits only the points inside it":
+    let view = newLink(xViewOf(@[lineSeries("w", wave())]))
+    let p = chart(view)
+    check p.plotFrame.l.xLo == 0 and p.plotFrame.l.xHi == 1000
+    let whole = p.plotFrame.l.yHi
+    view.value = view.value.showing(0, 100, p.plotFrame.area.width)
+    let f = p.plotFrame
+    check abs(f.l.xLo) < 1e-9 and abs(f.l.xHi - 100) < 1e-6
+    check f.l.yHi < whole              # the early, small swings fill the height
+
+  test "Ctrl+wheel zooms about the pointer; a drag pans; every widget on the view follows":
+    let view = newLink(xViewOf(@[lineSeries("w", wave())]))
+    let p = chart(view)
+    let other = chart(view)
+    let f = p.plotFrame
+    let at = f.area.x + f.area.width / 4
+    let under = view.value.clampedTo(f.area.width).toData(at, f.area.x)
+    check p.handleInput(GuiEvent(kind: evMouseWheel, wheelDelta: 1, mods: {kmCtrl},
+                                 mousePos: Point(x: at, y: 100)))
+    let z = view.value.clampedTo(f.area.width)
+    check abs(z.toData(at, f.area.x) - under) < 1e-6
+    check other.plotFrame.l.xHi - other.plotFrame.l.xLo < 1000
+    let start = z.start
+    discard p.handleInput(GuiEvent(kind: evMouseDown, mousePos: Point(x: at, y: 100)))
+    discard p.handleInput(GuiEvent(kind: evMouseMove, mousePos: Point(x: at - 50, y: 100)))
+    discard p.handleInput(GuiEvent(kind: evMouseUp, mousePos: Point(x: at - 50, y: 100)))
+    check view.value.start > start
+    check other.plotFrame.l.xLo == view.value.start
+
+  test "a Timeline and a Plot on one view move together":
+    let t0 = dateTime(2026, mJan, 1, zone = utc())
+    let tl = newTimeline(startTime = t0, endTime = t0 + 1.days, scale = tsHour,
+                         pixelsPerUnit = 60)
+    let p = chart(tl.view)
+    tl.bounds = Rect(x: 0, y: 0, width: 400, height: 120)
+    tl.focused = true
+    discard tl.handleInput(GuiEvent(kind: evKeyDown, key: KeyboardKey.Right))
+    check p.plotFrame.l.xLo == tl.view.value.start and tl.view.value.start > 0
