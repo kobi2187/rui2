@@ -7,6 +7,12 @@
   row lists), `choice.nim` (pick-one), `value_input.nim` (sliders), `input/popup_field.nim`
   and `menus/menu_panel.nim` (popups), `dialogs/modal.nim` (modals). A widget keeps
   only what is its own.
+- **Keep it primal.** Shared behaviour is plain library code a primitive calls
+  (values, procs, a state object with one `handle`), never a wrapper widget or a
+  convention to memorise ("child *i* is ..."). A widget is something you see.
+  Library code changes what it was given and returns what it did; it does not
+  call back into the caller, so a handler reads straight through in a debugger
+  (`view_range.nim` `ZoomPan.handle`, `axis_marks.nim` `Marks.handle`).
 - **Test the behaviour across the group**, not once per widget: see
   `tests/test_press_behavior.nim`, `test_choice_behavior.nim`, `test_popup_behavior.nim`,
   `test_drag_behavior.nim`, and `tests/ui_harness.nim` for driving widgets through the

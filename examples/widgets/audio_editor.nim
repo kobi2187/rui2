@@ -1,6 +1,6 @@
-## An audio editor's main view, from the editor pieces: a Ruler, a Waveform
-## and AxisMarks on one shared view, a playhead that plays, a selection that
-## zooms in.
+## An audio editor's main view, from the editor pieces: a Ruler and a
+## Waveform on one shared view, with marks (a playhead that plays, a selection
+## that zooms in, markers).
 ##
 ## - Drag to select; click to put the playhead; Shift+click extends the
 ##   selection; drag the flag to move the marker. Edges snap to marks nearby
@@ -51,9 +51,10 @@ var playing = false
 
 proc clockOf(t: float): string = secondTicks().tickLabel(t, 0.01)
 
+let marks = newMarks(playhead = playhead, selection = selection,
+                     markers = @[marker(12.0, "swell"), marker(24.0, "out")])
 var status: Label
-var marks: AxisMarks
-var editor: Stack
+var wave: Waveform
 
 proc showStatus() =
   let s = selection.value
@@ -63,7 +64,7 @@ proc showStatus() =
 
 proc zoomToSelection() =
   let s = selection.value
-  if not s.isEmpty: time.value = time.value.showing(s.lo, s.hi, marks.bounds.width)
+  if not s.isEmpty: time.value = time.value.showing(s.lo, s.hi, wave.bounds.width)
 
 proc togglePlay() =
   playing = not playing
@@ -83,15 +84,12 @@ let root = ui:
             playhead.value = at
             showStatus()).named("ruler")
     Expanded():
-      editor = Stack(fit = StackFit.expand).focusable().named("editor"):
-        Waveform(source = song, view = time).named("wave")
-        marks = AxisMarks(view = time, playhead = playhead, selection = selection,
-                          markers = @[marker(12.0, "swell"), marker(24.0, "out")],
-                          onSeek = proc(at: float) = showStatus(),
-                          onSelect = proc(lo, hi: float) = showStatus()).named("marks")
+      wave = Waveform(source = song, view = time, marks = marks,
+                      onSeek = proc(at: float) = showStatus(),
+                      onSelect = proc(s: AxisSpan) = showStatus()).named("wave")
 
 # Playback moves the playhead at the speed of time (no sound: this is the view).
-marks.onTick(proc(dt: float) =
+wave.onTick(proc(dt: float) =
   if not playing: return
   let s = selection.value
   var at = playhead.value + dt
@@ -100,7 +98,7 @@ marks.onTick(proc(dt: float) =
   playhead.value = at
   showStatus())
 
-editor.onKey(proc(k: KeyboardKey): bool =
+wave.onKey(proc(k: KeyboardKey): bool =
   if k == KeyboardKey.Space:
     togglePlay()
     return true
@@ -108,5 +106,5 @@ editor.onKey(proc(k: KeyboardKey): bool =
 
 showStatus()
 app.setRootWidget(root)
-app.focusManager.setFocus(editor)
+app.focusManager.setFocus(wave)
 app.start()

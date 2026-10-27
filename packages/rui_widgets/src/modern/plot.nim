@@ -202,36 +202,19 @@ definePrimitive(Plot):
   state:
     hoverSeries: int                  # the point under the pointer; -1: none
     hoverIndex: int
-    input: ViewInput                  # drag and pinch on a zoomable x (view_range)
+    zoom: ZoomPan                     # zooming and panning xView (view_range)
 
   init:
     widget.hoverSeries = -1
     widget.multiPointer = true
 
   events:
-    on_mouse_down:
-      if widget.xView == nil: return false
-      let f = widget.plotFrame
-      if not f.area.contains(event.mousePos.x, event.mousePos.y) and event.pointerId == 0:
-        return false
-      return widget.input.viewDown(widget, event)
-
-    on_mouse_up:
-      if widget.xView == nil: return false
-      return widget.input.viewUp(event)
-
-    on_mouse_wheel:
-      if widget.xView == nil: return false
-      let f = widget.plotFrame
-      return viewWheel(widget.xView, event, f.area.x, f.area.width)
+    on_event:                         # with an xView: zoom and pan it
+      return widget.zoom.handle(widget, widget.xView, event, widget.plotFrame.area)
 
     on_mouse_move:
-      if widget.xView != nil:
-        let f = widget.plotFrame
-        if widget.input.viewMove(widget.xView, event, f.area.x, f.area.width):
-          return true
       if not widget.showReadout:
-        return false
+        return widget.zoom.handle(widget, widget.xView, event, widget.plotFrame.area)
       let f = widget.plotFrame
       let inside = f.area.contains(event.mousePos.x, event.mousePos.y)
       let hit = if inside: nearestPoint(widget.series, f.l, event.mousePos.x, event.mousePos.y)
@@ -240,7 +223,7 @@ definePrimitive(Plot):
         widget.hoverSeries = hit.series
         widget.hoverIndex = hit.index
         widget.isDirty = true
-      return false
+      return widget.zoom.handle(widget, widget.xView, event, widget.plotFrame.area)
 
   layout:
     widget.followView(widget.xView)

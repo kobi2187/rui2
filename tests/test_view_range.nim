@@ -4,7 +4,6 @@
 
 import std/[unittest, math]
 import rui
-import ../packages/rui_widgets/src/view_range
 from raylib import KeyboardKey
 
 proc near(a, b: float, eps = 1e-6): bool = abs(a - b) <= eps
@@ -48,29 +47,49 @@ suite "AxisView":
     check v.clampedTo(300).perPixel.near(v.perPixel)
     check v.clampedTo(300).stop(300).near(75)
 
-suite "the gestures on a view":
+suite "the gestures on a view (ZoomPan.handle)":
+  proc viewer(link: Link[AxisView]): Label =
+    result = newLabel(text = "on a view")
+    result.bounds = Rect(x: 0, y: 0, width: 200, height: 50)
+    result.followView(link)
+    result.isDirty = false
+
   test "Ctrl+wheel zooms about the pointer, a plain wheel pans, both move every follower":
     let link = newLink(wholeView(0.0, 100.0))
-    let follower = newLabel(text = "ruler")
-    follower.followView(link)
-    follower.isDirty = false
-    check viewWheel(link, GuiEvent(kind: evMouseWheel, wheelDelta: 1, mods: {kmCtrl},
-                                   mousePos: Point(x: 50, y: 0)), 0, 200)
+    let w = viewer(link)
+    var z: ZoomPan
+    check z.handle(w, link, GuiEvent(kind: evMouseWheel, wheelDelta: 1, mods: {kmCtrl},
+                                       mousePos: Point(x: 50, y: 0)), w.bounds)
     check link.value.clampedTo(200).perPixel.near(0.4)
-    check follower.isDirty
+    check w.isDirty
     let start = link.value.start
-    check viewWheel(link, GuiEvent(kind: evMouseWheel, wheelDelta: -1), 0, 200)
+    check z.handle(w, link, GuiEvent(kind: evMouseWheel, wheelDelta: -1), w.bounds)
     check link.value.start > start
-    check viewWheel(link, GuiEvent(kind: evMouseWheel, wheelDelta: 100), 0, 200)
+    check z.handle(w, link, GuiEvent(kind: evMouseWheel, wheelDelta: 100), w.bounds)
     check link.value.start == 0
-    check not viewWheel(link, GuiEvent(kind: evMouseWheel, wheelDelta: 1), 0, 200)  # at the start: not used
+    check not z.handle(w, link, GuiEvent(kind: evMouseWheel, wheelDelta: 1), w.bounds)
 
-  test "keys: Right pans, End goes to the end, minus zooms out":
+  test "a drag pans: press, move, release":
     let link = newLink(wholeView(0.0, 100.0).clampedTo(200).zoomedAt(4, 0, 0, 200))
-    check viewKey(link, GuiEvent(kind: evKeyDown, key: KeyboardKey.Right), 0, 200)
+    let w = viewer(link)
+    var z: ZoomPan
+    check z.handle(w, link, GuiEvent(kind: evMouseDown, mousePos: Point(x: 150, y: 10)), w.bounds)
+    check z.handle(w, link, GuiEvent(kind: evMouseMove, mousePos: Point(x: 50, y: 10)), w.bounds)
+    check link.value.start.near(100 * 0.125)
+    check z.handle(w, link, GuiEvent(kind: evMouseUp, mousePos: Point(x: 50, y: 10)), w.bounds)
+    check not z.handle(w, link, GuiEvent(kind: evMouseMove, mousePos: Point(x: 0, y: 10)), w.bounds)
+    check not z.handle(w, link, GuiEvent(kind: evMouseDown, mousePos: Point(x: 900, y: 10)), w.bounds)
+
+  test "keys, when focused: Right pans, End goes to the end, minus zooms out":
+    let link = newLink(wholeView(0.0, 100.0).clampedTo(200).zoomedAt(4, 0, 0, 200))
+    let w = viewer(link)
+    var z: ZoomPan
+    check not z.handle(w, link, GuiEvent(kind: evKeyDown, key: KeyboardKey.Right), w.bounds)
+    w.focused = true
+    check z.handle(w, link, GuiEvent(kind: evKeyDown, key: KeyboardKey.Right), w.bounds)
     check link.value.start > 0
-    check viewKey(link, GuiEvent(kind: evKeyDown, key: KeyboardKey.End), 0, 200)
+    check z.handle(w, link, GuiEvent(kind: evKeyDown, key: KeyboardKey.End), w.bounds)
     check link.value.stop(200).near(100)
-    check viewKey(link, GuiEvent(kind: evKeyDown, key: KeyboardKey.Minus), 0, 200)
+    check z.handle(w, link, GuiEvent(kind: evKeyDown, key: KeyboardKey.Minus), w.bounds)
     check link.value.perPixel.near(0.125 * 1.25)
-    check not viewKey(link, GuiEvent(kind: evKeyDown, key: KeyboardKey.A), 0, 200)
+    check not z.handle(w, link, GuiEvent(kind: evKeyDown, key: KeyboardKey.A), w.bounds)

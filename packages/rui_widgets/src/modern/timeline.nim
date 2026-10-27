@@ -53,6 +53,15 @@ template settle(widget: untyped, before: AxisView) =
       if widget.onScroll != nil:
         widget.onScroll(float32((v.start - v.lo) / v.perPixel))
 
+template zoomPan(widget: untyped, event: GuiEvent): bool =
+  ## Zoom and pan the view with `event` (view_range), then report a scroll.
+  block:
+    let before = viewOf(widget)
+    let used = widget.zoom.handle(widget, widget.view, event, widget.bounds,
+                                  keyStep = widget.pixelsPerUnit)
+    widget.settle(before)
+    used
+
 template showEvent(widget: untyped, index: int) =
   ## Select event `index` and pan so it is in view.
   block:
@@ -85,7 +94,7 @@ definePrimitive(Timeline):
   state:
     selectedEvent: string        # Event ID
     hoverEvent: string           # Event ID
-    input: ViewInput             # drag, pinch (view_range.nim)
+    zoom: ZoomPan                # zooming and panning the view (view_range.nim)
     shownZoom: float32           # pixelsPerUnit as last applied to the view
 
   actions:
@@ -108,7 +117,8 @@ definePrimitive(Timeline):
 
   events:
     on_mouse_down:
-      if event.pointerId == 0 and widget.input.fingers.count == 0:
+      # A press on an event selects it; anywhere else it is the view's (on_event).
+      if event.pointerId == 0 and widget.zoom.fingers.count == 0:
         let axis = axisOf(widget)
         for i, evt in widget.events:
           if axis.eventRectFor(i, evt).contains(event.mousePos.x, event.mousePos.y):
@@ -117,14 +127,10 @@ definePrimitive(Timeline):
             if widget.onEventClick != nil:
               widget.onEventClick(evt)
             return true
-      # Empty space starts a pan; a second finger a pinch.
-      return widget.input.viewDown(widget, event)
+      return widget.zoomPan(event)               # empty space: a pan, or a pinch
 
     on_mouse_move:
-      let before = viewOf(widget)
-      if widget.input.viewMove(widget.view, event, widget.bounds.x, widget.bounds.width):
-        widget.settle(before)
-        return true
+      if event.pointerId != 0 or widget.zoom.panning: return widget.zoomPan(event)
       let axis = axisOf(widget)
       var newHover = ""
       for i, evt in widget.events:
@@ -136,43 +142,32 @@ definePrimitive(Timeline):
         widget.isDirty = true
       return false
 
-    on_mouse_up:
-      return widget.input.viewUp(event)
-
-    on_mouse_wheel:
-      # The wheel pans; with Ctrl it zooms about the pointer. At the ends of
-      # the range a plain wheel is left to an enclosing scroll view.
-      let before = viewOf(widget)
-      let used = viewWheel(widget.view, event, widget.bounds.x, widget.bounds.width)
-      widget.settle(before)
-      return used
-
     on_key_down:
-      # Left/Right pan a unit, Home/End to the ends of the range, +/- zoom
-      # about the middle (view_range); Up/Down select the previous/next event
-      # and bring it into view; Enter opens the selected one.
+      # Up/Down select the previous/next event and bring it into view; Enter
+      # opens the selected one. Other keys zoom and pan.
       if not widget.focused:
         return false
-      let before = viewOf(widget)
       var at = -1
       for i, evt in widget.events:
         if evt.id == widget.selectedEvent: at = i
       case event.key
       of KeyboardKey.Down, KeyboardKey.Up:
         if widget.events.len == 0: return false
+        let before = viewOf(widget)
         let next = if at < 0: 0
                    elif event.key == KeyboardKey.Down: min(widget.events.high, at + 1)
                    else: max(0, at - 1)
         widget.showEvent(next)
+        widget.settle(before)
+        return true
       of KeyboardKey.Enter, KeyboardKey.KpEnter:
         if at >= 0 and widget.onEventClick != nil:
           widget.onEventClick(widget.events[at])
-      else:
-        if not viewKey(widget.view, event, widget.bounds.x, widget.bounds.width,
-                       step = widget.pixelsPerUnit):
-          return false
-      widget.settle(before)
-      return true
+        return true
+      else: return widget.zoomPan(event)       # Left/Right a unit, Home/End, +/-
+
+    on_event:                                  # the wheel, a release
+      return widget.zoomPan(event)
 
   layout:
     if widget.pixelsPerUnit != widget.shownZoom and widget.pixelsPerUnit > 0:
@@ -249,7 +244,7 @@ proc scrollOffset*(widget: Timeline): float32 =
 
 proc isDragging*(widget: Timeline): bool =
   ## A drag is panning the view.
-  widget.input.panning
+  widget.zoom.panning
 
 proc axis*(widget: Timeline): TimelineAxis =
   ## The widget's current projection, for callers outside this module.

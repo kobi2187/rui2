@@ -4,27 +4,30 @@
 ##
 ## ```nim
 ## let time = newLink(wholeView(0.0, 120.0))
+## let marks = newMarks(playhead = newLink(0.0))
 ## ui:
-##   Lanes(view = time, lanes = @[lane("Video"), lane("Music", 64)],
+##   Lanes(view = time, marks = marks, snapStep = 1.0,
+##         lanes = @[lane("Video"),
+##                   lane("Music", 64, header = newSwitch())],   # any widget
 ##         clips = @[clip("intro", 0, 0.0, 12.0, "Intro"),
-##                   clip("song", 1, 2.0, 90.0, "Song", wave = song)],
-##         snapStep = 1.0):
-##     Label(text = "Video")                       # lane 0's header
-##     Row: Label(text = "Music"); Switch()        # lane 1's: any widgets
+##                   clip("song", 1, 2.0, 90.0, "Song", wave = song)])
 ## ```
 ##
-## - **Headers are real widgets**: child *i* sits in the header column beside
-##   lane *i* (`headerWidth` wide). A lane with no child shows its name.
+## - **A lane's header** is its name, or a widget of your own (`header`), in
+##   the column on the left (`headerWidth` wide).
 ## - **Clips** move with a drag on their body (to another lane, too), and are
 ##   trimmed by a drag on either edge. Edges snap (axis_snap.nim) to other
-##   clips' edges and the playhead within a few pixels, else to `snapStep`;
-##   Alt turns snapping off. Each change is reported (`onClipChanged`) after
-##   it is made to `clips`.
+##   clips' edges and the marks within a few pixels, else to `snapStep`; Alt
+##   turns snapping off. Each change is made to `clips`, then reported
+##   (`onClipChanged`).
 ## - A clip given samples (`wave`, from `waveOffset` seconds into them) draws
 ##   them inside it (wave_draw.nim): an audio clip shows its audio.
+## - **Marks** (axis_marks.nim): with `marks`, a click on empty space puts the
+##   playhead there and a drag selects; they are drawn across the lanes.
 ## - **The axis** is the shared view (view_range.nim), over the lanes' part
-##   (right of the headers): a drag on empty space pans, the wheel pans,
-##   Ctrl+wheel zooms. Put a Ruler above it, indented by `headerWidth`.
+##   (right of the headers): the wheel pans, Ctrl+wheel zooms, and a drag on
+##   empty space pans when there are no marks. Put a Ruler above it, indented
+##   by `headerWidth`.
 ## - A click selects a clip (`selected`, `onClipSelect`); Delete asks for it
 ##   to go (`onClipDelete` -- the app decides).
 
@@ -36,12 +39,14 @@ import ../view_range
 import ../pointers
 import ../sources/samples
 import axis_snap
+import axis_marks
 import wave_draw
 
 type
   Lane* = object
     name*: string
     height*: float32             ## 0: `laneHeight`
+    header*: Widget              ## shown in the header column instead of the name
 
   LaneClip* = object
     id*: string
@@ -55,7 +60,8 @@ type
   ClipDrag = enum
     cdNone, cdMove, cdTrimStart, cdTrimEnd
 
-proc lane*(name: string, height = 0'f32): Lane = Lane(name: name, height: height)
+proc lane*(name: string, height = 0'f32, header: Widget = nil): Lane =
+  Lane(name: name, height: height, header: header)
 proc clip*(id: string, lane: int, start, length: float, label = "",
            color = none(Color), wave: SampleSource = nil, waveOffset = 0.0): LaneClip =
   LaneClip(id: id, lane: lane, start: start, length: length, label: label,
@@ -66,6 +72,8 @@ proc laneAt(widget: Widget, y: float32): int
 proc clipRect(widget: Widget, i: int): Rect
 proc snapEdge(widget: Widget, at: float, e: GuiEvent): float
 proc changed(widget: Widget, i: int)
+proc syncHeaders(widget: Widget)
+proc marksOrZoom(widget: Widget, e: GuiEvent): bool
 
 const
   EdgeGrab = 6'f32
@@ -79,7 +87,7 @@ definePrimitive(Lanes):
     view: Link[AxisView] = nil
     lanes: seq[Lane] = @[]
     clips: seq[LaneClip] = @[]
-    playhead: Link[float] = nil   ## drawn across the lanes; clip edges snap to it
+    marks: Marks = nil            ## playhead, selection, markers across the lanes
     headerWidth: float32 = 120.0
     laneHeight: float32 = 48.0
     snapStep: float = 0.0
@@ -91,27 +99,27 @@ definePrimitive(Lanes):
     grabAt: float                 ## data under the pointer when the drag began
     grabStart: float
     grabLength: float
-    input: ViewInput
+    zoom: ZoomPan
 
   actions:
     onClipSelect(index: int)
     onClipChanged(index: int, clip: LaneClip)
     onClipDelete(index: int)
+    onSeek(at: float)
+    onSelect(span: AxisSpan)
 
   init:
     widget.focusable = true
     widget.multiPointer = true
     widget.selected = -1
+    widget.hadChildren = true     # its children are the lanes' headers, kept in step
+    widget.syncHeaders()
 
   events:
-    on_mouse_wheel:
-      if widget.view == nil: return false
-      return viewWheel(widget.view, event, widget.areaLeft, widget.areaWidth)
-
     on_mouse_down:
       if widget.view == nil: return false
       if event.mousePos.x < widget.areaLeft: return false     # the headers' own
-      if event.pointerId == 0 and widget.input.fingers.count == 0:
+      if event.pointerId == 0 and widget.zoom.fingers.count == 0:
         let v = widget.view.resolved(widget.areaWidth)
         for i in countdown(widget.clips.high, 0):              # topmost first
           let r = widget.clipRect(i)
@@ -131,12 +139,11 @@ definePrimitive(Lanes):
           widget.selected = -1
           widget.isDirty = true
           if widget.onClipSelect != nil: widget.onClipSelect(-1)
-      return widget.input.viewDown(widget, event)
+      return widget.marksOrZoom(event)              # empty space
 
     on_mouse_move:
       if widget.view == nil: return false
-      if widget.drag == cdNone:
-        return widget.input.viewMove(widget.view, event, widget.areaLeft, widget.areaWidth)
+      if widget.drag == cdNone: return widget.marksOrZoom(event)
       let v = widget.view.resolved(widget.areaWidth)
       let i = widget.selected
       let delta = v.toData(event.mousePos.x, widget.areaLeft) - widget.grabAt
@@ -171,29 +178,30 @@ definePrimitive(Lanes):
       if widget.drag != cdNone:
         widget.drag = cdNone
         return true
-      return widget.input.viewUp(event)
+      return widget.marksOrZoom(event)
 
     on_key_down:
       if not widget.focused or widget.view == nil: return false
       if event.key in {KeyboardKey.Delete, KeyboardKey.Backspace} and widget.selected >= 0:
         if widget.onClipDelete != nil: widget.onClipDelete(widget.selected)
         return true
-      return viewKey(widget.view, event, widget.areaLeft, widget.areaWidth)
+      return widget.marksOrZoom(event)
+
+    on_event:                                       # the wheel
+      return widget.marksOrZoom(event)
 
   layout:
     widget.followView(widget.view)
-    if widget.playhead != nil and not widget.playhead.hasDependent(widget):
-      widget.playhead.addDependent(widget)
+    widget.showMarks(widget.marks)
+    widget.syncHeaders()
     if widget.bounds.width <= 0: widget.bounds.width = 600
     if widget.bounds.height <= 0:
       widget.bounds.height = widget.laneTop(widget.lanes.len) - widget.bounds.y
-    for i, child in widget.children:
-      if i >= widget.lanes.len:
-        child.visible = false
-        continue
+    for i, l in widget.lanes:
+      if l.header == nil: continue
       let top = widget.laneTop(i)
-      child.arrange(Rect(x: widget.bounds.x + 6, y: top + 4, width: widget.headerWidth - 12,
-                         height: widget.laneTop(i + 1) - top - 8))
+      l.header.arrange(Rect(x: widget.bounds.x + 6, y: top + 4, width: widget.headerWidth - 12,
+                            height: widget.laneTop(i + 1) - top - 8))
     if widget.selected >= widget.clips.len: widget.selected = -1
 
   render:
@@ -210,7 +218,7 @@ definePrimitive(Lanes):
       if i mod 2 == 1:
         drawRect(Rect(x: b.x, y: top, width: b.width, height: bottom - top), ink.withAlpha(0.04))
       drawLine(b.x, bottom - 0.5, b.x + b.width, bottom - 0.5, ink.withAlpha(0.15))
-      if i >= widget.children.len:
+      if widget.lanes[i].header == nil:
         drawStyledText(widget.lanes[i].name, b.x + 8, top + 6, style)
     drawLine(widget.areaLeft - 0.5, b.y, widget.areaLeft - 0.5, b.y + b.height, ink.withAlpha(0.3))
     if widget.view == nil: return
@@ -241,11 +249,8 @@ definePrimitive(Lanes):
         drawStyledText(c.label, max(r.x, area.x) + 4, r.y + 1, onClip)
       if i == widget.selected:
         drawBox(r, min(4'f32, r.width / 2), Color(), ink, 2)
-    if widget.playhead != nil:
-      let x = v.toPixel(widget.playhead.value, area.x)
-      let c = currentTheme.getThemeProps(Danger).activeColor.get(accent)
-      drawLine(x, b.y, x, b.y + b.height, c, 2)
     endClip(clip)
+    widget.marks.draw(v, area, widget.intent)
     if widget.focused: drawThemedFocusRing(b, props)
 
 proc laneTop(widget: Widget, i: int): float32 =
@@ -276,14 +281,14 @@ proc clipRect(widget: Widget, i: int): Rect =
        height: widget.laneTop(c.lane + 1) - top - 6)
 
 proc snapEdge(widget: Widget, at: float, e: GuiEvent): float =
-  ## `at` snapped to the other clips' edges, the playhead, or the grid.
+  ## `at` snapped to the other clips' edges, the marks, or the grid.
   let widget = Lanes(widget)
   var targets: seq[float]
   for i, c in widget.clips:
     if i == widget.selected: continue
     targets.add c.start
     targets.add c.start + c.length
-  if widget.playhead != nil: targets.add widget.playhead.value
+  targets.add widget.marks.targets()
   let v = widget.view.resolved(widget.areaWidth)
   snapTo(widget.snapStep, 6, targets).snapped(at, v.perPixel, off = e.alt)
 
@@ -291,3 +296,34 @@ proc changed(widget: Widget, i: int) =
   let widget = Lanes(widget)
   widget.isDirty = true
   if widget.onClipChanged != nil: widget.onClipChanged(i, widget.clips[i])
+
+proc syncHeaders(widget: Widget) =
+  ## The children are the lanes' header widgets, in lane order: added when a
+  ## lane brings one, taken out when it goes.
+  let widget = Lanes(widget)
+  var heads: seq[Widget]
+  for l in widget.lanes:
+    if l.header != nil: heads.add l.header
+  if widget.children == heads: return
+  let before = widget.children               # a copy: removing changes the list
+  for c in before:
+    if c notin heads: widget.removeChild(c)
+  for h in heads:
+    if h.parent != widget: widget.addChild(h)
+  widget.children = heads
+
+proc marksOrZoom(widget: Widget, e: GuiEvent): bool =
+  ## An event that is not a clip's: the marks' (a click seeks, a drag
+  ## selects), else the view's zooming and panning.
+  let widget = Lanes(widget)
+  let area = Rect(x: widget.areaLeft, y: widget.bounds.y, width: widget.areaWidth,
+                  height: widget.bounds.height)
+  let done = widget.marks.handle(widget, widget.view, e, area)
+  case done.did
+  of mdSought:
+    if widget.onSeek != nil: widget.onSeek(done.at)
+  of mdSelected:
+    if widget.onSelect != nil: widget.onSelect(widget.marks.selection.value)
+  of mdMoved, mdBusy: discard
+  of mdNothing: return widget.zoom.handle(widget, widget.view, e, area)
+  true

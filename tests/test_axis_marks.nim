@@ -1,5 +1,6 @@
-## The playhead, selection and markers on a view (modern/axis_marks.nim) and
-## snapping (axis_snap.nim), driven through the real event router.
+## The playhead, selection and markers on a view (Marks, modern/axis_marks.nim)
+## and snapping (axis_snap.nim), on a Waveform, driven through the real event
+## router.
 
 import std/[unittest, math]
 import rui
@@ -13,18 +14,21 @@ suite "snapping":
     check s.snapped(12.4, 0.1, off = true) == 12.4
     check snapTo().snapped(3.7, 1.0) == 3.7   # no grid, no targets
 
-proc rig(snapStep = 0.0): tuple[r: Rig, m: AxisMarks, play: Link[float], sel: Link[AxisSpan]] =
+proc rig(snapStep = 0.0): tuple[r: Rig, m: Waveform, play: Link[float], sel: Link[AxisSpan]] =
   let view = newLink(wholeView(0.0, 100.0))       # 400 px: 0.25 a pixel
   let play = newLink(0.0)
   let sel = newLink(noSpan())
-  let m = newAxisMarks(view = view, playhead = play, selection = sel,
-                       markers = @[marker(80.0, "End")], snapStep = snapStep)
+  var quiet: seq[float32]
+  for i in 0 ..< 1000: quiet.add 0'f32
+  let m = newWaveform(source = newSamples(quiet, 10), view = view,
+                      marks = newMarks(playhead = play, selection = sel,
+                                       markers = @[marker(80.0, "End")], snapStep = snapStep))
   let r = newRig(stack(m.frame(width = 400, height = 100)), 400, 120)
   (r, m, play, sel)
 
-proc xOf(m: AxisMarks, at: float): float32 = m.bounds.x + float32(at / 0.25)
+proc xOf(m: Waveform, at: float): float32 = m.bounds.x + float32(at / 0.25)
 
-suite "AxisMarks":
+suite "Marks on a Waveform":
   teardown: clearRepaints()
 
   test "a click moves the playhead and clears the selection":
@@ -74,8 +78,16 @@ suite "AxisMarks":
     var moved: seq[float]
     m.onMarkerMoved = proc(i: int, at: float) = moved.add at
     r.drag(m.xOf(80) + 1, m.bounds.y + 5, m.xOf(50), m.bounds.y + 5)
-    check abs(m.markers[0].at - 50) < 0.3 and moved.len > 0
+    check abs(m.marks.markers.value[0].at - 50) < 0.3 and moved.len > 0
     disposeTree(r.root)
+
+  test "without marks a drag pans; the wheel zooms the view either way":
+    let view = newLink(wholeView(0.0, 100.0).clampedTo(400).zoomedAt(2, 0, 0, 400))
+    let w = newWaveform(source = newSamples(@[0'f32, 0, 0], 10), view = view)
+    let r2 = newRig(stack(w.frame(width = 400, height = 100)), 400, 120)
+    r2.drag(w.bounds.x + 300, w.bounds.y + 50, w.bounds.x + 100, w.bounds.y + 50)
+    check view.value.start > 0
+    disposeTree(r2.root)
 
   test "the wheel zooms the view it is on":
     let (r, m, _, _) = rig()

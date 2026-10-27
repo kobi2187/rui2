@@ -33,7 +33,7 @@ definePrimitive(Ruler):
     intent: ThemeIntent = Default
 
   state:
-    input: ViewInput
+    zoom: ZoomPan
     seeking: bool
 
   actions:
@@ -43,33 +43,30 @@ definePrimitive(Ruler):
     widget.multiPointer = true
 
   events:
-    on_mouse_wheel:
-      if widget.view == nil: return false
-      return viewWheel(widget.view, event, widget.bounds.x, widget.bounds.width)
-
     on_mouse_down:
-      if widget.view == nil: return false
-      if widget.onSeek != nil and event.pointerId == 0:
+      if widget.view != nil and widget.onSeek != nil and event.pointerId == 0:
         widget.seeking = true
         capturePointer(widget)
         widget.onSeek(widget.view.resolved(widget.bounds.width).toData(
           event.mousePos.x, widget.bounds.x))
         return true
-      return widget.input.viewDown(widget, event)
+      return widget.zoom.handle(widget, widget.view, event, widget.bounds)
 
     on_mouse_move:
-      if widget.view == nil: return false
       if widget.seeking:
         let v = widget.view.resolved(widget.bounds.width)
         widget.onSeek(clamp(v.toData(event.mousePos.x, widget.bounds.x), v.lo, v.hi))
         return true
-      return widget.input.viewMove(widget.view, event, widget.bounds.x, widget.bounds.width)
+      return widget.zoom.handle(widget, widget.view, event, widget.bounds)
 
     on_mouse_up:
       if widget.seeking:
         widget.seeking = false
         return true
-      return widget.input.viewUp(event)
+      return widget.zoom.handle(widget, widget.view, event, widget.bounds)
+
+    on_event:                       # the wheel and keys: zoom and pan the view
+      return widget.zoom.handle(widget, widget.view, event, widget.bounds)
 
   layout:
     widget.followView(widget.view)

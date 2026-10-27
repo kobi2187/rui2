@@ -238,11 +238,16 @@ proc buildEventHandler(name: NimNode, sections: WidgetSections): NimNode =
   let typeName = makeWidgetTypeName(name)
   var caseStmt = nnkCaseStmt.newTree(nnkDotExpr.newTree(ident("event"), ident("kind")))
 
+  # `on_event:` is the else branch: every event kind the widget has no
+  # handler of its own for. Plain `case`, nothing run behind the code's back:
+  # a handler that also wants what `on_event` does calls it itself.
+  var catchAll = newEmptyNode()
   for event in sections.events:
-    caseStmt.add(genEventCase(event))
-
-  # Add else branch
-  caseStmt.add nnkElse.newTree(quote do: return false)
+    if event.name == "on_event": catchAll = event.body
+    else: caseStmt.add(genEventCase(event))
+  caseStmt.add nnkElse.newTree(
+    if catchAll.kind == nnkEmpty: (quote do: return false) else: catchAll)
+  let body = caseStmt
 
   # Build method manually to have proper widget type
   let widgetParam = newIdentDefs(ident("widget"), typeName)
@@ -256,7 +261,7 @@ proc buildEventHandler(name: NimNode, sections: WidgetSections): NimNode =
     formalParams,
     newEmptyNode(),
     newEmptyNode(),
-    caseStmt
+    body
   )
 
 proc buildGetTypeNameMethod(name: NimNode, sections: WidgetSections): NimNode =

@@ -4,7 +4,8 @@
 ##
 ## - Drag a clip to move it (to another lane too), drag its edges to trim;
 ##   edges snap to other clips and the playhead (Alt: off).
-## - Click the ruler to put the playhead; Ctrl+wheel over the lanes zooms.
+## - Click the ruler or empty lane space to put the playhead; Ctrl+wheel over
+##   the lanes zooms.
 ## - Split cuts the selected clip at the playhead; Delete removes it.
 ## - Space plays (the preview shows the clip under the playhead).
 ##
@@ -30,6 +31,7 @@ let music = newSamples(tune, 8000)
 
 let time = newLink(wholeView(0.0, 40.0, minPerPixel = 1 / fps / 20))
 let playhead = newLink(3.0)
+let marks = newMarks(playhead = playhead)    # clicking empty lane space seeks too
 var playing = false
 
 proc tint(r, g, b: int): Option[Color] = some(Color(r: uint8(r), g: uint8(g), b: uint8(b), a: 255))
@@ -38,6 +40,13 @@ var lanes: Lanes
 var preview: Label
 var bin: ListBox
 var status: Label
+
+proc header(name, toggle: string, on: bool): Widget =
+  ## A lane's header: its name and a switch.
+  result = ui:
+    Row(spacing = 4.0, crossAxisAlignment = CrossAxisAlignment.center):
+      Label(text = name)
+      Checkbox(text = toggle, initialChecked = on)
 
 proc clipAt(at: float): int =
   ## The clip shown at `at`: the topmost video lane's, else -1.
@@ -109,9 +118,11 @@ let root = ui:
               Ruler(view = time, ticks = timecodeTicks(fps),
                     onSeek = proc(at: float) = (playhead.value = at; refresh())).named("ruler")
           Expanded():
-            lanes = Lanes(view = time, playhead = playhead, headerWidth = HeaderWidth,
+            lanes = Lanes(view = time, marks = marks, headerWidth = HeaderWidth,
                           snapStep = 1 / fps,
-                          lanes = @[lane("V2"), lane("V1"), lane("Music", 64)],
+                          lanes = @[lane("V2", header = header("V2", "on", true)),
+                                    lane("V1", header = header("V1", "on", true)),
+                                    lane("Music", 64, header = header("Music", "mute", false))],
                           clips = @[
                             clip("title", 0, 0.0, 4.0, "Title", tint(120, 90, 200)),
                             clip("a", 1, 0.0, 9.5, "Beach", tint(60, 140, 200)),
@@ -120,16 +131,8 @@ let root = ui:
                             clip("m", 2, 0.0, 20.0, "Tune", tint(150, 150, 160), music)],
                           onClipSelect = proc(i: int) = refresh(),
                           onClipChanged = proc(i: int, c: LaneClip) = refresh(),
-                          onClipDelete = deleteClip).named("lanes"):
-              Row(spacing = 4.0, crossAxisAlignment = CrossAxisAlignment.center):
-                Label(text = "V2")
-                Checkbox(text = "on", initialChecked = true)
-              Row(spacing = 4.0, crossAxisAlignment = CrossAxisAlignment.center):
-                Label(text = "V1")
-                Checkbox(text = "on", initialChecked = true)
-              Row(spacing = 4.0, crossAxisAlignment = CrossAxisAlignment.center):
-                Label(text = "Music")
-                Checkbox(text = "mute")
+                          onSeek = proc(at: float) = refresh(),
+                          onClipDelete = deleteClip).named("lanes")
 
 lanes.onTick(proc(dt: float) =
   if not playing: return

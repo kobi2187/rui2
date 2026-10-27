@@ -288,6 +288,8 @@ proc dataTab(): Widget =
     tone.add float32((sin(t * 220 * 2 * PI) + 0.5 * sin(t * 331 * 2 * PI)) * 0.6 * exp(-t))
   let toneView = newLink(wholeView(0.0, 3.0))
   let toneSamples = newSamples(tone, 8000)
+  let toneMarks = newMarks(playhead = newLink(0.8), selection = newLink(span(1.2, 1.9)),
+                           markers = @[marker(2.4, "fade")])   # shared by the wave and the lanes
   var prose: seq[seq[string]]
   for i in 0 ..< 5_000:
     prose.add @["Paragraph " & $(i + 1) & ". Only the lines on screen are wrapped and " &
@@ -324,11 +326,9 @@ proc dataTab(): Widget =
         Embed(grid)
         Label(text = "Ruler and Waveform on one view (Ctrl+wheel zooms)")
         Ruler(view = toneView, ticks = secondTicks()).named("data.ruler").size(0, 26)
-        Stack(fit = StackFit.expand).size(0, 90):
-          Waveform(source = toneSamples, view = toneView).named("data.wave")
-          AxisMarks(view = toneView, playhead = newLink(0.8), selection = newLink(span(1.2, 1.9)),
-                    markers = @[marker(2.4, "fade")]).named("data.marks")
-        Lanes(view = toneView, lanes = @[lane("Video", 30), lane("Audio", 40)], headerWidth = 70,
+        Waveform(source = toneSamples, view = toneView, marks = toneMarks).named("data.wave").size(0, 90)
+        Lanes(view = toneView, marks = toneMarks, headerWidth = 70,
+              lanes = @[lane("Video", 30), lane("Audio", 40)],
               clips = @[clip("v1", 0, 0.0, 1.4, "Intro"), clip("v2", 0, 1.5, 1.5, "Main"),
                         clip("a1", 1, 0.2, 2.6, "Chord", wave = toneSamples)],
               snapStep = 0.1).named("data.lanes")

@@ -12,8 +12,8 @@
 ## background (samples.nim); zoomed in, a line through the samples, then a dot
 ## on each (wave_draw.nim). It takes the view's gestures (view_range.nim): the
 ## wheel pans, Ctrl+wheel and a pinch zoom, a drag pans, and when focused the
-## arrows, Home/End and +/-. Put AxisMarks over it (in a Stack) for a playhead
-## and a selection; they take the drag then.
+## arrows, Home/End and +/-. Give it `marks` (axis_marks.nim) for a playhead,
+## a selection and markers: a click seeks and a drag selects then.
 
 import rui_core
 import rui_drawing
@@ -23,36 +23,43 @@ import ../view_range
 import ../pointers
 import ../sources/samples
 import wave_draw
+import axis_marks
 
 definePrimitive(Waveform):
   props:
     source: SampleSource = nil
     view: Link[AxisView] = nil      ## seconds; made over the whole source if not given
     channelGap: float32 = 4.0
+    marks: Marks = nil              ## a playhead, a selection, markers over it (axis_marks)
     intent: ThemeIntent = Default
 
   state:
-    input: ViewInput
+    zoom: ZoomPan
+
+  actions:
+    onSeek(at: float)
+    onSelect(span: AxisSpan)
+    onMarkerMoved(index: int, at: float)
 
   init:
     widget.focusable = true
     widget.multiPointer = true
 
   events:
-    on_mouse_wheel:
-      if widget.view == nil: return false
-      return viewWheel(widget.view, event, widget.bounds.x, widget.bounds.width)
-    on_mouse_down:
-      if widget.view == nil: return false
-      return widget.input.viewDown(widget, event)
-    on_mouse_move:
-      if widget.view == nil: return false
-      return widget.input.viewMove(widget.view, event, widget.bounds.x, widget.bounds.width)
-    on_mouse_up:
-      return widget.input.viewUp(event)
-    on_key_down:
-      if widget.view == nil or not widget.focused: return false
-      return viewKey(widget.view, event, widget.bounds.x, widget.bounds.width)
+    on_event:
+      # The marks first (a click seeks, a drag selects), then the view.
+      let done = widget.marks.handle(widget, widget.view, event, widget.bounds)
+      case done.did
+      of mdSought:
+        if widget.onSeek != nil: widget.onSeek(done.at)
+      of mdSelected:
+        if widget.onSelect != nil: widget.onSelect(widget.marks.selection.value)
+      of mdMoved:
+        if widget.onMarkerMoved != nil: widget.onMarkerMoved(done.index, done.at)
+      of mdBusy: discard
+      of mdNothing:
+        return widget.zoom.handle(widget, widget.view, event, widget.bounds)
+      return true
 
   layout:
     if widget.bounds.width <= 0: widget.bounds.width = 400
@@ -62,6 +69,7 @@ definePrimitive(Waveform):
         widget.view = newLink(wholeView(0.0, widget.source.seconds))
       widget.source.drawnBy(widget)
     widget.followView(widget.view)
+    widget.showMarks(widget.marks)
 
   render:
     let props = currentTheme.getThemeProps(widget.intent, Normal)   # a view: no hover tint
@@ -82,4 +90,5 @@ definePrimitive(Waveform):
       drawLine(lane.x, mid, lane.x + lane.width, mid, ink.withAlpha(0.2))
       drawWave(s, ch, v, lane, -1.0, 1.0, color, max(1'f32, props.strokeWidth))
     endClip(clip)
+    widget.marks.draw(v, b, widget.intent)
     if widget.focused: drawThemedFocusRing(b, props)

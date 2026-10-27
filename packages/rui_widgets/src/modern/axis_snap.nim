@@ -1,6 +1,6 @@
 ## Snapping a position on an axis: to things nearby (a marker, the playhead,
 ## the edge of a selection or a clip), else to a grid (a frame, a beat).
-## Shared by AxisMarks and Lanes, so a selection edge and a clip edge snap
+## Shared by Marks and Lanes, so a selection edge and a clip edge snap
 ## the same way.
 
 import std/math

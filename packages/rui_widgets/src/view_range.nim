@@ -10,7 +10,7 @@
 ## let time = newLink(wholeView(0.0, song.seconds))       # all of it, to start
 ## ui:
 ##   Column:
-##     Ruler(view = time, format = tfTimecode)
+##     Ruler(view = time, ticks = timecodeTicks(25))
 ##     Waveform(source = song, view = time)
 ## ```
 ##
@@ -19,10 +19,22 @@
 ## editor. `wholeView` starts "fitted": all of `lo .. hi` at whatever width it
 ## is laid out at, until it is zoomed or panned.
 ##
-## The gestures are the same everywhere (`ViewInput`): a drag pans, the wheel
-## pans and Ctrl+wheel zooms about the pointer, two fingers pinch, the keys pan
-## (Left/Right), go to the ends (Home/End) and zoom (+/-). Zooming keeps the
-## data under the pointer where it is. Panning stays inside `lo .. hi`.
+## The gestures are the same everywhere, and a widget gets them with one line:
+## a `ZoomPan` in its state, given every event it does not use itself:
+##
+## ```nim
+## state:
+##   zoom: ZoomPan
+## events:
+##   on_event: return widget.zoom.handle(widget, widget.view, event, widget.bounds)
+## layout:
+##   widget.followView(widget.view)       # redraw when anyone moves the view
+## ```
+##
+## A drag pans, the wheel pans and Ctrl+wheel zooms about the pointer, two
+## fingers pinch, the keys pan (Left/Right), go to the ends (Home/End) and zoom
+## (+/-). Zooming keeps the data under the pointer where it is. Panning stays
+## inside `lo .. hi`.
 
 import std/[math, json]
 import rui_core
@@ -122,14 +134,16 @@ proc resolved*(link: Link[AxisView], width: float32): AxisView =
 # The gestures, the same in every widget on a view
 # ---------------------------------------------------------------------------
 
-type ViewInput* = object
-  ## Kept as state by a widget that zooms and pans a view.
+type ZoomPan* = object
+  ## A widget's zooming and panning of a view: keep one in `state:` and give
+  ## it every event (`handle`). It remembers what a gesture needs between
+  ## events -- a drag that is panning, the fingers of a pinch.
   fingers*: Pointers      ## the pointers down: two make a pinch
   panning*: bool          ## a drag that pans is under way
   lastX: float32
 
-proc `%`*(input: ViewInput): JsonNode =
-  %*{"panning": input.panning, "pointers": input.fingers.count}
+proc `%`*(z: ZoomPan): JsonNode =
+  %*{"panning": z.panning, "pointers": z.fingers.count}
 
 const
   WheelZoom* = 1.25       ## one Ctrl+wheel notch, one + or - key
@@ -141,7 +155,7 @@ proc change(link: Link[AxisView], next: AxisView): bool =
   link.value = next
   true
 
-proc viewWheel*(link: Link[AxisView], e: GuiEvent, left, width: float32): bool =
+proc wheel(link: Link[AxisView], e: GuiEvent, left, width: float32): bool =
   ## Ctrl+wheel zooms about the pointer; a plain wheel pans. False when a
   ## plain wheel could not pan (at an end): an enclosing scroll view gets it.
   if e.ctrl:
@@ -150,7 +164,7 @@ proc viewWheel*(link: Link[AxisView], e: GuiEvent, left, width: float32): bool =
     return true
   link.change(link.value.pannedBy(-e.wheelDelta * WheelPan, width))
 
-proc viewDown*(input: var ViewInput, w: Widget, e: GuiEvent): bool =
+proc down(input: var ZoomPan, w: Widget, e: GuiEvent): bool =
   ## A press that pans (or, with a second finger, pinches). Call it once the
   ## widget has decided the press is not on one of its own things.
   let fed = input.fingers.feed(e)
@@ -162,7 +176,7 @@ proc viewDown*(input: var ViewInput, w: Widget, e: GuiEvent): bool =
   capturePointer(w)
   true
 
-proc viewMove*(input: var ViewInput, link: Link[AxisView], e: GuiEvent,
+proc move(input: var ZoomPan, link: Link[AxisView], e: GuiEvent,
                left, width: float32): bool =
   ## A move: pans while dragging, zooms and pans with two fingers. False when
   ## it was neither (the widget may use it for hover).
@@ -179,7 +193,7 @@ proc viewMove*(input: var ViewInput, link: Link[AxisView], e: GuiEvent,
     return true
   false
 
-proc viewUp*(input: var ViewInput, e: GuiEvent): bool =
+proc up(input: var ZoomPan, e: GuiEvent): bool =
   ## A release. True when it ended a pan or a finger of a pinch.
   discard input.fingers.feed(e)
   if e.pointerId != 0:
@@ -190,7 +204,7 @@ proc viewUp*(input: var ViewInput, e: GuiEvent): bool =
   result = input.panning
   input.panning = false
 
-proc viewKey*(link: Link[AxisView], e: GuiEvent, left, width: float32,
+proc key(link: Link[AxisView], e: GuiEvent, left, width: float32,
               step: float32 = 0): bool =
   ## Left/Right pan `step` pixels (an eighth of the view by default),
   ## Home/End go to the ends, + and - zoom about the middle.
@@ -216,5 +230,27 @@ proc viewKey*(link: Link[AxisView], e: GuiEvent, left, width: float32,
   true
 
 proc followView*(w: Widget, link: Link[AxisView]) =
-  ## Redraw `w` whenever the view changes, whoever changed it.
+  ## Redraw `w` whenever the view changes, whoever changed it. Call it in
+  ## `layout:`.
   if link != nil and not link.hasDependent(w): link.addDependent(w)
+
+proc handle*(z: var ZoomPan, w: Widget, view: Link[AxisView], e: GuiEvent,
+             area: Rect, keyStep = 0'f32): bool =
+  ## Any event, for zooming and panning `view` across `area` (its x and
+  ## width): the one call a widget on a view makes, from `on_event:`. True
+  ## when the event was used.
+  ##
+  ## A drag pans; the wheel pans and Ctrl+wheel zooms about the pointer (a
+  ## plain wheel at an end is left to an enclosing scroll view); two fingers
+  ## pinch; when `w` is focused, Left/Right pan (`keyStep` pixels, an eighth
+  ## of the view by default), Home/End go to the ends and +/- zoom.
+  if view == nil: return false
+  case e.kind
+  of evMouseWheel: wheel(view, e, area.x, area.width)
+  of evMouseDown:
+    if e.pointerId == 0 and not area.contains(e.mousePos.x, e.mousePos.y): false
+    else: z.down(w, e)
+  of evMouseMove: z.move(view, e, area.x, area.width)
+  of evMouseUp: z.up(e)
+  of evKeyDown: w.focused and key(view, e, area.x, area.width, keyStep)
+  else: false

@@ -1,7 +1,7 @@
 ## Modern Widgets - Aggregator Module
 ##
 ## Canvas drawing surface, DragDropArea file target, Timeline track, MapWidget, Plot,
-## KanbanBoard, and the editor pieces on a shared view (view_range.nim): Ruler, Waveform, AxisMarks, Lanes.
+## KanbanBoard, and the editor pieces on a shared view (view_range.nim): Ruler, Waveform, Lanes, and Marks (not a widget).
 
 import modern/canvas
 export canvas
