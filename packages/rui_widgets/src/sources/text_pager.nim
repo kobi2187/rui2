@@ -41,7 +41,7 @@ type
 
   TextPager* = ref object
     source*: RowSource
-    style*: TextStyle
+    style: TextStyle
     width, height: float32
     starts: seq[TextPos]                 # where page i starts; starts[0] is the beginning
     lastPage: int                        # -1 until the end has been found
@@ -61,6 +61,15 @@ proc setArea*(p: TextPager, width, height: float32) =
   if width == p.width and height == p.height: return
   p.width = width
   p.height = height
+  p.starts = @[TextPos()]
+  p.lastPage = -1
+  p.wrapped.clear()
+  p.wrapOrder.setLen(0)
+
+proc setStyle*(p: TextPager, style: TextStyle) =
+  ## Another font or size lays the text out afresh, as `setArea` does.
+  if style == p.style: return
+  p.style = style
   p.starts = @[TextPos()]
   p.lastPage = -1
   p.wrapped.clear()
@@ -91,6 +100,34 @@ proc paragraph(p: TextPager, row: int): Option[seq[string]] =
   p.wrapped[row] = lines
   p.wrapOrder.add row
   some(lines)
+
+proc stepLines*(p: TextPager, pos: TextPos, n: int): Option[TextPos] =
+  ## `pos` moved `n` wrapped lines on (back, when negative), stopping at the
+  ## first line and at the last; none while a paragraph on the way is still
+  ## being read (it is asked for). What scrolling by lines is made of.
+  var at = pos
+  var left = n
+  while left > 0:
+    let para = p.paragraph(at.row)
+    if para.isNone: return none(TextPos)
+    if at.line + 1 < para.get.len: inc at.line
+    elif p.atEnd(at.row + 1): break
+    else: at = TextPos(row: at.row + 1, line: 0)
+    dec left
+  while left < 0:
+    if at.line > 0: dec at.line
+    elif at.row == 0: break
+    else:
+      let para = p.paragraph(at.row - 1)
+      if para.isNone: return none(TextPos)
+      at = TextPos(row: at.row - 1, line: para.get.high)
+    inc left
+  some(at)
+
+proc lineCount*(p: TextPager, row: int): Option[int] =
+  ## How many lines paragraph `row` wraps to; none while it is being read.
+  let para = p.paragraph(row)
+  if para.isSome: some(para.get.len) else: none(int)
 
 proc pageAt*(p: TextPager, pos: TextPos): Option[PageText] =
   ## The page that starts at `pos`, and where the one after it starts; none

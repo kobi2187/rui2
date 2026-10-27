@@ -16,6 +16,7 @@ real widgets together, then add behaviour to the result:
 | A widget that glides by fractions of a pixel | `.subpixel()` |
 | Text by lines (a reader, a teleprompter) | `wrapLines(text, style, width)`, `lineHeight(style)` |
 | A whole book, a page at a time, read lazily | `TextPager` over `newLinesSource` ([sources](sources.md#long-text-a-page-at-a-time)) |
+| A whole book, scrolled | `TextView(source = ...)` |
 | Controls that show only when wanted | `HoverReveal` |
 | Lights, glows, ants along an outline | `widget.adorn(...)` |
 | Children that move instead of jumping | `.animateLayout()` |

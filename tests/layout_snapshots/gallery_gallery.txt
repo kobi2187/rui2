@@ -248,15 +248,18 @@ VStack gallery @0,0 1000x720
               Label - @47,826 231x87
         StatusBar layout.status @12,929 976x24
     VStack - @0,83 1000x882 hidden
-      Row data @12,95 976x469
-        Expanded - @12,95 384x469
-          Column - @12,95 384x469
+      Row data @12,95 976x628
+        Expanded - @12,95 384x628
+          Column - @12,95 384x628
             Label - @12,95 384x23
             TreeView data.tree @12,126 384x140 tabstop
             Label - @12,274 384x23
             ListBox data.box @12,305 384x90 tabstop
             Label - @12,403 384x23
             ListView data.view @12,434 384x130 tabstop
+            Label - @12,572 384x23
+            TextView data.text @12,603 384x120 tabstop
+              Label - @20,611 356x104
         Expanded - @412,95 576x420
           Column - @412,95 576x420
             Label - @412,95 576x23

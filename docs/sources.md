@@ -54,3 +54,12 @@ book.source.attach(widget, proc(c: SeqChange) = refresh())   # pages as rows arr
 - Each page is its lines joined by `\n`, each already fitting the width, so a
   wrapped Label of that width shows exactly that page.
 - `examples/widgets/wave_reader.nim` reads a 4,000-line book this way.
+
+**`TextView`** is the ready-made scrolling reader on a pager:
+`TextView(source = newLinesSource("book.txt"), fontSize = 18)`. It scrolls by
+lines (wheel, arrows, PageUp/PageDown, Home/End); its scroll bar counts
+paragraphs, since the height of text never laid out isn't known, so dragging it
+jumps straight to a paragraph. `top`, `scrollTo(pos)` and `onScroll` give the
+place as a text position, to save and reopen. A read-only `TextArea` is still
+the choice for short text: it holds and wraps all of it, and it can select
+(`examples/widgets/text_view.nim`).

@@ -78,6 +78,7 @@ const elementMap*: seq[ElementMap] = @[
   em("input", "TextInput", mapRename),
   em("password", "PasswordInput", mapRename),
   em("textarea", "TextArea", mapSame),
+  em("textview", "TextView", mapSame, "a long read-only text, read and laid out as scrolled"),
   em("select", "ComboBox", mapRename),
   em("combo", "ComboBox", mapRename, "the editable flavour of select"),
   em("slider", "Slider", mapSame),

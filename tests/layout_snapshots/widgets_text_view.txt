@@ -1,0 +1,5 @@
+Column - @0,0 720x560
+  Label status @12,12 696x23
+  Expanded - @12,43 696x505
+    TextView text @12,43 696x505 focused tabstop
+      Label - @20,51 668x489

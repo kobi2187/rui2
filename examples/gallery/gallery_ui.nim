@@ -282,6 +282,10 @@ proc dataTab(): Widget =
     gridRows.add GridRow(id: "g" & $i, values: @[%i, %("item " & $i), %(i * i)])
   var many: seq[string]
   for i in 0 ..< 10_000: many.add "row " & $i
+  var prose: seq[seq[string]]
+  for i in 0 ..< 5_000:
+    prose.add @["Paragraph " & $(i + 1) & ". Only the lines on screen are wrapped and " &
+                "drawn; the rest is read when it is scrolled to."]
   let table = newDataTable(
     columns = @[DataColumn(id: "name", title: "Name", width: 140.0, sortable: true, filterable: true),
                 DataColumn(id: "role", title: "Role", width: 160.0, sortable: true, filterable: true)],
@@ -303,6 +307,9 @@ proc dataTab(): Widget =
         Label(text = "ListView (10k rows)")
         ListView(items = many, itemHeight = 24.0, visibleRows = 5,
                  multiSelect = true).named("data.view").size(0, 130)
+        Label(text = "TextView (5k paragraphs)")
+        TextView(source = newMemorySource(@["text"], prose),
+                 fontSize = 14.0).named("data.text").size(0, 120)
       Expanded(flex = 3):
        Column(spacing = 8.0, crossAxisAlignment = CrossAxisAlignment.stretch):
         Label(text = "DataTable")
