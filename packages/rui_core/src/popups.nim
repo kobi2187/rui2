@@ -9,7 +9,7 @@
 ## App hands it over at the next frame: widgets have no focus manager.
 
 import types
-import overlays   # isWithin
+import pointer_state   # isWithin
 
 type Popup = object
   widget, scope: Widget

@@ -77,7 +77,7 @@ definePrimitive(Ruler):
     if widget.bounds.height <= 0: widget.bounds.height = 26
 
   render:
-    let props = widget.themeProps(widget.intent)
+    let props = currentTheme.getThemeProps(widget.intent, Normal)   # a view: no hover tint
     let ink = props.foregroundColor.get(BLACK)
     drawRect(widget.bounds, props.backgroundColor.get(WHITE))
     let b = widget.bounds

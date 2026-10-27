@@ -3,6 +3,7 @@
 ## Links provide automatic UI updates when data changes.
 ## Uses direct widget references for O(1) dirty marking.
 
+import std/json
 import types
 
 # ============================================================================
@@ -97,6 +98,14 @@ proc setter*[T](link: Link[T]): proc (v: T) {.closure.} =
   ## to write back, hang this on the widget's change action:
   ## `TextInput(text = name.value, onChange = name.setter)`.
   result = proc (v: T) = link.value = v
+
+proc `%`*[T](link: Link[T]): JsonNode =
+  ## What scripting sees of a Link prop: its value (not the widgets that
+  ## depend on it, which the generic encoder would walk into).
+  if link == nil: newJNull()
+  else:
+    when compiles(%link.val): %link.val
+    else: newJNull()
 
 proc get*[T](link: Link[T]): T =
   ## Convenience method - same as .value

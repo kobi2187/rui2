@@ -1,49 +1,29 @@
-## The overlay layer, and what the pointer is over.
+## The overlay layer: widgets drawn over everything.
 ##
 ## Every widget paints into its own render texture, so nothing it draws can
-## leave its bounds. That is fine for almost everything and wrong for the few
-## things that must float above the tree: a tooltip beside its target, a
-## popup below its button. An overlay is a widget the App lays out, renders
+## leave its bounds. That is right for almost everything and wrong for what
+## must float above the tree. An overlay is a widget the App lays out, renders
 ## and composites *after* the root, at its own bounds, so it is drawn over
-## everything and clipped by nothing.
+## everything and clipped by nothing. What uses it, each with its own module:
 ##
-## Overlays are display-only for now: they are not hit-tested, which is all a
-## tooltip needs. Menus and combo-box lists grow their own bounds instead, and
-## moving them here (with hit-testing first) is tracked in issue #43.
+## - tooltips (basic/tooltip.nim): seen, not touched;
+## - menus, dropdowns and in-app windows (menus/menu_panel.nim,
+##   input/popup_field.nim, rui_windows): `interactive`, so they take the
+##   pointer before the tree under them (`overlayAt`, which the router asks
+##   first);
+## - the focus ring (basic/focusring.nim) and decorations (decoration.nim),
+##   which keep beside a widget as it moves (`followWidget`).
 ##
-## The pointer state is here for the same reason: a widget has no App, and a
-## tooltip needs to know whether the pointer is still over its target.
-## Module-level, like `currentTheme`.
+## Where the pointer is and who holds it is pointer_state.nim, re-exported here.
 
-import std/tables
 import types
-import freeze
+import pointer_state
+export pointer_state
 
 var
   layer: seq[Widget]
   interactive: seq[Widget]   # the overlays a pointer can land on
   layerVersion = 0
-  pointerOver: Widget
-  pointerAt: Point
-
-var
-  onPointerPress*: proc(target: Widget) {.closure.}
-    ## Called by the router with the widget a press landed on (nil: empty space),
-    ## before the press is delivered. How a window raises itself when anything
-    ## inside it is clicked -- including a child that consumes the click -- and
-    ## stands down when the page is. nil costs one check.
-  captured: Table[int, Widget]   # pointer id -> the widget that holds it
-
-proc capturePointer*(widget: Widget, pointer = 0) =
-  ## Until `releasePointer` (or the next button release), moves and releases go
-  ## to `widget` wherever the pointer is: a drag that outruns its widget keeps
-  ## working. `pointer` is the pointer id (0: the mouse or first finger); a
-  ## pinch holds two.
-  captured[pointer] = widget
-
-proc releasePointer*(pointer = 0) = captured.del pointer
-proc releaseAllPointers*() = captured.clear()
-proc pointerCapture*(pointer = 0): Widget = captured.getOrDefault(pointer)
 
 proc showOverlay*(widget: Widget, interactive = false) =
   ## Put `widget` on the overlay layer, above everything already there. An
@@ -78,41 +58,6 @@ proc clearOverlays*() =
   interactive.setLen(0)
   inc layerVersion
 
-proc setPointer*(over: Widget, at: Point) =
-  ## Called by the event router on every pointer move.
-  pointerOver = over
-  pointerAt = at
-
-proc pointerWidget*(): Widget = pointerOver
-proc pointerPos*(): Point = pointerAt
-
-proc isWithin*(widget, scope: Widget): bool =
-  ## Is `widget` inside `scope` (or `scope` itself)? A nil scope is the whole
-  ## tree, so everything is within it.
-  if scope == nil:
-    return true
-  var w = widget
-  while w != nil:
-    if w == scope:
-      return true
-    w = w.parent
-  false
-
-proc onPage*(widget: Widget): bool =
-  ## Whether `widget` is there to be seen: it and every ancestor visible, it
-  ## has a size, and it is not on a page frozen behind a modal (freeze.nim) --
-  ## a still picture is not a place for anything to move round.
-  if widget == nil or widget.bounds.width <= 0 or widget.bounds.height <= 0:
-    return false
-  var w = widget
-  var root = widget
-  while w != nil:
-    if not w.visible: return false
-    root = w
-    w = w.parent
-  let modal = frozenBy(root)
-  modal == nil or widget.isWithin(modal)
-
 proc followWidget*(overlay, target: Widget, margin: float32, show: bool) =
   ## Keep `overlay` on the overlay layer `margin` beyond `target`'s bounds
   ## while `show` and the target is on the page (`onPage`); off it otherwise.
@@ -127,10 +72,6 @@ proc followWidget*(overlay, target: Widget, margin: float32, show: bool) =
     overlay.bounds = want
     overlay.isDirty = true
   if overlay notin layer: showOverlay(overlay)
-
-proc containsPointer*(widget: Widget): bool =
-  ## Whether the pointer is over this widget or anything inside it.
-  pointerOver != nil and pointerOver.isWithin(widget)
 
 proc deepestAt(widget: Widget, x, y: float32): Widget =
   ## The innermost visible widget under (x, y) in `widget`'s subtree, later

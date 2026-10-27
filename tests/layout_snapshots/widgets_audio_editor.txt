@@ -1,0 +1,17 @@
+Column - @0,0 900x520
+  Row - @12,12 876x39
+    Button - @12,12 147x39 tabstop
+      Rectangle - @12,12 147x39
+      Label - @28,20 115x23
+    Button - @167,12 201x39 tabstop
+      Rectangle - @167,12 201x39
+      Label - @183,20 169x23
+    Button - @376,12 113x39 tabstop
+      Rectangle - @376,12 113x39
+      Label - @392,20 81x23
+    Label status @497,20 72x23
+  Ruler ruler @12,59 876x26
+  Expanded - @12,93 876x415
+    Stack editor @12,93 876x415 focused tabstop
+      Waveform wave @12,93 876x415 tabstop
+      AxisMarks marks @12,93 876x415

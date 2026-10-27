@@ -64,7 +64,7 @@ definePrimitive(Waveform):
     widget.followView(widget.view)
 
   render:
-    let props = widget.themeProps(widget.intent)
+    let props = currentTheme.getThemeProps(widget.intent, Normal)   # a view: no hover tint
     let ink = props.foregroundColor.get(BLACK)
     let b = widget.bounds
     drawRect(b, props.backgroundColor.get(WHITE))

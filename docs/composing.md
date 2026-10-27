@@ -17,6 +17,7 @@ real widgets together, then add behaviour to the result:
 | Text by lines (a reader, a teleprompter) | `wrapLines(text, style, width)`, `lineHeight(style)` |
 | A whole book, a page at a time, read lazily | `TextPager` over `newLinesSource` ([sources](sources.md#long-text-a-page-at-a-time)) |
 | A whole book, scrolled | `TextView(source = ...)` |
+| A wave, a ruler, a playhead, tracks of clips | the editor pieces on a shared axis ([editors](editors.md)) |
 | Controls that show only when wanted | `HoverReveal` |
 | Lights, glows, ants along an outline | `widget.adorn(...)` |
 | Children that move instead of jumping | `.animateLayout()` |

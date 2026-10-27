@@ -66,7 +66,7 @@ proc groupDepth*(widget: Widget): int =
     inc result
     w = enclosingGroup(w)
 
-# isWithin lives in rui_core/overlays.nim, shared with the tooltip's pointer
+# isWithin lives in rui_core/pointer_state.nim, shared with the tooltip's pointer
 # test.
 
 proc navigable(widget: Widget): bool =
