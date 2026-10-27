@@ -88,3 +88,6 @@ export avatar
 
 import basic/skeleton
 export skeleton
+
+import basic/stepper
+export stepper

@@ -6,9 +6,9 @@ VStack gallery @0,0 1000x720
         ComboList - @77,47 167x408 floating
   TabControl tabs @0,53 1000x912 tabstop
     VStack - @0,83 1000x882
-      Column basics @12,95 976x363
+      Column basics @12,95 976x380
         Label - @12,95 976x32
-        Wrap - @12,139 976x79
+        Wrap - @12,139 976x96
           Label - @12,139 45x23
           Label - @73,139 45x23
           Label - @134,139 43x23
@@ -20,51 +20,57 @@ VStack gallery @0,0 1000x720
           AvatarStack basics.avatars @727,139 108x36
           Skeleton basics.skeletonDot @851,139 32x32
           Skeleton basics.skeleton @12,183 120x32
-          Icon basics.icon @148,183 26x35
-        Wrap - @12,230 976x39
-          Button basics.save @12,230 99x39 tabstop
-            Rectangle - @12,230 99x39
-            Label - @28,238 67x23
-          Button - @121,230 68x39 tabstop
-            Rectangle - @121,230 68x39
-            Label - @137,238 36x23
-          Button - @199,230 107x39 tabstop
-            Rectangle - @199,230 107x39
-            Label - @215,238 75x23
-          Button - @316,230 108x39 tabstop
-            Rectangle - @316,230 108x39
-            Label - @332,238 76x23
-          Button - @434,230 100x39 tabstop
-            Rectangle - @434,230 100x39
-            Label - @450,238 68x23
-          Button - @544,230 112x39 tabstop
-            Rectangle - @544,230 112x39
-            Label - @560,238 80x23
-          Button basics.counter @666,230 116x39 tabstop
-            Rectangle - @666,230 116x39
-            Label - @682,238 84x23
-        Wrap - @12,281 976x40
-          IconButton - @12,281 32x32 tabstop
-          IconButton - @54,281 32x32 tabstop
-          ToolBar - @96,281 68x40 group
-            ToolButton - @100,285 28x32 tabstop
-            ToolButton - @132,285 28x32 tabstop
-          Tooltip - @174,281 122x39
-            Button basics.hover @174,281 122x39 tabstop
-              Rectangle - @174,281 122x39
-              Label - @190,289 90x23
-        Wrap - @12,333 976x72
-          Checkbox basics.check @12,333 120x23 tabstop
-          Checkbox - @150,333 56x23 tabstop
-          Switch basics.switch @224,333 112x24 tabstop
-          RadioGroup basics.radios @354,333 80x72 tabstop
-          RadioButton - @452,333 139x23 tabstop
-        Wrap - @12,417 976x41
-          SegmentedControl - @12,417 222x41 tabstop
-          Rating basics.rating @252,417 136x24 tabstop
-          Separator - @406,417 1x24
-          ProgressBar basics.progress @425,417 160x23
-          Spinner - @603,417 94x28 tabstop
+          Stepper basics.stepper @148,183 260x52 tabstop
+          Button basics.popoverButton @424,183 107x39 tabstop
+            Rectangle - @424,183 107x39
+            Label - @440,191 75x23
+          Popover basics.popover @547,183 0x0 floating
+            Label - @0,0 448x23 hidden
+          Icon basics.icon @563,183 26x35
+        Wrap - @12,247 976x39
+          Button basics.save @12,247 99x39 tabstop
+            Rectangle - @12,247 99x39
+            Label - @28,255 67x23
+          Button - @121,247 68x39 tabstop
+            Rectangle - @121,247 68x39
+            Label - @137,255 36x23
+          Button - @199,247 107x39 tabstop
+            Rectangle - @199,247 107x39
+            Label - @215,255 75x23
+          Button - @316,247 108x39 tabstop
+            Rectangle - @316,247 108x39
+            Label - @332,255 76x23
+          Button - @434,247 100x39 tabstop
+            Rectangle - @434,247 100x39
+            Label - @450,255 68x23
+          Button - @544,247 112x39 tabstop
+            Rectangle - @544,247 112x39
+            Label - @560,255 80x23
+          Button basics.counter @666,247 116x39 tabstop
+            Rectangle - @666,247 116x39
+            Label - @682,255 84x23
+        Wrap - @12,298 976x40
+          IconButton - @12,298 32x32 tabstop
+          IconButton - @54,298 32x32 tabstop
+          ToolBar - @96,298 68x40 group
+            ToolButton - @100,302 28x32 tabstop
+            ToolButton - @132,302 28x32 tabstop
+          Tooltip - @174,298 122x39
+            Button basics.hover @174,298 122x39 tabstop
+              Rectangle - @174,298 122x39
+              Label - @190,306 90x23
+        Wrap - @12,350 976x72
+          Checkbox basics.check @12,350 120x23 tabstop
+          Checkbox - @150,350 56x23 tabstop
+          Switch basics.switch @224,350 112x24 tabstop
+          RadioGroup basics.radios @354,350 80x72 tabstop
+          RadioButton - @452,350 139x23 tabstop
+        Wrap - @12,434 976x41
+          SegmentedControl - @12,434 222x41 tabstop
+          Rating basics.rating @252,434 136x24 tabstop
+          Separator - @406,434 1x24
+          ProgressBar basics.progress @425,434 160x23
+          Spinner - @603,434 94x28 tabstop
     VStack - @0,83 1000x882 hidden
       Column input @12,95 976x490
         Label - @12,95 976x32

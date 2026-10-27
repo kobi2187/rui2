@@ -13,6 +13,7 @@ import pointer_state   # isWithin
 
 type Popup = object
   widget, scope: Widget
+  anchor: Widget              # also inside: what it was opened from (a popover's button)
   close: proc() {.closure.}
 
 var
@@ -20,13 +21,15 @@ var
   focusWanted: Widget
 
 proc openPopup*(widget, scope: Widget, close: proc() {.closure.},
-                takeFocus = false) =
+                takeFocus = false, anchor: Widget = nil) =
   ## Record `widget` as open. `close` is how to shut it; `scope` is what a
-  ## click may land on without closing it (`widget` itself when nil).
+  ## click may land on without closing it (`widget` itself when nil), and so is
+  ## `anchor`, the widget it was opened from: a press on the button that
+  ## toggles a popover must leave the toggling to the button.
   for p in open:
     if p.widget == widget: return
   open.add Popup(widget: widget, scope: (if scope != nil: scope else: widget),
-                 close: close)
+                 anchor: anchor, close: close)
   if takeFocus:
     focusWanted = widget
 
@@ -49,7 +52,8 @@ proc dismissPopupsOutside*(target: Widget): bool =
   ## A press landed on `target`: close every popup it is not inside. Returns
   ## whether any closed.
   for i in countdown(open.high, 0):
-    if i <= open.high and (target == nil or not target.isWithin(open[i].scope)):
+    if i <= open.high and (target == nil or (not target.isWithin(open[i].scope) and
+                           (open[i].anchor == nil or not target.isWithin(open[i].anchor)))):
       let p = open[i]
       open.delete(i)
       p.close()

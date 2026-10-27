@@ -46,6 +46,8 @@ proc basicsTab(store: Store): Widget =
   let counter = newButton(text = "Clicked 0",
                           onClick = proc() = clicks.value = clicks.value + 1).named("basics.counter")
   clicks.bindTo(counter, proc(n: int) = counter.text = "Clicked " & $n)
+  var helpButton: Button
+  var helpPop: Popover
   ui:
     Column(spacing = 12.0, crossAxisAlignment = CrossAxisAlignment.stretch).named("basics"):
       Label(text = "Labels", fontSize = 20.0, bold = true)
@@ -62,6 +64,10 @@ proc basicsTab(store: Store): Widget =
                     maxShown = 3).named("basics.avatars")
         Skeleton(shape = skCircle).named("basics.skeletonDot").size(32, 32)
         Skeleton(shape = skText, lines = 2).named("basics.skeleton").size(120, 0)
+        Stepper(steps = @["Cart", "Address", "Pay"], initialCurrent = 1).named("basics.stepper").size(260, 0)
+        helpButton = Button(text = "Popover", onClick = proc() = helpPop.toggle(helpButton)).named("basics.popoverButton")
+        helpPop = Popover(width = 220.0).named("basics.popover"):
+          Label(text = "A popover holds anything: text, a form, buttons.", wrap = true)
         Icon(glyph = "★", size = 22).named("basics.icon")
       Wrap(spacing = 10.0, runSpacing = 8.0):
         Button(text = "Default").named("basics.save")
