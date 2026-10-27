@@ -313,7 +313,7 @@ VStack gallery @0,0 1000x720
           ImageWidget graphics.image @708,465 96x48
           DragDropArea graphics.drop @816,465 160x100 tabstop
     VStack - @0,83 1000x882 hidden
-      VStack menus @12,95 976x119
+      VStack menus @12,95 976x129
         MenuBar menus.bar @12,95 976x28 tabstop
           Menu menus.file @12,123 0x0 floating
             MenuItem - @0,0 163x24 hidden
@@ -321,7 +321,7 @@ VStack gallery @0,0 1000x720
             MenuItem - @0,0 163x24 hidden
           Menu - @66,123 0x0 floating
             MenuItem - @0,0 135x24 hidden
-        VStack - @12,133 976x81
+        VStack - @12,133 976x91
           Wrap - @28,149 944x39
             Button menus.openContext @28,149 216x39 tabstop
               Rectangle - @28,149 216x39
@@ -335,9 +335,14 @@ VStack gallery @0,0 1000x720
             Button menus.openDialog @542,149 90x39 tabstop
               Rectangle - @542,149 90x39
               Label - @558,157 58x23
+            Button menus.openPalette @642,149 197x39 tabstop
+              Rectangle - @642,149 197x39
+              Label - @658,157 165x23
           ContextMenu menus.context @28,198 0x0 floating
             MenuItem - @0,0 68x24 hidden
             MenuItem - @0,0 83x24 hidden
+          CommandPalette menus.palette @28,208 0x0 floating
+            TextInput - @0,0 200x41 hidden tabstop
     VStack - @0,83 1000x882 hidden
       Column live @12,95 976x565
         Label - @12,95 976x29

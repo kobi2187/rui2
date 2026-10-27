@@ -16,3 +16,6 @@ export contextmenu
 
 import menus/popover
 export popover
+
+import menus/command_palette
+export command_palette

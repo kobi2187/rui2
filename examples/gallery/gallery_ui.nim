@@ -447,7 +447,14 @@ proc menusTab(g: Gallery): Widget =
   buttons.addChild(newButton(text = "MessageBox", onClick = proc() = confirm.show()).named("menus.openMessage"))
   buttons.addChild(newButton(text = "FileDialog", onClick = proc() = fileDialog.show()).named("menus.openFile"))
   buttons.addChild(newButton(text = "Dialog", onClick = proc() = dialog.show()).named("menus.openDialog"))
+  let palette = newCommandPalette(commands = @[
+    command("Show context menu", "", proc() = ctx.openAt(260.0, 180.0)),
+    command("Open MessageBox", "", proc() = confirm.show()),
+    command("Open FileDialog", "Ctrl+O", proc() = fileDialog.show()),
+    command("Open Dialog", "", proc() = dialog.show())]).named("menus.palette")
+  buttons.addChild(newButton(text = "Command palette", onClick = proc() = palette.open()).named("menus.openPalette"))
   body.addChild(ctx)
+  body.addChild(palette)
   page.addChild(body)
   page
 
