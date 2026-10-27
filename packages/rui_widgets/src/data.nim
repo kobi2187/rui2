@@ -14,3 +14,6 @@ export datatable
 
 import data/datagrid
 export datagrid
+
+import data/textview
+export textview

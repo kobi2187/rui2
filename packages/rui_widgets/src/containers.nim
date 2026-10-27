@@ -40,3 +40,9 @@ export sidepane
 
 import containers/accordion
 export accordion
+
+import containers/hover_reveal
+export hover_reveal
+
+import containers/clip
+export clip

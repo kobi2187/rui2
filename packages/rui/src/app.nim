@@ -926,6 +926,7 @@ proc handleEvent(app: App, event: GuiEvent) =
     app.keyboardMode = true
   elif event.kind == evMouseDown:
     app.keyboardMode = false
+  keyboardDriving = app.keyboardMode
   case event.kind
   of evWindowResize:
     app.handleWindowResize(event)

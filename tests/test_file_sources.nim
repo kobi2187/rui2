@@ -95,6 +95,18 @@ suite "LinesSource":
     check s.text(1505) == "t1505"
     check s.rowState(10) == rsPending or s.text(10) == "t10"
 
+  test "a page asked for before the count reaches it arrives whole, not empty":
+    var text = ""
+    for i in 0 ..< 200_000: text.add "row " & $i & "\n"
+    let s = lines(fixture("early.txt", text), smThread)
+    defer: s.close()
+    s.want(0, 10)                        # at once: nothing is counted yet
+    s.want(150_000, 150_010)             # and far ahead of the count
+    s.settle(0, 10)
+    s.settle(150_000, 150_010)
+    check s.text(0) == "row 0" and s.text(255) == "row 255"
+    check s.text(150_005) == "row 150005"
+
   test "listeners hear the count grow and pages arrive":
     var text = ""
     for i in 0 ..< 600: text.add $i & "\n"

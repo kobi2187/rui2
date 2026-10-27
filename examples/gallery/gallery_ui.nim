@@ -172,6 +172,17 @@ proc layoutTab(): Widget =
           Expander(title = "Expander", initialExpanded = true).named("layout.expander").size(200, 90):
             Label(text = "expanded content")
         Panel(padding = 6.0, cornerRadius = 0.0):
+          Clip(cut = EdgeInsets(right: 60)).named("layout.clip").size(160, 40):
+            Label(text = "the right of this is cut off")
+        Panel(padding = 6.0, cornerRadius = 0.0):
+          Paint(onPaint = proc(area: Rect) =
+            discard drawSdfBox(area, area.height / 2, 2,
+                               Color(r: 120, g: 170, b: 255, a: 255),
+                               Color(r: 30, g: 60, b: 140, a: 255))).named("layout.paint").size(60, 40)
+        Panel(padding = 6.0, cornerRadius = 0.0):
+          HoverReveal().named("layout.hoverreveal").size(200, 60):
+            Button(text = "shown on hover")
+        Panel(padding = 6.0, cornerRadius = 0.0):
           Accordion(spacing = 2.0).named("layout.accordion").size(200, 90):
             Expander(title = "Open"):
               Label(text = "one at a time")
@@ -271,6 +282,18 @@ proc dataTab(): Widget =
     gridRows.add GridRow(id: "g" & $i, values: @[%i, %("item " & $i), %(i * i)])
   var many: seq[string]
   for i in 0 ..< 10_000: many.add "row " & $i
+  var tone: seq[float32]               # three seconds of a fading chord
+  for i in 0 ..< 24_000:
+    let t = float(i) / 8000
+    tone.add float32((sin(t * 220 * 2 * PI) + 0.5 * sin(t * 331 * 2 * PI)) * 0.6 * exp(-t))
+  let toneView = newLink(wholeView(0.0, 3.0))
+  let toneSamples = newSamples(tone, 8000)
+  let toneMarks = newMarks(playhead = newLink(0.8), selection = newLink(span(1.2, 1.9)),
+                           markers = @[marker(2.4, "fade")])   # shared by the wave and the lanes
+  var prose: seq[seq[string]]
+  for i in 0 ..< 5_000:
+    prose.add @["Paragraph " & $(i + 1) & ". Only the lines on screen are wrapped and " &
+                "drawn; the rest is read when it is scrolled to."]
   let table = newDataTable(
     columns = @[DataColumn(id: "name", title: "Name", width: 140.0, sortable: true, filterable: true),
                 DataColumn(id: "role", title: "Role", width: 160.0, sortable: true, filterable: true)],
@@ -292,12 +315,23 @@ proc dataTab(): Widget =
         Label(text = "ListView (10k rows)")
         ListView(items = many, itemHeight = 24.0, visibleRows = 5,
                  multiSelect = true).named("data.view").size(0, 130)
+        Label(text = "TextView (5k paragraphs)")
+        TextView(source = newMemorySource(@["text"], prose),
+                 fontSize = 14.0).named("data.text").size(0, 120)
       Expanded(flex = 3):
        Column(spacing = 8.0, crossAxisAlignment = CrossAxisAlignment.stretch):
         Label(text = "DataTable")
         Embed(table)
         Label(text = "DataGrid")
         Embed(grid)
+        Label(text = "Ruler and Waveform on one view (Ctrl+wheel zooms)")
+        Ruler(view = toneView, ticks = secondTicks()).named("data.ruler").size(0, 26)
+        Waveform(source = toneSamples, view = toneView, marks = toneMarks).named("data.wave").size(0, 90)
+        Lanes(view = toneView, marks = toneMarks, headerWidth = 70,
+              lanes = @[lane("Video", 30), lane("Audio", 40)],
+              clips = @[clip("v1", 0, 0.0, 1.4, "Intro"), clip("v2", 0, 1.5, 1.5, "Main"),
+                        clip("a1", 1, 0.2, 2.6, "Chord", wave = toneSamples)],
+              snapStep = 0.1).named("data.lanes")
 
 proc samplePng(): string =
   ## A generated picture, so the gallery needs no asset. Twice as wide as tall,

@@ -1,0 +1,37 @@
+Column - @0,0 1000x640
+  Row - @10,10 980x39
+    Button - @10,10 147x39 tabstop
+      Rectangle - @10,10 147x39
+      Label - @26,18 115x23
+    Button - @165,10 194x39 tabstop
+      Rectangle - @165,10 194x39
+      Label - @181,18 162x23
+    Button - @367,10 94x39 tabstop
+      Rectangle - @367,10 94x39
+      Label - @383,18 62x23
+    Label status @469,18 114x23
+  Expanded - @10,57 980x573
+    SplitView main @10,57 980x573
+      SplitView top @10,57 980x283
+        Panel - @10,57 662x283
+          Label preview @22,69 638x259
+        Column - @678,57 311x283
+          Label - @678,57 311x23
+          Expanded - @678,84 311x256
+            ListBox bin @678,84 311x256 tabstop
+      Column - @10,346 980x283
+        Row - @10,346 980x26
+          SizedBox - @10,359 150x0
+          Expanded - @160,346 830x26
+            Ruler ruler @160,346 830x26
+        Expanded - @10,374 980x255
+          Lanes lanes @10,374 980x255 focused tabstop
+            Row - @16,378 138x40
+              Label - @16,387 25x23
+              Checkbox - @45,387 51x23 tabstop
+            Row - @16,426 138x40
+              Label - @16,435 25x23
+              Checkbox - @45,435 51x23 tabstop
+            Row - @16,474 138x56
+              Label - @16,491 57x23
+              Checkbox - @77,491 77x23 tabstop

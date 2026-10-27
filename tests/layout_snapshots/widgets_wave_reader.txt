@@ -1,0 +1,13 @@
+Column - @0,0 720x560
+  Row - @16,16 688x24
+    Label - @16,16 59x23
+    Slider speed @85,16 220x24 tabstop
+    Label status @315,16 310x23
+  Expanded - @16,50 688x494
+    Stack wave @16,50 688x494 focused tabstop
+      Clip below @16,50 688x494
+        Label current @16,50 688x494
+      Clip above @16,50 688x494
+        Label next @16,50 688x494
+      Positioned rule @16,50 688x2
+        Rectangle - @16,50 688x2

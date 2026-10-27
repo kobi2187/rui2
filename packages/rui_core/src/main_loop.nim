@@ -21,11 +21,18 @@ from rlgl import setBlendFactorsSeparate, BlendFactor, BlendFuncOrEq
 # ============================================================================
 
 
+proc texturePad*(widget: Widget): float32 =
+  ## The clear margin round a `subpixel` widget's picture: what smooth
+  ## filtering blends its edges into when it lands between pixels. 0 for
+  ## everything else.
+  if widget.subpixel: 1'f32 else: 0'f32
+
 proc createWidgetTexture*(widget: Widget): RenderTexture2D =
   ## Create a render texture for the widget
-  ## Size is based on widget's bounds
-  let width = max(1, widget.bounds.width.int32)
-  let height = max(1, widget.bounds.height.int32)
+  ## Size is based on widget's bounds (and a subpixel widget's margin)
+  let pad = int32(widget.texturePad * 2)
+  let width = max(1, widget.bounds.width.int32) + pad
+  let height = max(1, widget.bounds.height.int32) + pad
   # Colour only. raylib's own loadRenderTexture also attaches a 32-bit depth
   # renderbuffer, which a 2D widget never reads: about as much memory again,
   # per widget, for nothing (10,000 widgets held 341 MB of colour alone).
@@ -103,7 +110,7 @@ template compositingTextures*(body: untyped) =
   body
   endBlendMode()
 
-proc drawRenderTexture*(tex: RenderTexture2D, x, y: float32) =
+proc drawRenderTexture*(tex: RenderTexture2D, x, y: float32, snap = true) =
   ## Blit a cached render target with its top-left corner at (x, y).
   ##
   ## OpenGL stores framebuffer contents bottom-up, so a render texture drawn
@@ -115,12 +122,13 @@ proc drawRenderTexture*(tex: RenderTexture2D, x, y: float32) =
   ##
   ## The position is snapped to whole pixels: layout can leave a widget on a
   ## half pixel (a centred child, say), and a texture blitted there is
-  ## resampled, which smears its text into a doubled ghost.
+  ## resampled, which smears its text into a doubled ghost. `snap = false`
+  ## keeps the exact position, for a `subpixel` widget gliding smoothly.
   let w = tex.texture.width.float32
   let h = tex.texture.height.float32
   drawTexture(tex.texture,
               Rectangle(x: 0, y: 0, width: w, height: -h),
-              Vector2(x: round(x), y: round(y)),
+              (if snap: Vector2(x: round(x), y: round(y)) else: Vector2(x: x, y: y)),
               White)
 
 proc intersect*(a, b: Rect): Rect =
@@ -133,7 +141,32 @@ proc intersect*(a, b: Rect): Rect =
   let bottom = min(a.y + a.height, b.y + b.height)
   Rect(x: x, y: y, width: max(0.0'f32, right - x), height: max(0.0'f32, bottom - y))
 
-proc drawRenderTexturePart*(tex: RenderTexture2D, dest: Rect, clip: Rect) =
+proc blitPart(tex: RenderTexture2D, dest, clip: Rect, tint: Color) =
+  ## The part of `tex` (whole, at `dest`) inside `clip`; both on whole pixels.
+  let visible = intersect(dest, clip)
+  if visible.width <= 0 or visible.height <= 0:
+    return
+  let texH = tex.texture.height.float32
+  # The source rectangle, in upright coordinates: how far into the texture the
+  # visible part starts.
+  let sx = visible.x - dest.x
+  let uy = visible.y - dest.y
+  # Then flipped. With a negative source height raylib samples stored rows
+  # [sy, sy + sh] and turns them over, and the framebuffer stores them
+  # bottom-up -- so the upright rows [uy, uy + sh] live at sy = texH - uy - sh.
+  let sy = texH - uy - visible.height
+  drawTexture(tex.texture,
+              Rectangle(x: sx, y: sy, width: visible.width, height: -visible.height),
+              Rectangle(x: visible.x, y: visible.y,
+                        width: visible.width, height: visible.height),
+              Vector2(x: 0, y: 0), 0.0, tint)
+
+proc coverageTint(c: float32): Color =
+  ## Premultiplied pixels drawn at coverage `c` (0..1): every channel alike.
+  let a = uint8(clamp(c, 0'f32, 1'f32) * 255)
+  Color(r: a, g: a, b: a, a: a)
+
+proc drawRenderTexturePart*(tex: RenderTexture2D, dest: Rect, clip: Rect, soft = false) =
   ## Blit the part of a cached render target that falls inside `clip`.
   ##
   ## `dest` is where the whole texture would go; `clip` is in the same
@@ -148,35 +181,38 @@ proc drawRenderTexturePart*(tex: RenderTexture2D, dest: Rect, clip: Rect) =
   ##
   ## Like drawRenderTexture, the texture lands on whole pixels, and so does the
   ## clip, so the source rectangle is whole texels and nothing is resampled.
+  ## With `soft`, a clip edge between two pixels is not rounded: the pixels it
+  ## cuts through are drawn in proportion to how much of them is inside, so a
+  ## clip that moves by a fraction of a pixel moves visibly (Clip).
   let dest = Rect(x: round(dest.x), y: round(dest.y),
                   width: tex.texture.width.float32,
                   height: tex.texture.height.float32)
-  let clipL = round(clip.x)
-  let clipT = round(clip.y)
-  let clip = Rect(x: clipL, y: clipT,
-                  width: round(clip.x + clip.width) - clipL,
-                  height: round(clip.y + clip.height) - clipT)
-  let visible = intersect(dest, clip)
-  if visible.width <= 0 or visible.height <= 0:
+  if not soft:
+    let clipL = round(clip.x)
+    let clipT = round(clip.y)
+    blitPart(tex, dest, Rect(x: clipL, y: clipT,
+                             width: round(clip.x + clip.width) - clipL,
+                             height: round(clip.y + clip.height) - clipT), White)
     return
-
-  let texH = tex.texture.height.float32
-
-  # The source rectangle, in upright coordinates: how far into the texture the
-  # visible part starts.
-  let sx = visible.x - dest.x
-  let uy = visible.y - dest.y
-
-  # Then flipped. With a negative source height raylib samples stored rows
-  # [sy, sy + sh] and turns them over, and the framebuffer stores them
-  # bottom-up -- so the upright rows [uy, uy + sh] live at sy = texH - uy - sh.
-  let sy = texH - uy - visible.height
-
-  drawTexture(tex.texture,
-              Rectangle(x: sx, y: sy, width: visible.width, height: -visible.height),
-              Rectangle(x: visible.x, y: visible.y,
-                        width: visible.width, height: visible.height),
-              Vector2(x: 0, y: 0), 0.0, White)
+  # The whole pixels inside, at full strength; then each cut row and column.
+  let l = clip.x
+  let t = clip.y
+  let r = clip.x + clip.width
+  let b = clip.y + clip.height
+  let il = ceil(l)
+  let it = ceil(t)
+  let ir = floor(r)
+  let ib = floor(b)
+  if ir > il and ib > it:
+    blitPart(tex, dest, Rect(x: il, y: it, width: ir - il, height: ib - it), White)
+  if it - t > 0.001 and ir > il:             # the row the top edge cuts
+    blitPart(tex, dest, Rect(x: il, y: floor(t), width: ir - il, height: 1), coverageTint(it - t))
+  if b - ib > 0.001 and ir > il:             # the row the bottom edge cuts
+    blitPart(tex, dest, Rect(x: il, y: ib, width: ir - il, height: 1), coverageTint(b - ib))
+  if il - l > 0.001 and ib > it:             # the column the left edge cuts
+    blitPart(tex, dest, Rect(x: floor(l), y: it, width: 1, height: ib - it), coverageTint(il - l))
+  if r - ir > 0.001 and ib > it:             # the column the right edge cuts
+    blitPart(tex, dest, Rect(x: ir, y: it, width: 1, height: ib - it), coverageTint(r - ir))
 
 proc compositeChildTexture*(child: Widget, offsetX, offsetY: float32) =
   ## Draw a child's cached texture at its position relative to parent
@@ -400,7 +436,7 @@ proc compositeChildren(widget: Widget, originalX, originalY: float32,
     if not child.visible or child.culled or child.floating or
        child.cachedTexture.isNone:
       continue
-    let dest = Rect(x: child.bounds.x - originalX,
+    var dest = Rect(x: child.bounds.x - originalX,
                     y: child.bounds.y - originalY,
                     width: child.bounds.width, height: child.bounds.height)
     if only.isSome and not overlapsView(dest, only.get()):
@@ -409,11 +445,18 @@ proc compositeChildren(widget: Widget, originalX, originalY: float32,
     when perfOn:                       # what the blit can touch: clipped to a partial update
       let reach = if only.isSome: intersect(dest, only.get()) else: dest
       perfCount(pcBlitPixels, int(reach.width * reach.height))
+    if child.subpixel:
+      # Drawn between pixels: its clear margin is what the filter blends
+      # its edges into, so the picture starts that margin up and left.
+      setTextureFilter(child.cachedTexture.get().texture, TextureFilter.Bilinear)
+      dest.x -= child.texturePad
+      dest.y -= child.texturePad
     if widget.childClip.isSome:
       drawRenderTexturePart(child.cachedTexture.get(), dest,
-                            widget.childClip.get())
+                            widget.childClip.get(), widget.softClip)
     else:
-      drawRenderTexture(child.cachedTexture.get(), dest.x, dest.y)
+      drawRenderTexture(child.cachedTexture.get(), dest.x, dest.y,
+                        snap = not child.subpixel)
 
 var partialRepaint* = true
   ## Repaint only the damaged area of a widget whose children repainted, instead
@@ -437,9 +480,10 @@ proc paintSignature(widget: Widget): int =
   !$h
 
 proc textureFits(widget: Widget): bool =
+  let pad = int32(widget.texturePad * 2)
   widget.cachedTexture.isSome and
-    widget.cachedTexture.get.texture.width == max(1, widget.bounds.width.int32) and
-    widget.cachedTexture.get.texture.height == max(1, widget.bounds.height.int32)
+    widget.cachedTexture.get.texture.width == max(1, widget.bounds.width.int32) + pad and
+    widget.cachedTexture.get.texture.height == max(1, widget.bounds.height.int32) + pad
 
 proc ensureTextureFor(widget: Widget) =
   ## Give `widget` a render texture of its current size, keeping the one it has
@@ -509,7 +553,7 @@ proc renderToTexture(widget: Widget, changed: seq[Rect], partialOk: bool) =
   let sig = paintSignature(widget)
   var regions: seq[Rect]               # empty: the whole texture
   if partialRepaint and partialOk and not widget.ownDirty and changed.len > 0 and
-     widget.paintSig == sig and textureFits(widget):
+     widget.paintSig == sig and textureFits(widget) and not widget.subpixel:
     regions = partialRegions(widget, changed)
     if regions.len == 0:                 # changed children outside the widget
       widget.isDirty = false
@@ -545,8 +589,10 @@ proc renderToTexture(widget: Widget, changed: seq[Rect], partialOk: bool) =
     # top-left, so bounds.x/y are zeroed for the duration. This is why anything a
     # widget draws outside its own bounds is silently clipped, and why a popup has
     # to grow its bounds rather than just drawing further down.
-    widget.bounds.x = 0
-    widget.bounds.y = 0
+    # A subpixel widget paints inside its clear margin (texturePad).
+    let pad = widget.texturePad
+    widget.bounds.x = pad
+    widget.bounds.y = pad
     perfTime(phRender):
       paintingIntoTexture:
         widget.render()
@@ -555,7 +601,7 @@ proc renderToTexture(widget: Widget, changed: seq[Rect], partialOk: bool) =
 
     perfTime(phCompose):
       compositingTextures:
-        compositeChildren(widget, originalX, originalY,
+        compositeChildren(widget, originalX - pad, originalY - pad,
           region)                     # widget-local, like each child's `dest`
 
     if region.isSome:
@@ -571,8 +617,11 @@ proc renderToTexture(widget: Widget, changed: seq[Rect], partialOk: bool) =
                                   width: r.width, height: r.height)
     widget.damage = unionOf(widget.damageParts)
   else:
-    widget.damage = widget.bounds
-    widget.damageParts = @[widget.bounds]
+    # A subpixel widget's edges blend a pixel beyond its bounds.
+    let p = widget.texturePad
+    widget.damage = Rect(x: widget.bounds.x - p, y: widget.bounds.y - p,
+                         width: widget.bounds.width + 2 * p, height: widget.bounds.height + 2 * p)
+    widget.damageParts = @[widget.damage]
 
 proc renderPassIn(widget: Widget, view: Option[Rect]): bool =
   ## Render dirty widgets to textures, bottom-up.

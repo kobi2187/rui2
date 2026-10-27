@@ -23,6 +23,12 @@ var
       when defined(android): imTouch else: imDesktop
   modePinned = getEnv("RUI_INPUT").len > 0
 
+var keyboardDriving* = false
+  ## The keyboard, not the pointer, is what the user last used to act: true
+  ## from a key press until the next mouse press. The App keeps it; focus
+  ## rings show by it, and a HoverReveal stays open for a focused control only
+  ## while it is true (focus a click leaves behind does not hold it open).
+
 proc currentInputMode*(): InputMode = inputMode
 proc isTouch*(): bool = inputMode == imTouch
 

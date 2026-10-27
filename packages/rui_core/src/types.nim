@@ -11,7 +11,8 @@ export sets, tables, options, json  # Export for use in other modules
 # whole module, which made the naming decorative and put every raylib proc,
 # type and enum field in scope in every module that imports rui_core. It cost
 # real workarounds: `TraceLogLevel`'s Info/Warning/Error collided with
-# rui_drawing's ThemeIntent, AlertLevel and ValidationState.
+# rui_drawing's ThemeIntent (and with AlertLevel and ValidationState, whose
+# values are prefixed now: alInfo, vsWarning).
 #
 # KeyboardKey is deliberately NOT here, for the same reason. Exporting an enum
 # type exposes its fields unqualified, and KeyboardKey has a `Menu` field that
@@ -305,6 +306,13 @@ type
       ## Set once the widget has had a child. Lets a debug build tell a widget
       ## that builds its children late (in its first layout) from one that is
       ## only replacing them (widget_dsl.nim `addChild`).
+    softClip*: bool
+      ## Its `childClip` is drawn to the sub-pixel: an edge between pixels
+      ## shows that row partly (Clip). Off, clips land on whole pixels.
+    subpixel*: bool
+      ## Its parent composites it at its exact position, smoothly filtered,
+      ## instead of snapping it to whole pixels -- for something gliding (a
+      ## moving rule); text inside it would blur, so only what needs it.
     animateLayout*: bool
       ## A container that eases its children to their new places when it
       ## reflows (rui_widgets layout_motion.nim) instead of snapping them
@@ -367,6 +375,19 @@ type
 # ============================================================================
 # Reactive System
 # ============================================================================
+
+let uiThread = getThreadId()      # module init runs on the main thread
+
+proc onUiThread*(): bool =
+  ## True on the UI thread -- the only one that may change Links and widgets.
+  ## Another thread sends to a Mailbox (mailbox.nim) instead.
+  getThreadId() == uiThread
+
+template assertUiThread*(what: string) =
+  ## Debug builds: stop a change to UI state made from another thread.
+  when not defined(release):
+    doAssert onUiThread(), what & " from another thread; send the value to a " &
+                           "Mailbox and change the state in its receiver"
 
 type
   Link*[T] = ref object
@@ -783,6 +804,30 @@ method handleInput*(widget: Widget, event: GuiEvent): bool {.base.}=
   ## Handle input event. Return true if handled (stops propagation).
   ## Base implementation returns false (not handled).
   result = false
+
+type EventHook* = proc(event: GuiEvent): bool {.closure.}
+  ## Input handling added to a widget from outside its type (`.onEvent`,
+  ## `.onKey` in modifiers.nim): how a plain container becomes interactive
+  ## without a widget type of its own.
+
+var eventHooks = initTable[pointer, EventHook]()
+
+proc eventHook*(widget: Widget): EventHook =
+  eventHooks.getOrDefault(cast[pointer](widget))
+
+proc `eventHook=`*(widget: Widget, hook: EventHook) =
+  let key = cast[pointer](widget)
+  if key notin eventHooks:
+    widget.disposers.add proc() = eventHooks.del key   # goes with its widget
+  eventHooks[key] = hook
+
+proc deliver*(widget: Widget, event: GuiEvent): bool =
+  ## Offer `event` to `widget`: its own handlers first, then anything added
+  ## to it from outside (`eventHook`). What the event router calls.
+  if widget.handleInput(event): return true
+  if eventHooks.len == 0: return false
+  let hook = widget.eventHook
+  hook != nil and hook(event)
 
 method handleScriptAction*(widget: Widget, action: string, params: JsonNode): JsonNode {.base.}=
   ## Handle a scripting action. Override in derived widgets.

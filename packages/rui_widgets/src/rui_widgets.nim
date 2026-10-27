@@ -18,5 +18,6 @@ import sources;     export sources      # RowSource, MemorySource: where lists a
 import data;        export data         # treeview, datatable, datagrid
 import modern;      export modern       # canvas, dragdroparea, timeline, mapwidget
 import pointers;   export pointers   # Pointers: pan / zoom / rotate from several pointers
+import view_range; export view_range  # AxisView: one zoomable axis shared by several widgets
 import yui_loader;  export yui_loader   # loadYui: .yui files to widget trees
 import decoration;  export decoration   # adorn: lights, glows, ants along an outline

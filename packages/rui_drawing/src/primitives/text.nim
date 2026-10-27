@@ -223,3 +223,20 @@ proc drawCursor*(rect: Rect, position: int, text: string,
       style.color,
       2.0
     )
+
+proc lineHeight*(style: TextStyle): float32 =
+  ## The height of one line of `style`'s text, as Pango sets it: how far apart
+  ## the lines of a wrapped paragraph are.
+  measureText("Ag", style).height
+
+proc wrapLines*(text: string, style: TextStyle, width: float32): seq[string] =
+  ## `text` broken into the lines it shows as at `width` pixels -- by the same
+  ## rules a wrapped Label uses (Pango's, so Thai and CJK break between words)
+  ## -- each paragraph starting a new line. For a widget that works line by
+  ## line: a reader, a teleprompter, a typewriter.
+  let font = style.pangoFont
+  for para in text.split('\n'):
+    let starts = softBreaks(para, font, int32(width))
+    for i, s in starts:
+      let e = if i + 1 < starts.len: starts[i + 1] else: para.len
+      result.add para[s ..< e].strip(leading = false)

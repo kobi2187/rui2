@@ -372,7 +372,7 @@ proc handleKeyboardEvent*(fm: FocusManager, event: GuiEvent,
   ## navigation, and the levels could not coexist.
   ##
   ## Returns true if the event was handled, at any level.
-  if fm.focusedWidget != nil and fm.focusedWidget.handleInput(event):
+  if fm.focusedWidget != nil and fm.focusedWidget.deliver(event):
     return true
 
   if event.kind != evKeyDown:
@@ -388,7 +388,7 @@ proc handleKeyboardEvent*(fm: FocusManager, event: GuiEvent,
      (kmCtrl in event.mods or kmAlt in event.mods or event.key == KeyboardKey.Escape):
     var w = fm.focusedWidget.parent
     while w != nil:
-      if w.visible and w.enabled and w.handleInput(event):
+      if w.visible and w.enabled and w.deliver(event):
         return true
       w = w.parent
 

@@ -65,6 +65,9 @@ const elementMap*: seq[ElementMap] = @[
   em("drawer", "Drawer", mapSame, "in the flow, not over the content"),
   em("expander", "Expander", mapSame),
   em("accordion", "Accordion", mapSame, "one Expander open at a time"),
+  em("hoverreveal", "HoverReveal", mapSame, "controls that show when the pointer comes near"),
+  em("clip", "Clip", mapSame, "shows only part of its child"),
+  em("paint", "Paint", mapSame, "a widget that is only a drawing (onPaint)"),
   em("spacer", "Spacer", mapSame),
   em("divider", "Separator", mapRename),
   # -- basic widgets ---------------------------------------------------------
@@ -75,6 +78,7 @@ const elementMap*: seq[ElementMap] = @[
   em("input", "TextInput", mapRename),
   em("password", "PasswordInput", mapRename),
   em("textarea", "TextArea", mapSame),
+  em("textview", "TextView", mapSame, "a long read-only text, read and laid out as scrolled"),
   em("select", "ComboBox", mapRename),
   em("combo", "ComboBox", mapRename, "the editable flavour of select"),
   em("slider", "Slider", mapSame),

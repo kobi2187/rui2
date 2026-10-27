@@ -32,6 +32,9 @@
 ## freely; `failed` gets the message if `work` raised. An idle app is woken
 ## the moment a job is finished.
 ##
+## For threads of your own, or many messages over time, send values to a
+## `Mailbox` (mailbox.nim) instead.
+##
 ## Started in a loop, each job needs its own copy of the loop's values: Nim's
 ## closures made in one loop body share its variables, so wrap the body in
 ## `closureScope:` (or call a proc that starts the job).

@@ -11,6 +11,7 @@
 import rui_core
 import ../value_input
 import ../pointers
+import ../view_range
 import rui_drawing
 import std/[options, times, json]
 
@@ -18,48 +19,48 @@ import raylib
 import timeline_axis
 export timeline_axis
 
+template secondsPerUnitOf(widget: untyped): float =
+  secondsPerUnit(widget.scale)
+
+template viewOf(widget: untyped): AxisView =
+  ## The time axis as drawn: seconds from `startTime`, resolved at this width.
+  widget.view.resolved(widget.bounds.width)
+
 template axisOf*(widget: untyped): TimelineAxis =
   ## The widget's current projection. A template rather than a proc because the
   ## Timeline type does not exist yet at this point in the file, and the widget
   ## body below needs this.
-  TimelineAxis(
-    originX: widget.bounds.x,
-    areaTop: widget.bounds.y + EventAreaTop,
-    startTime: widget.startTime,
-    pixelsPerSecond: widget.pixelsPerUnit / float32(secondsPerUnit(widget.scale)),
-    scrollOffset: widget.scrollOffset,
-    eventHeight: widget.eventHeight,
-    eventSpacing: widget.eventSpacing
-  )
-
-template maxScrollOf(widget: untyped): float32 =
-  ## How far the view can pan: the whole range less what fits.
   block:
-    let seconds = float32((widget.endTime - widget.startTime).inSeconds)
-    let width = seconds * widget.pixelsPerUnit / float32(secondsPerUnit(widget.scale))
-    max(0.0'f32, width - widget.bounds.width)
+    let v = viewOf(widget)
+    TimelineAxis(
+      originX: widget.bounds.x,
+      areaTop: widget.bounds.y + EventAreaTop,
+      startTime: widget.startTime,
+      pixelsPerSecond: float32(1 / v.perPixel),
+      scrollOffset: float32((v.start - v.lo) / v.perPixel),
+      eventHeight: widget.eventHeight,
+      eventSpacing: widget.eventSpacing)
 
-template panTo(widget: untyped, offset: float32) =
-  ## Pan within the range, telling whoever listens.
+template settle(widget: untyped, before: AxisView) =
+  ## After the view may have moved: the zoom readable as `pixelsPerUnit`
+  ## again, and `onScroll` told of a pan.
   block:
-    let limit = widget.maxScrollOf
-    let o = clamp(float32(offset), 0.0'f32, limit)
-    if o != widget.scrollOffset:
-      widget.scrollOffset = o
+    let v = viewOf(widget)
+    widget.pixelsPerUnit = float32(widget.secondsPerUnitOf / v.perPixel)
+    widget.shownZoom = widget.pixelsPerUnit
+    if v.start != before.start:
       widget.isDirty = true
       if widget.onScroll != nil:
-        widget.onScroll(o)
+        widget.onScroll(float32((v.start - v.lo) / v.perPixel))
 
-template zoomAt(widget: untyped, factor: float32, atX: float32) =
-  ## Scale the time axis by `factor`, keeping the instant under `atX` where
-  ## it is on screen.
+template zoomPan(widget: untyped, event: GuiEvent): bool =
+  ## Zoom and pan the view with `event` (view_range), then report a scroll.
   block:
-    let anchor = atX - widget.bounds.x + widget.scrollOffset   # content x
-    let next = clamp(widget.pixelsPerUnit * factor, 4.0'f32, 4000.0'f32)
-    let real = next / widget.pixelsPerUnit
-    widget.pixelsPerUnit = next
-    widget.panTo(anchor * real - (atX - widget.bounds.x))
-    widget.isDirty = true
+    let before = viewOf(widget)
+    let used = widget.zoom.handle(widget, widget.view, event, widget.bounds,
+                                  keyStep = widget.pixelsPerUnit)
+    widget.settle(before)
+    used
 
 template showEvent(widget: untyped, index: int) =
   ## Select event `index` and pan so it is in view.
@@ -67,11 +68,12 @@ template showEvent(widget: untyped, index: int) =
     let evt = widget.events[index]
     widget.selectedEvent = evt.id
     let r = axisOf(widget).eventRectFor(index, evt)
+    let w = widget.bounds.width
     if r.x < widget.bounds.x:
-      widget.panTo(widget.scrollOffset - (widget.bounds.x - r.x) - 16)
-    elif r.x + min(r.width, widget.bounds.width / 2) > widget.bounds.x + widget.bounds.width:
-      widget.panTo(widget.scrollOffset + (r.x + min(r.width, widget.bounds.width / 2)) -
-                   (widget.bounds.x + widget.bounds.width) + 16)
+      widget.view.value = viewOf(widget).pannedBy(-((widget.bounds.x - r.x) + 16), w)
+    elif r.x + min(r.width, w / 2) > widget.bounds.x + w:
+      widget.view.value = viewOf(widget).pannedBy(
+        (r.x + min(r.width, w / 2)) - (widget.bounds.x + w) + 16, w)
     widget.isDirty = true
 
 definePrimitive(Timeline):
@@ -80,21 +82,20 @@ definePrimitive(Timeline):
     startTime: DateTime
     endTime: DateTime
     scale: TimeScale = tsHour
-    pixelsPerUnit: float32 = 60.0    # Pixels per hour / day / ...
+    pixelsPerUnit: float32 = 60.0    # Pixels per hour / day / ...: the zoom
     eventHeight: float32 = 40.0
     eventSpacing: float32 = 8.0
     showGrid: bool = true
     showTimeLabels: bool = true
     showNowMarker: bool = true
+    view: Link[AxisView] = nil       # seconds from startTime; share it to move with other widgets
     intent: ThemeIntent = Default
 
   state:
-    scrollOffset: float32
     selectedEvent: string        # Event ID
     hoverEvent: string           # Event ID
-    isDragging: bool
-    dragStartX: float32
-    fingers: Pointers            # the pointers down: two make a pinch
+    zoom: ZoomPan                # zooming and panning the view (view_range.nim)
+    shownZoom: float32           # pixelsPerUnit as last applied to the view
 
   actions:
     onEventClick(event: TimelineEvent)
@@ -106,38 +107,30 @@ definePrimitive(Timeline):
     # An unset range (year 0) would crash every time calculation: use one day.
     if widget.startTime.isUnset: widget.startTime = dateTime(2000, mJan, 1, zone = utc())
     if widget.endTime.isUnset: widget.endTime = dateTime(2000, mJan, 2, zone = utc())
+    if widget.view == nil:
+      let spu = widget.secondsPerUnitOf
+      widget.view = newLink(fixedView(
+        0.0, float((widget.endTime - widget.startTime).inSeconds), 0.0,
+        spu / widget.pixelsPerUnit, minPerPixel = spu / 4000, maxPerPixel = spu / 4))
+    widget.shownZoom = widget.pixelsPerUnit
+    widget.followView(widget.view)
 
   events:
     on_mouse_down:
-      let fed = widget.fingers.feed(event)
-      if fed.pinching or event.pointerId != 0:
-        widget.isDragging = false         # a second finger: the pinch takes over
-        return true
-      let axis = axisOf(widget)
-      for i, evt in widget.events:
-        if axis.eventRectFor(i, evt).contains(event.mousePos.x, event.mousePos.y):
-          widget.selectedEvent = evt.id
-          widget.isDirty = true
-          if widget.onEventClick != nil:
-            widget.onEventClick(evt)
-          return true
-      # Empty space starts a pan.
-      widget.isDragging = true
-      capturePointer(widget)
-      widget.dragStartX = event.mousePos.x + widget.scrollOffset
-      return true
+      # A press on an event selects it; anywhere else it is the view's (on_event).
+      if event.pointerId == 0 and widget.zoom.fingers.count == 0:
+        let axis = axisOf(widget)
+        for i, evt in widget.events:
+          if axis.eventRectFor(i, evt).contains(event.mousePos.x, event.mousePos.y):
+            widget.selectedEvent = evt.id
+            widget.isDirty = true
+            if widget.onEventClick != nil:
+              widget.onEventClick(evt)
+            return true
+      return widget.zoomPan(event)               # empty space: a pan, or a pinch
 
     on_mouse_move:
-      let fed = widget.fingers.feed(event)
-      if fed.pinching:
-        widget.zoomAt(fed.change.scale, fed.change.anchor.x)
-        widget.panTo(widget.scrollOffset - fed.change.pan.x)
-        return true
-      if event.pointerId != 0: return true
-      if widget.isDragging:
-        widget.panTo(widget.dragStartX - event.mousePos.x)
-        return true
-
+      if event.pointerId != 0 or widget.zoom.panning: return widget.zoomPan(event)
       let axis = axisOf(widget)
       var newHover = ""
       for i, evt in widget.events:
@@ -149,59 +142,41 @@ definePrimitive(Timeline):
         widget.isDirty = true
       return false
 
-    on_mouse_up:
-      discard widget.fingers.feed(event)
-      if event.pointerId != 0:
-        if widget.fingers.has(0):                           # back to one finger: it pans on
-          widget.isDragging = true
-          widget.dragStartX = widget.fingers.pos(0).x + widget.scrollOffset
-        return true
-      if widget.isDragging:
-        widget.isDragging = false
-        return true
-      return false
-
-    on_mouse_wheel:
-      # The wheel pans; with Ctrl it zooms about the pointer. At the ends of
-      # the range a plain wheel is left to an enclosing scroll view.
-      if event.ctrl:
-        widget.zoomAt(if event.wheelDelta > 0: 1.25'f32 else: 0.8'f32, event.mousePos.x)
-        return true
-      let before = widget.scrollOffset
-      widget.panTo(widget.scrollOffset - event.wheelDelta * 40.0)
-      return widget.scrollOffset != before
-
     on_key_down:
-      # Left/Right pan, Home/End to the ends of the range, +/- zoom about
-      # the middle; Up/Down select the previous/next event and bring it into
-      # view; Enter opens the selected one.
+      # Up/Down select the previous/next event and bring it into view; Enter
+      # opens the selected one. Other keys zoom and pan.
       if not widget.focused:
         return false
-      let middle = widget.bounds.x + widget.bounds.width / 2
       var at = -1
       for i, evt in widget.events:
         if evt.id == widget.selectedEvent: at = i
       case event.key
-      of KeyboardKey.Left: widget.panTo(widget.scrollOffset - widget.pixelsPerUnit)
-      of KeyboardKey.Right: widget.panTo(widget.scrollOffset + widget.pixelsPerUnit)
-      of KeyboardKey.Home: widget.panTo(0.0'f32)
-      of KeyboardKey.End: widget.panTo(widget.maxScrollOf)
       of KeyboardKey.Down, KeyboardKey.Up:
         if widget.events.len == 0: return false
+        let before = viewOf(widget)
         let next = if at < 0: 0
                    elif event.key == KeyboardKey.Down: min(widget.events.high, at + 1)
                    else: max(0, at - 1)
         widget.showEvent(next)
+        widget.settle(before)
+        return true
       of KeyboardKey.Enter, KeyboardKey.KpEnter:
         if at >= 0 and widget.onEventClick != nil:
           widget.onEventClick(widget.events[at])
-      else:
-        let dir = event.key.zoomDirection
-        if dir == 0: return false
-        widget.zoomAt(if dir > 0: 1.25'f32 else: 0.8'f32, middle)
-      return true
+        return true
+      else: return widget.zoomPan(event)       # Left/Right a unit, Home/End, +/-
+
+    on_event:                                  # the wheel, a release
+      return widget.zoomPan(event)
 
   layout:
+    if widget.pixelsPerUnit != widget.shownZoom and widget.pixelsPerUnit > 0:
+      # The zoom was set from outside: the view takes it, keeping its start.
+      var v = viewOf(widget)
+      v.fitted = false
+      v.perPixel = widget.secondsPerUnitOf / widget.pixelsPerUnit
+      widget.view.value = v
+      widget.shownZoom = widget.pixelsPerUnit
     if widget.bounds.width <= 0:
       widget.bounds.width = 600.0'f32
     if widget.bounds.height <= 0:
@@ -261,6 +236,15 @@ definePrimitive(Timeline):
 
     endClip(clip)
     drawThemedBorder(widget.bounds, props, widget.focused)
+
+proc scrollOffset*(widget: Timeline): float32 =
+  ## How far the view is panned from `startTime`, in pixels.
+  let v = viewOf(widget)
+  float32((v.start - v.lo) / v.perPixel)
+
+proc isDragging*(widget: Timeline): bool =
+  ## A drag is panning the view.
+  widget.zoom.panning
 
 proc axis*(widget: Timeline): TimelineAxis =
   ## The widget's current projection, for callers outside this module.

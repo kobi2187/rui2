@@ -20,6 +20,7 @@
 ## 0 leaves a value as it was, so `frame(height = 40)` keeps any width request.
 
 import types
+from raylib import KeyboardKey
 
 proc frame*[T: Widget](widget: T, width = 0.0'f32, height = 0.0'f32,
                        minWidth = 0.0'f32, minHeight = 0.0'f32,
@@ -87,4 +88,39 @@ proc hint*[T: Widget](widget: T, text: string): T =
   ##   Button(text = "Save").hint("Ctrl+S")
   ##   Slider(...).hint("← → adjust")
   widget.hint = text
+  widget
+
+proc focusable*[T: Widget](widget: T, on = true): T =
+  ## Let it take the keyboard focus (a Tab stop), so the keys reach it --
+  ## for a container made interactive with `onKey`.
+  widget.focusable = on
+  widget
+
+proc onEvent*[T: Widget](widget: T, handler: proc(event: GuiEvent): bool): T {.discardable.} =
+  ## Handle input on any widget, without a widget type of its own: `handler`
+  ## gets each event the widget's own handlers did not take (pointer events
+  ## over it, keys while it has focus or bubbling up to it) and returns true
+  ## for the ones it used. A second call adds to the first.
+  let before = widget.eventHook
+  if before == nil:
+    widget.eventHook = handler
+  else:
+    widget.eventHook = proc(event: GuiEvent): bool = before(event) or handler(event)
+  widget
+
+proc onKey*[T: Widget](widget: T, handler: proc(key: KeyboardKey): bool): T {.discardable.} =
+  ## A key press on it (while it has focus, or one bubbling up to it):
+  ## `handler` returns true for the keys it used. Pair with `.focusable()` on
+  ## a container. (`from raylib import KeyboardKey` names the keys; rui does
+  ## not re-export them, as their Menu/Up/Down would clash with its own.)
+  widget.onEvent(proc(event: GuiEvent): bool =
+    event.kind == evKeyDown and handler(event.key))
+
+proc subpixel*[T: Widget](widget: T, on = true): T =
+  ## Composite it at its exact position, smoothly filtered, rather than
+  ## snapped to whole pixels: for something that glides by fractions of a
+  ## pixel (a moving rule, a slow marker). Text in it would soften, so keep it
+  ## to what moves.
+  widget.subpixel = on
+  widget.isDirty = true
   widget

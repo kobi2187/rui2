@@ -209,5 +209,9 @@ app.run()
   widths, radii, shadows and sizes; fat or lean from one `brand:` section.
 - **How people use it:** [preferences.md](preferences.md) -- the keys, motion
   and scroll speed belong to the user, one file for every RUI app.
+- **Something new:** [composing.md](composing.md) -- an unusual widget from
+  ordinary ones: `Clip`, `onKey`, `onTick`/`every`, `.subpixel()`, no drawing code.
+- **Editors:** [editors.md](editors.md) -- waves, rulers, playheads and tracks of
+  clips on one shared, zoomable axis: an audio or video editor from parts.
 - **What is there:** `examples/widgets/` has one runnable file per widget
   family; `docs/PERFORMANCE.md` says what it costs.
