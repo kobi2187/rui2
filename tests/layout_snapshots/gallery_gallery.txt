@@ -270,9 +270,7 @@ VStack gallery @0,0 1000x720
             DataGrid data.grid @412,355 576x160 tabstop
             Label - @412,523 576x23
             Ruler data.ruler @412,554 576x26
-            Stack - @412,588 576x90
-              Waveform data.wave @412,588 576x90 tabstop
-              AxisMarks data.marks @412,588 576x90
+            Waveform data.wave @412,588 576x90 tabstop
             Lanes data.lanes @412,686 576x70 tabstop
     VStack - @0,83 1000x882 hidden
       Column graphics @12,95 976x530

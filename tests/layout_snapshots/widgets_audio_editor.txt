@@ -12,6 +12,4 @@ Column - @0,0 900x520
     Label status @497,20 72x23
   Ruler ruler @12,59 876x26
   Expanded - @12,93 876x415
-    Stack editor @12,93 876x415 focused tabstop
-      Waveform wave @12,93 876x415 tabstop
-      AxisMarks marks @12,93 876x415
+    Waveform wave @12,93 876x415 focused tabstop
