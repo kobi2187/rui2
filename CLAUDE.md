@@ -13,6 +13,10 @@
   Library code changes what it was given and returns what it did; it does not
   call back into the caller, so a handler reads straight through in a debugger
   (`view_range.nim` `ZoomPan.handle`, `axis_marks.nim` `Marks.handle`).
+  Use judgement: one visible, fixed hop is fine -- a timer run from the frame
+  loop (`timers.nim`), a handler attached with `.onKey` and run by `deliver`
+  right after the widget's own. Chains of callbacks that fire other callbacks
+  are not.
 - **Test the behaviour across the group**, not once per widget: see
   `tests/test_press_behavior.nim`, `test_choice_behavior.nim`, `test_popup_behavior.nim`,
   `test_drag_behavior.nim`, and `tests/ui_harness.nim` for driving widgets through the
