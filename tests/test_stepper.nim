@@ -11,9 +11,10 @@ suite "Stepper":
   teardown: clearRepaints()
 
   test "the steps are spread evenly, the ends inset by half a circle":
-    let xs = stepCenters(3, Rect(x: 0, y: 0, width: 220, height: 40), 20)
+    let xs = stepCenters(3, Rect(x: 0, y: 0, width: 220, height: 40), 10)
     check xs == @[10'f32, 110, 210]
-    check stepCenters(1, Rect(x: 0, y: 0, width: 100, height: 40), 20) == @[50'f32]
+    check stepCenters(3, Rect(x: 0, y: 0, width: 220, height: 40), 20, 0) == @[20'f32, 120, 220]
+    check stepCenters(1, Rect(x: 0, y: 0, width: 100, height: 40), 10) == @[50'f32]
 
   test "a wizard: next and back move the pages; a click goes back but never ahead":
     var steps: Stepper
@@ -35,7 +36,7 @@ suite "Stepper":
     check steps.current == 2 and pages.index == 2
     r.click(root.byId("next"))                    # past the last: stays
     check steps.current == 2
-    let xs = stepCenters(3, steps.bounds, steps.dotSize)
+    let xs = steps.centers
     r.click(xs[0], steps.bounds.y + 10)
     check steps.current == 0 and pages.index == 0
     r.click(xs[2], steps.bounds.y + 10)           # ahead: not by a click

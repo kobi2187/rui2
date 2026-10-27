@@ -24,17 +24,20 @@ import rui_drawing
 import std/options
 import raylib
 
-proc stepCenters*(count: int, area: Rect, dot: float32): seq[float32] =
-  ## The x of each step's circle, spread evenly across `area` (the first and
-  ## the last at its ends, inset by half a circle).
+proc stepCenters*(count: int, area: Rect, inset: float32, insetRight = -1'f32): seq[float32] =
+  ## The x of each step's circle, spread evenly across `area`, the first
+  ## `inset` from its left and the last `insetRight` (default: the same) from
+  ## its right -- half a circle, or half the end label when that is wider.
   if count <= 0: return
   if count == 1: return @[area.x + area.width / 2]
-  let first = area.x + dot / 2
-  let span = area.width - dot
+  let right = if insetRight >= 0: insetRight else: inset
+  let first = area.x + inset
+  let span = area.width - inset - right
   for i in 0 ..< count:
     result.add first + span * float32(i) / float32(count - 1)
 
 proc goTo(widget: Widget, i: int)
+proc centers*(widget: Widget): seq[float32]
 
 definePrimitive(Stepper):
   props:
@@ -57,7 +60,7 @@ definePrimitive(Stepper):
 
   events:
     on_mouse_down:
-      let cs = stepCenters(widget.steps.len, widget.bounds, widget.dotSize)
+      let cs = widget.centers
       for i, x in cs:
         if abs(event.mousePos.x - x) <= max(widget.dotSize, 40) / 2 and i < widget.current:
           widget.goTo(i)                  # back to a step already done
@@ -66,7 +69,7 @@ definePrimitive(Stepper):
 
     on_mouse_move:
       var over = -1
-      let cs = stepCenters(widget.steps.len, widget.bounds, widget.dotSize)
+      let cs = widget.centers
       for i, x in cs:
         if abs(event.mousePos.x - x) <= max(widget.dotSize, 40) / 2 and i < widget.current:
           over = i
@@ -94,7 +97,7 @@ definePrimitive(Stepper):
     let rail = props.borderColor.get(ink.withAlpha(0.3))
     let d = widget.dotSize
     let cy = widget.bounds.y + d / 2
-    let cs = stepCenters(widget.steps.len, widget.bounds, d)
+    let cs = widget.centers
     for i in 1 ..< cs.len:                # the lines between, done ones in the accent
       let c = if i <= widget.current: accent else: rail
       drawLine(cs[i - 1] + d / 2 + 4, cy, cs[i] - d / 2 - 4, cy, c, 2)
@@ -129,6 +132,20 @@ definePrimitive(Stepper):
       cap.color = if done or here: ink else: ink.withAlpha(0.6)
       drawStyledText(widget.steps[i], x, cy + d / 2 + 4, cap, centered = true)
     if widget.focused: drawThemedFocusRing(widget.bounds, props)
+
+proc labelStyle(widget: Stepper): TextStyle =
+  result = currentTheme.getThemeProps(widget.intent, Normal).captionStyle(BLACK)
+  result.fontSize = max(10'f32, result.fontSize - 2)
+  result.bold = true                       # the widest a label is drawn
+
+proc centers*(widget: Widget): seq[float32] =
+  ## Where the circles go: the end labels kept inside the bounds.
+  let widget = Stepper(widget)
+  if widget.steps.len == 0: return
+  let style = widget.labelStyle
+  let left = max(widget.dotSize, measureText(widget.steps[0], style).width) / 2
+  let right = max(widget.dotSize, measureText(widget.steps[^1], style).width) / 2
+  stepCenters(widget.steps.len, widget.bounds, left, right)
 
 proc goTo(widget: Widget, i: int) =
   let widget = Stepper(widget)

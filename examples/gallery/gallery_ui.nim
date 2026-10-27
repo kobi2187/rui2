@@ -207,6 +207,13 @@ proc layoutTab(): Widget =
         Panel(padding = 6.0, cornerRadius = 0.0):
           Drawer(side = dsLeft, initialOpen = true, width = 90.0).size(220, 80):
             Label(text = "drawer")
+        Panel(padding = 6.0, cornerRadius = 0.0):
+          Masonry(columns = 3, spacing = 4.0).named("layout.masonry").size(220, 0):
+            Rectangle(color = Color(r: 120, g: 160, b: 220, a: 255)).size(0, 40)
+            Rectangle(color = Color(r: 220, g: 160, b: 120, a: 255)).size(0, 20)
+            Rectangle(color = Color(r: 140, g: 200, b: 140, a: 255)).size(0, 30)
+            Rectangle(color = Color(r: 200, g: 140, b: 200, a: 255)).size(0, 25)
+            Rectangle(color = Color(r: 230, g: 210, b: 120, a: 255)).size(0, 35)
       Wrap(spacing = 12.0, runSpacing = 8.0):
         Panel(padding = 6.0, cornerRadius = 0.0):
           SplitView(initialRatio = 0.4).named("layout.split").size(320, 90):
@@ -303,6 +310,10 @@ proc dataTab(): Widget =
     let t = float(i) / 8000
     tone.add float32((sin(t * 220 * 2 * PI) + 0.5 * sin(t * 331 * 2 * PI)) * 0.6 * exp(-t))
   let toneView = newLink(wholeView(0.0, 3.0))
+  var activity = initTable[string, float]()          # 30 weeks of made-up activity
+  for i in 0 ..< 210:
+    let v = float((i * 37) mod 11) - 3
+    if v > 0: activity[isoDay(parse("2026-10-25", "yyyy-MM-dd", utc()) - initDuration(days = i))] = v
   let toneSamples = newSamples(tone, 8000)
   let toneMarks = newMarks(playhead = newLink(0.8), selection = newLink(span(1.2, 1.9)),
                            markers = @[marker(2.4, "fade")])   # shared by the wave and the lanes
@@ -340,6 +351,8 @@ proc dataTab(): Widget =
         Embed(table)
         Label(text = "DataGrid")
         Embed(grid)
+        Label(text = "CalendarHeatmap")
+        CalendarHeatmap(values = activity, endDate = "2026-10-25", weeks = 30).named("data.heatmap")
         Label(text = "Ruler and Waveform on one view (Ctrl+wheel zooms)")
         Ruler(view = toneView, ticks = secondTicks()).named("data.ruler").size(0, 26)
         Waveform(source = toneSamples, view = toneView, marks = toneMarks).named("data.wave").size(0, 90)

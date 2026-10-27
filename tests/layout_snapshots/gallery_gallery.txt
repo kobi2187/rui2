@@ -166,6 +166,13 @@ VStack gallery @0,0 1000x720
           Panel - @544,205 102x92
             Drawer - @550,211 90x80
               Label - @550,211 90x80
+          Panel - @658,205 232x81
+            Masonry layout.masonry @664,211 220x69
+              Rectangle - @664,211 70x40
+              Rectangle - @738,211 70x20
+              Rectangle - @813,211 70x30
+              Rectangle - @738,235 70x25
+              Rectangle - @813,245 70x35
         Wrap - @12,317 976x102
           Panel - @12,317 332x102
             SplitView layout.split @18,323 320x90
@@ -264,7 +271,7 @@ VStack gallery @0,0 1000x720
               Label - @47,826 231x87
         StatusBar layout.status @12,929 976x24
     VStack - @0,83 1000x882 hidden
-      Row data @12,95 976x661
+      Row data @12,95 976x825
         Expanded - @12,95 384x628
           Column - @12,95 384x628
             Label - @12,95 384x23
@@ -276,8 +283,8 @@ VStack gallery @0,0 1000x720
             Label - @12,572 384x23
             TextView data.text @12,603 384x120 tabstop
               Label - @20,611 356x104
-        Expanded - @412,95 576x661
-          Column - @412,95 576x661
+        Expanded - @412,95 576x825
+          Column - @412,95 576x825
             Label - @412,95 576x23
             DataTable data.table @412,126 576x190 tabstop
               TextInput - @414,128 136x22 tabstop
@@ -285,9 +292,11 @@ VStack gallery @0,0 1000x720
             Label - @412,324 576x23
             DataGrid data.grid @412,355 576x160 tabstop
             Label - @412,523 576x23
-            Ruler data.ruler @412,554 576x26
-            Waveform data.wave @412,588 576x90 tabstop
-            Lanes data.lanes @412,686 576x70 tabstop
+            CalendarHeatmap data.heatmap @412,554 576x125
+            Label - @412,687 576x23
+            Ruler data.ruler @412,718 576x26
+            Waveform data.wave @412,752 576x90 tabstop
+            Lanes data.lanes @412,850 576x70 tabstop
     VStack - @0,83 1000x882 hidden
       Column graphics @12,95 976x530
         Row - @12,95 976x190
