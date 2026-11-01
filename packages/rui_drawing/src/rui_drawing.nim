@@ -17,7 +17,7 @@ import pango_text;          export pango_text      # glyph cache, cursor + hit-t
 import primitives/text;       export text
 # primitives/text_cache was deleted: 428 lines with no callers anywhere. The
 # real glyph and measurement caches live in pango_text, exported above.
-import patterns;           export patterns     # background textures made in code
+import tiles;              export tiles        # background tiles built into the program
 import textures;           export textures     # pictures from files, loaded once
 import theme_background;   export theme_background  # a theme's tiled picture behind everything
 import primitives/sdf

@@ -3,7 +3,7 @@
 ## relative to the theme file, and written back by toYaml. (The tiling itself is
 ## checked on real pixels by tests/gl/theme_background.nim.)
 
-import std/[unittest, options, os]
+import std/[unittest, options, os, strutils]
 import rui
 from raylib import getImageColor
 
@@ -41,45 +41,60 @@ background:
     let t = newThemeManager().loadFromFile(dir / "papery.yaml")
     check t.assets.backgroundPattern.get == absolutePath(dir / "tiles/paper.png")
 
-suite "background patterns made in code":
-  test "a pattern key names a pattern and its ink, and reads back":
-    let ink = Color(r: 0x11, g: 0x22, b: 0x33, a: 0x44)
-    let key = patternKey("halftone", ink)
-    check key == "pattern:halftone/#11223344"
-    let (name, back, ok) = parsePattern(key)
-    check ok and name == "halftone" and back == ink
-    check parsePattern("pattern:grid/#FF0000").ink == Color(r: 255, g: 0, b: 0, a: 255)
-    check not parsePattern("pattern:wobble/#FF0000").ok      # no such pattern
-    check not parsePattern("pattern:grid/#FF00").ok          # not a colour
-    check not parsePattern("paper.png").ok
+suite "background tiles that ship with rui":
+  test "every tile decodes, and a name that does not ship says which do":
+    check tileNames().len == 10
+    for name in tileNames():
+      let img = tileImage("tile:" & name)
+      check img.width >= 4 and img.height >= 4
+    try:
+      discard tileImage("tile:marble")
+      check false
+    except ValueError as e:
+      check "marble" in e.msg and "brick" in e.msg
 
-  test "every pattern is a tile of ink over transparent":
-    let ink = Color(r: 10, g: 20, b: 30, a: 40)
-    for name in patternNames:
-      let img = patternImage(name, ink)
-      check img.width > 1 and img.height > 1
+  test "each tile repeats without a seam: its edges continue into each other":
+    # The step across a tile's edge (last column to first, last row to first)
+    # is no bigger than the steps inside it.
+    proc diff(a, b: Color): int = abs(a.r.int - b.r.int) + abs(a.g.int - b.g.int) +
+                                  abs(a.b.int - b.b.int) + abs(a.a.int - b.a.int)
+    for name in ["wood", "wood-dark", "parchment", "paper"]:
+      let img = tileImage("tile:" & name)
+      var inside, across = 0
+      for y in 0'i32 ..< img.height:
+        across += diff(getImageColor(img, img.width - 1, y), getImageColor(img, 0, y))
+        inside += diff(getImageColor(img, img.width div 2 - 1, y), getImageColor(img, img.width div 2, y))
+      check across <= inside * 2
+
+  test "see-through tiles are white on transparent, for the tint to colour":
+    for name in ["halftone", "scanlines", "graph", "grid", "bubbles"]:
+      let img = tileImage("tile:" & name)
       var inked, clear = 0
       for y in 0'i32 ..< img.height:
         for x in 0'i32 ..< img.width:
           let c = getImageColor(img, x, y)
           if c.a == 0: inc clear
-          elif c.r == ink.r and c.g == ink.g and c.b == ink.b: inc inked
-      check inked > 0                 # something is drawn
-      check clear > inked             # and it is a texture, not a fill
+          else:
+            inc inked
+            check c.r == 255 and c.g == 255 and c.b == 255
+      check inked > 0 and clear > inked
 
-  test "a brand's pattern becomes its background picture; every one is faint or none":
+  test "a brand's background, tint, opacity and scale land in its theme":
     let t = brandTheme(comicSpec())
-    check t.hasBackgroundPicture
-    check t.assets.backgroundPattern.get.isPattern
-    check parsePattern(t.assets.backgroundPattern.get).name == "halftone"
+    check t.assets.backgroundPattern == some("tile:halftone")
+    check t.assets.backgroundTint == some(hex"#E63946")
+    check t.assets.backgroundPatternOpacity.isSome
+    check brandTheme(woodshopSpec()).assets.backgroundPattern == some("tile:wood")
     check not brandTheme(swissSpec()).hasBackgroundPicture
-    # Text sits on these: no character theme's texture is stronger than 20%
-    # (blueprint's grid is drawn in a blue that is itself close to the canvas).
-    for (key, theme) in characterThemes():
-      if theme.hasBackgroundPicture and key != "blueprint":
-        check parsePattern(theme.assets.backgroundPattern.get).ink.a <= 51
 
-  test "a pattern key round-trips through a theme file":
-    let t = brandTheme(woodshopSpec())
+  test "a theme file names a tile and a tint; the tile name is not taken as a path":
+    let dir = getTempDir() / "rui_theme_tile"
+    createDir dir
+    defer: removeDir dir
+    writeFile(dir / "bricks.yaml", "name: bricks\nbackground:\n  image: tile:brick\n  tint: \"#FFEEDD\"\n")
+    let t = newThemeManager().loadFromFile(dir / "bricks.yaml")
+    check t.assets.backgroundPattern == some("tile:brick")
+    check t.assets.backgroundTint == some(hex"#FFEEDD")
     let again = parseTheme(t.toYaml, tffYaml, noExtends)
     check again.assets.backgroundPattern == t.assets.backgroundPattern
+    check again.assets.backgroundTint == t.assets.backgroundTint

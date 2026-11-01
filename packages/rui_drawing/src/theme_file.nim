@@ -120,9 +120,10 @@ type
 
   BackgroundFile* {.sparse.} = object
     ## A picture behind everything, tiled: `image` (a path, relative to the
-    ## theme file), `opacity` (0 .. 1) over the canvas colour, `scale` (a tile
-    ## at this many times its size).
-    image: Option[string]
+    ## theme file, or `tile:<name>` for one that ships, tiles.nim), `opacity`
+    ## (0 .. 1) over the canvas colour, `scale` (a tile at this many times its
+    ## size), `tint` (a colour that multiplies it).
+    image, tint: Option[string]
     opacity, scale: Option[float32]
 
   BrandFile* {.sparse.} = object
@@ -411,6 +412,7 @@ proc toTheme*(tf: ThemeFile, resolver: proc(name: string): Theme): Theme =
     if bg.image.isSome: result.assets.backgroundPattern = bg.image
     if bg.opacity.isSome: result.assets.backgroundPatternOpacity = bg.opacity
     if bg.scale.isSome: result.assets.backgroundScale = bg.scale
+    if bg.tint.isSome: result.assets.backgroundTint = optColor(bg.tint)
   if tf.metrics.isSome:
     let m = tf.metrics.get()
     template take(field: untyped) =
@@ -675,6 +677,7 @@ proc themeToJson*(theme: Theme): JsonNode =
   if assets.backgroundPatternOpacity.isSome:
     background["opacity"] = num(assets.backgroundPatternOpacity.get)
   if assets.backgroundScale.isSome: background["scale"] = num(assets.backgroundScale.get)
+  if assets.backgroundTint.isSome: background["tint"] = newJString(formatColor(assets.backgroundTint.get))
   if background.len > 0: result["background"] = background
 
 proc yamlScalar(node: JsonNode): string =

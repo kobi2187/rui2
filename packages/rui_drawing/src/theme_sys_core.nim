@@ -86,6 +86,7 @@ type
       ## (theme_background.nim). A theme file's `background: image:`.
     backgroundPatternOpacity*: Option[float32]  ## 0 .. 1; 1 when unset
     backgroundScale*: Option[float32]           ## a tile drawn this many times its size; 1 when unset
+    backgroundTint*: Option[Color]              ## multiplies the picture; white when unset
 
   # Branding: Theme Metadata
   ThemeMetadata* = object

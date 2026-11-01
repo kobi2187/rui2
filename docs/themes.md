@@ -29,27 +29,36 @@ same palette that reads is used.
 Themes with a personality (`character_themes.nim`): `comic` (ink outlines,
 flat 4 px shadows, halftone dots), `soda` (90s neon on midnight, bubbles),
 `cyberpunk` (laser cyan HUD, scanlines), `woodshop` (walnut, oak and brass,
-wood grain), `apothecary` (sepia on parchment, wax-seal red, a classical
-serif), `paper` (charcoal on yellowed paper, a reading serif), `terminal` and
+on oak planks), `apothecary` (sepia on a parchment tile, wax-seal red, a
+classical serif), `paper` (charcoal on a paper tile, a reading serif), `terminal` and
 `terminal-amber` (phosphor on black, monospaced, inverted hover), `blueprint`
 (white on cyanotype, graph paper, square), `synthwave` (peach and mint on
 indigo, a violet grid) and `swiss`, `swiss-klein`, `swiss-dark` (one accent,
 no corners, no shadows, no texture). The personality is palette, geometry,
-type and texture; the readability checks are the same as everyone's.
+type and background tile; the readability checks are the same as everyone's.
 
-### Background patterns made in code
+### Background tiles
 
-A theme can have a texture without shipping a picture: name a pattern where a
-picture file would go (`patterns.nim`).
+Any PNG can be tiled behind everything; ten ship with rui, built into the
+program, and are named `tile:<name>` (`tiles.nim`):
 
 ```yaml
 background:
-  image: "pattern:halftone/#E6394622"   # name / ink; the ink's alpha is its strength
+  image: "tile:wood"          # or textures/brick.png, relative to this file
+  opacity: 0.45               # over the canvas colour
+  scale: 1                    # each tile at this many times its size
+  tint: "#E63946"             # multiplies it: colours a see-through tile
 ```
 
-or `BrandSpec(pattern: "grain", patternInk: hex"#8B5A2B16")`. The patterns are
-`halftone`, `bubbles`, `scanlines`, `grain`, `fibre`, `graph` and `grid`; each
-is a small tile that repeats without a seam. Keep the ink faint: text sits on it.
+or `BrandSpec(background: "tile:brick", backgroundOpacity: 0.35)`. Full-colour
+tiles: `wood` (light oak planks), `wood-dark` (walnut), `brick`, `parchment`,
+`paper`. See-through tiles, white on transparent so the `tint` colours them:
+`halftone`, `scanlines`, `graph`, `grid`, `bubbles`. `tools/make_tiles.py`
+makes them, each repeating without a seam.
+
+Labels sit straight on the background, so keep a busy tile faint (woodshop's
+planks are at 0.45 over a cream canvas); the contrast checks see only the
+canvas colour.
 
 ## Three ways to write one
 
@@ -143,13 +152,14 @@ FOR AN ANSWER")`, `hazardStripes()`, `backdropCaption("Frozen")` -- or any
 `proc(area: Rect)`. It runs once, when the page is pictured.
 
 `background:` is a picture behind everything, tiled over the canvas colour:
-paper, linen, a subtle pattern. `image` is a path relative to the theme file,
+wood, brick, paper, a subtle pattern. `image` is a path relative to the theme
+file or `tile:<name>` for a tile that ships (see Background tiles above),
 `opacity` (0 to 1) lets the canvas colour through, and `scale` draws each tile
 at that many times its size. Widgets that paint their own background cover
 it; the rest of the window shows it. If the picture can't be loaded, the plain
 canvas colour stays. In code, the same is
 `theme.assets.backgroundPattern = some("paper.png")` (with
-`backgroundPatternOpacity` and `backgroundScale`).
+`backgroundPatternOpacity`, `backgroundScale` and `backgroundTint`).
 
 ```yaml
 background: {image: textures/paper.png, opacity: 0.6, scale: 2}

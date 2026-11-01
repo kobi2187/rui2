@@ -24,7 +24,6 @@
 import std/[options, strutils, tables]
 import theme_sys_core
 import theme_check
-import patterns
 import rui_core
 
 type
@@ -65,9 +64,11 @@ type
     highContrast*: bool       ## hover, press and selection invert (ink on surface becomes
                               ## surface on ink) and the focus ring is the opaque accent
     backdrop*: BackdropStyle  ## the page behind an open modal; half-dark if unset
-    pattern*: string          ## a texture behind everything (patterns.nim: "halftone",
-                              ## "grain", "graph", ...); none if ""
-    patternInk*: Color        ## its colour, alpha its strength; the text at 8% if unset
+    background*: string       ## a picture tiled behind everything: "tile:wood" (tiles.nim)
+                              ## or a PNG path; none if ""
+    backgroundTint*: Color    ## multiplies it (colours a see-through tile); white if unset
+    backgroundOpacity*: float32  ## over the canvas colour; 1 if unset
+    backgroundScale*: float32 ## each tile this many times its size; 1 if unset
 
 # ----------------------------------------------------------------------------
 # Colour arithmetic
@@ -166,9 +167,11 @@ proc brandTheme*(spec: BrandSpec): Theme =
 
   result = newTheme(s.name)
   result.backdrop = s.backdrop
-  if s.pattern.len > 0:
-    let ink = if s.patternInk.isSet: s.patternInk else: alpha(s.text, 0.08)
-    result.assets.backgroundPattern = some(patternKey(s.pattern, ink))
+  if s.background.len > 0:
+    result.assets.backgroundPattern = some(s.background)
+    if s.backgroundTint.isSet: result.assets.backgroundTint = some(s.backgroundTint)
+    if s.backgroundOpacity > 0: result.assets.backgroundPatternOpacity = some(s.backgroundOpacity)
+    if s.backgroundScale > 0: result.assets.backgroundScale = some(s.backgroundScale)
   result.brandPalette = BrandPalette(
     primaryColor: some(s.accent), accentColor: some(s.accent),
     surfaceColor: some(s.canvas), neutralLight: some(s.border),

@@ -3,7 +3,8 @@
 ##
 ## Each is a `BrandSpec` (brand_themes.nim). The personality comes from the
 ## palette, the geometry (borders, corners, hard shadows, control sizes), the
-## type, and a faint texture behind everything made in code (patterns.nim). The
+## type, and a picture tiled behind everything (tiles.nim: wood planks,
+## parchment, halftone dots, graph paper, scanlines...). The
 ## usability does not change from one to the next: every theme passes the same
 ## checks as the shipped brands (WCAG AA for every caption, a 3:1 focus ring,
 ## readable placeholders and selections), so where a palette's colour fails
@@ -31,7 +32,8 @@ proc comicSpec*(): BrandSpec =
             controlHeight: 40, focusRingWidth: 3,
             info: hex"#1D4ED8", success: hex"#1E7B34", warning: hex"#9A5800",
             danger: hex"#C1121F",
-            pattern: "halftone", patternInk: hex"#E6394622")
+            background: "tile:halftone", backgroundTint: hex"#E63946",
+            backgroundOpacity: 0.13)
 
 proc sodaSpec*(): BrandSpec =
   ## A 90s soda commercial: neon teal and magenta on midnight navy, bubbly
@@ -43,7 +45,8 @@ proc sodaSpec*(): BrandSpec =
             fontFamily: "Nunito, Plus Jakarta Sans, Fredoka, sans-serif",
             info: hex"#C9A2FF", success: hex"#CCFF00", warning: hex"#FFD23F",
             danger: hex"#FF4FA3",
-            pattern: "bubbles", patternInk: hex"#00F0FF1C")
+            background: "tile:bubbles", backgroundTint: hex"#00F0FF",
+            backgroundOpacity: 0.11)
 
 proc cyberpunkSpec*(): BrandSpec =
   ## Cyberpunk HUD: laser cyan on deep space, thin outlines, glow only on
@@ -54,11 +57,12 @@ proc cyberpunkSpec*(): BrandSpec =
             fontFamily: "JetBrains Mono, Space Grotesk, DejaVu Sans Mono, monospace",
             info: hex"#00F5FF", success: hex"#3DFF9A", warning: hex"#FF9900",
             danger: hex"#FF3D7F",
-            pattern: "scanlines", patternInk: hex"#00F5FF0E")
+            background: "tile:scanlines", backgroundTint: hex"#00F5FF",
+            backgroundOpacity: 0.055)
 
 proc woodshopSpec*(): BrandSpec =
-  ## Artisan woodworking: walnut ink on canvas, oak for actions, pine and
-  ## brass, wood grain behind.
+  ## Artisan woodworking: walnut ink, oak for actions, pine and brass, light
+  ## oak planks behind (at half strength, so text on them still reads).
   BrandSpec(name: "Woodshop", accent: hex"#8B5A2B", onAccent: hex"#FFFDF9",
             canvas: hex"#F7F4EF", surface: hex"#FFFDF9", text: hex"#3D2314",
             border: hex"#C5A059", radius: 6, borderWidth: 1.5, shadow: 1,
@@ -66,11 +70,11 @@ proc woodshopSpec*(): BrandSpec =
             fontFamily: "Fira Sans, Zilla Slab, Arvo, sans-serif",
             info: hex"#2D4A3E", success: hex"#2D5F3A", warning: hex"#7E5A12",
             danger: hex"#9B2C1F",
-            pattern: "grain", patternInk: hex"#8B5A2B16")
+            background: "tile:wood", backgroundOpacity: 0.45)
 
 proc apothecarySpec*(): BrandSpec =
   ## Antique apothecary: sepia ink on aged parchment, wax-seal red, fine 1 px
-  ## strokes, a classical serif, parchment fibres behind.
+  ## strokes, a classical serif, on a parchment tile.
   BrandSpec(name: "Apothecary", accent: hex"#8B0000", onAccent: hex"#F5EBE0",
             canvas: hex"#F5EBE0", surface: hex"#FBF5EC", text: hex"#2B2118",
             border: hex"#9E7B66", radius: 2,
@@ -78,7 +82,7 @@ proc apothecarySpec*(): BrandSpec =
             fontSize: 15, padding: 9,
             info: hex"#1B3B2B", success: hex"#1B3B2B", warning: hex"#7A5212",
             danger: hex"#8B0000",
-            pattern: "fibre", patternInk: hex"#9E7B6630")
+            background: "tile:parchment", backgroundOpacity: 0.85)
 
 proc paperSpec*(): BrandSpec =
   ## Yellowed paper for reading: charcoal ink on vintage paper, rust
@@ -90,7 +94,7 @@ proc paperSpec*(): BrandSpec =
             fontSize: 15, padding: 9,
             info: hex"#3E5C76", success: hex"#3F6B3A", warning: hex"#7D5A14",
             danger: hex"#A94442",
-            pattern: "fibre", patternInk: hex"#2C2C2A10")
+            background: "tile:paper", backgroundOpacity: 0.8)
 
 proc terminalSpec*(): BrandSpec =
   ## 1980s terminal: phosphor green on black, square, monospaced, hover and
@@ -101,7 +105,8 @@ proc terminalSpec*(): BrandSpec =
             fontFamily: "IBM Plex Mono, Fira Code, VT323, DejaVu Sans Mono, monospace",
             info: hex"#33DDFF", success: hex"#00FF66", warning: hex"#FFB000",
             danger: hex"#FF5F56",
-            pattern: "scanlines", patternInk: hex"#00FF6612")
+            background: "tile:scanlines", backgroundTint: hex"#00FF66",
+            backgroundOpacity: 0.07)
 
 proc terminalAmberSpec*(): BrandSpec =
   ## The amber monitor.
@@ -111,7 +116,8 @@ proc terminalAmberSpec*(): BrandSpec =
             fontFamily: "IBM Plex Mono, Fira Code, VT323, DejaVu Sans Mono, monospace",
             info: hex"#FFD27A", success: hex"#D4E157", warning: hex"#FFB000",
             danger: hex"#FF6E40",
-            pattern: "scanlines", patternInk: hex"#FFB00012")
+            background: "tile:scanlines", backgroundTint: hex"#FFB000",
+            backgroundOpacity: 0.07)
 
 proc blueprintSpec*(): BrandSpec =
   ## An architectural blueprint: white ink on cyanotype blue, graph-paper
@@ -122,7 +128,7 @@ proc blueprintSpec*(): BrandSpec =
             fontFamily: "Roboto Mono, DIN, DejaVu Sans Mono, monospace",
             info: hex"#9AD0FF", success: hex"#8EE69B", warning: hex"#FFD166",
             danger: hex"#FF9A8F",
-            pattern: "graph", patternInk: hex"#1A5276")
+            background: "tile:graph", backgroundTint: hex"#1A5276")
 
 proc synthwaveSpec*(): BrandSpec =
   ## Vaporwave sunset: peach and mint on deep indigo, hierarchy by hue, a
@@ -133,7 +139,8 @@ proc synthwaveSpec*(): BrandSpec =
             fontFamily: "Outfit, Kanit, sans-serif",
             info: hex"#70E0D6", success: hex"#7CF5A6", warning: hex"#FFC46B",
             danger: hex"#FF6B8B",
-            pattern: "grid", patternInk: hex"#8A2BE222")
+            background: "tile:grid", backgroundTint: hex"#8A2BE2",
+            backgroundOpacity: 0.13)
 
 proc swissSpec*(): BrandSpec =
   ## Swiss / International style: white, off-black, one red; no corners, no

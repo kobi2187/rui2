@@ -7,6 +7,10 @@
 ##   scale: 2             # each tile at twice its size (1 when left out)
 ## ```
 ##
+## `image: "tile:wood"` names a tile that ships with rui (tiles.nim); `tint`
+## multiplies the picture, which colours a see-through tile (white on
+## transparent) in the theme's own colour.
+##
 ## or in code: `theme.assets.backgroundPattern = some("paper.png")`. The App
 ## draws it after clearing to the canvas colour and before the widget tree, so
 ## widgets that paint their own background cover it and the rest show it. One
@@ -36,7 +40,9 @@ proc drawThemeBackground*(theme: Theme, area: Rect) =
     wrapped.incl path
   let scale = max(0.01'f32, theme.assets.backgroundScale.get(1.0))
   let opacity = clamp(theme.assets.backgroundPatternOpacity.get(1.0), 0, 1)
+  let tint = theme.assets.backgroundTint.get(Color(r: 255, g: 255, b: 255, a: 255))
   # A source rectangle larger than the texture: the GPU repeats it.
   let src = Rectangle(x: 0, y: 0, width: area.width / scale, height: area.height / scale)
   drawTexture(tex[], src, Rectangle(x: area.x, y: area.y, width: area.width, height: area.height),
-              Vector2(x: 0, y: 0), 0.0, Color(r: 255, g: 255, b: 255, a: uint8(opacity * 255)))
+              Vector2(x: 0, y: 0), 0.0,
+              Color(r: tint.r, g: tint.g, b: tint.b, a: uint8(float32(tint.a) * opacity)))

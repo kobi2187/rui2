@@ -52,6 +52,7 @@ import theme_sys_core
 import theme_types
 import theme_file
 import builtin_themes
+import tiles
 import rui_core
 
 export theme_sys_core, theme_types, theme_file
@@ -215,7 +216,8 @@ proc loadFromFile*(tm: ThemeManager, path: string): Theme =
     # Say which file: the parser only knows it was handed some text.
     raise newException(ValueError, path & ": " & e.msg)
   # A background picture is named relative to the theme file.
-  if result.assets.backgroundPattern.isSome and not result.assets.backgroundPattern.get.isAbsolute:
+  if result.assets.backgroundPattern.isSome and not result.assets.backgroundPattern.get.isAbsolute and
+     not result.assets.backgroundPattern.get.isTile:
     result.assets.backgroundPattern = some(absolutePath(parentDir(path) / result.assets.backgroundPattern.get))
   # Auto-register under filename if not already registered
   let regName = if result.name.len > 0: result.name
