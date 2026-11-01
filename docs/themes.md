@@ -15,6 +15,17 @@ Eight themes ship as brands -- `daylight`, `midnight`, `aurora`, `ocean`,
 `forest`, `rose`, `ember`, `graphite` -- plus `punch` (fat) and `hairline`
 (lean). `examples/widgets/theme_gallery.nim` shows them all.
 
+Popular palettes and design systems come translated too
+(`popular_themes.nim`): `nord`, `nord-light`, `dracula`, `solarized-light`,
+`solarized-dark`, `gruvbox`, `catppuccin-latte`, `catppuccin-mocha`,
+`one-dark`, `tokyo-night`, and the looks of `material` (Material 3),
+`fluent` (Windows 11), `adwaita`, `adwaita-dark` (GNOME) and `cupertino`.
+They are brands like the others: the palette's own colours, and the design
+system's rounding, control sizes and font where it has one. Every one passes
+the same readability checks as the rest, so where a palette's body text is
+too faint for WCAG AA (Solarized's base00 on base3) the nearest shade of the
+same palette that reads is used.
+
 ## Three ways to write one
 
 ### 1. A brand: a handful of choices (usually enough)
