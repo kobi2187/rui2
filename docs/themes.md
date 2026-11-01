@@ -60,6 +60,12 @@ is drawn by the focus ring overlay, outside the control, so nothing clips it;
 like the ring, it shows while the keyboard is driving. Cyberpunk is notched with
 a glow, soda glossy, woodshop bevelled, blueprint in dimension lines.
 
+### Speech-bubble tooltips
+
+`tipShape: bubble` (a brand's `speechBubbleTips: true`) draws tooltips as
+speech bubbles in the theme's outline, the tail pointing back at the pointer;
+comic has them. `drawSpeechBubble` draws the shape for your own primitives.
+
 ### Background tiles
 
 Any PNG can be tiled behind everything; ten ship with rui, built into the

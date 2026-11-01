@@ -24,7 +24,8 @@ import brand_themes
 
 proc comicSpec*(): BrandSpec =
   ## Comic book and pop art: ink-black outlines, flat 4 px shadows with no
-  ## blur, bold yellow for the main action, halftone dots behind.
+  ## blur, bold yellow for the main action, tooltips as speech bubbles,
+  ## halftone dots behind.
   BrandSpec(name: "Comic", accent: hex"#FFD000", onAccent: hex"#111111",
             canvas: hex"#F4F1DE", surface: hex"#FFFDF4", text: hex"#111111",
             border: hex"#111111", radius: 4, borderWidth: 3, shadow: 4,
@@ -35,7 +36,8 @@ proc comicSpec*(): BrandSpec =
             info: hex"#1D4ED8", success: hex"#1E7B34", warning: hex"#9A5800",
             danger: hex"#C1121F",
             background: "tile:halftone", backgroundTint: hex"#E63946",
-            backgroundOpacity: 0.13)
+            backgroundOpacity: 0.13,
+            speechBubbleTips: true)
 
 proc sodaSpec*(): BrandSpec =
   ## A 90s soda commercial: neon teal and magenta on midnight navy, bubbly

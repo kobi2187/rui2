@@ -68,6 +68,11 @@ type
     durationSlow*: Option[float32]    # Slow transitions (e.g., 400ms)
     defaultEasing*: Option[AnimationEasing]
 
+  TipShape* = enum
+    ## How a tooltip's box is shaped.
+    tsBox       ## a plain box beside the pointer
+    tsBubble    ## a speech bubble, its tail pointing back at the pointer (a comic)
+
   BackdropStyle* = object
     ## What a modal's frozen page looks like behind it: tinted by `color`
     ## (its alpha is how much), blurred by `blur` pixels, and its colour kept
@@ -207,6 +212,7 @@ type
     metrics*: ControlMetrics              # Control geometry
     hint*: HintStyle                      # Help-overlay hint badges
     backdrop*: BackdropStyle              # The page behind an open modal
+    tipShape*: TipShape                   # Tooltips: a box, or a speech bubble
 
     statePreference*: array[ControlRole, StatePreference]
       ## Hover-or-focus-first, per control role. Read on every lookup from the

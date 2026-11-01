@@ -144,7 +144,7 @@ type
     transitionMs: Option[float32]
     noTransitions: Option[bool]
     cornerCut, gloss, relief, focusGlow: Option[float32]
-    dimensionLines: Option[bool]
+    dimensionLines, speechBubbleTips: Option[bool]
 
   ThemeFile* {.sparse.} = object
     ## Top-level theme file structure (JSON or YAML)
@@ -162,6 +162,8 @@ type
     background: Option[BackgroundFile]
     headingFont: Option[string]
       ## The font titles and headings use; the body font when left out.
+    tipShape: Option[string]
+      ## "box" (the default) or "bubble": tooltips as speech bubbles.
     brand: Option[BrandFile]
       ## A whole theme from a handful of brand choices (see brand_themes.nim).
       ## It replaces `extends`; `base` and `states` still override it.
@@ -354,7 +356,8 @@ proc toBrandSpec*(bf: BrandFile): BrandSpec =
     scrollbarThickness: num(bf.scrollbarThickness),
     transitionMs: num(bf.transitionMs), noTransitions: bf.noTransitions.get(false),
     cornerCut: num(bf.cornerCut), gloss: num(bf.gloss), relief: num(bf.relief),
-    focusGlow: num(bf.focusGlow), dimensionLines: bf.dimensionLines.get(false))
+    focusGlow: num(bf.focusGlow), dimensionLines: bf.dimensionLines.get(false),
+    speechBubbleTips: bf.speechBubbleTips.get(false))
 
 proc toTheme*(tf: ThemeFile, resolver: proc(name: string): Theme): Theme =
   ## Convert a ThemeFile to a Theme, resolving extends via resolver
@@ -421,6 +424,12 @@ proc toTheme*(tf: ThemeFile, resolver: proc(name: string): Theme): Theme =
     if b.blur.isSome: result.backdrop.blur = b.blur
     if b.saturation.isSome: result.backdrop.saturation = b.saturation
   if tf.headingFont.isSome: result.typography.headingFont = tf.headingFont
+  if tf.tipShape.isSome:
+    result.tipShape = case tf.tipShape.get.toLowerAscii
+      of "box": tsBox
+      of "bubble": tsBubble
+      else: raise newException(ValueError, "tipShape is \"box\" or \"bubble\", not \"" &
+                               tf.tipShape.get & "\"")
   if tf.background.isSome:
     let bg = tf.background.get()
     if bg.image.isSome: result.assets.backgroundPattern = bg.image
@@ -698,6 +707,7 @@ proc themeToJson*(theme: Theme): JsonNode =
   if assets.backgroundTint.isSome: background["tint"] = newJString(formatColor(assets.backgroundTint.get))
   if theme.typography.headingFont.isSome:
     result["headingFont"] = newJString(theme.typography.headingFont.get)
+  if theme.tipShape == tsBubble: result["tipShape"] = newJString("bubble")
   if background.len > 0: result["background"] = background
 
 proc yamlScalar(node: JsonNode): string =

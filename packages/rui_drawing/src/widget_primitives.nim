@@ -326,6 +326,29 @@ proc drawInteractiveBox*(rect: Rect, props: ThemeProps,
   if focused:
     drawThemedFocusRing(body, props)
 
+const BubbleTail* = 10'f32
+  ## How tall a speech bubble's tail is, above its body.
+
+proc drawSpeechBubble*(rect: Rect, fill, border: Color, borderWidth: float32,
+                       radius = 10'f32) =
+  ## A speech bubble filling `rect`: a rounded body `BubbleTail` below its top,
+  ## and a tail from the body up to the top-left corner of `rect` -- where the
+  ## thing it speaks for is (a tooltip puts that corner by the pointer). The
+  ## outline runs round body and tail as one shape.
+  let body = Rect(x: rect.x, y: rect.y + BubbleTail, width: rect.width,
+                  height: rect.height - BubbleTail)
+  let bw = max(0'f32, borderWidth)
+  let tip = Vector2(x: rect.x + 3, y: rect.y)
+  let a = Vector2(x: rect.x + 10, y: body.y + bw + 1)
+  let b = Vector2(x: rect.x + 26, y: body.y + bw + 1)
+  if bw > 0: discard drawSdfTriangle(tip, a, b, border)          # the tail's outline
+  drawBox(body, radius, fill, border, bw)
+  # The tail's inside, over the body's top edge so the two read as one.
+  let k = bw * 1.5
+  discard drawSdfTriangle(Vector2(x: tip.x + k * 0.9, y: tip.y + k * 1.6),
+                          Vector2(x: a.x + k, y: a.y + 0.5),
+                          Vector2(x: b.x - k * 0.6, y: b.y + 0.5), fill)
+
 proc drawFocusGlow*(rect: Rect) =
   ## The current theme's glow round a focused control (focusGlowRadius and
   ## focusGlowColor in its Focused state), the control's own shape, reaching

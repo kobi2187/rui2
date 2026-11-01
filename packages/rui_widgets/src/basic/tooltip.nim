@@ -43,8 +43,10 @@ definePrimitive(TooltipTip):
   layout:
     # Positioned by its Tooltip; it only sizes itself to the text.
     let m = measureText(widget.text, tipStyle(widget.fontSize))
-    widget.bounds.width = m.width + widget.padding * 2
-    widget.bounds.height = m.height + widget.padding * 2
+    let bubble = currentTheme.tipShape == tsBubble
+    let pad = if bubble: widget.padding + 3 else: widget.padding
+    widget.bounds.width = m.width + pad * 2
+    widget.bounds.height = m.height + pad * 2 + (if bubble: BubbleTail else: 0)
 
   render:
     # The tip is a small panel of the theme: its Default fill and ink, which the
@@ -53,8 +55,15 @@ definePrimitive(TooltipTip):
     let ink = props.foregroundColor.get(Color(r: 0, g: 0, b: 0, a: 255))
     var style = tipStyle(widget.fontSize)
     style.color = ink
-    drawTooltip(widget.text, widget.bounds, props.backgroundColor.get(Color(r: 255, g: 255, b: 255, a: 255)),
-                ink, style)
+    let fill = props.backgroundColor.get(Color(r: 255, g: 255, b: 255, a: 255))
+    if currentTheme.tipShape == tsBubble:
+      # A speech bubble in the theme's own outline, its tail at the pointer.
+      let b = widget.bounds
+      drawSpeechBubble(b, fill, props.borderColor.get(ink), max(1.5'f32, props.strokeWidth))
+      let pad = widget.padding + 3
+      drawStyledText(widget.text, b.x + pad, b.y + BubbleTail + pad, style)
+    else:
+      drawTooltip(widget.text, widget.bounds, fill, ink, style)
 
 proc tipOrigin*(pointer: Point, offsetX, offsetY: float32): Point =
   ## Where the tip's top-left goes: below and right of the pointer, clear of

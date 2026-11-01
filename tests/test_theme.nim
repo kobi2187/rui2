@@ -1304,3 +1304,25 @@ base:
     let ring = newFocusRing()
     check ring.chrome != nil              # drawn in screen space, under the ring
     check brandTheme(daylightSpec()).getThemeProps(Default, Focused).focusGlowColor.isNone
+
+suite "theme: speech-bubble tooltips":
+  proc noExtends(name: string): Theme = newTheme(name)
+
+  test "comic's tooltips are speech bubbles; a file can ask for them":
+    check brandTheme(comicSpec()).tipShape == tsBubble
+    check brandTheme(daylightSpec()).tipShape == tsBox
+    let t = parseTheme("name: T\ntipShape: bubble\n", tffYaml, noExtends)
+    check t.tipShape == tsBubble
+    check parseTheme(t.toYaml, tffYaml, noExtends).tipShape == tsBubble
+    expect ValueError:
+      discard parseTheme("name: T\ntipShape: cloud\n", tffYaml, noExtends)
+
+  test "a bubble tip makes room for its tail above the text":
+    setCurrentTheme(brandTheme(daylightSpec()))
+    let boxTip = newTooltipTip(text = "Saves the file")
+    boxTip.layout()
+    setCurrentTheme(brandTheme(comicSpec()))
+    defer: setCurrentTheme(newTheme("default"))
+    let bubbleTip = newTooltipTip(text = "Saves the file")
+    bubbleTip.layout()
+    check bubbleTip.bounds.height >= boxTip.bounds.height + BubbleTail
