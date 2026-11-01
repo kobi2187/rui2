@@ -14,7 +14,8 @@ import theme_check
 import rui_core
 import brand_themes
 import popular_themes
-export brand_themes, popular_themes
+import character_themes
+export brand_themes, popular_themes, character_themes
 
 proc makeThemeProps*(
   backgroundColor: Color = Color(),
@@ -226,6 +227,8 @@ proc initBuiltinThemes*() =
   for (key, theme) in brandThemes():
     builtinThemes[key] = theme
   for (key, theme) in popularThemes():
+    builtinThemes[key] = theme
+  for (key, theme) in characterThemes():
     builtinThemes[key] = theme
 
 # Automatically initialize when module is imported

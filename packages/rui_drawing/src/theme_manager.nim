@@ -95,6 +95,8 @@ proc newThemeManager*(): ThemeManager =
     result.registry[key] = theme
   for (key, theme) in popularThemes():
     result.registry[key] = theme
+  for (key, theme) in characterThemes():
+    result.registry[key] = theme
   result.current = result.registry["light"]
   setCurrentTheme(result.current)
 

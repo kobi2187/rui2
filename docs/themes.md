@@ -26,6 +26,31 @@ the same readability checks as the rest, so where a palette's body text is
 too faint for WCAG AA (Solarized's base00 on base3) the nearest shade of the
 same palette that reads is used.
 
+Themes with a personality (`character_themes.nim`): `comic` (ink outlines,
+flat 4 px shadows, halftone dots), `soda` (90s neon on midnight, bubbles),
+`cyberpunk` (laser cyan HUD, scanlines), `woodshop` (walnut, oak and brass,
+wood grain), `apothecary` (sepia on parchment, wax-seal red, a classical
+serif), `paper` (charcoal on yellowed paper, a reading serif), `terminal` and
+`terminal-amber` (phosphor on black, monospaced, inverted hover), `blueprint`
+(white on cyanotype, graph paper, square), `synthwave` (peach and mint on
+indigo, a violet grid) and `swiss`, `swiss-klein`, `swiss-dark` (one accent,
+no corners, no shadows, no texture). The personality is palette, geometry,
+type and texture; the readability checks are the same as everyone's.
+
+### Background patterns made in code
+
+A theme can have a texture without shipping a picture: name a pattern where a
+picture file would go (`patterns.nim`).
+
+```yaml
+background:
+  image: "pattern:halftone/#E6394622"   # name / ink; the ink's alpha is its strength
+```
+
+or `BrandSpec(pattern: "grain", patternInk: hex"#8B5A2B16")`. The patterns are
+`halftone`, `bubbles`, `scanlines`, `grain`, `fibre`, `graph` and `grid`; each
+is a small tile that repeats without a seam. Keep the ink faint: text sits on it.
+
 ## Three ways to write one
 
 ### 1. A brand: a handful of choices (usually enough)

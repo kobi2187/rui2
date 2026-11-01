@@ -10,7 +10,9 @@
 ## ember, graphite, beos (BeOS R4: bevels, square, grey) -- and at the two extremes of geometry, punch (fat, bold,
 ## shadowed) and hairline (thin and lean). Then popular palettes and design
 ## systems, translated: nord, dracula, solarized, gruvbox, catppuccin, one-dark,
-## tokyo-night, material, fluent, adwaita, cupertino. Each is one
+## tokyo-night, material, fluent, adwaita, cupertino. And themes with a
+## personality: comic, soda, cyberpunk, woodshop, apothecary, paper, terminal,
+## blueprint, synthwave, swiss. Each is one
 ## `brandTheme(BrandSpec(...))` call -- see
 ## packages/rui_drawing/src/brand_themes.nim to make your own.
 
@@ -23,6 +25,7 @@ let app = newApp("RUI2 - Theme gallery", 760, 740)
 var names = @["daylight", "midnight", "aurora", "ocean",
               "forest", "rose", "ember", "graphite", "punch", "hairline", "beos"]
 for (key, _) in popularThemes(): names.add key
+for (key, _) in characterThemes(): names.add key
 
 var title: Label
 var switcher: ComboBox

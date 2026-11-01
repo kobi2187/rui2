@@ -8,9 +8,13 @@
 ## held through a pointer that is never freed: a texture released by a global
 ## destructor after the window has closed crashes (as sdf.nim's shaders). A
 ## path that fails to load is remembered and not tried again.
+##
+## A `pattern:` key (patterns.nim) is made in code instead of read from a file,
+## and cached the same way.
 
 import std/[tables, sets]
 import raylib
+import patterns
 
 var
   loaded {.global.}: Table[string, ptr Texture2D]
@@ -23,7 +27,14 @@ proc textureFor*(path: string): ptr Texture2D =
   if path notin loaded:
     if not isWindowReady(): return nil
     try:
-      var t = loadTexture(path)
+      var t =
+        if path.isPattern:
+          let (name, ink, ok) = parsePattern(path)
+          if not ok:
+            failed.incl path
+            return nil
+          loadTextureFromImage(patternImage(name, ink))
+        else: loadTexture(path)
       if t.id == 0:
         failed.incl path
         return nil

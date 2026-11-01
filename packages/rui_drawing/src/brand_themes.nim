@@ -24,6 +24,7 @@
 import std/[options, strutils, tables]
 import theme_sys_core
 import theme_check
+import patterns
 import rui_core
 
 type
@@ -64,6 +65,9 @@ type
     highContrast*: bool       ## hover, press and selection invert (ink on surface becomes
                               ## surface on ink) and the focus ring is the opaque accent
     backdrop*: BackdropStyle  ## the page behind an open modal; half-dark if unset
+    pattern*: string          ## a texture behind everything (patterns.nim: "halftone",
+                              ## "grain", "graph", ...); none if ""
+    patternInk*: Color        ## its colour, alpha its strength; the text at 8% if unset
 
 # ----------------------------------------------------------------------------
 # Colour arithmetic
@@ -162,6 +166,9 @@ proc brandTheme*(spec: BrandSpec): Theme =
 
   result = newTheme(s.name)
   result.backdrop = s.backdrop
+  if s.pattern.len > 0:
+    let ink = if s.patternInk.isSet: s.patternInk else: alpha(s.text, 0.08)
+    result.assets.backgroundPattern = some(patternKey(s.pattern, ink))
   result.brandPalette = BrandPalette(
     primaryColor: some(s.accent), accentColor: some(s.accent),
     surfaceColor: some(s.canvas), neutralLight: some(s.border),

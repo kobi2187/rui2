@@ -6,6 +6,8 @@
 import rui_core
 import rui_drawing
 import ../input/popup_field
+import ../scroll_drag
+import ../virtual_rows
 import std/[options, strutils]
 # rui_core does not re-export KeyboardKey: its Menu/Down/Up fields collide with
 # the Menu widget and with rui_drawing's ArrowDirection. A widget that reads
@@ -32,7 +34,13 @@ template closedHeight*(w: untyped): float32 =
 type ComboSource* = proc(): tuple[items: seq[string], selected, hover: int] {.closure.}
   ## What an open ComboList shows, asked of its ComboBox when it paints.
 
+template rowsOf(list: untyped): RowViewport =
+  ## The list's rows as they sit in its bounds, scrolled.
+  rowViewport(list.bounds.y, list.bounds.height, max(1'f32, list.itemHeight), list.scrollY)
+
 definePrimitive(ComboList):
+  ## When the window has less room than the items need (popupRect shrinks it),
+  ## the rows scroll: the wheel, the scroll bar, and `reveal` for the keyboard.
   props:
     itemHeight: float32 = 24.0
     intent: ThemeIntent = Default
@@ -40,6 +48,8 @@ definePrimitive(ComboList):
   state:
     source: ComboSource
     fieldProps: ThemeProps
+    scrollY: float32
+    vbar: VBar
 
   actions:
     onPick(index: int)
@@ -49,14 +59,31 @@ definePrimitive(ComboList):
     widget.floating = true
 
   events:
+    on_mouse_wheel:
+      if widget.source == nil: return false
+      discard widget.rowsWheel(rowsOf(widget), widget.source().items.len,
+                               event.wheelDelta, widget.scrollY)
+      return true
+
     on_mouse_move:
-      let i = int((event.mousePos.y - widget.bounds.y) / widget.itemHeight)
-      if widget.onHover != nil: widget.onHover(i)
+      if widget.source == nil: return false
+      let at = widget.rowsMove(widget.vbar, widget.scrollY, widget.barTrack,
+                               rowsOf(widget), widget.source().items.len, event.mousePos)
+      if at.taken: return true
+      if widget.onHover != nil: widget.onHover(at.row)
       widget.isDirty = true
       return true
 
+    on_mouse_up:
+      return widget.rowsUp(widget.vbar)
+
     on_mouse_down:
-      let i = int((event.mousePos.y - widget.bounds.y) / widget.itemHeight)
+      if widget.source == nil: return true
+      let n = widget.source().items.len
+      if widget.rowsDown(widget.vbar, widget.scrollY, widget.barTrack,
+                         rowsOf(widget), n, event.mousePos):
+        return true
+      let i = rowsOf(widget).rowAt(event.mousePos.y, n)
       if widget.onPick != nil: widget.onPick(i)
       return true
 
@@ -64,12 +91,30 @@ definePrimitive(ComboList):
     if widget.source == nil: return
     let s = widget.source()
     let props = widget.fieldProps
+    let v = rowsOf(widget)
     drawThemedBackground(widget.bounds, props)
-    for i, item in s.items:
-      drawListItem(Rect(x: widget.bounds.x, y: widget.bounds.y + float32(i) * widget.itemHeight,
+    let clip = beginClip(widget.bounds)
+    for i in v.visibleRange(s.items.len):
+      drawListItem(Rect(x: widget.bounds.x, y: v.rowTop(i),
                         width: widget.bounds.width, height: widget.itemHeight),
-                   item, props, selected = i == s.selected, hovered = i == s.hover)
+                   s.items[i], props, selected = i == s.selected, hovered = i == s.hover)
+    endClip(clip)
+    widget.vbar.drawBar(widget.barTrack, v.contentHeight(s.items.len), widget.bounds.height,
+                        widget.scrollY, props)
     drawThemedBorder(widget.bounds, props)
+
+proc viewport*(list: ComboList): RowViewport =
+  ## The list's rows as they sit in its bounds, scrolled.
+  rowsOf(list)
+
+proc reveal*(list: ComboList, index: int) =
+  ## Scroll just enough that row `index` shows (for a highlight moved by a key,
+  ## or the choice as the list opens); nothing when it already does.
+  if list.source == nil or index < 0: return
+  let n = list.source().items.len
+  let v = list.viewport
+  list.scrollY = v.clampScroll(v.scrollToShow(index, n), n)
+  list.isDirty = true
 
 proc letterMatch(items: openArray[string], event: GuiEvent, after: int): int =
   ## The next item after `after` that starts with the letter or digit
@@ -101,7 +146,9 @@ template setOpen(widget: untyped, open: bool) =
     let w = widget
     let wasOpen = w.isOpen
     w.setFieldOpen(w.list, open)
-    if w.isOpen and not wasOpen: w.hoverIndex = w.selectedIndex
+    if w.isOpen and not wasOpen:
+      w.hoverIndex = w.selectedIndex
+      w.list.reveal(w.selectedIndex)
 
 definePrimitive(ComboBox):
   props:
@@ -150,7 +197,9 @@ definePrimitive(ComboBox):
       # The box toggles the list; picks in the list arrive from the list.
       let wasOpen = widget.isOpen
       let taken = widget.popupFieldClick(widget.list)
-      if widget.isOpen and not wasOpen: widget.hoverIndex = widget.selectedIndex
+      if widget.isOpen and not wasOpen:
+        widget.hoverIndex = widget.selectedIndex
+        widget.list.reveal(widget.selectedIndex)
       return taken
 
     on_key_down:
@@ -164,6 +213,7 @@ definePrimitive(ComboBox):
         let moved = highlightKey(event.key, n, widget.hoverIndex)
         if moved >= 0:
           widget.hoverIndex = moved
+          widget.list.reveal(moved)
           widget.isDirty = true
           return true
         case event.key
@@ -179,6 +229,7 @@ definePrimitive(ComboBox):
           let i = letterMatch(widget.items, event, widget.hoverIndex)
           if i < 0: return false
           widget.hoverIndex = i
+          widget.list.reveal(i)
         widget.isDirty = true
         return true
       case event.key
@@ -211,7 +262,8 @@ definePrimitive(ComboBox):
     # The list hangs below the box -- or above it, when the window has no
     # room below.
     let listH = float32(widget.items.len) * widget.itemHeight
-    widget.list.bounds = popupRect(widget.bounds, widget.bounds.width, listH)
+    widget.list.bounds = popupRect(widget.bounds, widget.bounds.width, listH, shrink = true)
+    widget.list.scrollY = widget.list.viewport.clampScroll(widget.list.scrollY, widget.items.len)
     widget.list.itemHeight = widget.itemHeight
 
   render:
