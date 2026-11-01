@@ -5,12 +5,15 @@ VStack - @0,0 1000x760
       Button - @16,47 174x27 tabstop
         Rectangle - @16,47 174x27
         Label - @26,51 154x19
+        Fizz - @16,47 174x27
       Button - @16,86 174x27 tabstop
         Rectangle - @16,86 174x27
         Label - @26,90 154x19
+        Fizz - @16,86 174x27
       Button - @16,125 174x27 tabstop
         Rectangle - @16,125 174x27
         Label - @26,129 154x19
+        Fizz - @16,125 174x27
       Label - @16,164 174x19
       Checkbox - @16,195 174x19 tabstop
       Checkbox - @16,226 174x19 tabstop

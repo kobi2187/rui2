@@ -13,3 +13,4 @@ VStack - @0,0 420x360
   Button reset @20,259 380x39 tabstop
     Rectangle - @20,259 380x39
     Label - @36,267 348x23
+    Fizz - @20,259 380x39

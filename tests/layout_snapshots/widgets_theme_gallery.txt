@@ -30,26 +30,34 @@ VStack - @0,0 760x740
     Button - @24,362 99x39 tabstop
       Rectangle - @24,362 99x39
       Label - @40,370 67x23
+      Fizz - @24,362 99x39
     Button - @131,362 104x39 tabstop
       Rectangle - @131,362 104x39
       Label - @147,370 72x23
+      Fizz - @131,362 104x39
     Button - @243,362 107x39 tabstop
       Rectangle - @243,362 107x39
       Label - @259,370 75x23
+      Fizz - @243,362 107x39
     Button - @358,362 108x39 tabstop
       Rectangle - @358,362 108x39
       Label - @374,370 76x23
+      Fizz - @358,362 108x39
     Button - @474,362 91x39 tabstop
       Rectangle - @474,362 91x39
       Label - @490,370 59x23
+      Fizz - @474,362 91x39
     Button - @573,362 112x39 tabstop
       Rectangle - @573,362 112x39
       Label - @589,370 80x23
+      Fizz - @573,362 112x39
   Spacer - @24,417 712x244
   Row - @24,677 712x39
     Button - @473,677 94x39 tabstop
       Rectangle - @473,677 94x39
       Label - @489,685 62x23
+      Fizz - @473,677 94x39
     Button - @575,677 161x39 tabstop
       Rectangle - @575,677 161x39
       Label - @591,685 129x23
+      Fizz - @575,677 161x39

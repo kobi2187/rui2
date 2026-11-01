@@ -214,6 +214,7 @@ type
     backdrop*: BackdropStyle              # The page behind an open modal
     tipShape*: TipShape                   # Tooltips: a box, or a speech bubble
     glass*: float32                       # Floating panels as frosted glass: the blur, px (0: solid)
+    fizz*: bool                           # Primary buttons fizz with bubbles when clicked
 
     statePreference*: array[ControlRole, StatePreference]
       ## Hover-or-focus-first, per control role. Read on every lookup from the

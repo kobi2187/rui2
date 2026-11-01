@@ -15,6 +15,7 @@ VStack - @0,0 1000x620
   Button - @16,136 968x27 tabstop
     Rectangle - @16,136 968x27
     Label - @26,140 948x19
+    Fizz - @16,136 968x27
   ContextMenu - @420,150 180x62 focused tabstop floating
     MenuItem - @424,154 172x18
     MenuItem - @424,172 172x18
@@ -23,3 +24,4 @@ VStack - @0,0 1000x620
     Button - @16,253 968x27 tabstop
       Rectangle - @16,253 968x27
       Label - @26,257 948x19
+      Fizz - @16,253 968x27

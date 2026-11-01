@@ -5,12 +5,16 @@ Center - @0,0 700x400
       Button festive @51,207 130x44 tabstop
         Rectangle - @51,207 130x44
         Label - @67,217 98x23
+        Fizz - @51,207 130x44
       Button urgent @207,207 130x44 tabstop
         Rectangle - @207,207 130x44
         Label - @223,217 98x23
+        Fizz - @207,207 130x44
       Button selected @363,207 130x44 tabstop
         Rectangle - @363,207 130x44
         Label - @379,217 98x23
+        Fizz - @363,207 130x44
       Button comet @519,207 130x44 tabstop
         Rectangle - @519,207 130x44
         Label - @535,217 98x23
+        Fizz - @519,207 130x44

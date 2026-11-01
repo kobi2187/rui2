@@ -11,35 +11,45 @@ VStack - @0,0 1120x600
     Button - @76,49 66x27 tabstop
       Rectangle - @76,49 66x27
       Label - @86,53 46x19
+      Fizz - @76,49 66x27
     Button - @156,49 66x27 tabstop
       Rectangle - @156,49 66x27
       Label - @166,53 46x19
+      Fizz - @156,49 66x27
     Button - @236,49 66x27 tabstop
       Rectangle - @236,49 66x27
       Label - @246,53 46x19
+      Fizz - @236,49 66x27
     Button - @316,49 66x27 focused tabstop
       Rectangle - @316,49 66x27
       Label - @326,53 46x19
+      Fizz - @316,49 66x27
     Button - @396,49 66x27 tabstop
       Rectangle - @396,49 66x27
       Label - @406,53 46x19
+      Fizz - @396,49 66x27
   Row - @16,90 1088x27
     Label - @16,94 55x19
     Button - @85,90 75x27 tabstop
       Rectangle - @85,90 75x27
       Label - @95,94 55x19
+      Fizz - @85,90 75x27
     Button - @174,90 75x27 tabstop
       Rectangle - @174,90 75x27
       Label - @184,94 55x19
+      Fizz - @174,90 75x27
     Button - @263,90 75x27 tabstop
       Rectangle - @263,90 75x27
       Label - @273,94 55x19
+      Fizz - @263,90 75x27
     Button - @352,90 75x27 focused tabstop
       Rectangle - @352,90 75x27
       Label - @362,94 55x19
+      Fizz - @352,90 75x27
     Button - @441,90 75x27 tabstop
       Rectangle - @441,90 75x27
       Label - @451,94 55x19
+      Fizz - @441,90 75x27
   Row - @16,131 1088x19
     Label - @16,131 72x19
     Checkbox - @102,131 38x19 tabstop

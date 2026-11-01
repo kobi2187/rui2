@@ -5,8 +5,10 @@ VStack - @0,0 380x420
     Button add @248,65 68x39 tabstop
       Rectangle - @248,65 68x39
       Label - @264,73 36x23
+      Fizz - @248,65 68x39
   ListBox list @20,114 300x150 tabstop
   Label count @20,274 340x23
   Button clear @20,307 340x39 tabstop
     Rectangle - @20,307 340x39
     Label - @36,315 308x23
+    Fizz - @20,307 340x39

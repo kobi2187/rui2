@@ -73,6 +73,7 @@ type
     focusGlow*: float32       ## px: a soft glow of the accent around the focused control
     speechBubbleTips*: bool   ## tooltips as speech bubbles pointing at the pointer
     glass*: float32           ## px: floating panels as frosted glass over the page blurred
+    fizz*: bool               ## primary buttons release rising bubbles when clicked
     background*: string       ## a picture tiled behind everything: "tile:wood" (tiles.nim)
                               ## or a PNG path; none if ""
     backgroundTint*: Color    ## multiplies it (colours a see-through tile); white if unset
@@ -178,6 +179,7 @@ proc brandTheme*(spec: BrandSpec): Theme =
   result.backdrop = s.backdrop
   if s.speechBubbleTips: result.tipShape = tsBubble
   result.glass = max(0'f32, s.glass)
+  result.fizz = s.fizz
   if s.background.len > 0:
     result.assets.backgroundPattern = some(s.background)
     if s.backgroundTint.isSet: result.assets.backgroundTint = some(s.backgroundTint)

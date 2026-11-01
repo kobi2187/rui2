@@ -3,9 +3,11 @@ VStack root @0,0 680x560
   Button askBtn @20,56 640x39 tabstop
     Rectangle - @20,56 640x39
     Label - @36,64 608x23
+    Fizz - @20,56 640x39
   Button openBtn @20,107 640x39 tabstop
     Rectangle - @20,107 640x39
     Label - @36,115 608x23
+    Fizz - @20,107 640x39
   Label t1 @20,158 640x23
   FilePicker embedded @20,193 600x260
     VStack - @20,193 600x260
@@ -36,17 +38,22 @@ VStack root @0,0 680x560
               Button - @414,429 106x39 tabstop
                 Rectangle - @414,429 106x39
                 Label - @430,437 74x23
+                Fizz - @414,429 106x39
               Button - @526,429 80x39 tabstop
                 Rectangle - @526,429 80x39
                 Label - @542,437 48x23
+                Fizz - @526,429 80x39
       Row - @22,484 636x34
         Button - @22,481 151x39 tabstop
           Rectangle - @22,481 151x39
           Label - @38,489 119x23
+          Fizz - @22,481 151x39
         Row - @181,501 285x0
         Button - @474,481 94x39 tabstop
           Rectangle - @474,481 94x39
           Label - @490,489 62x23
+          Fizz - @474,481 94x39
         Button - @576,481 82x39 tabstop
           Rectangle - @576,481 82x39
           Label - @592,489 50x23
+          Fizz - @576,481 82x39

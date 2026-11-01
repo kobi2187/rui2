@@ -41,7 +41,8 @@ proc comicSpec*(): BrandSpec =
 
 proc sodaSpec*(): BrandSpec =
   ## A 90s soda commercial: neon teal and magenta on midnight navy, bubbly
-  ## corners, glossy buttons, carbonation behind.
+  ## corners, glossy buttons that fizz when the main action is clicked,
+  ## carbonation behind.
   BrandSpec(name: "Soda", dark: true, accent: hex"#00F0FF", onAccent: hex"#0F0C1B",
             canvas: hex"#0F0C1B", surface: hex"#1C1733", text: hex"#F4F1FF",
             border: hex"#3E3370", radius: 18, controlHeight: 40, paddingX: 22,
@@ -52,7 +53,7 @@ proc sodaSpec*(): BrandSpec =
             danger: hex"#FF4FA3",
             background: "tile:bubbles", backgroundTint: hex"#00F0FF",
             backgroundOpacity: 0.11,
-            gloss: 0.6)
+            gloss: 0.6, fizz: true)
 
 proc cyberpunkSpec*(): BrandSpec =
   ## Cyberpunk HUD: laser cyan on deep space, notched corners, thin outlines,

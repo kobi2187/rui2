@@ -28,6 +28,7 @@ import ../press
 import rui_drawing
 import ../primitives/rectangle
 import ../input/textarea   # the caption is a Label, i.e. a non-editable TextArea
+import fizz                # a soda theme's bubbles, on a primary button's click
 import raylib
 import std/[options, json]
 
@@ -55,6 +56,7 @@ defineWidget(Button):
     widget.addChild(newRectangle(filled = true))
     widget.addChild(newLabel(text = "", fontSize = 14.0,
                              align = TextAlign.Center))
+    widget.addChild(newFizz())       # bubbles over the body, in a theme with `fizz`
 
   events:
     on_mouse_down: return widget.pressDown(event, not widget.disabled)
@@ -63,6 +65,8 @@ defineWidget(Button):
 
     on_mouse_up:
       return widget.pressUp(event):
+        if currentTheme.fizz and widget.intent == Info:
+          Fizz(widget.children[2]).burst()     # a soda theme's carbonation
         if widget.onClick != nil: widget.onClick()
 
   layout:
@@ -123,6 +127,9 @@ defineWidget(Button):
     bg.borderWidth = props.strokeWidth +
                      (if widget.focused: props.focusRingWidth.get(2.0) else: 0.0f32)
     bg.bounds = body
+    let fizz = Fizz(widget.children[2])
+    fizz.bounds = body
+    fizz.color = textColor.withAlpha(0.8)
     bg.finish = props.boxFinish
     # A bevelled theme draws its 3D edge (inverted while pressed) instead of an
     # outline, and shows focus by a ring inside it rather than a fatter border.

@@ -74,6 +74,12 @@ own shape. The App names the page it has just drawn while it composites the
 overlays, and each panel's chrome frosts its area (`drawFrosted`). Cyberpunk
 has it. Modals already have their own backdrop (`backdrop:` above).
 
+### Fizz
+
+`fizz: true` (a brand's `fizz`) sends bubbles rising through a primary (Info)
+button when it is clicked, for under a second: soda has it. The bubbles are a
+`Fizz` primitive inside the button; with motion none they never start.
+
 ### Background tiles
 
 Any PNG can be tiled behind everything; ten ship with rui, built into the

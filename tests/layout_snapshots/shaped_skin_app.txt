@@ -6,6 +6,8 @@ Column - @20,10 381x351
     Button clickBtn @70,229 111x39 tabstop
       Rectangle - @70,229 111x39
       Label - @86,237 79x23
+      Fizz - @70,229 111x39
     Button closeBtn @189,229 82x39 tabstop
       Rectangle - @189,229 82x39
       Label - @205,237 50x23
+      Fizz - @189,229 82x39
