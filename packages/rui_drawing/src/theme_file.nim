@@ -77,6 +77,8 @@ type
     insetShadowDepth: Option[float32]
     insetShadowOpacity: Option[float32]
     dropShadowBlur: Option[float32]
+    cornerCut, gloss, relief: Option[float32]
+    dimensionLines: Option[bool]
     # Text
     fontFamily: Option[string]
     fontWeight: Option[string]      ## light, regular, medium, semibold, bold, extrabold
@@ -134,13 +136,15 @@ type
     accent, onAccent, canvas, surface, text, border: Option[string]
     info, success, warning, danger, shadowColor: Option[string]
     radius, fontSize, padding, paddingX: Option[float32]
-    fontFamily: Option[string]
+    fontFamily, headingFont: Option[string]
     borderWidth, focusRingWidth, shadow: Option[float32]
     borderless, boldCaptions, uppercaseCaptions: Option[bool]
     controlHeight, indicatorSize, trackThickness, thumbSize: Option[float32]
     progressHeight, rowHeight, scrollbarThickness: Option[float32]
     transitionMs: Option[float32]
     noTransitions: Option[bool]
+    cornerCut, gloss, relief, focusGlow: Option[float32]
+    dimensionLines: Option[bool]
 
   ThemeFile* {.sparse.} = object
     ## Top-level theme file structure (JSON or YAML)
@@ -156,6 +160,8 @@ type
     animation: Option[AnimationFile]
     backdrop: Option[BackdropFile]
     background: Option[BackgroundFile]
+    headingFont: Option[string]
+      ## The font titles and headings use; the body font when left out.
     brand: Option[BrandFile]
       ## A whole theme from a handful of brand choices (see brand_themes.nim).
       ## It replaces `extends`; `base` and `states` still override it.
@@ -267,6 +273,10 @@ proc toThemeProps*(fp: ThemePropsFile): ThemeProps =
   result.insetShadowDepth = fp.insetShadowDepth
   result.insetShadowOpacity = fp.insetShadowOpacity
   result.dropShadowBlur = fp.dropShadowBlur
+  result.cornerCut = fp.cornerCut
+  result.gloss = fp.gloss
+  result.relief = fp.relief
+  result.dimensionLines = fp.dimensionLines
   result.fontFamily = fp.fontFamily
   if fp.fontWeight.isSome:
     result.fontWeight = some(case fp.fontWeight.get().toLowerAscii()
@@ -332,7 +342,8 @@ proc toBrandSpec*(bf: BrandFile): BrandSpec =
     warning: color(bf.warning), danger: color(bf.danger),
     shadowColor: color(bf.shadowColor),
     radius: num(bf.radius), fontSize: num(bf.fontSize),
-    fontFamily: bf.fontFamily.get(""), padding: num(bf.padding),
+    fontFamily: bf.fontFamily.get(""), headingFont: bf.headingFont.get(""),
+    padding: num(bf.padding),
     paddingX: num(bf.paddingX), borderWidth: num(bf.borderWidth),
     borderless: bf.borderless.get(false), focusRingWidth: num(bf.focusRingWidth),
     boldCaptions: bf.boldCaptions.get(false),
@@ -341,7 +352,9 @@ proc toBrandSpec*(bf: BrandFile): BrandSpec =
     trackThickness: num(bf.trackThickness), thumbSize: num(bf.thumbSize),
     progressHeight: num(bf.progressHeight), rowHeight: num(bf.rowHeight),
     scrollbarThickness: num(bf.scrollbarThickness),
-    transitionMs: num(bf.transitionMs), noTransitions: bf.noTransitions.get(false))
+    transitionMs: num(bf.transitionMs), noTransitions: bf.noTransitions.get(false),
+    cornerCut: num(bf.cornerCut), gloss: num(bf.gloss), relief: num(bf.relief),
+    focusGlow: num(bf.focusGlow), dimensionLines: bf.dimensionLines.get(false))
 
 proc toTheme*(tf: ThemeFile, resolver: proc(name: string): Theme): Theme =
   ## Convert a ThemeFile to a Theme, resolving extends via resolver
@@ -407,6 +420,7 @@ proc toTheme*(tf: ThemeFile, resolver: proc(name: string): Theme): Theme =
     if b.color.isSome: result.backdrop.color = some(parseColor(b.color.get()))
     if b.blur.isSome: result.backdrop.blur = b.blur
     if b.saturation.isSome: result.backdrop.saturation = b.saturation
+  if tf.headingFont.isSome: result.typography.headingFont = tf.headingFont
   if tf.background.isSome:
     let bg = tf.background.get()
     if bg.image.isSome: result.assets.backgroundPattern = bg.image
@@ -571,6 +585,10 @@ proc propsToJson*(p: ThemeProps): JsonNode =
   number "insetShadowDepth", p.insetShadowDepth
   number "insetShadowOpacity", p.insetShadowOpacity
   number "dropShadowBlur", p.dropShadowBlur
+  number "cornerCut", p.cornerCut
+  number "gloss", p.gloss
+  number "relief", p.relief
+  if p.dimensionLines.isSome: result["dimensionLines"] = newJBool(p.dimensionLines.get)
   if p.fontFamily.isSome: result["fontFamily"] = newJString(p.fontFamily.get)
   if p.fontWeight.isSome:
     result["fontWeight"] = newJString(case p.fontWeight.get
@@ -678,6 +696,8 @@ proc themeToJson*(theme: Theme): JsonNode =
     background["opacity"] = num(assets.backgroundPatternOpacity.get)
   if assets.backgroundScale.isSome: background["scale"] = num(assets.backgroundScale.get)
   if assets.backgroundTint.isSome: background["tint"] = newJString(formatColor(assets.backgroundTint.get))
+  if theme.typography.headingFont.isSome:
+    result["headingFont"] = newJString(theme.typography.headingFont.get)
   if background.len > 0: result["background"] = background
 
 proc yamlScalar(node: JsonNode): string =

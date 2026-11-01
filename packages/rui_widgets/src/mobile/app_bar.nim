@@ -75,9 +75,7 @@ defineWidget(AppBar):
       let s = measureText(widget.leading, g)
       drawStyledText(widget.leading, r.x + (r.width - s.width) / 2, r.y + (r.height - s.height) / 2, g)
       x = r.x + r.width + 8
-    var t = props.captionStyle(ink)
-    t.fontSize = props.fontSize.get(14) * 1.4
-    t.bold = true
+    let t = props.headingStyle(ink, 1.4)
     if widget.subtitle.len > 0:
       var st = props.captionStyle(ink.withAlpha(0.65))
       st.fontSize = max(10'f32, st.fontSize - 2)

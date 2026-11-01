@@ -1229,3 +1229,78 @@ suite "BeOS theme":
   test "its window titles are tabs, and a theme without a titleColor is not":
     check be.titleColor.isSome
     check createLightTheme().titleColor.isNone
+
+suite "theme: heading font":
+  proc noExtends(name: string): Theme = newTheme(name)
+
+  test "a brand's heading font reaches headings, and only headings":
+    setCurrentTheme(brandTheme(BrandSpec(name: "H", accent: hex"#225588", canvas: hex"#FFFFFF",
+                                         surface: hex"#FFFFFF", text: hex"#111111",
+                                         border: hex"#999999", fontFamily: "Inter",
+                                         headingFont: "Playfair Display")))
+    defer: setCurrentTheme(newTheme("default"))
+    let props = currentTheme.getThemeProps(Default, Normal)
+    check props.headingStyle(BLACK).fontFamily == "Playfair Display"
+    check props.headingStyle(BLACK).bold
+    check props.headingStyle(BLACK, 2).fontSize == props.fontSize.get(14) * 2
+    check props.captionStyle(BLACK).fontFamily != "Playfair Display"   # body text keeps its font
+
+  test "a theme without one uses its body font for headings":
+    setCurrentTheme(brandTheme(BrandSpec(name: "B", accent: hex"#225588", canvas: hex"#FFFFFF",
+                                         surface: hex"#FFFFFF", text: hex"#111111",
+                                         border: hex"#999999", fontFamily: "Inter")))
+    defer: setCurrentTheme(newTheme("default"))
+    check themeHeadingFamily == "Inter"
+
+  test "the heading font is read from a file and written back":
+    let t = parseTheme("name: T\nheadingFont: Zilla Slab\n", tffYaml, noExtends)
+    check t.typography.headingFont == some("Zilla Slab")
+    check parseTheme(t.toYaml, tffYaml, noExtends).typography.headingFont == some("Zilla Slab")
+    let b = parseTheme("name: T\nbrand:\n  accent: \"#225588\"\n  headingFont: Arvo\n", tffYaml, noExtends)
+    check b.typography.headingFont == some("Arvo")
+
+suite "theme: control finish":
+  proc noExtends(name: string): Theme = newTheme(name)
+
+  test "a brand's finish reaches every intent; wells are carved and never glossy":
+    let t = brandTheme(BrandSpec(name: "F", accent: hex"#225588", canvas: hex"#FFFFFF",
+                                 surface: hex"#FFFFFF", text: hex"#111111", border: hex"#999999",
+                                 cornerCut: 6, gloss: 0.5, relief: 2, dimensionLines: true))
+    for intent in ThemeIntent:
+      let f = t.getThemeProps(intent, Normal).boxFinish
+      check f.cut == 6 and f.gloss == 0.5 and f.relief == 2 and f.dimension
+    let well = t.getThemeProps(Default, Normal).boxFinish(well = true)
+    check well.relief == -2 and well.gloss == 0 and well.cut == 6
+
+  test "a theme without a finish draws plain boxes":
+    let f = brandTheme(daylightSpec()).getThemeProps(Default, Normal).boxFinish
+    check f == BoxFinish()
+
+  test "the finish is read from a file and written back":
+    let t = parseTheme("""
+name: F
+base:
+  default:
+    cornerCut: 8
+    gloss: 0.4
+    relief: -1.5
+    dimensionLines: true
+""", tffYaml, noExtends)
+    let p = t.getThemeProps(Default, Normal)
+    check p.cornerCut == some(8'f32) and p.gloss == some(0.4'f32)
+    check p.relief == some(-1.5'f32) and p.dimensionLines == some(true)
+    let again = parseTheme(t.toYaml, tffYaml, noExtends).getThemeProps(Default, Normal)
+    check again.cornerCut == p.cornerCut and again.dimensionLines == p.dimensionLines
+    let b = parseTheme("name: B\nbrand:\n  accent: \"#225588\"\n  cornerCut: 5\n  focusGlow: 6\n",
+                       tffYaml, noExtends)
+    check b.getThemeProps(Info, Normal).cornerCut == some(5'f32)
+    check b.getThemeProps(Default, Focused).focusGlowRadius == some(6'f32)
+
+  test "a theme with a focus glow puts it on the focus ring, which draws it unclipped":
+    setCurrentTheme(brandTheme(cyberpunkSpec()))
+    defer: setCurrentTheme(newTheme("default"))
+    let p = currentTheme.getThemeProps(Default, Focused)
+    check p.focusGlowRadius.get(0) > 0 and p.focusGlowColor.isSome
+    let ring = newFocusRing()
+    check ring.chrome != nil              # drawn in screen space, under the ring
+    check brandTheme(daylightSpec()).getThemeProps(Default, Focused).focusGlowColor.isNone

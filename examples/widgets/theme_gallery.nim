@@ -36,7 +36,7 @@ let root = ui:
   VStack(spacing = 16.0, padding = 24.0):
     Row(spacing = 12.0):
       Expanded():
-        title = Label(text = "", fontSize = 24.0, bold = true)
+        title = Label(text = "", fontSize = 24.0, heading = true)
       switcher = ComboBox(items = names, initialSelectedIndex = 0)
 
     # A form: labels in a column as wide as the widest, inputs taking the rest.

@@ -85,4 +85,8 @@ proc drawModalFrame*(modal: Widget, panel: Rect, title: string,
     return
   let titleProps = currentTheme.getThemeProps(intent, Selected)
   drawThemedBackground(titleRect, titleProps)
-  drawThemedPaddedText(title, titleRect, titleProps, selected = true)
+  let ink = readableInk(titleProps.foregroundColor.get(Color(r: 0, g: 0, b: 0, a: 255)),
+                        titleProps.backgroundColor.get(Color(r: 255, g: 255, b: 255, a: 255)), 4.5)
+  let style = titleProps.headingStyle(ink)
+  drawStyledText(title, titleRect.x + titleProps.fieldInset,
+                 titleRect.y + (titleRect.height - measureText(title, style).height) / 2, style)

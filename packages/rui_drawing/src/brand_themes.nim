@@ -40,6 +40,7 @@ type
     radius*: float32        ## corner radius for every control
     fontSize*: float32      ## 14 if unset
     fontFamily*: string     ## "" is the system sans
+    headingFont*: string    ## titles and headings; fontFamily if ""
     padding*: float32       ## vertical padding inside controls; 8 if unset
     paddingX*: float32      ## horizontal padding in buttons; 2 x padding if unset
 
@@ -64,6 +65,12 @@ type
     highContrast*: bool       ## hover, press and selection invert (ink on surface becomes
                               ## surface on ink) and the focus ring is the opaque accent
     backdrop*: BackdropStyle  ## the page behind an open modal; half-dark if unset
+    # Surface finish (drawFinishedBox / boxFinish): the material of the controls.
+    cornerCut*: float32       ## corners cut off at 45 degrees this deep (notches); 0 none
+    gloss*: float32           ## 0..1: a sheen over the top half of buttons
+    relief*: float32          ## px: a rim lit from above, buttons raised and fields carved
+    dimensionLines*: bool     ## outlines drawn as a technical drawing's
+    focusGlow*: float32       ## px: a soft glow of the accent around the focused control
     background*: string       ## a picture tiled behind everything: "tile:wood" (tiles.nim)
                               ## or a PNG path; none if ""
     backgroundTint*: Color    ## multiplies it (colours a see-through tile); white if unset
@@ -180,6 +187,8 @@ proc brandTheme*(spec: BrandSpec): Theme =
   if s.fontFamily.len > 0:
     result.typography.primaryFont = some(s.fontFamily)
     result.typography.secondaryFont = some(s.fontFamily)
+  if s.headingFont.len > 0:
+    result.typography.headingFont = some(s.headingFont)
   if s.boldCaptions:
     result.typography.headingWeight = some(Bold)
   result.animation.durationFast =
@@ -214,6 +223,13 @@ proc brandTheme*(spec: BrandSpec): Theme =
     if s.shadow > 0:
       result.dropShadowOffset = some((s.shadow, s.shadow))
       result.dropShadowColor = some(s.shadowColor)
+    if s.cornerCut > 0: result.cornerCut = some(s.cornerCut)
+    if s.gloss > 0: result.gloss = some(s.gloss)
+    if s.relief != 0: result.relief = some(s.relief)
+    if s.dimensionLines: result.dimensionLines = some(true)
+    if s.focusGlow > 0:
+      result.focusGlowRadius = some(s.focusGlow)
+      result.focusGlowColor = some(alpha(s.accent, 0.7))
 
   var default = shaped(ThemeProps(
     backgroundColor: some(s.surface), foregroundColor: some(s.text),

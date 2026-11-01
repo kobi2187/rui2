@@ -123,6 +123,7 @@ defineWidget(Button):
     bg.borderWidth = props.strokeWidth +
                      (if widget.focused: props.focusRingWidth.get(2.0) else: 0.0f32)
     bg.bounds = body
+    bg.finish = props.boxFinish
     # A bevelled theme draws its 3D edge (inverted while pressed) instead of an
     # outline, and shows focus by a ring inside it rather than a fatter border.
     let bevel = props.bevelStyle.get(Flat)

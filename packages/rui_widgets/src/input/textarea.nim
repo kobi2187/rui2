@@ -305,8 +305,11 @@ template contentOf*(widget: untyped): TextContent =
   ## editing, line by line, so both are off while `editable`.
   TextContent(
     text: widget.text,
-    style: textStyle(widget.fontSizeOf, widget.textColor, widget.fontFamily,
-                     widget.bold, widget.italic, widget.underline),
+    style: textStyle(widget.fontSizeOf, widget.textColor,
+                     (if widget.heading and widget.fontFamily.len == 0: themeHeadingFamily
+                      else: widget.fontFamily),
+                     widget.bold or (widget.heading and themeHeadingBold),
+                     widget.italic, widget.underline),
     align: widget.align,
     wrap: widget.wrap and not widget.editable,
     markup: widget.markup and not widget.editable,
@@ -640,6 +643,7 @@ definePrimitive(TextArea):
     color: Color = ThemeColor    ## Transparent: use the theme's foreground
     fontFamily: string = ""      ## "" resolves to the system Sans alias
     bold: bool = false
+    heading: bool = false        ## a title: the theme's heading font and weight
     italic: bool = false
     underline: bool = false
     align: TextAlign = TextAlign.Left
@@ -899,7 +903,7 @@ definePrimitive(TextArea):
     let props = widget.themeProps(widget.intent, crText, disabled = widget.disabled)
     if widget.framed:
       if not drawBevelBody(widget.bounds, props, props.fieldColor, style = some(BeSunken)):
-        drawInteractiveBox(widget.bounds, props, focused = widget.focused)
+        drawInteractiveBox(widget.bounds, props, focused = widget.focused, well = true)
       elif widget.focused:
         # A bevelled field shows focus as a ring inside its sunken edge.
         drawThemedFocusRing(widget.bounds, props)
@@ -957,14 +961,15 @@ type
 
 proc newLabel*(text = "", fontSize: float32 = ThemeFontSize, color: Color = ThemeColor,
                fontFamily = "", bold = false, italic = false, underline = false,
-               align = TextAlign.Left, wrap = false, markup = false): Label =
+               align = TextAlign.Left, wrap = false, markup = false,
+               heading = false): Label =
   ## Display text, in the theme's text colour unless given one. It was black
   ## by default, which vanished on every dark theme.
   newTextArea(initialText = text, placeholder = "", fontSize = fontSize,
               color = color, fontFamily = fontFamily, bold = bold,
               italic = italic, underline = underline, align = align,
               wrap = wrap, markup = markup, editable = false,
-              multiline = true, framed = false, padding = 0.0)
+              multiline = true, framed = false, padding = 0.0, heading = heading)
 
 proc newTextInput*(initialText = "", placeholder = "Type here...",
                    fontSize: float32 = ThemeFontSize, maxLength = -1,

@@ -104,9 +104,7 @@ definePrimitive(Splash):
                   Vector2(x: 0, y: 0), 0, fade(WHITE))
       y += 16
     if widget.title.len > 0:
-      var t = props.captionStyle(fade(ink))
-      t.fontSize = props.fontSize.get(14.0) * 2      # a heading: twice the theme's text
-      t.bold = true
+      let t = props.headingStyle(fade(ink), 2)      # a heading: twice the theme's text
       drawStyledText(widget.title, cx, y, t, centered = true)
       y += t.fontSize * 1.4
     if widget.subtitle.len > 0:

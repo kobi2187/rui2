@@ -11,7 +11,7 @@
 import rui_core
 import theme_sys_core
 import theme_check
-import primitives/[shapes, text, controls, indicators, panels]
+import primitives/[shapes, text, controls, indicators, panels, sdf]
 import pango_text  # drawTextPango
 import effects/rect_effects
 
@@ -73,6 +73,12 @@ proc captionStyle*(props: ThemeProps, color: Color,
             fontSize: props.fontSize.get(size), color: color,
             bold: action and props.isBold, italic: false, underline: false)
 
+proc headingStyle*(props: ThemeProps, color: Color, scale = 1.0'f32): TextStyle =
+  ## A title's style: the theme's heading font and weight, at `scale` times its
+  ## text size. Body text and captions keep the body font (captionStyle).
+  TextStyle(fontFamily: themeHeadingFamily, fontSize: props.fontSize.get(14.0) * scale,
+            color: color, bold: themeHeadingBold)
+
 proc captionText*(props: ThemeProps, text: string): string =
   ## A button caption as the theme shows it: in capitals, if the theme says
   ## so. Only action captions take this -- list rows and field text do not.
@@ -103,16 +109,27 @@ proc bodyRect*(rect: Rect, props: ThemeProps, pressed = false): Rect =
     result.x += o.x
     result.y += o.y
 
+proc boxFinish*(props: ThemeProps, well = false): BoxFinish =
+  ## The theme's surface finish for a control's box (see ThemeProps:
+  ## cornerCut, gloss, relief, dimensionLines). A `well` -- a text field, a
+  ## list -- is carved where buttons are raised, and takes no gloss.
+  let relief = props.relief.get(0)
+  BoxFinish(cut: props.cornerCut.get(0),
+            gloss: (if well: 0'f32 else: props.gloss.get(0)),
+            relief: (if well: -abs(relief) else: relief),
+            dimension: props.dimensionLines.get(false))
+
 proc drawDropShadow*(rect: Rect, props: ThemeProps, pressed = false) =
   ## The hard shadow behind a control's body, unless it is pressed into it.
+  ## The body's shape: notched corners cast notched shadows.
   let o = props.shadowOffset
   if pressed or (o.x <= 0 and o.y <= 0):
     return
   let body = bodyRect(rect, props)
   let color = props.dropShadowColor.get(Color(r: 0, g: 0, b: 0, a: 255))
-  drawRoundedRect(Rect(x: body.x + o.x, y: body.y + o.y,
-                       width: body.width, height: body.height),
-                  props.cornerRadius.get(4.0), color)
+  drawBox(Rect(x: body.x + o.x, y: body.y + o.y, width: body.width, height: body.height),
+          props.cornerRadius.get(4.0), color, color, 0,
+          BoxFinish(cut: props.cornerCut.get(0)))
 
 proc getPaddingLeft*(props: ThemeProps, default: float32): float32 =
   props.padding.get(EdgeInsets(left: default, top: default, right: default, bottom: default)).left
@@ -217,8 +234,8 @@ proc drawThemedBackground*(rect: Rect, props: ThemeProps,
     if drawBevelBody(rect, props, props.fieldColor, style = some(BeSunken)): return
   elif drawBevelBody(rect, props, backgroundFor(props, pressed, hovered), pressed):
     return
-  drawRoundedRect(rect, props.cornerRadius.get(4.0),
-                  backgroundFor(props, pressed, hovered))
+  let fill = backgroundFor(props, pressed, hovered)
+  drawBox(rect, props.cornerRadius.get(4.0), fill, fill, 0, props.boxFinish(well))
 
 proc drawThemedBorder*(rect: Rect, props: ThemeProps, focused = false, active = false) =
   ## The theme's outline, `borderWidth` deep inside `rect`.
@@ -226,8 +243,14 @@ proc drawThemedBorder*(rect: Rect, props: ThemeProps, focused = false, active = 
   if props.bevelStyle.get(Flat) != Flat:
     return                     # the bevel is the outline
   if w > 0:
-    drawRoundedRectLines(rect, props.cornerRadius.get(4.0), w,
-                         borderFor(props, focused, active))
+    if props.dimensionLines.get(false):
+      drawDimensionOutline(rect, borderFor(props, focused, active), w)
+    elif props.cornerCut.get(0) > 0:
+      drawBox(rect, 0, Color(), borderFor(props, focused, active), w,
+              BoxFinish(cut: props.cornerCut.get(0)))
+    else:
+      drawRoundedRectLines(rect, props.cornerRadius.get(4.0), w,
+                           borderFor(props, focused, active))
 
 proc drawThemedFocusRing*(rect: Rect, props: ThemeProps) =
   ## The focus ring: a solid band `focusRingWidth` deep, just inside the
@@ -291,16 +314,29 @@ proc drawRightArrow*(x, y, size: float32, color: Color) =
 # ============================================================================
 
 proc drawInteractiveBox*(rect: Rect, props: ThemeProps,
-                        pressed = false, hovered = false, focused = false) =
+                        pressed = false, hovered = false, focused = false, well = false) =
   ## Standard interactive box: drop shadow, body with its outline, and the
-  ## focus ring -- every one of them sized by the theme.
+  ## focus ring -- every one of them sized by the theme. A `well` (a text
+  ## field) takes the theme's carved finish rather than its raised one.
   drawDropShadow(rect, props, pressed)
   let body = bodyRect(rect, props, pressed)
   if not drawBevelBody(body, props, backgroundFor(props, pressed, hovered), pressed):
     drawBox(body, props.cornerRadius.get(4.0), backgroundFor(props, pressed, hovered),
-            borderFor(props, focused, false), props.strokeWidth)
+            borderFor(props, focused, false), props.strokeWidth, props.boxFinish(well))
   if focused:
     drawThemedFocusRing(body, props)
+
+proc drawFocusGlow*(rect: Rect) =
+  ## The current theme's glow round a focused control (focusGlowRadius and
+  ## focusGlowColor in its Focused state), the control's own shape, reaching
+  ## past `rect`: draw it where nothing clips it (FocusRing's chrome). Nothing
+  ## when the theme has none.
+  let p = currentTheme.getThemeProps(ThemeIntent.Default, ThemeState.Focused)
+  let r = p.focusGlowRadius.get(0)
+  if r <= 0 or p.focusGlowColor.isNone: return
+  let body = bodyRect(rect, p)
+  discard drawSdfShadow(body, max(p.cornerRadius.get(4.0), p.cornerCut.get(0) * 0.6),
+                        0, 0, r, r * 0.25, p.focusGlowColor.get)
 
 proc drawSelectionBackground*(rect: Rect, props: ThemeProps,
                              selected = false, hovered = false) =
@@ -847,7 +883,7 @@ proc drawGroupBox*(rect: Rect, title: string, props: ThemeProps) =
       width: max(1.0'f32, props.strokeWidth),
       radius: props.cornerRadius.get(4.0)
     ),
-    titleStyle: props.captionStyle(textColor, action = true),
+    titleStyle: props.headingStyle(textColor),
     backgroundColor: props.backgroundColor.get(Color(r: 255, g: 255, b: 255, a: 255)),
     titlePosition: TextAlign.Left,
     titlePadding: 8.0f32,

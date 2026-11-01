@@ -44,6 +44,11 @@ type
 var themeFontFamily* = ""
   ## The family a style with no family of its own uses: the current theme's
   ## typography, set by setCurrentTheme. "" is the system sans.
+var themeHeadingFamily* = ""
+  ## The family headings use (a Label with `heading`, dialog and card titles):
+  ## the theme's heading font, else its body font. Set by setCurrentTheme.
+var themeHeadingBold* = true
+  ## Whether headings are bold: the theme's heading weight, bold when unset.
 
 proc pangoFont*(style: TextStyle): string {.inline.} =
   ## Translate a TextStyle into a Pango font description. A style that names

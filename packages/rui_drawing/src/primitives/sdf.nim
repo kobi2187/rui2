@@ -38,22 +38,48 @@ uniform float radius;
 uniform float border;
 uniform vec4 fillColor;
 uniform vec4 borderColor;
+uniform float cut;         // > 0: corners cut off at 45 degrees, this deep (a notch)
+uniform float gloss;       // 0..1: a sheen over the top half
+uniform float relief;      // px: > 0 raised (lit top rim, shaded bottom), < 0 carved
 
 float roundBox(vec2 p, vec2 half_, float r) {
   vec2 q = abs(p) - half_ + r;
   return length(max(q, 0.0)) + min(max(q.x, q.y), 0.0) - r;
 }
 
+float cutBox(vec2 p, vec2 half_, float c) {
+  vec2 q = abs(p) - half_;
+  float box = length(max(q, 0.0)) + min(max(q.x, q.y), 0.0);
+  return max(box, (q.x + q.y + c) * 0.70710678);
+}
+
 void main() {
   vec2 p = (fragTexCoord - 0.5) * (boxSize + 2.0 * margin);
-  float d = roundBox(p, boxSize * 0.5, radius);
+  vec2 half_ = boxSize * 0.5;
+  float d = cut > 0.0 ? cutBox(p, half_, cut) : roundBox(p, half_, radius);
   float outer = 1.0 - smoothstep(-0.5, 0.5, d);          // inside the box
   float inner = 1.0 - smoothstep(-0.5, 0.5, d + border); // inside the border
+  vec3 fill = fillColor.rgb;
+  if (gloss > 0.0) {
+    // A sheen: strongest at the top, gone by the middle, with a soft edge there.
+    float t = clamp((p.y + half_.y) / boxSize.y, 0.0, 1.0);
+    float sheen = gloss * (0.55 * (1.0 - smoothstep(0.0, 0.5, t)) + 0.12);
+    fill = mix(fill, vec3(1.0), sheen * (1.0 - smoothstep(0.46, 0.5, t)));
+  }
+  if (relief != 0.0) {
+    // A rim `relief` deep inside the edge, lit from above: lighter at the top
+    // and darker at the bottom when raised, the other way round when carved.
+    float depth = abs(relief);
+    float rim = 1.0 - clamp(-(d + border) / depth, 0.0, 1.0);
+    float side = clamp(-p.y / max(half_.y, 1.0), -1.0, 1.0) * sign(relief);
+    float k = rim * side * 0.45;
+    fill = k > 0.0 ? mix(fill, vec3(1.0), k) : mix(fill, vec3(0.0), -k);
+  }
   // Blend fill over border in premultiplied space (no dark fringe), then
   // hand back straight colour and the box's coverage as alpha.
   float a = borderColor.a * (1.0 - inner) + fillColor.a * inner;
   vec3 c = borderColor.rgb * borderColor.a * (1.0 - inner) +
-           fillColor.rgb * fillColor.a * inner;
+           fill * fillColor.a * inner;
   finalColor = vec4(c / max(a, 0.0001), a * outer);
 }
 """
@@ -223,14 +249,24 @@ proc drawQuad(s: ptr GlShader, quad: Rect) =
               Vector2(x: 0, y: 0), 0.0, White)
   endShaderMode()
 
+type BoxFinish* = object
+  ## How a box's surface is finished, beyond its fill and border (all off by
+  ## default): corners `cut` off at 45 degrees this deep (a notch), a `gloss`
+  ## sheen over the top half (0..1), a `relief` rim this many pixels deep --
+  ## raised (lit top, shaded bottom) when positive, carved when negative.
+  ## `dimension`: the outline drawn as a technical drawing's (shapes.drawBox).
+  cut*, gloss*, relief*: float32
+  dimension*: bool
+
 proc drawSdfBox*(rect: Rect, radius, borderWidth: float32,
-                 fill, border: Color): bool =
+                 fill, border: Color, finish = BoxFinish()): bool =
   ## Fill and an inset border in one pass. `radius` is in pixels and is capped
-  ## at half the short side.
+  ## at half the short side; `finish` notches, glosses or embosses it.
   if rect.width <= 0 or rect.height <= 0:
     return true
   let s = boxState.ready(sdfFragment,
-    ["boxSize", "margin", "radius", "border", "fillColor", "borderColor"])
+    ["boxSize", "margin", "radius", "border", "fillColor", "borderColor",
+     "cut", "gloss", "relief"])
   if s == nil: return false
   const margin = 1.0'f32
   let r = clamp(radius, 0.0'f32, min(rect.width, rect.height) / 2)
@@ -240,6 +276,9 @@ proc drawSdfBox*(rect: Rect, radius, borderWidth: float32,
   setShaderValue(s.shader, s.locs[3], max(0.0'f32, borderWidth))
   setShaderValue(s.shader, s.locs[4], norm(fill))
   setShaderValue(s.shader, s.locs[5], norm(border))
+  setShaderValue(s.shader, s.locs[6], clamp(finish.cut, 0'f32, min(rect.width, rect.height) / 2))
+  setShaderValue(s.shader, s.locs[7], clamp(finish.gloss, 0'f32, 1'f32))
+  setShaderValue(s.shader, s.locs[8], finish.relief)
   s.drawQuad(Rect(x: rect.x - margin, y: rect.y - margin,
                   width: rect.width + 2 * margin, height: rect.height + 2 * margin))
   true

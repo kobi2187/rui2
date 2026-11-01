@@ -21,6 +21,6 @@ import tiles;              export tiles        # background tiles built into the
 import textures;           export textures     # pictures from files, loaded once
 import theme_background;   export theme_background  # a theme's tiled picture behind everything
 import primitives/sdf
-export drawSdfBox, drawSdfShadow, drawSdfSegment, drawSdfTriangle, drawSdfImage
+export drawSdfBox, drawSdfShadow, drawSdfSegment, drawSdfTriangle, drawSdfImage, BoxFinish
   # smooth boxes, soft shadows, lines and triangles: what a decoration's own
   # painter (rui_widgets decoration.nim) draws with

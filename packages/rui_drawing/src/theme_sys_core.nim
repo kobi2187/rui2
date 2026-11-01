@@ -39,6 +39,7 @@ type
     monoFont*: Option[string]         # Code, monospace (e.g., "JetBrains Mono")
     defaultWeight*: Option[FontWeight]
     headingWeight*: Option[FontWeight]
+    headingFont*: Option[string]      # Titles and headings; the primary font when unset
     lineHeight*: Option[float32]      # e.g., 1.5
     letterSpacing*: Option[float32]   # e.g., 0.02 for slight spacing
 
@@ -148,6 +149,14 @@ type
     # Inner shadow (inset depth)
     insetShadowDepth*: Option[float32]
     insetShadowOpacity*: Option[float32]
+
+    # Surface finish of a control's box (drawFinishedBox): what gives a theme
+    # its material beyond colour.
+    cornerCut*: Option[float32]         # corners cut off at 45 degrees this deep (notches)
+    gloss*: Option[float32]             # 0..1: a sheen over the top half
+    relief*: Option[float32]            # px: a rim lit from above; > 0 raised, < 0 carved.
+                                        # Wells (fields, lists) are carved where buttons rise.
+    dimensionLines*: Option[bool]       # edges that overshoot the corners, with ticks (a drawing)
     
 
     
@@ -428,6 +437,8 @@ proc setCurrentTheme*(theme: Theme) =
   inc settleEpoch                # a new theme lands at once, without fading
   inc measureEpoch               # and nothing keeps the old theme's sizes
   themeFontFamily = theme.typography.primaryFont.get("")
+  themeHeadingFamily = theme.typography.headingFont.get(themeFontFamily)
+  themeHeadingBold = theme.typography.headingWeight.get(Bold) >= SemiBold
 
 proc makeColor*(r, g, b: int, a: int = 255): Color =
   Color(

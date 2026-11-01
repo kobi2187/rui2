@@ -37,6 +37,29 @@ indigo, a violet grid) and `swiss`, `swiss-klein`, `swiss-dark` (one accent,
 no corners, no shadows, no texture). The personality is palette, geometry,
 type and background tile; the readability checks are the same as everyone's.
 
+### Heading font and control finish
+
+A theme can name a heading font beside its body font: titles (dialog, group
+box, app bar, splash) and `Label(heading = true)` use it, everything else keeps
+the body font. In a brand, `headingFont: "Zilla Slab, Arvo, serif"`; in a file,
+a top-level `headingFont:`.
+
+Beyond colour, a control's box has a finish, set per intent and state like any
+other property (or once in a brand):
+
+| Property | Brand field | What it does |
+|---|---|---|
+| `cornerCut` | `cornerCut` | corners cut off at 45 degrees, this many px (notches); shadows and the focus ring follow |
+| `gloss` | `gloss` | 0..1, a sheen over the top half of buttons |
+| `relief` | `relief` | px, a rim lit from above: buttons raised, text fields and lists carved in |
+| `dimensionLines` | `dimensionLines` | outlines drawn as a technical drawing's: edges past the corners, ticks |
+| `focusGlowRadius` + `focusGlowColor` | `focusGlow` | a soft glow round the control the keyboard has reached |
+
+They are drawn in the box shader, so they follow the shape exactly. The glow
+is drawn by the focus ring overlay, outside the control, so nothing clips it;
+like the ring, it shows while the keyboard is driving. Cyberpunk is notched with
+a glow, soda glossy, woodshop bevelled, blueprint in dimension lines.
+
 ### Background tiles
 
 Any PNG can be tiled behind everything; ten ship with rui, built into the
