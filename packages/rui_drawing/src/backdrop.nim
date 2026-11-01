@@ -29,7 +29,7 @@ import raylib, rlgl
 import rui_core
 import theme_sys_core
 import widget_primitives
-import primitives/[text, sdf]
+import primitives/[text, sdf, shapes]
 import std/[tables, math]
 
 type BackdropPainter* = proc(area: Rect) {.closure.}
@@ -232,3 +232,130 @@ proc drawBackdrop*(modal: Widget, bounds: Rect) =
     drawRenderTexture(picture[], bounds.x - origin.x, bounds.y - origin.y)
   setBlendFactorsSeparate(SrcAlpha, OneMinusSrcAlpha, One, OneMinusSrcAlpha, FuncAdd, FuncAdd)
   beginBlendMode(BlendMode.CustomSeparate)
+
+# ----------------------------------------------------------------------------
+# Frosted glass under a floating panel
+# ----------------------------------------------------------------------------
+##
+## A theme with `glass` (a blur radius) gives floating panels -- menus, open
+## lists, popovers -- a translucent fill over the page blurred behind them. The
+## App names the page it has just put on the screen (`glassPage`) while it
+## composites the overlays; a panel's chrome (`floatingChrome`) calls
+## `drawFrosted` for its own shape, then its texture goes over it.
+
+var glassPage*: ptr RenderTexture2D
+  ## The page under the overlays this frame, and where its top-left is on the
+  ## screen; nil outside compositing. Set by the App.
+var glassPageOrigin*: tuple[x, y: float32]
+
+const glassFragment = """
+#version 330
+in vec2 fragTexCoord;
+uniform sampler2D texture0;
+uniform vec4 uvRect;       // the page area under the panel: u0, v0, u1, v1
+uniform vec2 boxSize;      // the panel, in pixels
+uniform vec2 texel;
+uniform float radius;
+uniform float cut;
+uniform float blur;
+out vec4 finalColor;
+
+float roundBox(vec2 p, vec2 h, float r) {
+  vec2 q = abs(p) - h + r;
+  return length(max(q, 0.0)) + min(max(q.x, q.y), 0.0) - r;
+}
+float cutBox(vec2 p, vec2 h, float c) {
+  vec2 q = abs(p) - h;
+  float box = length(max(q, 0.0)) + min(max(q.x, q.y), 0.0);
+  return max(box, (q.x + q.y + c) * 0.70710678);
+}
+
+void main() {
+  vec2 local = (fragTexCoord - uvRect.xy) / (uvRect.zw - uvRect.xy);
+  vec2 p = (local - 0.5) * boxSize;
+  float d = cut > 0.0 ? cutBox(p, boxSize * 0.5, cut) : roundBox(p, boxSize * 0.5, radius);
+  float inside = 1.0 - smoothstep(-0.5, 0.5, d);
+  float sigma = max(blur, 0.5) / 2.0;
+  vec4 sum = vec4(0.0);
+  float weights = 0.0;
+  for (int i = -5; i <= 5; i++) {
+    for (int j = -5; j <= 5; j++) {
+      vec2 o = vec2(float(i), float(j)) * (blur / 5.0);
+      float w = exp(-dot(o, o) / (2.0 * sigma * sigma));
+      sum += texture(texture0, fragTexCoord + o * texel) * w;
+      weights += w;
+    }
+  }
+  finalColor = (sum / weights) * inside;      // premultiplied, like the page
+}
+"""
+
+type GlassShader = object
+  shader: Shader
+  uvRect, boxSize, texel, radius, cut, blur: ShaderLocation
+  failed: bool
+
+var glassFx: ptr GlassShader   ## loaded on first use, never freed (see `effect`)
+
+proc glassLoaded(): ptr GlassShader =
+  if glassFx != nil:
+    return (if glassFx.failed: nil else: glassFx)
+  if not isWindowReady(): return nil
+  glassFx = create(GlassShader)
+  glassFx.shader = loadShaderFromMemory("", glassFragment)
+  if not isShaderValid(glassFx.shader):
+    glassFx.failed = true
+    return nil
+  for (field, name) in [(addr glassFx.uvRect, "uvRect"), (addr glassFx.boxSize, "boxSize"),
+                        (addr glassFx.texel, "texel"), (addr glassFx.radius, "radius"),
+                        (addr glassFx.cut, "cut"), (addr glassFx.blur, "blur")]:
+    field[] = getShaderLocation(glassFx.shader, name)
+  glassFx
+
+proc drawFrosted*(area: Rect, blur: float32, radius = 0'f32, cut = 0'f32): bool =
+  ## The page behind `area` (screen space), blurred `blur` pixels and cut to the
+  ## panel's shape (`radius` corners, or `cut` notches). False when there is
+  ## nothing to blur (no page named, no shader): the panel is then simply
+  ## translucent. Call it in the compositing blend, where the App calls chrome.
+  if glassPage == nil or blur <= 0 or area.width <= 0 or area.height <= 0: return false
+  let s = glassLoaded()
+  if s == nil: return false
+  template tex: untyped = glassPage[].texture     # borrowed: a Texture cannot be copied
+  let w = tex.width.float32
+  let h = tex.height.float32
+  # The page's texture is stored bottom-up: its row for screen y is h - y. A
+  # negative height flips the source about its rectangle, which then starts at
+  # the area's bottom row.
+  let sx = area.x - glassPageOrigin.x
+  let sy = area.y - glassPageOrigin.y
+  let src = Rectangle(x: sx, y: h - sy - area.height, width: area.width, height: -area.height)
+  setTextureFilter(tex, TextureFilter.Bilinear)
+  setShaderValue(s.shader, s.uvRect, Vector4(x: sx / w, y: (h - sy) / h,
+                                             z: (sx + area.width) / w, w: (h - sy - area.height) / h))
+  setShaderValue(s.shader, s.boxSize, Vector2(x: area.width, y: area.height))
+  setShaderValue(s.shader, s.texel, Vector2(x: 1 / w, y: 1 / h))
+  setShaderValue(s.shader, s.radius, clamp(radius, 0'f32, min(area.width, area.height) / 2))
+  setShaderValue(s.shader, s.cut, max(0'f32, cut))
+  setShaderValue(s.shader, s.blur, blur)
+  beginShaderMode(s.shader)
+  drawTexture(tex, src, Rectangle(x: area.x, y: area.y, width: area.width, height: area.height),
+              Vector2(x: 0, y: 0), 0.0, Color(r: 255, g: 255, b: 255, a: 255))
+  endShaderMode()
+  true
+
+proc floatingChrome*(shadow = true): proc(bounds: Rect) {.closure.} =
+  ## The chrome for a panel that floats above the page, drawn in screen space
+  ## so its own texture does not clip it: its soft shadow (unless `shadow` is
+  ## false), and in a glass theme the page frosted behind it, the panel's shape.
+  result = proc(bounds: Rect) =
+    let props = currentTheme.getThemeProps(Default, Normal)
+    if shadow: drawFloatingShadow(bounds, props)
+    if currentTheme.glass > 0:
+      # The page texture is clear where the window's canvas shows, so the sharp
+      # page already on the screen is covered first, in the panel's shape.
+      let canvas = currentTheme.canvasColor()
+      drawBox(bounds, props.cornerRadius.get(4.0), canvas, canvas, 0,
+              BoxFinish(cut: props.cornerCut.get(0)))
+      discard drawFrosted(bounds, currentTheme.glass, props.cornerRadius.get(4.0),
+                          props.cornerCut.get(0))
+

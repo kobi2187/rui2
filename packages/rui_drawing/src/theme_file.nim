@@ -145,6 +145,7 @@ type
     noTransitions: Option[bool]
     cornerCut, gloss, relief, focusGlow: Option[float32]
     dimensionLines, speechBubbleTips: Option[bool]
+    glass: Option[float32]
 
   ThemeFile* {.sparse.} = object
     ## Top-level theme file structure (JSON or YAML)
@@ -164,6 +165,9 @@ type
       ## The font titles and headings use; the body font when left out.
     tipShape: Option[string]
       ## "box" (the default) or "bubble": tooltips as speech bubbles.
+    glass: Option[float32]
+      ## Floating panels (menus, open lists, popovers) as frosted glass: the
+      ## blur of the page behind them, in pixels. Solid when left out.
     brand: Option[BrandFile]
       ## A whole theme from a handful of brand choices (see brand_themes.nim).
       ## It replaces `extends`; `base` and `states` still override it.
@@ -357,7 +361,7 @@ proc toBrandSpec*(bf: BrandFile): BrandSpec =
     transitionMs: num(bf.transitionMs), noTransitions: bf.noTransitions.get(false),
     cornerCut: num(bf.cornerCut), gloss: num(bf.gloss), relief: num(bf.relief),
     focusGlow: num(bf.focusGlow), dimensionLines: bf.dimensionLines.get(false),
-    speechBubbleTips: bf.speechBubbleTips.get(false))
+    speechBubbleTips: bf.speechBubbleTips.get(false), glass: num(bf.glass))
 
 proc toTheme*(tf: ThemeFile, resolver: proc(name: string): Theme): Theme =
   ## Convert a ThemeFile to a Theme, resolving extends via resolver
@@ -424,6 +428,7 @@ proc toTheme*(tf: ThemeFile, resolver: proc(name: string): Theme): Theme =
     if b.blur.isSome: result.backdrop.blur = b.blur
     if b.saturation.isSome: result.backdrop.saturation = b.saturation
   if tf.headingFont.isSome: result.typography.headingFont = tf.headingFont
+  if tf.glass.isSome: result.glass = max(0'f32, tf.glass.get)
   if tf.tipShape.isSome:
     result.tipShape = case tf.tipShape.get.toLowerAscii
       of "box": tsBox
@@ -708,6 +713,7 @@ proc themeToJson*(theme: Theme): JsonNode =
   if theme.typography.headingFont.isSome:
     result["headingFont"] = newJString(theme.typography.headingFont.get)
   if theme.tipShape == tsBubble: result["tipShape"] = newJString("bubble")
+  if theme.glass > 0: result["glass"] = num(theme.glass)
   if background.len > 0: result["background"] = background
 
 proc yamlScalar(node: JsonNode): string =

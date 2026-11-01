@@ -1326,3 +1326,22 @@ suite "theme: speech-bubble tooltips":
     let bubbleTip = newTooltipTip(text = "Saves the file")
     bubbleTip.layout()
     check bubbleTip.bounds.height >= boxTip.bounds.height + BubbleTail
+
+suite "theme: frosted glass panels":
+  proc noExtends(name: string): Theme = newTheme(name)
+
+  test "a glass theme makes floating panels translucent; a solid one leaves them":
+    setCurrentTheme(brandTheme(cyberpunkSpec()))
+    defer: setCurrentTheme(newTheme("default"))
+    check currentTheme.glass > 0
+    let p = currentTheme.getThemeProps(Default, Normal)
+    check p.glassy.backgroundColor.get.a < p.backgroundColor.get.a
+    setCurrentTheme(brandTheme(daylightSpec()))
+    let q = currentTheme.getThemeProps(Default, Normal)
+    check q.glassy.backgroundColor == q.backgroundColor
+
+  test "glass is read from a file and written back":
+    let t = parseTheme("name: G\nglass: 12\n", tffYaml, noExtends)
+    check t.glass == 12
+    check parseTheme(t.toYaml, tffYaml, noExtends).glass == 12
+    check parseTheme("name: G\nbrand:\n  accent: \"#225588\"\n  glass: 8\n", tffYaml, noExtends).glass == 8

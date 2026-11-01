@@ -66,6 +66,14 @@ a glow, soda glossy, woodshop bevelled, blueprint in dimension lines.
 speech bubbles in the theme's outline, the tail pointing back at the pointer;
 comic has them. `drawSpeechBubble` draws the shape for your own primitives.
 
+### Frosted glass
+
+`glass: 10` (a brand's `glass`) makes floating panels -- menus, popovers, open
+dropdown lists -- translucent over the page blurred behind them, in the panel's
+own shape. The App names the page it has just drawn while it composites the
+overlays, and each panel's chrome frosts its area (`drawFrosted`). Cyberpunk
+has it. Modals already have their own backdrop (`backdrop:` above).
+
 ### Background tiles
 
 Any PNG can be tiled behind everything; ten ship with rui, built into the

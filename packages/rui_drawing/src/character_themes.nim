@@ -56,7 +56,8 @@ proc sodaSpec*(): BrandSpec =
 
 proc cyberpunkSpec*(): BrandSpec =
   ## Cyberpunk HUD: laser cyan on deep space, notched corners, thin outlines,
-  ## a neon glow only round the focused control, scanlines behind.
+  ## a neon glow only round the focused control, menus and lists as frosted
+  ## glass, scanlines behind.
   BrandSpec(name: "Cyberpunk", dark: true, accent: hex"#00F5FF", onAccent: hex"#0B0D17",
             canvas: hex"#0B0D17", surface: hex"#161A2D", text: hex"#E2F6FF",
             border: hex"#2B3560", radius: 2, uppercaseCaptions: true,
@@ -66,7 +67,7 @@ proc cyberpunkSpec*(): BrandSpec =
             danger: hex"#FF3D7F",
             background: "tile:scanlines", backgroundTint: hex"#00F5FF",
             backgroundOpacity: 0.055,
-            cornerCut: 8, focusGlow: 7)
+            cornerCut: 8, focusGlow: 7, glass: 10)
 
 proc woodshopSpec*(): BrandSpec =
   ## Artisan woodworking: walnut ink, oak for actions, pine and brass; buttons

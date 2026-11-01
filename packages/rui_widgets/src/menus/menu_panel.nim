@@ -38,7 +38,7 @@ proc layoutMenuColumn*(widget: Widget, padding, minWidth: float32) =
 
 proc drawMenuPanel*(widget: Widget, intent: ThemeIntent) =
   ## The panel only: the items are composited over it by the render pass.
-  let props = currentTheme.getThemeProps(intent, Normal)
+  let props = currentTheme.getThemeProps(intent, Normal).glassy   # frosted in a glass theme
   drawThemedBackground(widget.bounds, props)
   drawThemedBorder(widget.bounds, props)
 

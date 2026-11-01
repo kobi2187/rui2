@@ -1130,7 +1130,15 @@ proc compositeRoot(app: App) =
     elif app.tree.root != nil and app.tree.root.cachedTexture.isSome:
       drawRenderTexture(app.tree.root.cachedTexture.get(),
                         app.tree.root.bounds.x, app.tree.root.bounds.y)
-    # Then the overlay layer, in the order shown, above the whole tree.
+    # Then the overlay layer, in the order shown, above the whole tree. A glass
+    # theme's panels frost the page just drawn (backdrop.nim drawFrosted).
+    if top != nil and top.cachedTexture.isSome:
+      glassPage = unsafeAddr top.cachedTexture.get()
+      glassPageOrigin = (top.bounds.x, top.bounds.y)
+    elif app.tree.root != nil and app.tree.root.cachedTexture.isSome:
+      glassPage = unsafeAddr app.tree.root.cachedTexture.get()
+      glassPageOrigin = (app.tree.root.bounds.x, app.tree.root.bounds.y)
+    defer: glassPage = nil
     for overlay in overlays():
       if overlay.visible and overlay.cachedTexture.isSome:
         # The chrome first: it may reach past the overlay's bounds, which its

@@ -42,6 +42,7 @@ template setFieldOpen*(widget, popupOf: untyped, wantOpen: bool) =
           hideOverlay(popup)
           w.isDirty = true
           w.layoutDirty = true)
+        popup.chrome = floatingChrome(shadow = false)   # frosted in a glass theme
         showOverlay(popup, interactive = true)
       else:
         closedPopup(w)

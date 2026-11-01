@@ -92,7 +92,7 @@ definePrimitive(ComboList):
     let s = widget.source()
     let props = widget.fieldProps
     let v = rowsOf(widget)
-    drawThemedBackground(widget.bounds, props)
+    drawThemedBackground(widget.bounds, props.glassy)     # frosted in a glass theme
     let clip = beginClip(widget.bounds)
     for i in v.visibleRange(s.items.len):
       drawListItem(Rect(x: widget.bounds.x, y: v.rowTop(i),
