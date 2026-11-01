@@ -106,6 +106,19 @@ What is *drawn* on the frozen page is code, not theme: `setBackdropPainter`
 FOR AN ANSWER")`, `hazardStripes()`, `backdropCaption("Frozen")` -- or any
 `proc(area: Rect)`. It runs once, when the page is pictured.
 
+`background:` is a picture behind everything, tiled over the canvas colour:
+paper, linen, a subtle pattern. `image` is a path relative to the theme file,
+`opacity` (0 to 1) lets the canvas colour through, and `scale` draws each tile
+at that many times its size. Widgets that paint their own background cover
+it; the rest of the window shows it. If the picture can't be loaded, the plain
+canvas colour stays. In code, the same is
+`theme.assets.backgroundPattern = some("paper.png")` (with
+`backgroundPatternOpacity` and `backgroundScale`).
+
+```yaml
+background: {image: textures/paper.png, opacity: 0.6, scale: 2}
+```
+
 Hover-versus-focus priority is the theme's too:
 
 ```yaml

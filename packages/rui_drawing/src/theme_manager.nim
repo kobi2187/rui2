@@ -210,6 +210,9 @@ proc loadFromFile*(tm: ThemeManager, path: string): Theme =
   except ValueError as e:
     # Say which file: the parser only knows it was handed some text.
     raise newException(ValueError, path & ": " & e.msg)
+  # A background picture is named relative to the theme file.
+  if result.assets.backgroundPattern.isSome and not result.assets.backgroundPattern.get.isAbsolute:
+    result.assets.backgroundPattern = some(absolutePath(parentDir(path) / result.assets.backgroundPattern.get))
   # Auto-register under filename if not already registered
   let regName = if result.name.len > 0: result.name
                 else: path.splitFile().name

@@ -1012,6 +1012,9 @@ proc refreshLayout*(app: App) =
   # to follow layout because a widget can be added during it.
   app.tree.registerWidgetRecursive(app.tree.root)
 
+proc windowArea(app: App): Rect =
+  Rect(x: 0, y: 0, width: getScreenWidth().float32, height: getScreenHeight().float32)
+
 proc drawWindowBackground(app: App) =
   ## What is behind the widget tree. The window surround follows the active
   ## theme rather than a hardcoded RayWhite, so a dark theme does not leave a
@@ -1027,8 +1030,10 @@ proc drawWindowBackground(app: App) =
         endBlendMode()
     else:
       clearBackground(currentTheme.canvasColor())
+      drawThemeBackground(currentTheme, app.windowArea)
   else:
     clearBackground(currentTheme.canvasColor())
+    drawThemeBackground(currentTheme, app.windowArea)   # the theme's tiled picture, if any
 
 proc takePicture(app: App, modal: Widget) =
   ## The window as it is -- background and page, without `modal` -- through

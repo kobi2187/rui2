@@ -118,6 +118,13 @@ type
     color: Option[string]
     blur, saturation: Option[float32]
 
+  BackgroundFile* {.sparse.} = object
+    ## A picture behind everything, tiled: `image` (a path, relative to the
+    ## theme file), `opacity` (0 .. 1) over the canvas colour, `scale` (a tile
+    ## at this many times its size).
+    image: Option[string]
+    opacity, scale: Option[float32]
+
   BrandFile* {.sparse.} = object
     ## A `brand:` section: the same choices as `BrandSpec`, colours as strings.
     ## Everything is optional; what is left out takes the spec's own default.
@@ -147,6 +154,7 @@ type
     hint: Option[HintFile]
     animation: Option[AnimationFile]
     backdrop: Option[BackdropFile]
+    background: Option[BackgroundFile]
     brand: Option[BrandFile]
       ## A whole theme from a handful of brand choices (see brand_themes.nim).
       ## It replaces `extends`; `base` and `states` still override it.
@@ -398,6 +406,11 @@ proc toTheme*(tf: ThemeFile, resolver: proc(name: string): Theme): Theme =
     if b.color.isSome: result.backdrop.color = some(parseColor(b.color.get()))
     if b.blur.isSome: result.backdrop.blur = b.blur
     if b.saturation.isSome: result.backdrop.saturation = b.saturation
+  if tf.background.isSome:
+    let bg = tf.background.get()
+    if bg.image.isSome: result.assets.backgroundPattern = bg.image
+    if bg.opacity.isSome: result.assets.backgroundPatternOpacity = bg.opacity
+    if bg.scale.isSome: result.assets.backgroundScale = bg.scale
   if tf.metrics.isSome:
     let m = tf.metrics.get()
     template take(field: untyped) =
@@ -475,6 +488,8 @@ proc validateThemeNode*(root: JsonNode) =
     checkKeys(root["animation"], "animation", fieldNames(AnimationFile))
   if root.hasKey("backdrop"):
     checkKeys(root["backdrop"], "backdrop", fieldNames(BackdropFile))
+  if root.hasKey("background"):
+    checkKeys(root["background"], "background", fieldNames(BackgroundFile))
   if root.hasKey("brand"):
     checkKeys(root["brand"], "brand", fieldNames(BrandFile))
 
@@ -507,7 +522,9 @@ proc parseTheme*(content: string, format: ThemeFileFormat,
 # file of a derived theme names what it changed. Brand-derived themes come out
 # as the base/states tables they were expanded into (the `brand:` shorthand is
 # a way to *write* a theme, not part of one). Not written: `extends` (a Theme
-# no longer knows its parent), and the unused branding fields.
+# no longer knows its parent), and the unused branding fields. A background
+# picture is written as the theme holds it: a file's relative path was made
+# absolute when the file was loaded (theme_manager.loadFromFile).
 # ============================================================================
 
 proc formatColor*(c: Color): string =
@@ -652,6 +669,13 @@ proc themeToJson*(theme: Theme): JsonNode =
   if bd.blur.isSome: backdrop["blur"] = num(bd.blur.get)
   if bd.saturation.isSome: backdrop["saturation"] = num(bd.saturation.get)
   if backdrop.len > 0: result["backdrop"] = backdrop
+  let assets = theme.assets
+  var background = newJObject()
+  if assets.backgroundPattern.isSome: background["image"] = newJString(assets.backgroundPattern.get)
+  if assets.backgroundPatternOpacity.isSome:
+    background["opacity"] = num(assets.backgroundPatternOpacity.get)
+  if assets.backgroundScale.isSome: background["scale"] = num(assets.backgroundScale.get)
+  if background.len > 0: result["background"] = background
 
 proc yamlScalar(node: JsonNode): string =
   case node.kind

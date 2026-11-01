@@ -81,8 +81,11 @@ type
     logoPath*: Option[string]               # Path to company logo
     iconPackPath*: Option[string]           # Directory with custom icons
     cursorPath*: Option[string]             # Custom cursor image
-    backgroundPattern*: Option[string]      # Background texture/pattern path
-    backgroundPatternOpacity*: Option[float32]  # Opacity of pattern (0.0-1.0)
+    backgroundPattern*: Option[string]
+      ## A picture tiled behind the whole widget tree, over the canvas colour
+      ## (theme_background.nim). A theme file's `background: image:`.
+    backgroundPatternOpacity*: Option[float32]  ## 0 .. 1; 1 when unset
+    backgroundScale*: Option[float32]           ## a tile drawn this many times its size; 1 when unset
 
   # Branding: Theme Metadata
   ThemeMetadata* = object
