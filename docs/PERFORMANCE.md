@@ -85,3 +85,17 @@ before deciding anything.
     new place in the atlas), and it overlaps the open "memory per widget"
     item above.
 
+
+**Decision: no atlas for now.** The packing time is not the obstacle: a real
+atlas would give each new text run a free slot as it is made and upload just
+that rectangle, which costs about what a separate upload costs. The gain is.
+The benchmark drew quads from textures back to back, the best case for an
+atlas. rui draws a box, its text, then a box again, and the boxes, shadows
+and lines are shaders (`drawSdfBox` and the rest), and every shader change
+ends raylib's batch just as a texture change does. So an atlas would merge
+little, while it brings lasting complexity into the module every widget uses:
+holes as text is evicted, page eviction against the cache's memory budget,
+full pages, and sampling kept inside each slot. Keep the benchmark, and
+measure a real app on a real GPU before revisiting it. The cheaper way to
+fewer textures per frame is the open "memory per widget" item: draw cheap
+leaves into their parent.
