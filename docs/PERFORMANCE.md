@@ -53,3 +53,35 @@ from 22 to 13 ms, repainting one label from 0.35 to 0.13 ms.
 - *Full repaint is slow at scale.* 1 s for 10,000 widgets: texture creation
   plus first-time text rasterisation. Culling widgets outside the viewport
   before layout and render (TODO #8) is the fix.
+
+## Experiment: would a texture atlas help?
+
+`tools/atlas_bench.nim` compares our way, one texture per text run, with a
+game engine's way, everything packed into one atlas. It uses N text-sized
+bitmaps (40-200 x 16-24 px), and every timing ends with `glFinish`. These
+results are from the Xvfb software renderer (llvmpipe); run it on a real GPU
+before deciding anything.
+
+| N | upload, one each | upload, atlas (+ CPU packing) | draw N quads, one texture each | draw N quads, atlas |
+|---:|---:|---:|---:|---:|
+| 100 | 2.0 ms | 0.7 ms (+ 1.5) | 4.2 ms | 1.4 ms |
+| 500 | 3.2 ms | 3.1 ms (+ 7.0) | 8.5 ms | 4.2 ms |
+| 2,000 | 11.6 ms | 12.6 ms (+ 30) | 26.9 ms | 13.7 ms |
+
+- **Uploading: no.** The cost follows the bytes, not how many textures carry
+  them, and packing adds a CPU copy. In rui an upload also happens only once
+  per distinct string, so after the first frame there is almost nothing to
+  upload.
+- **Drawing: yes, two to three times faster.** raylib ends a batch, with one
+  draw call, at every texture change, while quads from one atlas go out
+  together. This only pays where many textures are drawn in one frame: a
+  repaint of everything, and text-heavy widgets. An idle frame or a one-label
+  change is already well under a millisecond.
+- **Where it would go:**
+  - **A glyph-run atlas in `pango_text.nim`:** contained in one module, it
+    speeds every text-heavy repaint and means fewer GPU objects.
+  - **An atlas for widget textures:** pieces of a few large render targets
+    instead of one each. It is a bigger change (a widget that resizes needs a
+    new place in the atlas), and it overlaps the open "memory per widget"
+    item above.
+
