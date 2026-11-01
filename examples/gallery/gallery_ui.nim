@@ -161,6 +161,8 @@ proc pickersTab(store: Store): Widget =
 
 proc layoutTab(): Widget =
   var inner: Widget
+  var phoneFab: FloatingActionButton
+  var phoneSheet: BottomSheet
   let tabsInside = newTabControl(tabs = @["First", "Second"], initialActiveTab = 0,
                                  tabBarHeight = 28.0).named("layout.nested").size(320, 90)
   tabsInside.addChild(newLabel(text = "content of the first nested tab"))
@@ -207,6 +209,19 @@ proc layoutTab(): Widget =
         Panel(padding = 6.0, cornerRadius = 0.0):
           Drawer(side = dsLeft, initialOpen = true, width = 90.0).size(220, 80):
             Label(text = "drawer")
+        Panel(padding = 6.0, cornerRadius = 0.0):
+          Stack(fit = StackFit.expand).named("layout.phone").size(220, 300):
+            Column(crossAxisAlignment = CrossAxisAlignment.stretch):
+              AppBar(title = "Inbox", leading = "☰").named("layout.appbar")
+              Expanded():
+                Label(text = "  3 new messages")
+              BottomNav(items = @[navItem("⌂", "Home"), navItem("✉", "Mail", badge = 3),
+                                  navItem("⚙", "More")], initialSelected = 1).named("layout.bottomnav")
+            Positioned(right = 12.0, bottom = 76.0):
+              phoneFab = FloatingActionButton(icon = "+", size = 48.0,
+                                              onClick = proc() = phoneSheet.open()).named("layout.fab")
+            phoneSheet = BottomSheet(snaps = @[0.45'f32, 0.85]).named("layout.sheet"):
+              Label(text = "Reply, forward, archive...")
         Panel(padding = 6.0, cornerRadius = 0.0):
           Splash(title = "Splash", message = "loading...", progress = 0.6,
                  fadeSeconds = 0.0).named("layout.splash").size(200, 120)

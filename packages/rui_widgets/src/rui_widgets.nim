@@ -21,3 +21,4 @@ import pointers;   export pointers   # Pointers: pan / zoom / rotate from severa
 import view_range; export view_range  # AxisView: one zoomable axis shared by several widgets
 import yui_loader;  export yui_loader   # loadYui: .yui files to widget trees
 import decoration;  export decoration   # adorn: lights, glows, ants along an outline
+import mobile;      export mobile       # AppBar, BottomNav, FloatingActionButton, BottomSheet
