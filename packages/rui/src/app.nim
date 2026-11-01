@@ -1304,6 +1304,8 @@ proc stepHeadless*(app: App) =
   app.pumpEvents()
   if runPollers():                  # background work and data sources deliver here
     app.tree.anyDirty = true
+  if fireDueRepaints():             # what asked to come back (a fade's next step), as `step`
+    app.tree.anyDirty = true
   app.refreshLayout()
 
 proc step*(app: App): bool {.discardable.} =

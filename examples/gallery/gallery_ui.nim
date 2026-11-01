@@ -208,6 +208,9 @@ proc layoutTab(): Widget =
           Drawer(side = dsLeft, initialOpen = true, width = 90.0).size(220, 80):
             Label(text = "drawer")
         Panel(padding = 6.0, cornerRadius = 0.0):
+          Splash(title = "Splash", message = "loading...", progress = 0.6,
+                 fadeSeconds = 0.0).named("layout.splash").size(200, 120)
+        Panel(padding = 6.0, cornerRadius = 0.0):
           Masonry(columns = 3, spacing = 4.0).named("layout.masonry").size(220, 0):
             Rectangle(color = Color(r: 120, g: 160, b: 220, a: 255)).size(0, 40)
             Rectangle(color = Color(r: 220, g: 160, b: 120, a: 255)).size(0, 20)

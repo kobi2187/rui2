@@ -7,7 +7,7 @@ import rui
 suite "Skeleton":
   teardown:
     motion = motionFull
-    animationsEnabled = false            # as the test rig keeps it
+    animationsEnabled = true             # as it was
     clearRepaints()
 
   test "text: full-width bars, the last shorter; its height is its lines":
@@ -30,7 +30,6 @@ suite "Skeleton":
         if p.widget == w: inc result
     let s = newSkeleton(shape = skBlock)
     s.bounds = Rect(x: 0, y: 0, width: 100, height: 40)
-    animationsEnabled = true             # the rig and scripted runs keep effects off
     s.render()                           # headless: the drawing is skipped, not the rest
     check mine(s) >= 1
     clearRepaints()

@@ -91,3 +91,6 @@ export skeleton
 
 import basic/stepper
 export stepper
+
+import basic/splash
+export splash
