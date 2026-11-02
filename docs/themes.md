@@ -56,8 +56,8 @@ other property (or once in a brand):
 | `focusGlowRadius` + `focusGlowColor` | `focusGlow` | a soft glow round the control the keyboard has reached |
 
 They are drawn in the box shader, so they follow the shape exactly. The glow
-is drawn by the focus ring overlay, outside the control, so nothing clips it;
-like the ring, it shows while the keyboard is driving. Cyberpunk is notched with
+is worn by the focused control itself, past its bounds (its `effectReach`, see
+layout.md), over whatever is beside it. Cyberpunk is notched with
 a glow, soda glossy, woodshop bevelled, blueprint in dimension lines.
 
 ### Speech-bubble tooltips

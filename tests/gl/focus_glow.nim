@@ -1,5 +1,5 @@
-## A theme's focus glow is drawn round the control the keyboard has reached,
-## outside its bounds (FocusRing's chrome), and goes with the focus.
+## A theme's focus glow is worn by the focused control, past its bounds (its
+## effectReach), through wrappers its own size, and goes when focus leaves.
 
 import rui
 from raylib import loadImageFromScreen, getImageColor
@@ -13,6 +13,9 @@ root.addChild(newPositioned(left = 40, top = 40, width = 80, height = 32))
 root.children[0].addChild(a)
 root.addChild(newPositioned(left = 150, top = 40, width = 80, height = 32))
 root.children[1].addChild(b)
+# A neighbour just below `a`, after it in order: the glow lies over it anyway.
+root.addChild(newPositioned(left = 40, top = 75, width = 80, height = 20))
+root.children[2].addChild(newRectangle(color = Color(r: 60, g: 60, b: 60, a: 255)))
 app.setRootWidget(root)
 
 proc cyan(c: Color): int = int(c.g) + int(c.b) - 2 * int(c.r)   # how cyan, over the dark canvas
@@ -20,18 +23,23 @@ proc cyan(c: Color): int = int(c.g) + int(c.b) - 2 * int(c.r)   # how cyan, over
 var problems: seq[string]
 var frames = 0
 var before = 0
+var neighbourBefore = 0
 app.onFrame = proc() =
   inc frames
   if frames == 2:
     let shot = loadImageFromScreen()
     before = cyan(getImageColor(shot, 80, 36))          # just above the button
-    app.keyboardMode = true                            # the rings show while the keyboard drives
+    neighbourBefore = cyan(getImageColor(shot, 80, 77))  # on the neighbour, by the button
     app.focusManager.setFocus(a)
   if frames == 5:
     let shot = loadImageFromScreen()
     let lit = cyan(getImageColor(shot, 80, 36))
     if lit <= before + 20:
       problems.add "no glow above the focused button: " & $before & " -> " & $lit
+    let onNeighbour = cyan(getImageColor(shot, 80, 77))
+    if onNeighbour <= neighbourBefore + 15:
+      problems.add "the glow does not lie over the neighbour after it: " & $neighbourBefore &
+                   " -> " & $onNeighbour
     app.focusManager.setFocus(b)
   if frames == 8:
     let shot = loadImageFromScreen()

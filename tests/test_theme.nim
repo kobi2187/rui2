@@ -1296,14 +1296,14 @@ base:
     check b.getThemeProps(Info, Normal).cornerCut == some(5'f32)
     check b.getThemeProps(Default, Focused).focusGlowRadius == some(6'f32)
 
-  test "a theme with a focus glow puts it on the focus ring, which draws it unclipped":
+  test "a focused control wears the theme's glow, and keeps room for it":
     setCurrentTheme(brandTheme(cyberpunkSpec()))
     defer: setCurrentTheme(newTheme("default"))
     let p = currentTheme.getThemeProps(Default, Focused)
-    check p.focusGlowRadius.get(0) > 0 and p.focusGlowColor.isSome
-    let ring = newFocusRing()
-    check ring.chrome != nil              # drawn in screen space, under the ring
-    check brandTheme(daylightSpec()).getThemeProps(Default, Focused).focusGlowColor.isNone
+    check p.boxFinish(focused = true).glow > 0
+    check p.boxFinish(focused = false).glow == 0
+    check p.focusGlowReach > 0
+    check brandTheme(daylightSpec()).getThemeProps(Default, Focused).focusGlowReach == 0
 
 suite "theme: speech-bubble tooltips":
   proc noExtends(name: string): Theme = newTheme(name)

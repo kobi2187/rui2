@@ -158,12 +158,17 @@ proc drawBox*(rect: Rect, radius: float32, fill: raylib.Color,
   ## dimension lines.
   if rect.width <= 0 or rect.height <= 0:
     return
+  if finish.glow > 0 and finish.glowColor.a > 0:
+    # The halo first, outside the box: its shape, its corners or notches.
+    discard drawSdfShadow(rect, max(radius, finish.cut * 0.6), 0, 0, finish.glow,
+                          finish.glow * 0.25, finish.glowColor)
   let bw = max(0.0'f32, borderWidth)
   if finish.dimension and rect.width > 2 * DimensionOvershoot and
      rect.height > 2 * DimensionOvershoot:
     let o = DimensionOvershoot
     var plain = finish
     plain.dimension = false
+    plain.glow = 0
     drawBox(Rect(x: rect.x + o, y: rect.y + o, width: rect.width - 2 * o,
                  height: rect.height - 2 * o), 0, fill, fill, 0, plain)
     if bw > 0 and border.a > 0: drawDimensionOutline(rect, border, bw)

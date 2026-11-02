@@ -309,6 +309,15 @@ type
     softClip*: bool
       ## Its `childClip` is drawn to the sub-pixel: an edge between pixels
       ## shows that row partly (Clip). Off, clips land on whole pixels.
+    effectReach*: float32
+      ## How far it paints outside its bounds: a glow, a soft shadow. Layout,
+      ## hit-testing and focus use `bounds`; the picture is that much bigger on
+      ## every side and covers whatever is next to it. Set it before painting
+      ## (in `layout` or a state change), as large as the effect ever gets.
+    inkPad*: float32
+      ## The clear margin round its texture, worked out by the render pass: its
+      ## own `reach`, or what its children spill past its edges, whichever is
+      ## more (main_loop.nim). Read it; do not set it.
     subpixel*: bool
       ## Its parent composites it at its exact position, smoothly filtered,
       ## instead of snapping it to whole pixels -- for something gliding (a

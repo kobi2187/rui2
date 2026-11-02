@@ -109,15 +109,25 @@ proc bodyRect*(rect: Rect, props: ThemeProps, pressed = false): Rect =
     result.x += o.x
     result.y += o.y
 
-proc boxFinish*(props: ThemeProps, well = false): BoxFinish =
+proc boxFinish*(props: ThemeProps, well = false, focused = false): BoxFinish =
   ## The theme's surface finish for a control's box (see ThemeProps:
   ## cornerCut, gloss, relief, dimensionLines). A `well` -- a text field, a
-  ## list -- is carved where buttons are raised, and takes no gloss.
+  ## list -- is carved where buttons are raised, and takes no gloss. A
+  ## `focused` control wears the theme's focus glow (focusGlowRadius/Color).
   let relief = props.relief.get(0)
-  BoxFinish(cut: props.cornerCut.get(0),
-            gloss: (if well: 0'f32 else: props.gloss.get(0)),
-            relief: (if well: -abs(relief) else: relief),
-            dimension: props.dimensionLines.get(false))
+  result = BoxFinish(cut: props.cornerCut.get(0),
+                     gloss: (if well: 0'f32 else: props.gloss.get(0)),
+                     relief: (if well: -abs(relief) else: relief),
+                     dimension: props.dimensionLines.get(false))
+  if focused and props.focusGlowColor.isSome:
+    result.glow = props.focusGlowRadius.get(0)
+    result.glowColor = props.focusGlowColor.get
+
+proc focusGlowReach*(props: ThemeProps): float32 =
+  ## The effect reach a focusable control keeps for the theme's focus glow:
+  ## kept whether it has focus or not, so focusing it repaints only itself.
+  BoxFinish(glow: props.focusGlowRadius.get(0),
+            glowColor: props.focusGlowColor.get(Color())).glowReach
 
 proc drawDropShadow*(rect: Rect, props: ThemeProps, pressed = false) =
   ## The hard shadow behind a control's body, unless it is pressed into it.
@@ -318,6 +328,8 @@ proc drawRightArrow*(x, y, size: float32, color: Color) =
 
 proc drawInteractiveBox*(rect: Rect, props: ThemeProps,
                         pressed = false, hovered = false, focused = false, well = false) =
+  ## (A focused box wears the theme's focus glow: give the widget
+  ## `focusGlowReach` of effect reach so it shows.)
   ## Standard interactive box: drop shadow, body with its outline, and the
   ## focus ring -- every one of them sized by the theme. A `well` (a text
   ## field) takes the theme's carved finish rather than its raised one.
@@ -325,7 +337,8 @@ proc drawInteractiveBox*(rect: Rect, props: ThemeProps,
   let body = bodyRect(rect, props, pressed)
   if not drawBevelBody(body, props, backgroundFor(props, pressed, hovered), pressed):
     drawBox(body, props.cornerRadius.get(4.0), backgroundFor(props, pressed, hovered),
-            borderFor(props, focused, false), props.strokeWidth, props.boxFinish(well))
+            borderFor(props, focused, false), props.strokeWidth,
+            props.boxFinish(well, focused))
   if focused:
     drawThemedFocusRing(body, props)
 
@@ -351,18 +364,6 @@ proc drawSpeechBubble*(rect: Rect, fill, border: Color, borderWidth: float32,
   discard drawSdfTriangle(Vector2(x: tip.x + k * 0.9, y: tip.y + k * 1.6),
                           Vector2(x: a.x + k, y: a.y + 0.5),
                           Vector2(x: b.x - k * 0.6, y: b.y + 0.5), fill)
-
-proc drawFocusGlow*(rect: Rect) =
-  ## The current theme's glow round a focused control (focusGlowRadius and
-  ## focusGlowColor in its Focused state), the control's own shape, reaching
-  ## past `rect`: draw it where nothing clips it (FocusRing's chrome). Nothing
-  ## when the theme has none.
-  let p = currentTheme.getThemeProps(ThemeIntent.Default, ThemeState.Focused)
-  let r = p.focusGlowRadius.get(0)
-  if r <= 0 or p.focusGlowColor.isNone: return
-  let body = bodyRect(rect, p)
-  discard drawSdfShadow(body, max(p.cornerRadius.get(4.0), p.cornerCut.get(0) * 0.6),
-                        0, 0, r, r * 0.25, p.focusGlowColor.get)
 
 proc drawSelectionBackground*(rect: Rect, props: ThemeProps,
                              selected = false, hovered = false) =

@@ -79,3 +79,20 @@ more.
 `tools/layout_snapshot.sh` lays every example out without a window and diffs
 each widget's rect against `tests/layout_snapshots/`. Run it after a layout
 change; `update` records an intended change.
+
+## Effects past the bounds: `effectReach`
+
+A widget can paint outside its bounds -- a glow, a soft shadow -- by setting
+`effectReach` (pixels, every side) before it paints. Layout, hit-testing and
+focus keep using `bounds`: the widgets beside it sit where they always would,
+and the effect lies over them. The render pass gives its texture that margin,
+and a parent whose children spill past its own edges gets a margin too
+(`inkPad`), so a glowing button inside a frame its own size is not clipped. A
+viewport (`childClip`) stops the spill, and the window's root has none. A child
+with a margin is composited after its siblings when their bounds do not
+overlap, so the effect is on top; where they overlap (a Stack), order wins.
+
+Keep the reach as large as the effect ever gets (a focus glow reserves its
+room whether focused or not), so turning the effect on repaints only the
+widget. `BoxFinish.glow` with `glowReach` is the ready-made one: a Button's body
+Rectangle wears the theme's focus glow that way.

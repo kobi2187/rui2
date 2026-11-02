@@ -9,9 +9,8 @@
 ##
 ## The colour and thickness are the theme's focus ring (`focusColor`,
 ## `focusRingWidth`), so a fat brand gets a fat ring; notched corners when the
-## theme's controls are notched. A theme with a focus glow (`focusGlowRadius`,
-## a neon theme) gets it round the focused widget too, drawn as this overlay's
-## chrome so nothing clips it.
+## theme's controls are notched. (A theme's focus glow is worn by the control
+## itself: see boxFinish and effectReach.)
 
 import rui_core
 import rui_drawing
@@ -21,11 +20,6 @@ definePrimitive(FocusRing):
   props:
     group: bool = false          # the container's ring: softer and rounder
     intent: ThemeIntent = Default
-
-  init:
-    let ring = widget
-    widget.chrome = proc(bounds: Rect) =
-      if not ring.group: drawFocusGlow(bounds)
 
   render:
     let props = currentTheme.getThemeProps(widget.intent, ThemeState.Focused)

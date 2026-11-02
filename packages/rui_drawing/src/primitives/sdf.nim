@@ -26,6 +26,7 @@
 
 import raylib
 import rui_core
+import std/math
 
 const sdfFragment = """
 #version 330
@@ -255,8 +256,16 @@ type BoxFinish* = object
   ## sheen over the top half (0..1), a `relief` rim this many pixels deep --
   ## raised (lit top, shaded bottom) when positive, carved when negative.
   ## `dimension`: the outline drawn as a technical drawing's (shapes.drawBox).
+  ## `glow`: a soft halo of `glowColor` this many pixels outside the box -- the
+  ## widget drawing it needs `glowReach` of effect reach to show it.
   cut*, gloss*, relief*: float32
   dimension*: bool
+  glow*: float32
+  glowColor*: Color
+
+proc glowReach*(f: BoxFinish): float32 =
+  ## How far past the box a finish's glow paints: what to give `effectReach`.
+  if f.glow > 0 and f.glowColor.a > 0: ceil(f.glow * 2.25) else: 0
 
 proc drawSdfBox*(rect: Rect, radius, borderWidth: float32,
                  fill, border: Color, finish = BoxFinish()): bool =

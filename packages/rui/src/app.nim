@@ -1126,7 +1126,8 @@ proc compositeRoot(app: App) =
     if top != nil and top.cachedTexture.isSome:
       # A modal is open: it carries the frozen page as its backdrop, so it is
       # the whole picture.
-      drawRenderTexture(top.cachedTexture.get(), top.bounds.x, top.bounds.y)
+      drawRenderTexture(top.cachedTexture.get(), top.bounds.x - top.texturePad,
+                        top.bounds.y - top.texturePad)
     elif app.tree.root != nil and app.tree.root.cachedTexture.isSome:
       drawRenderTexture(app.tree.root.cachedTexture.get(),
                         app.tree.root.bounds.x, app.tree.root.bounds.y)
@@ -1145,8 +1146,9 @@ proc compositeRoot(app: App) =
         # texture would clip away.
         if overlay.chrome != nil:
           overlay.chrome(overlay.bounds)
-        drawRenderTexture(overlay.cachedTexture.get(),
-                          overlay.bounds.x, overlay.bounds.y)
+        drawRenderTexture(overlay.cachedTexture.get(),        # out by its effects' margin
+                          overlay.bounds.x - overlay.texturePad,
+                          overlay.bounds.y - overlay.texturePad)
 
 proc beingScripted(app: App): bool =
   app.scriptManager != nil and app.scriptManager.isBeingScripted()
