@@ -136,11 +136,11 @@ proc accentFinish*(props: ThemeProps): BoxFinish =
   result.relief = 0
   result.dimension = false
 
-proc finishReach*(props: ThemeProps, well = false): float32 =
-  ## The effect reach a control keeps for its finish's glow and shadow: the
-  ## focus glow's room kept whether it has focus or not, so focusing it
-  ## repaints only itself.
-  props.boxFinish(well, focused = true).reach
+proc finishReach*(props: ThemeProps, well = false, focused = false): float32 =
+  ## The effect reach a control needs for its finish: its shadow always, the
+  ## focus glow only while `focused` (one control at a time: keeping room for it
+  ## on every button cost a neon theme 70% more texture memory).
+  props.boxFinish(well, focused).reach
 
 proc drawDropShadow*(rect: Rect, props: ThemeProps, pressed = false) =
   ## The hard shadow behind a control's body, unless it is pressed into it.

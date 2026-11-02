@@ -140,9 +140,10 @@ defineWidget(Button):
     fizz.bounds = body
     fizz.color = textColor.withAlpha(0.8)
     bg.finish = props.boxFinish(focused = widget.focused)   # its glow too, when focused
-    # Room for the theme's focus glow, kept focused or not: the body is the
-    # border element that wears it, and the button (its own size) passes it on.
-    bg.effectReach = props.finishReach
+    # Room for the finish's shadow, and its focus glow while focused: the body
+    # is the border element that wears them; the button (its own size) passes
+    # the spill on to its parent.
+    bg.effectReach = props.finishReach(focused = widget.focused)
     # A bevelled theme draws its 3D edge (inverted while pressed) instead of an
     # outline, and shows focus by a ring inside it rather than a fatter border.
     let bevel = props.bevelStyle.get(Flat)

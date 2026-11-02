@@ -872,7 +872,8 @@ definePrimitive(TextArea):
   layout:
     # A field wears the theme's focus glow past its edge: keep room for it.
     widget.effectReach = if widget.framed:
-                           widget.themeProps(widget.intent, crText).finishReach(well = true)
+                           widget.themeProps(widget.intent, crText).finishReach(well = true,
+                                                                              focused = widget.focused)
                          else: 0
     widget.cursorShape = if widget.takesInput: csText else: csDefault
     widget.blockReading = widget.blockReading or widget.secret

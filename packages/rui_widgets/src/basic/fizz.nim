@@ -8,6 +8,10 @@
 ##
 ## `fizzBubbles` is the whole animation as a value -- where every bubble is at
 ## a moment -- so it is tested without a window.
+##
+## It is hidden except while it rises: every widget owns a texture, and one
+## Fizz per button, idle, cost a quarter more render time in a big form.
+## Hidden, it has none and is never painted.
 
 import rui_core
 import rui_drawing
@@ -50,12 +54,16 @@ definePrimitive(Fizz):
     started: MonoTime
     running: bool
 
+  init:
+    widget.visible = false
   render:
     if not widget.running: return
     let t = float((getMonoTime() - widget.started).inMicroseconds) / 1e6
     let bubbles = fizzBubbles(t, widget.bounds, widget.seconds)
     if bubbles.len == 0 and t > widget.seconds:
       widget.running = false
+      widget.visible = false          # out of the way again: no texture, no paint
+      if widget.parent != nil: widget.parent.markDirtyToRoot()
       return
     for b in bubbles:
       let c = widget.color.withAlpha(float32(widget.color.a) / 255 * b.alpha)
@@ -71,4 +79,5 @@ proc burst*(widget: Fizz) =
   if not effectsAllowed(): return
   widget.started = getMonoTime()
   widget.running = true
+  widget.visible = true
   widget.markDirtyToRoot()

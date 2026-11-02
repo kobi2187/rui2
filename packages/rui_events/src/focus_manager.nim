@@ -161,9 +161,10 @@ proc ensureFocusChain(fm: FocusManager, rootWidget: Widget) =
 # ============================================================================
 
 proc restyle(w: Widget) =
-  ## Focus changes how a widget looks (its outline, a theme's glow): repaint it,
-  ## and lay it out again when its look is worked out in `layout`.
-  if w.relayoutOnState: w.layoutDirty = true
+  ## Focus changes how a widget looks (its outline, a theme's glow, and the
+  ## room the glow takes past its bounds, set in `layout`): lay it out and
+  ## repaint it.
+  w.layoutDirty = true
   w.markDirtyToRoot()
 
 proc blurCurrent(fm: FocusManager) =

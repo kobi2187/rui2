@@ -1302,8 +1302,9 @@ base:
     let p = currentTheme.getThemeProps(Default, Focused)
     check p.boxFinish(focused = true).glow > 0
     check p.boxFinish(focused = false).glow == 0
-    check p.finishReach > 0
-    check brandTheme(daylightSpec()).getThemeProps(Default, Focused).finishReach == 0
+    check p.finishReach(focused = true) > 0
+    check p.finishReach(focused = false) == 0               # room only on the focused one
+    check brandTheme(daylightSpec()).getThemeProps(Default, Focused).finishReach(focused = true) == 0
 
 suite "theme: speech-bubble tooltips":
   proc noExtends(name: string): Theme = newTheme(name)

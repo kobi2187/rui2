@@ -1,6 +1,6 @@
 ## RUI2 benchmark: how long each part of a frame takes at 1k and 10k widgets.
 ##
-##   nim c -r -d:release -d:useGraphics benchmarks/bench.nim [--sizes=1000,10000]
+##   nim c -r -d:release -d:useGraphics benchmarks/bench.nim [--sizes=1000,10000] [--theme=aqua]
 ##                                                           [--json] [--gate]
 ##
 ## It needs a display (run it under Xvfb on a server): the render rows paint
@@ -169,14 +169,16 @@ const budgets = {
 when isMainModule:
   var sizes = @[1000, 10000]
   var asJson, gate = false
+  var themeName = "daylight"
   for arg in commandLineParams():
     if arg.startsWith("--sizes="): sizes = arg[8 .. ^1].split(',').map(parseInt)
+    elif arg.startsWith("--theme="): themeName = arg[8 .. ^1]   # e.g. aqua: effects past the bounds
     elif arg == "--json": asJson = true
     elif arg == "--gate": gate = true
 
   setTraceLogLevel(TraceLogLevel.Error)   # raylib logs one line per texture
   initWindow(1200, 800, "RUI2 benchmark")
-  setCurrentTheme(brandTheme(daylightSpec()))
+  setCurrentTheme(newThemeManager().get(themeName))
 
   var report = newJObject()
   var failed: seq[string]

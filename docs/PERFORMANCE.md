@@ -54,6 +54,26 @@ from 22 to 13 ms, repainting one label from 0.35 to 0.13 ms.
   plus first-time text rasterisation. Culling widgets outside the viewport
   before layout and render (TODO #8) is the fix.
 
+## Check: the themes round (effect reach, finishes, Fizz)
+
+`bench --theme=NAME` runs the benchmark in any registered theme. Against `main`,
+at 1,000 widgets, it found two regressions, both fixed:
+
+- **Every widget owns a texture, so an idle child costs one.** The Fizz added
+  to every button (a soda theme's bubbles) took a full repaint from 7.2 to
+  12.6 ms. Fizz is now hidden except while it rises: back to 7-8 ms, the same
+  as `main`.
+- **Effect room kept on every control costs memory.** Reserving the focus
+  glow's room on every button whether focused or not took a neon theme
+  (cyberpunk) from 38 to 65 MB of textures. The room is now taken only by the
+  focused control: 38 MB.
+
+What is left is what the effects draw. Aqua's soft shadows are on every
+button, so it carries 14% more texture memory (43.8 MB against 38.4), with
+render times within noise. At 10,000 widgets, layout, idle frame and a
+one-label repaint match `main` (medians of five runs: repaint 1.1 ms against
+1.6; the software renderer here varies by a factor of two from run to run).
+
 ## Experiment: would a texture atlas help?
 
 `tools/atlas_bench.nim` compares our way, one texture per text run, with a
