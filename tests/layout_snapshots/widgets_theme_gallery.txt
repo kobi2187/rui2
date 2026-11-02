@@ -3,7 +3,7 @@ VStack - @0,0 760x740
     Expanded - @24,25 488x38
       Label - @24,25 488x38
     ComboBox - @524,24 212x41 tabstop
-      ComboList - @524,65 212x936 floating
+      ComboList - @524,65 212x984 floating
   Table - @24,81 712x143
     TableRow - @24,81 712x41
       Label - @24,90 54x23

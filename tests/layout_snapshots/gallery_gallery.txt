@@ -3,7 +3,7 @@ VStack gallery @0,0 1000x720
     Row - @6,6 988x41
       Label - @6,15 63x23
       ComboBox theme.picker @77,6 212x41 tabstop
-        ComboList - @77,47 212x1080 floating
+        ComboList - @77,47 212x1128 floating
   TabControl tabs @0,53 1000x1262 tabstop
     VStack - @0,83 1000x1232
       Column basics @12,95 976x380
