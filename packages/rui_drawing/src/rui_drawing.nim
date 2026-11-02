@@ -1,9 +1,21 @@
 ## rui_drawing - public API barrel
 ##
-## Drawing primitives, visual effects, the theme system (state x intent),
-## text cache, and theme-aware widget primitives.
+## Drawing comes in three layers, and the theme that colours them:
+##
+## - **Shapes** (drawing_primitives: primitives/shapes, sdf, marks, bevel, and
+##   text): boxes with a `BoxFinish`, shadows, lines, triangles, images, glyph
+##   marks. They take colours as arguments and know nothing of the theme.
+## - **Parts** (widget_primitives): every themed piece of a control -- its box,
+##   a check box, a radio, a slider, a progress bar, a scroll bar, a tooltip, a
+##   tab, a menu row -- drawn from ThemeProps with the theme's finish.
+## - **Surfaces** (theme_background, tiles, textures, backdrop): what is behind
+##   the widgets -- the window background, background tiles, frosted glass, a
+##   modal's backdrop.
+##
+## The theme (theme_sys_core, theme_file, theme_manager, brand themes) is data:
+## State x Intent -> ThemeProps, read and written by its own fields.
 
-import drawing_primitives; export drawing_primitives  # shapes, controls, panels, indicators, effects
+import drawing_primitives; export drawing_primitives  # shapes: boxes, marks, bevels
 import theme_types;        export theme_types
 import theme_sys_core;     export theme_sys_core
 import theme_state;        export theme_state   # the visual-state ladder, once

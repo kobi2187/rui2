@@ -250,7 +250,7 @@ A new look then becomes one table row and the code that draws it.
   package layering. The index and the reset give the same clarity without
   that.
 
-### Step 7. Drawing in three layers (medium)
+### Step 7. Drawing in three layers (medium) -- done
 
 | Layer | Contents |
 |---|---|
@@ -260,6 +260,17 @@ A new look then becomes one table row and the code that draws it.
 
 The scroll bar and the tooltip move into Parts, which closes Aqua's scroll-bar
 gap as a side effect. `primitives/controls` folds into Parts.
+
+**As done:**
+- **Shapes:** the helpers many widgets use moved into `primitives/marks.nim`:
+  the check mark, arrow, alert symbol, focus outline, disabled veil, scroll
+  thumb geometry and group-box frame.
+- **Removed:** the 14 helpers nothing called, and `controls`, `panels` and
+  `indicators` with them.
+- **Parts:** the scroll bar and the tooltip box moved into `widget_primitives`.
+  In a gel theme the scroll bar's thumb is an accent pill with the theme's
+  finish, which closes Aqua's scroll-bar gap.
+- **Documented:** `rui_drawing.nim`'s header names the three layers.
 
 ### Step 8. Split the App by job (small to medium)
 

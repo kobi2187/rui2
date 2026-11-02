@@ -11,7 +11,7 @@
 import rui_core
 import theme_sys_core
 import theme_check
-import primitives/[shapes, text, controls, indicators, panels, sdf]
+import primitives/[shapes, text, marks, sdf]
 import pango_text  # drawTextPango
 import primitives/bevel
 
@@ -150,13 +150,13 @@ proc getPaddingLeft*(props: ThemeProps, default: float32): float32 =
   props.padding.get(EdgeInsets(left: default, top: default, right: default, bottom: default)).left
 
 proc drawArrow*(x, y, size: float32, angle: float32, color: raylib.Color) =
-  let direction: controls.ArrowDirection = if angle == 90.0f32: ArrowDirection.Down
+  let direction: marks.ArrowDirection = if angle == 90.0f32: ArrowDirection.Down
                   elif angle == -90.0f32: ArrowDirection.Up
                   elif angle == 0.0f32: ArrowDirection.Right
                   elif angle == 180.0f32 or angle == -180.0f32: ArrowDirection.Left
                   else: ArrowDirection.Right
   let rect = Rect(x: x - size, y: y - size, width: size * 2, height: size * 2)
-  controls.drawArrow(rect, direction, color)
+  marks.drawArrow(rect, direction, color)
 
 # ============================================================================
 # Atomic Parts (smallest building blocks)
@@ -668,14 +668,31 @@ proc drawScrollbar*(rect: Rect, contentSize, viewSize, offset: float32,
   if props.bevelStyle.get(Flat) != Flat:
     drawBeScrollbar(rect, contentSize, viewSize, offset, props)
     return
-  drawScrollbar(
-    rect,
-    contentSize,
-    viewSize,
-    offset,
-    props.foregroundColor.get(Color(r: 40, g: 40, b: 40, a: 255)),
-    hovered
-  )
+  # Track and thumb are translucent tints of the theme's ink; a gel theme
+  # (gloss or gradient: Aqua) makes the thumb a pill of its accent instead.
+  let ink = props.foregroundColor.get(Color(r: 40, g: 40, b: 40, a: 255))
+  drawRect(rect, ink.withAlpha(0.08))
+  let thumb = scrollThumb(rect, contentSize, viewSize, offset)
+  let radius = min(thumb.width, thumb.height) / 2
+  if props.gloss.get(0) > 0 or props.gradient.get(0) > 0:
+    let accent = props.activeColor.get(ink)
+    drawBox(thumb, radius, accent, accent, 0, props.accentFinish)
+  else:
+    drawRoundedRect(thumb, radius, ink.withAlpha(if hovered: 0.55 else: 0.35))
+
+proc drawTooltip*(text: string, rect: Rect,
+                  backgroundColor: raylib.Color, textColor: raylib.Color,
+                  style: TextStyle) =
+  ## A tooltip box filling `rect`, with the text inset by 6 px.
+  let padding = 6.0'f32
+  drawRoundedRect(rect, 4, backgroundColor)
+  drawRoundedRectLines(rect, 4, 1, Color(r: 0, g: 0, b: 0, a: 60))
+  drawText(text,
+           Rect(x: rect.x + padding, y: rect.y + padding,
+                width: rect.width - padding * 2,
+                height: rect.height - padding * 2),
+           TextStyle(fontFamily: style.fontFamily, fontSize: style.fontSize,
+                     color: textColor))
 
 proc selectedRowProps(props: ThemeProps): ThemeProps =
   ## The props a selected menu or list row is drawn with: its caption in the ink
@@ -933,9 +950,9 @@ proc drawGroupBox*(rect: Rect, title: string, props: ThemeProps) =
   let textColor = props.foregroundColor.get(Color(r: 60, g: 60, b: 60, a: 255))
 
   # TODO: figure out enhancing ThemeProps to also include GroupBoxStyle, and other specific widgets
-  let style = panels.GroupBoxStyle(
-    borderStyle: panels.BorderStyle(
-      style: panels.Solid,
+  let style = marks.GroupBoxStyle(
+    borderStyle: marks.BorderStyle(
+      style: marks.Solid,
       color: borderColor,
       width: max(1.0'f32, props.strokeWidth),
       radius: props.cornerRadius.get(4.0)
@@ -946,7 +963,7 @@ proc drawGroupBox*(rect: Rect, title: string, props: ThemeProps) =
     titlePadding: 8.0f32,
     titleBackgroundColor: none(Color)
   )
-  panels.drawGroupBox(rect, title, style)
+  marks.drawGroupBox(rect, title, style)
 
 proc drawStatusBar*(rect: Rect, text: string, props: ThemeProps) =
   ## Status bar = background + top border + padded text

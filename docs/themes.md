@@ -296,8 +296,8 @@ controls are metrics. The focus glow is `focusGlow`.
 
 **Still gaps:**
 
-- The scroll bar is drawn by a fixed primitive in translucent tints, which
-  knows nothing of the theme's finish: there is no Aqua blue pill thumb.
+- ~~The scroll bar ignores the theme's finish.~~ Closed: the scroll bar is
+  now a themed part, and in a gel theme its thumb is a pill of the accent.
 - Title bars exist only on dialogs, as the BeOS tab or a plain bar. Traffic
   lights need window chrome with real close and minimise behind them, not a
   drawing of three buttons that do nothing.
