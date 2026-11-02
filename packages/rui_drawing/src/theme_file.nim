@@ -11,7 +11,11 @@
 ## registry supplies the real one, a test can supply `newTheme`.
 ##
 ## Colors in files are hex strings ("#rrggbb" / "#rrggbbaa") or rgb(r,g,b).
-## The `*File` types hold them as strings; `toThemeProps` converts.
+## YAML and JSON both become one JSON document. Per-state properties and the
+## `brand:` section are read and written by the fields of ThemeProps and
+## BrandSpec themselves (propsFromJson, brandSpecFrom, propsToJson): a setting
+## is declared once, on the type that holds it. The other sections are small
+## `*File` types read with std/json's `to`.
 
 import std/[tables, options, json, strutils, parseutils, editdistance, sequtils]
 import yaml
@@ -46,49 +50,6 @@ type
     left: Option[float32]
     horizontal: Option[float32]
     vertical: Option[float32]
-
-  ThemePropsFile* {.sparse.} = object
-    ## Mirrors ThemeProps but with colors as strings for file loading.
-    # Colors (hex strings)
-    backgroundColor: Option[string]
-    foregroundColor: Option[string]
-    borderColor: Option[string]
-    pressedColor: Option[string]
-    hoverColor: Option[string]
-    activeColor: Option[string]
-    focusColor: Option[string]
-    focusRingColor: Option[string]
-    focusGlowColor: Option[string]
-    highlightColor: Option[string]
-    shadowColor: Option[string]
-    darkShadowColor: Option[string]
-    gradientStart: Option[string]
-    gradientEnd: Option[string]
-    glowColor: Option[string]
-    dropShadowColor: Option[string]
-    # Dimensions
-    borderWidth: Option[float32]
-    cornerRadius: Option[float32]
-    fontSize: Option[float32]
-    spacing: Option[float32]
-    focusRingWidth: Option[float32]
-    focusGlowRadius: Option[float32]
-    glowRadius: Option[float32]
-    insetShadowDepth: Option[float32]
-    insetShadowOpacity: Option[float32]
-    dropShadowBlur: Option[float32]
-    cornerCut, gloss, relief, gradient, caustic, softShadow: Option[float32]
-    dimensionLines: Option[bool]
-    # Text
-    fontFamily: Option[string]
-    fontWeight: Option[string]      ## light, regular, medium, semibold, bold, extrabold
-    uppercase: Option[bool]
-    dropShadowOffset: Option[float32]  ## hard shadow, px right and down
-    # Layout
-    padding: Option[PaddingFile]
-    # Effects (as strings, converted to enums)
-    bevelStyle: Option[string]
-    gradientDirection: Option[string]
 
   HintFile* {.sparse.} = object
     ## A `hint:` section: how the help overlay's badges look.
@@ -128,32 +89,14 @@ type
     image, tint: Option[string]
     opacity, scale: Option[float32]
 
-  BrandFile* {.sparse.} = object
-    ## A `brand:` section: the same choices as `BrandSpec`, colours as strings.
-    ## Everything is optional; what is left out takes the spec's own default.
-    name: Option[string]
-    dark: Option[bool]
-    accent, onAccent, canvas, surface, text, border: Option[string]
-    info, success, warning, danger, shadowColor: Option[string]
-    radius, fontSize, padding, paddingX: Option[float32]
-    fontFamily, headingFont: Option[string]
-    borderWidth, focusRingWidth, shadow: Option[float32]
-    borderless, boldCaptions, uppercaseCaptions: Option[bool]
-    controlHeight, indicatorSize, trackThickness, thumbSize: Option[float32]
-    progressHeight, rowHeight, scrollbarThickness: Option[float32]
-    transitionMs: Option[float32]
-    noTransitions: Option[bool]
-    cornerCut, gloss, relief, focusGlow: Option[float32]
-    dimensionLines, speechBubbleTips, fizz: Option[bool]
-    glass, gradient, caustic, softShadow, pulse: Option[float32]
-
   ThemeFile* {.sparse.} = object
     ## Top-level theme file structure (JSON or YAML)
     name: Option[string]
     `extends`: Option[string]
     version: Option[string]
-    base: Option[Table[string, ThemePropsFile]]
-    states: Option[Table[string, Table[string, ThemePropsFile]]]
+    # `base`, `states` and `brand` are read straight from the document, by
+    # the fields of ThemeProps and BrandSpec themselves (propsFromJson,
+    # brandSpecFrom): each setting is declared once, on the type that holds it.
     statePreference: Option[Table[string, string]]
       ## role ("text" / "pointer") -> "focus" / "hover"
     metrics: Option[MetricsFile]
@@ -163,18 +106,8 @@ type
     background: Option[BackgroundFile]
     headingFont: Option[string]
       ## The font titles and headings use; the body font when left out.
-    tipShape: Option[string]
-      ## "box" (the default) or "bubble": tooltips as speech bubbles.
-    fizz: Option[bool]
-      ## Primary buttons release rising bubbles when clicked (a soda theme).
-    pulse: Option[float32]
-      ## The primary (Info) button breathes, one cycle this many seconds.
-    glass: Option[float32]
-      ## Floating panels (menus, open lists, popovers) as frosted glass: the
-      ## blur of the page behind them, in pixels. Solid when left out.
-    brand: Option[BrandFile]
-      ## A whole theme from a handful of brand choices (see brand_themes.nim).
-      ## It replaces `extends`; `base` and `states` still override it.
+    # The theme-wide looks (`themeWideNames`: tipShape, glass, fizz, pulse) are
+    # top-level keys too, read and written by the fields of Theme.
 
 # ============================================================================
 # Color Parsing
@@ -254,150 +187,207 @@ proc parseEasingName*(s: string): AnimationEasing =
   else: raise newException(ValueError, "Unknown easing: " & s &
     " (expected linear, easeIn, easeOut, easeInOut, bounce or elastic)")
 
-proc toThemeProps*(fp: ThemePropsFile): ThemeProps =
-  ## Convert file props (string colors) to runtime ThemeProps (Color objects)
-  result = ThemeProps()
-  result.backgroundColor = optColor(fp.backgroundColor)
-  result.foregroundColor = optColor(fp.foregroundColor)
-  result.borderColor = optColor(fp.borderColor)
-  result.pressedColor = optColor(fp.pressedColor)
-  result.hoverColor = optColor(fp.hoverColor)
-  result.activeColor = optColor(fp.activeColor)
-  result.focusColor = optColor(fp.focusColor)
-  result.focusRingColor = optColor(fp.focusRingColor)
-  result.focusGlowColor = optColor(fp.focusGlowColor)
-  result.highlightColor = optColor(fp.highlightColor)
-  result.shadowColor = optColor(fp.shadowColor)
-  result.darkShadowColor = optColor(fp.darkShadowColor)
-  result.dropShadowColor = optColor(fp.dropShadowColor)
-  result.borderWidth = fp.borderWidth
-  result.cornerRadius = fp.cornerRadius
-  result.fontSize = fp.fontSize
-  result.spacing = fp.spacing
-  result.focusRingWidth = fp.focusRingWidth
-  result.focusGlowRadius = fp.focusGlowRadius
-  # The older effect names, as the finish says them (files written before the
-  # finish keep loading): a gradient, a glow, an inset, a blurred shadow.
-  if fp.gradientStart.isSome or fp.gradientEnd.isSome:
+# ============================================================================
+# Settings declared once: read by the fields of the type that holds them
+#
+# A per-state property is a field of ThemeProps and a brand choice is a field of
+# BrandSpec; the file format is those fields by name. Adding one is adding the
+# field (and the code that draws it): reading, writing and key checking follow.
+# ============================================================================
+
+const legacyPropNames = ["gradientStart", "gradientEnd", "gradientDirection", "glowColor",
+                         "glowRadius", "insetShadowDepth", "insetShadowOpacity",
+                         "dropShadowBlur"]
+  ## Older effect names, still read (mapped onto the finish), never written.
+const unfiledPropNames = ["textStyle"]
+  ## ThemeProps fields a file does not set.
+
+proc expectKind(v: JsonNode, kinds: set[JsonNodeKind], where: string) =
+  if v.kind notin kinds:
+    raise newException(ValueError, "theme: " & where & " has the wrong type (" &
+                       $v.kind & ")")
+
+proc numberOf(v: JsonNode, where: string): float32 =
+  expectKind(v, {JInt, JFloat}, where)
+  v.getFloat.float32
+
+proc paddingFrom(v: JsonNode, where: string): EdgeInsets =
+  if v.kind in {JInt, JFloat}: return edgeInsets(numberOf(v, where))
+  expectKind(v, {JObject}, where)
+  template f(k: string): float32 = (if v.hasKey(k): numberOf(v[k], where & "." & k) else: 0'f32)
+  if v.hasKey("all"): edgeInsets(f("all"))
+  elif v.hasKey("horizontal") or v.hasKey("vertical"):
+    edgeInsetsSymmetric(f("horizontal"), f("vertical"))
+  else: edgeInsetsLTRB(f("left"), f("top"), f("right"), f("bottom"))
+
+proc weightFrom(s: string): FontWeight =
+  case s.toLowerAscii
+  of "light", "300": Light
+  of "medium", "500": Medium
+  of "semibold", "600": SemiBold
+  of "bold", "700": Bold
+  of "extrabold", "800": ExtraBold
+  else: Regular
+
+proc bevelFrom(s: string): BevelStyle =
+  case s.toLowerAscii
+  of "flat": Flat
+  of "raised": Raised
+  of "sunken": Sunken
+  of "ridge": Ridge
+  of "groove": Groove
+  of "soft": Soft
+  of "convex": Convex
+  of "drop": Drop
+  of "interior": Interior
+  of "flatsoft": Flatsoft
+  of "flatconvex": Flatconvex
+  of "beraised": BeRaised
+  of "besunken": BeSunken
+  else: Flat
+
+proc propsFromJson*(node: JsonNode, where = "props"): ThemeProps =
+  ## One intent's (or state's) properties from a theme document, by the
+  ## fields of ThemeProps.
+  # The older effect names, as the finish says them, first: a newer key below
+  # wins over them.
+  if node.hasKey("gradientStart") or node.hasKey("gradientEnd"):
     result.gradient = some(0.5'f32)
-  if fp.glowColor.isSome:
-    result.focusGlowColor = optColor(fp.glowColor)
-    result.focusGlowRadius = some(fp.glowRadius.get(6.0))
-  if fp.insetShadowDepth.isSome:
-    result.relief = some(-abs(fp.insetShadowDepth.get))
-  if fp.dropShadowBlur.isSome:
-    result.softShadow = fp.dropShadowBlur
-  # The finish (set only where the file sets it: an older name above may
-  # already have filled it in).
-  if fp.cornerCut.isSome: result.cornerCut = fp.cornerCut
-  if fp.gloss.isSome: result.gloss = fp.gloss
-  if fp.relief.isSome: result.relief = fp.relief
-  if fp.dimensionLines.isSome: result.dimensionLines = fp.dimensionLines
-  if fp.gradient.isSome: result.gradient = fp.gradient
-  if fp.caustic.isSome: result.caustic = fp.caustic
-  if fp.softShadow.isSome: result.softShadow = fp.softShadow
-  result.fontFamily = fp.fontFamily
-  if fp.fontWeight.isSome:
-    result.fontWeight = some(case fp.fontWeight.get().toLowerAscii()
-      of "light", "300": Light
-      of "medium", "500": Medium
-      of "semibold", "600": SemiBold
-      of "bold", "700": Bold
-      of "extrabold", "800": ExtraBold
-      else: Regular)
-  result.uppercase = fp.uppercase
-  if fp.dropShadowOffset.isSome:
-    let o = fp.dropShadowOffset.get()
-    result.dropShadowOffset = some((o, o))
-  # Padding
-  if fp.padding.isSome:
-    let p = fp.padding.get()
-    if p.all.isSome:
-      result.padding = some(edgeInsets(p.all.get()))
-    elif p.horizontal.isSome or p.vertical.isSome:
-      result.padding = some(edgeInsetsSymmetric(
-        p.horizontal.get(0.0f32), p.vertical.get(0.0f32)))
-    else:
-      result.padding = some(edgeInsetsLTRB(
-        p.left.get(0.0f32), p.top.get(0.0f32),
-        p.right.get(0.0f32), p.bottom.get(0.0f32)))
-  # Bevel style
-  if fp.bevelStyle.isSome:
-    result.bevelStyle = some(case fp.bevelStyle.get().toLowerAscii()
-      of "flat": Flat
-      of "raised": Raised
-      of "sunken": Sunken
-      of "ridge": Ridge
-      of "groove": Groove
-      of "soft": Soft
-      of "convex": Convex
-      of "drop": Drop
-      of "interior": Interior
-      of "flatsoft": Flatsoft
-      of "flatconvex": Flatconvex
-      of "beraised": BeRaised
-      of "besunken": BeSunken
-      else: Flat)
+  if node.hasKey("glowColor"):
+    result.focusGlowColor = some(parseColor(node["glowColor"].getStr))
+    result.focusGlowRadius = some(if node.hasKey("glowRadius"): numberOf(node["glowRadius"], where)
+                                  else: 6'f32)
+  if node.hasKey("insetShadowDepth"):
+    result.relief = some(-abs(numberOf(node["insetShadowDepth"], where)))
+  if node.hasKey("dropShadowBlur"):
+    result.softShadow = some(numberOf(node["dropShadowBlur"], where))
+  for name, field in fieldPairs(result):
+    if node.hasKey(name):
+      let v = node[name]
+      let at = where & "." & name
+      when field is Option[Color]:
+        expectKind(v, {JString}, at); field = some(parseColor(v.getStr))
+      elif field is Option[float32]:
+        field = some(numberOf(v, at))
+      elif field is Option[bool]:
+        expectKind(v, {JBool}, at); field = some(v.getBool)
+      elif field is Option[string]:
+        expectKind(v, {JString}, at); field = some(v.getStr)
+      elif field is Option[EdgeInsets]:
+        field = some(paddingFrom(v, at))
+      elif field is Option[FontWeight]:
+        expectKind(v, {JString, JInt}, at)
+        field = some(weightFrom(if v.kind == JInt: $v.getInt else: v.getStr))
+      elif field is Option[BevelStyle]:
+        expectKind(v, {JString}, at); field = some(bevelFrom(v.getStr))
+      elif field is Option[tuple[x, y: float32]]:
+        let o = numberOf(v, at)             # one offset, right and down
+        field = some((o, o))
 
-proc toBrandSpec*(bf: BrandFile): BrandSpec =
-  ## File form to `BrandSpec`. A colour that fails to parse raises, like any
-  ## other colour in a theme file.
-  template color(f: Option[string]): Color =
-    (if f.isSome: parseColor(f.get()) else: Color())
-  template num(f: Option[float32]): float32 = f.get(0.0'f32)
-  BrandSpec(
-    name: bf.name.get("Brand"), dark: bf.dark.get(false),
-    accent: color(bf.accent), onAccent: color(bf.onAccent),
-    canvas: color(bf.canvas), surface: color(bf.surface),
-    text: color(bf.text), border: color(bf.border),
-    info: color(bf.info), success: color(bf.success),
-    warning: color(bf.warning), danger: color(bf.danger),
-    shadowColor: color(bf.shadowColor),
-    radius: num(bf.radius), fontSize: num(bf.fontSize),
-    fontFamily: bf.fontFamily.get(""), headingFont: bf.headingFont.get(""),
-    padding: num(bf.padding),
-    paddingX: num(bf.paddingX), borderWidth: num(bf.borderWidth),
-    borderless: bf.borderless.get(false), focusRingWidth: num(bf.focusRingWidth),
-    boldCaptions: bf.boldCaptions.get(false),
-    uppercaseCaptions: bf.uppercaseCaptions.get(false), shadow: num(bf.shadow),
-    controlHeight: num(bf.controlHeight), indicatorSize: num(bf.indicatorSize),
-    trackThickness: num(bf.trackThickness), thumbSize: num(bf.thumbSize),
-    progressHeight: num(bf.progressHeight), rowHeight: num(bf.rowHeight),
-    scrollbarThickness: num(bf.scrollbarThickness),
-    transitionMs: num(bf.transitionMs), noTransitions: bf.noTransitions.get(false),
-    cornerCut: num(bf.cornerCut), gloss: num(bf.gloss), relief: num(bf.relief),
-    focusGlow: num(bf.focusGlow), dimensionLines: bf.dimensionLines.get(false),
-    speechBubbleTips: bf.speechBubbleTips.get(false), glass: num(bf.glass),
-    fizz: bf.fizz.get(false), gradient: num(bf.gradient), caustic: num(bf.caustic),
-    softShadow: num(bf.softShadow), pulse: num(bf.pulse))
+proc propKeys(): seq[string] =
+  ## The keys a properties block may use.
+  var p: ThemeProps
+  for name, _ in fieldPairs(p):
+    if name notin unfiledPropNames: result.add name
+  for n in legacyPropNames: result.add n
 
-proc toTheme*(tf: ThemeFile, resolver: proc(name: string): Theme): Theme =
-  ## Convert a ThemeFile to a Theme, resolving extends via resolver
-  result = if tf.brand.isSome:
-    brandTheme(toBrandSpec(tf.brand.get()))
+proc brandSpecFrom*(node: JsonNode): BrandSpec =
+  ## A `brand:` section, by the fields of BrandSpec (colours as strings).
+  ## What is left out takes the spec's own default.
+  result.name = "Brand"
+  for name, field in fieldPairs(result):
+    if node.hasKey(name):
+      let v = node[name]
+      let at = "brand." & name
+      when field is Color:
+        expectKind(v, {JString}, at); field = parseColor(v.getStr)
+      elif field is float32:
+        field = numberOf(v, at)
+      elif field is bool:
+        expectKind(v, {JBool}, at); field = v.getBool
+      elif field is string:
+        expectKind(v, {JString}, at); field = v.getStr
+      else:
+        raise newException(ValueError, "theme: " & at & " cannot be set in a file")
+
+proc num(v: float32): JsonNode
+
+const themeWideNames = ["tipShape", "glass", "fizz", "pulse"]
+  ## The Theme fields that are theme-wide looks, written as top-level keys of a
+  ## theme file. A new one is a Theme field and its name here.
+
+proc tipShapeName(t: TipShape): string =
+  case t
+  of tsBox: "box"
+  of tsBubble: "bubble"
+
+proc readThemeWide(theme: var Theme, doc: JsonNode) =
+  ## The theme-wide looks a document sets, by the fields of Theme.
+  for name, field in fieldPairs(theme):
+    when name in themeWideNames:
+      if doc.hasKey(name):
+        let v = doc[name]
+        when field is float32:
+          field = max(0'f32, numberOf(v, name))
+        elif field is bool:
+          expectKind(v, {JBool}, name); field = v.getBool
+        elif field is TipShape:
+          expectKind(v, {JString}, name)
+          var found = false
+          for t in TipShape:
+            if tipShapeName(t) == v.getStr.toLowerAscii:
+              field = t; found = true
+          if not found:
+            raise newException(ValueError, "tipShape is \"box\" or \"bubble\", not \"" &
+                               v.getStr & "\"")
+
+proc writeThemeWide(theme: Theme, dest: JsonNode) =
+  ## The theme-wide looks a theme sets (not their defaults), by its fields.
+  for name, field in fieldPairs(theme):
+    when name in themeWideNames:
+      when field is float32:
+        if field > 0: dest[name] = num(field)
+      elif field is bool:
+        if field: dest[name] = newJBool(true)
+      elif field is TipShape:
+        if field != TipShape.low: dest[name] = newJString(tipShapeName(field))
+
+proc brandKeys(): seq[string] =
+  var b: BrandSpec
+  for name, field in fieldPairs(b):
+    when field is Color or field is float32 or field is bool or field is string:
+      result.add name
+
+proc toTheme*(tf: ThemeFile, doc: JsonNode, resolver: proc(name: string): Theme): Theme =
+  ## A theme from its file: the typed sections in `tf`, and `base`, `states`
+  ## and `brand` read from the document `doc` by the types that hold them.
+  ## `extends` is resolved by `resolver`.
+  let hasBrand = doc.hasKey("brand")
+  result = if hasBrand:
+    brandTheme(brandSpecFrom(doc["brand"]))
   elif tf.`extends`.isSome:
     resolver(tf.`extends`.get())
   else:
     newTheme()
-  if tf.`extends`.isSome and tf.brand.isNone:
+  if tf.`extends`.isSome and not hasBrand:
     result.parent = tf.`extends`.get()
   if tf.name.isSome:
     result.name = tf.name.get()
   if tf.version.isSome:
     result.version = tf.version.get()
-  if tf.base.isSome:
-    for intentKey, propsFile in tf.base.get():
+  if doc.hasKey("base"):
+    for intentKey, propsNode in doc["base"]:
       let intent = parseIntentName(intentKey)
-      let props = toThemeProps(propsFile)
+      let props = propsFromJson(propsNode, "base." & intentKey)
       var merged = result.base.getOrDefault(intent, ThemeProps())
       merged.merge(props)
       result.base[intent] = merged
-  if tf.states.isSome:
-    for intentKey, stateTable in tf.states.get():
+  if doc.hasKey("states"):
+    for intentKey, stateTable in doc["states"]:
       let intent = parseIntentName(intentKey)
-      for stateKey, propsFile in stateTable:
+      for stateKey, propsNode in stateTable:
         let state = parseStateName(stateKey)
-        let props = toThemeProps(propsFile)
+        let props = propsFromJson(propsNode, "states." & intentKey & "." & stateKey)
         var merged = result.states[intent].getOrDefault(state, ThemeProps())
         merged.merge(props)
         result.states[intent][state] = merged
@@ -436,15 +426,7 @@ proc toTheme*(tf: ThemeFile, resolver: proc(name: string): Theme): Theme =
     if b.blur.isSome: result.backdrop.blur = b.blur
     if b.saturation.isSome: result.backdrop.saturation = b.saturation
   if tf.headingFont.isSome: result.typography.headingFont = tf.headingFont
-  if tf.glass.isSome: result.glass = max(0'f32, tf.glass.get)
-  if tf.fizz.isSome: result.fizz = tf.fizz.get
-  if tf.pulse.isSome: result.pulse = max(0'f32, tf.pulse.get)
-  if tf.tipShape.isSome:
-    result.tipShape = case tf.tipShape.get.toLowerAscii
-      of "box": tsBox
-      of "bubble": tsBubble
-      else: raise newException(ValueError, "tipShape is \"box\" or \"bubble\", not \"" &
-                               tf.tipShape.get & "\"")
+  readThemeWide(result, doc)
   if tf.background.isSome:
     let bg = tf.background.get()
     if bg.image.isSome: result.assets.backgroundPattern = bg.image
@@ -500,14 +482,15 @@ proc checkKeys(node: JsonNode, where: string, allowed: seq[string],
         "; allowed: " & allowed.join(", "))
 
 proc checkProps(node: JsonNode, where: string) =
-  checkKeys(node, where, fieldNames(ThemePropsFile))
+  checkKeys(node, where, propKeys())
   if node.hasKey("padding") and node["padding"].kind == JObject:
     checkKeys(node["padding"], where & ".padding", fieldNames(PaddingFile))
 
 proc validateThemeNode*(root: JsonNode) =
   ## Raise a ValueError naming the first key a theme file has that the format
   ## does not. Intent, state and role names are checked by their own parsers.
-  checkKeys(root, "the top level", fieldNames(ThemeFile))
+  checkKeys(root, "the top level", fieldNames(ThemeFile) & @["base", "states", "brand"] &
+            @themeWideNames)
   if root.hasKey("base"):
     checkKeys(root["base"], "base", @["default", "info", "success", "warning", "danger"], fold = true)
     for intent, props in root["base"]:
@@ -531,28 +514,30 @@ proc validateThemeNode*(root: JsonNode) =
   if root.hasKey("background"):
     checkKeys(root["background"], "background", fieldNames(BackgroundFile))
   if root.hasKey("brand"):
-    checkKeys(root["brand"], "brand", fieldNames(BrandFile))
+    checkKeys(root["brand"], "brand", brandKeys())
+
+proc parseThemeDoc*(content: string, format: ThemeFileFormat): JsonNode =
+  ## Text to the theme document, checked: YAML and JSON alike. Raises on
+  ## malformed input or an unknown key, which the caller reports with a
+  ## filename attached.
+  result = case format
+    of tffJson: parseJson(content)
+    of tffYaml:
+      let docs = loadToJson(content)
+      if docs.len > 0: docs[0] else: newJObject()
+  if result.kind == JNull: result = newJObject()
+  validateThemeNode(result)
 
 proc parseThemeFile*(content: string, format: ThemeFileFormat): ThemeFile =
-  ## Text to the intermediate file representation. Raises on malformed input,
-  ## which is the caller's to report with a filename attached.
-  case format
-  of tffJson:
-    let node = parseJson(content)
-    validateThemeNode(node)
-    node.to(ThemeFile)
-  of tffYaml:
-    let docs = loadToJson(content)
-    if docs.len > 0:
-      validateThemeNode(docs[0])
-    var tf: ThemeFile
-    load(content, tf)
-    tf
+  ## The typed sections of a theme file (the document's other keys are read
+  ## by `toTheme`).
+  parseThemeDoc(content, format).to(ThemeFile)
 
 proc parseTheme*(content: string, format: ThemeFileFormat,
                  resolver: proc(name: string): Theme): Theme =
   ## Text straight to a `Theme`. The whole adapter in one call.
-  toTheme(parseThemeFile(content, format), resolver)
+  let doc = parseThemeDoc(content, format)
+  toTheme(doc.to(ThemeFile), doc, resolver)
 
 
 # ============================================================================
@@ -578,66 +563,48 @@ proc num(v: float32): JsonNode =
   if v == float32(int(v)): newJInt(int(v)) else: newJFloat(float(v))
 
 proc propsToJson*(p: ThemeProps): JsonNode =
+  ## The properties that are set, by the fields of ThemeProps: what
+  ## `propsFromJson` reads back.
   result = newJObject()
-  template color(key: string, field: Option[Color]) =
-    if field.isSome: result[key] = newJString(formatColor(field.get))
-  template number(key: string, field: Option[float32]) =
-    if field.isSome: result[key] = num(field.get)
-  color "backgroundColor", p.backgroundColor
-  color "foregroundColor", p.foregroundColor
-  color "borderColor", p.borderColor
-  color "pressedColor", p.pressedColor
-  color "hoverColor", p.hoverColor
-  color "activeColor", p.activeColor
-  color "focusColor", p.focusColor
-  color "focusRingColor", p.focusRingColor
-  color "focusGlowColor", p.focusGlowColor
-  color "highlightColor", p.highlightColor
-  color "shadowColor", p.shadowColor
-  color "darkShadowColor", p.darkShadowColor
-  color "dropShadowColor", p.dropShadowColor
-  number "borderWidth", p.borderWidth
-  number "cornerRadius", p.cornerRadius
-  number "fontSize", p.fontSize
-  number "spacing", p.spacing
-  number "focusRingWidth", p.focusRingWidth
-  number "focusGlowRadius", p.focusGlowRadius
-  number "cornerCut", p.cornerCut
-  number "gloss", p.gloss
-  number "relief", p.relief
-  number "gradient", p.gradient
-  number "caustic", p.caustic
-  number "softShadow", p.softShadow
-  if p.dimensionLines.isSome: result["dimensionLines"] = newJBool(p.dimensionLines.get)
-  if p.fontFamily.isSome: result["fontFamily"] = newJString(p.fontFamily.get)
-  if p.fontWeight.isSome:
-    result["fontWeight"] = newJString(case p.fontWeight.get
-      of Light: "light"
-      of Regular: "regular"
-      of Medium: "medium"
-      of SemiBold: "semibold"
-      of Bold: "bold"
-      of ExtraBold: "extrabold")
-  if p.uppercase.isSome: result["uppercase"] = newJBool(p.uppercase.get)
-  if p.dropShadowOffset.isSome:
-    let o = p.dropShadowOffset.get
-    if o.x != o.y:
-      raise newException(ValueError,
-        "dropShadowOffset " & $o.x & "," & $o.y & " cannot be written: the theme " &
-        "format has one offset for right and down")
-    result["dropShadowOffset"] = num(o.x)
-  if p.padding.isSome:
-    let e = p.padding.get
-    result["padding"] =
-      if e.top == e.bottom and e.left == e.right and e.top == e.left:
-        %*{"all": num(e.top)}
-      elif e.top == e.bottom and e.left == e.right:
-        %*{"horizontal": num(e.left), "vertical": num(e.top)}
-      else:
-        %*{"left": num(e.left), "top": num(e.top), "right": num(e.right),
-           "bottom": num(e.bottom)}
-  if p.bevelStyle.isSome:
-    result["bevelStyle"] = newJString(($p.bevelStyle.get).toLowerAscii)
+  for name, field in fieldPairs(p):
+    when field is Option[Color]:
+      if field.isSome: result[name] = newJString(formatColor(field.get))
+    elif field is Option[float32]:
+      if field.isSome: result[name] = num(field.get)
+    elif field is Option[bool]:
+      if field.isSome: result[name] = newJBool(field.get)
+    elif field is Option[string]:
+      if field.isSome: result[name] = newJString(field.get)
+    elif field is Option[FontWeight]:
+      if field.isSome:
+        result[name] = newJString(case field.get
+          of Light: "light"
+          of Regular: "regular"
+          of Medium: "medium"
+          of SemiBold: "semibold"
+          of Bold: "bold"
+          of ExtraBold: "extrabold")
+    elif field is Option[BevelStyle]:
+      if field.isSome: result[name] = newJString(($field.get).toLowerAscii)
+    elif field is Option[tuple[x, y: float32]]:
+      if field.isSome:
+        let o = field.get
+        if o.x != o.y:
+          raise newException(ValueError,
+            name & " " & $o.x & "," & $o.y & " cannot be written: the theme " &
+            "format has one offset for right and down")
+        result[name] = num(o.x)
+    elif field is Option[EdgeInsets]:
+      if field.isSome:
+        let e = field.get
+        result[name] =
+          if e.top == e.bottom and e.left == e.right and e.top == e.left:
+            %*{"all": num(e.top)}
+          elif e.top == e.bottom and e.left == e.right:
+            %*{"horizontal": num(e.left), "vertical": num(e.top)}
+          else:
+            %*{"left": num(e.left), "top": num(e.top), "right": num(e.right),
+               "bottom": num(e.bottom)}
 
 const IntentNames = ["default", "info", "success", "warning", "danger"]
 const StateNames = ["normal", "disabled", "hovered", "pressed", "focused",
@@ -716,10 +683,7 @@ proc themeToJson*(theme: Theme): JsonNode =
   if assets.backgroundTint.isSome: background["tint"] = newJString(formatColor(assets.backgroundTint.get))
   if theme.typography.headingFont.isSome:
     result["headingFont"] = newJString(theme.typography.headingFont.get)
-  if theme.tipShape == tsBubble: result["tipShape"] = newJString("bubble")
-  if theme.glass > 0: result["glass"] = num(theme.glass)
-  if theme.fizz: result["fizz"] = newJBool(true)
-  if theme.pulse > 0: result["pulse"] = num(theme.pulse)
+  writeThemeWide(theme, result)
   if background.len > 0: result["background"] = background
 
 proc yamlScalar(node: JsonNode): string =

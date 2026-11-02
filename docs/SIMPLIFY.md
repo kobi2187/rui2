@@ -187,7 +187,7 @@ Afterwards there's one rule: "paint past your bounds with `effectReach`".
 - Bevels (BeOS) stay as they are. They're a real style of their own, and
   `relief` doesn't replace them.
 
-### Step 5. Declare each theme setting once (medium, the biggest payoff later)
+### Step 5. Declare each theme setting once (medium, the biggest payoff later) -- done
 
 Describe every setting in one table: its name, type, default, a sentence of
 meaning, and its scope:
@@ -210,6 +210,24 @@ Group the theme-wide settings by what they are:
 | `behaviour` | transitions, pulse, fizz, motion defaults |
 
 A new look then becomes one table row and the code that draws it.
+
+**As done:**
+- **The types are the declaration.** There's no separate table: the types
+  that hold the settings are the declaration, and a file is their fields by
+  name, read and written by walking those fields (`fieldPairs`).
+- **Per state:** a per-state property is a field of `ThemeProps`
+  (`propsFromJson`, `propsToJson`).
+- **Brand:** a brand choice is a field of `BrandSpec` (`brandSpecFrom`).
+- **Theme-wide:** a theme-wide look is a field of `Theme` named in
+  `themeWideNames`.
+- **Removed:** the mirror types `ThemePropsFile` and `BrandFile`, and their
+  field-by-field converters.
+- **One path:** YAML and JSON go through one JSON document.
+- **Adding a setting** is now the field plus the code that draws it (and, for a
+  brand choice, the line in `brandTheme` that says what it means).
+- **Not changed:** the grouping of theme-wide sections into `surfaces`,
+  `chrome` and `behaviour`. It would rename keys in existing theme files, and
+  the generic reading made it unnecessary for adding settings.
 
 ### Step 6. Name the UI context (medium, mostly mechanical)
 
