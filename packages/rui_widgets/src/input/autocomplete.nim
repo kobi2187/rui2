@@ -35,7 +35,7 @@ proc suggestionsFor*(all: openArray[string], typed: string, limit: int): seq[str
 
 proc listKey(widget: Widget, key: KeyboardKey): bool
 
-definePrimitive(Autocomplete):
+defineWidget(Autocomplete):
   props:
     suggestions: seq[string] = @[]
     initialText: string = ""

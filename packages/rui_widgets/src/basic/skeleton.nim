@@ -54,7 +54,7 @@ proc drawSkeleton*(area: Rect, shape: SkeletonShape, pulse: float32, lines = 3,
     for bar in textLines(area, lines, lineHeight, gap):
       discard drawSdfBox(bar, min(r, lineHeight / 2), 0, c, c)
 
-definePrimitive(Skeleton):
+defineWidget(Skeleton):
   props:
     shape: SkeletonShape = skBlock
     lines: int = 3                  ## skText

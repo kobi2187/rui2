@@ -24,7 +24,7 @@ proc badgeStyle(props: ThemeProps): TextStyle =
   ## The ink that reads on the badge's fill.
   props.captionStyle(onFillInk(badgeFill(props)), size = 12.0)
 
-definePrimitive(Badge):
+defineWidget(Badge):
   props:
     text: string = ""
     intent: ThemeIntent = Danger

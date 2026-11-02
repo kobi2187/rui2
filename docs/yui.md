@@ -119,7 +119,7 @@ app.setRootWidget(doc.root)
 
 (`examples/widgets/yui_app.nim` + `examples/yui/settings.yui` is the whole thing.)
 
-The loader has no per-widget code. Every `definePrimitive` / `defineWidget`
+The loader has no per-widget code. Every `defineWidget`
 registers itself in `widget_registry` (constructor, every prop and state field
 as a JSON-coercing setter, every action as a handler attacher), so an element
 is: yui table row -> widget name -> blueprint -> `create`, `setProp`, `attach`.

@@ -32,7 +32,7 @@ template setValue(w, computed: untyped) =
       w.isDirty = true
       if w.onChange != nil: w.onChange(v)
 
-definePrimitive(Knob):
+defineWidget(Knob):
   props:
     initialValue: float32 = 0.0
     minValue: float32 = 0.0

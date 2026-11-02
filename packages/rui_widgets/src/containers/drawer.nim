@@ -19,7 +19,7 @@ import std/options
 
 type DrawerSide* = enum dsLeft, dsRight
 
-definePrimitive(Drawer):
+defineWidget(Drawer):
   props:
     width: float32 = 240.0
     initialOpen: bool = true

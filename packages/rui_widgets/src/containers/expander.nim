@@ -20,7 +20,7 @@ proc headerHeight(props: ThemeProps): float32 =
 
 proc contentGap(widget: Widget): float32 = 4.0'f32
 
-definePrimitive(Expander):
+defineWidget(Expander):
   props:
     title: string = ""
     initialExpanded: bool = true

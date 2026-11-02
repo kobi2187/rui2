@@ -43,7 +43,7 @@ template drawNotice(widget: untyped, message: string, tint: Color) =
            TextStyle(fontFamily: "", fontSize: 12.0, color: tint),
            TextAlign.Center)
 
-definePrimitive(ImageWidget):
+defineWidget(ImageWidget):
   props:
     imagePath: string = ""       # Path to image file
     width: float = 100.0          # Widget width

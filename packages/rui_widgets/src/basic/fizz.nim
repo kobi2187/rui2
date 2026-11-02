@@ -45,7 +45,7 @@ proc fizzBubbles*(t: float, area: Rect, seconds = 0.9): seq[Bubble] =
     let fade = float32(min(1.0, (1 - rise) * 3) * min(1.0, life * 6))
     result.add (Point(x: x.float32, y: y.float32), r.float32, fade)
 
-definePrimitive(Fizz):
+defineWidget(Fizz):
   props:
     seconds: float32 = 0.9
     color: Color = Color(r: 255, g: 255, b: 255, a: 200)

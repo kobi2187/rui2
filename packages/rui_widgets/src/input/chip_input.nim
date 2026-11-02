@@ -33,7 +33,7 @@ proc closeRect*(chip: Rect): Rect
 proc addChips(widget: Widget, typed: string)
 proc removeChip(widget: Widget, i: int)
 
-definePrimitive(ChipInput):
+defineWidget(ChipInput):
   props:
     initialChips: seq[string] = @[]
     suggestions: seq[string] = @[]

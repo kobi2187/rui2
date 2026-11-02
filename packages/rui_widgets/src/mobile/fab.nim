@@ -18,7 +18,7 @@ import ../press
 import std/options
 import raylib
 
-definePrimitive(FloatingActionButton):
+defineWidget(FloatingActionButton):
   props:
     icon: string = "+"
     label: string = ""              ## set: the extended kind, icon and label

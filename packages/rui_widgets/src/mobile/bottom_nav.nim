@@ -33,7 +33,7 @@ proc slotRect*(bounds: Rect, count, i: int): Rect =
 
 proc choose(widget: Widget, i: int)
 
-definePrimitive(BottomNav):
+defineWidget(BottomNav):
   props:
     items: seq[NavItem] = @[]
     initialSelected: int = 0

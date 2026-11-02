@@ -89,7 +89,7 @@ proc drawAvatar*(rect: Rect, name: string, imagePath = "", status = asNone,
     let c = statusColor(status)
     discard drawSdfBox(at, dot / 2, max(1.5'f32, dot * 0.18), c, bg)
 
-definePrimitive(Avatar):
+defineWidget(Avatar):
   props:
     name: string = ""
     imagePath: string = ""
@@ -113,7 +113,7 @@ proc stackSlots*(count, maxShown: int, size, overlap: float32): seq[float32] =
   for i in 0 ..< shown + (if more: 1 else: 0):
     result.add float32(i) * size * (1 - overlap)
 
-definePrimitive(AvatarStack):
+defineWidget(AvatarStack):
   props:
     names: seq[string] = @[]
     imagePaths: seq[string] = @[]   ## by position, beside `names`; may be shorter

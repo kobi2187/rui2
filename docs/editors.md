@@ -77,7 +77,7 @@ ui:
 
 ## Writing another piece
 
-A new piece on an axis is an ordinary `definePrimitive` that takes
+A new piece on an axis is an ordinary `defineWidget` that takes
 `view: Link[AxisView]`:
 
 ```nim

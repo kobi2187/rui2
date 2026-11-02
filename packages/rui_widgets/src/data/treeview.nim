@@ -49,7 +49,7 @@ template setExpanded(widget: untyped, node: TreeNode, open: bool) =
     else:
       if widget.onCollapse != nil: widget.onCollapse(node.id)
 
-definePrimitive(TreeView):
+defineWidget(TreeView):
   props:
     rootNode: TreeNode = nil
     nodeHeight: float32 = 0.0   # 0: the theme's row height

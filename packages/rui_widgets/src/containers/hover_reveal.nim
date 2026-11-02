@@ -34,7 +34,7 @@ import std/[monotimes, times, options]
 proc reveal*(widget: Widget, show: bool)
 proc watchPointer(widget: Widget): bool
 
-definePrimitive(HoverReveal):
+defineWidget(HoverReveal):
   props:
     reach: float32 = 24.0        ## how near the pointer reveals it, px beyond its bounds
     hideDelay: float = 1.0       ## seconds after the pointer leaves before it hides

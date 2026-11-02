@@ -65,7 +65,7 @@ proc pollFileDrops*[W](widget: W) =
   if isFileDropped():
     widget.receiveDrop(getDroppedFiles())
 
-definePrimitive(DragDropArea):
+defineWidget(DragDropArea):
   props:
     mode: DropMode = dmFiles
     acceptedExtensions: seq[string] = @[]  # e.g. @[".txt", ".nim", ".png"]

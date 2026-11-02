@@ -16,7 +16,7 @@ import rui_core
 import rui_drawing
 import raylib
 
-definePrimitive(Rectangle):
+defineWidget(Rectangle):
   props:
     color: raylib.Color = GRAY
     cornerRadius: float = 0.0

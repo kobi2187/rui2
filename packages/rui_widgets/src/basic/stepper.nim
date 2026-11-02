@@ -39,7 +39,7 @@ proc stepCenters*(count: int, area: Rect, inset: float32, insetRight = -1'f32): 
 proc goTo(widget: Widget, i: int)
 proc centers*(widget: Widget): seq[float32]
 
-definePrimitive(Stepper):
+defineWidget(Stepper):
   props:
     steps: seq[string] = @[]
     initialCurrent: int = 0

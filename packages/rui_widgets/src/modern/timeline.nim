@@ -76,7 +76,7 @@ template showEvent(widget: untyped, index: int) =
         (r.x + min(r.width, w / 2)) - (widget.bounds.x + w) + 16, w)
     widget.isDirty = true
 
-definePrimitive(Timeline):
+defineWidget(Timeline):
   props:
     events: seq[TimelineEvent] = @[]
     startTime: DateTime

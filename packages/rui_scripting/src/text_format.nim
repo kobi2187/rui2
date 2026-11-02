@@ -262,7 +262,7 @@ proc translateToAction*(cmd: TextCommand, widgetType: string): (string, JsonNode
   ## (the widget is `Checkbox`, not `CheckBox`), and any widget not on the list
   ## fell through to actions nothing implemented.
   ##
-  ## Since defineWidget/definePrimitive now generate a uniform scripting bridge
+  ## Since defineWidget now generate a uniform scripting bridge
   ## for every widget, the translation is type-independent:
   ##
   ##   read           -> "read"    (full state as JSON)

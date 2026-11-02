@@ -228,7 +228,7 @@ defineWidget(Flexible):
     wrapChild(widget)
 
 # Empty flex space: pushes its neighbours apart in a Row or Column.
-definePrimitive(Spacer):
+defineWidget(Spacer):
   props:
     flex: int = 1
     minWidth: float32 = 0.0

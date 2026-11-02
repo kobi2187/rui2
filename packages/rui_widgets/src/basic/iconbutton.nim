@@ -17,7 +17,7 @@ import raylib
 # they live in a global table and are borrowed for drawing.
 var textureCache {.global.}: Table[string, Texture2D]
 
-definePrimitive(IconButton):
+defineWidget(IconButton):
   props:
     iconText: string = ""         # Text icon (e.g. "*", "OK", an emoji)
     iconTexturePath: string = ""  # Path to an icon image file

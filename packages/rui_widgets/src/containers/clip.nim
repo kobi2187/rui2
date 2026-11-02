@@ -24,7 +24,7 @@ import std/options
 
 proc shownPart*(widget: Widget): Rect
 
-definePrimitive(Clip):
+defineWidget(Clip):
   props:
     cut: EdgeInsets = EdgeInsets()   ## what is cut off each side, px
 

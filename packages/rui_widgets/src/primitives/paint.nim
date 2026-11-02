@@ -14,7 +14,7 @@
 
 import rui_core
 
-definePrimitive(Paint):
+defineWidget(Paint):
   actions:
     onPaint(area: Rect)
 

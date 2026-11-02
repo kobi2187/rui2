@@ -25,7 +25,7 @@ template pitch(w: untyped): float32 =
   ## Row pitch: `spacing`, or more if the theme's radios or text need it.
   max(w.spacing, currentTheme.indicatorSize + 4)
 
-definePrimitive(RadioGroup):
+defineWidget(RadioGroup):
   props:
     options: seq[string] = @[]
     # Named to match the state field `selectedIndex`: the DSL seeds state from

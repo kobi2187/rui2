@@ -96,7 +96,7 @@ template openMenuAt(widget: untyped, index: int, fromKeyboard: bool) =
     bar.isDirty = true
     bar.layoutDirty = true
 
-definePrimitive(MenuBar):
+defineWidget(MenuBar):
   props:
     barHeight: float32 = 0.0   # 0: from the theme
     intent: ThemeIntent = Default

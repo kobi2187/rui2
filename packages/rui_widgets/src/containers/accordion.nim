@@ -20,7 +20,7 @@ import rui_core
 import expander
 import ../layout_motion
 
-definePrimitive(Accordion):
+defineWidget(Accordion):
   props:
     spacing: float32 = 4.0
     fill: bool = true            # the open section takes the room left over

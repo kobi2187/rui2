@@ -195,7 +195,7 @@ let root = ui:
 ```
 
 When the component needs state, events or its own drawing, make it a widget
-with `defineWidget` / `definePrimitive` instead. It then gets a `newX`
+with `defineWidget` instead. It then gets a `newX`
 constructor the same way, with one keyword argument per prop.
 
 ## The tree as plain code

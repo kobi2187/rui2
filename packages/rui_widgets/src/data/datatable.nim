@@ -192,7 +192,7 @@ proc toColumnFilters*(filters: Table[string, Filter]): seq[ColumnFilter] =
       result.add ColumnFilter(column: column, op: foLessEq, text: $f.max)
     of fkIn, fkNone: discard
 
-definePrimitive(DataTable):
+defineWidget(DataTable):
   props:
     columns: seq[DataColumn] = @[]
     data: seq[DataRow] = @[]    # The whole dataset; can be large

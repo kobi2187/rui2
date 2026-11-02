@@ -87,7 +87,7 @@ share the same section format — `props`, `state`, `actions`, `events`, plus
 
 ```nim
 # A leaf that draws itself with drawing primitives
-definePrimitive(Label):
+defineWidget(Label):
   props:
     text: string
     fontSize: float = 14.0
@@ -110,8 +110,7 @@ defineWidget(SimpleColumn):
       y += child.bounds.height + widget.spacing
 ```
 
-See [ARCHITECTURE.md](ARCHITECTURE.md) for the full `definePrimitive` vs
-`defineWidget` distinction and every section.
+See [ARCHITECTURE.md](ARCHITECTURE.md) for every section `defineWidget` takes.
 
 ## What works today
 
@@ -155,7 +154,7 @@ subsystem can be used independently and later split into its own repository:
 
 | Package          | Responsibility |
 |------------------|----------------|
-| `rui_core`       | Widget/Rect/Color/event types, `Link[T]`, two-pass main loop, `definePrimitive`/`defineWidget` macros |
+| `rui_core`       | Widget/Rect/Color/event types, `Link[T]`, two-pass main loop, `defineWidget` macro |
 | `rui_hittest`    | Generic interval tree + Widget-aware spatial hit-testing |
 | `rui_events`     | Time-budgeted event manager + focus manager |
 | `rui_drawing`    | Drawing primitives, effects, theme system (state × intent), text cache, theme-aware widget primitives |

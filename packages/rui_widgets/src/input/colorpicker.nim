@@ -25,7 +25,7 @@ proc drawHueBar(r: Rect) =
     let x1 = r.x + r.width * float32(i + 1) / float32(segments)
     drawRectangleGradientH(int32(x0), int32(r.y), int32(x1) - int32(x0) + 1, int32(r.height), a, b)
 
-definePrimitive(ColorPopup):
+defineWidget(ColorPopup):
   props:
     intent: ThemeIntent = Default
 
@@ -104,7 +104,7 @@ proc startHsv(value: string): Hsv =
   let c = parseHexColor(value)
   if c.isSome: c.get.toHsv else: Hsv(h: 210, s: 0.7, v: 0.8)
 
-definePrimitive(ColorPicker):
+defineWidget(ColorPicker):
   props:
     initialValue: string = "#3366cc"
     disabled: bool = false

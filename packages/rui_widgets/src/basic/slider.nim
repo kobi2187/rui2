@@ -75,7 +75,7 @@ template setValue(w, computed: untyped) =
   ## second.
   ##
   ## A template rather than a proc because it names the widget type, which does
-  ## not exist until definePrimitive below has run.
+  ## not exist until defineWidget below has run.
   block:
     let v = computed
     if w.value != v:
@@ -84,7 +84,7 @@ template setValue(w, computed: untyped) =
       if w.onChange != nil:
         w.onChange(v)
 
-definePrimitive(Slider):
+defineWidget(Slider):
   props:
     initialValue: float32 = 0.0
     minValue: float32 = 0.0

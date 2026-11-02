@@ -16,7 +16,7 @@ import rui_core
 import rui_drawing
 import raylib
 
-definePrimitive(FocusRing):
+defineWidget(FocusRing):
   props:
     group: bool = false          # the container's ring: softer and rounder
     intent: ThemeIntent = Default

@@ -23,7 +23,7 @@ type PaneSide* = enum psRight, psLeft
 
 proc paneHeader(): float32 = max(currentTheme.controlHeight * 0.9'f32, 26.0'f32)
 
-definePrimitive(SidePane):
+defineWidget(SidePane):
   props:
     title: string = ""
     summary: string = ""         # shown beside the title, and alone on the strip

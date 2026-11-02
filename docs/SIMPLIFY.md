@@ -141,7 +141,7 @@ Each step is a pull request of its own and leaves RUI working. Each is checked
 by the layout snapshots, the visual goldens and the GL tests. The first steps
 are cheap and clear the way for the rest.
 
-### Step 1. One widget macro (small, low risk)
+### Step 1. One widget macro (small, low risk) -- done
 
 - Keep `defineWidget` as the only macro.
 - Keep `definePrimitive` as a one-line deprecated alias, so nothing breaks.
@@ -149,7 +149,7 @@ are cheap and clear the way for the rest.
 - Say in one sentence what a widget is: a type with props, state, actions,
   events, and optional `init`, `layout` and `render`.
 
-### Step 2. Correct the architecture document (small)
+### Step 2. Correct the architecture document (small) -- done
 
 Fix the package list, the directory claim and the macro section now. Then
 rewrite it around the four ideas above once steps 3 to 6 land, so it stays

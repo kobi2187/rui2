@@ -41,7 +41,7 @@ template closeDialog(w: untyped) =
   closeModal(w)
   if w.onClose != nil: w.onClose()
 
-definePrimitive(Dialog):
+defineWidget(Dialog):
   props:
     title: string = ""
     dialogWidth: float32 = 0.0      # 0: as wide as the content

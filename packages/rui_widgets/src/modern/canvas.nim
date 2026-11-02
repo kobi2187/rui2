@@ -16,7 +16,7 @@ import raylib
 import canvas_commands
 export canvas_commands
 
-definePrimitive(Canvas):
+defineWidget(Canvas):
   props:
     enableDrawing: bool = true
     drawingMode: DrawingMode = dmNone

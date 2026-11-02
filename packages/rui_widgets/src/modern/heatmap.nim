@@ -47,7 +47,7 @@ const
   LabelW = 28'f32               ## the weekday labels on the left
   LabelH = 16'f32               ## the month labels on top
 
-definePrimitive(CalendarHeatmap):
+defineWidget(CalendarHeatmap):
   props:
     values: Table[string, float] = initTable[string, float]()
     endDate: string = ""          ## "" for today

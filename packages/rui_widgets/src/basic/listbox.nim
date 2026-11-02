@@ -48,7 +48,7 @@ template viewportOf*(widget: untyped): RowViewport =
   rowViewport(top = widget.bounds.y, height = widget.bounds.height,
               rowHeight = rowH(widget), scrollY = widget.scrollY)
 
-definePrimitive(ListBox):
+defineWidget(ListBox):
   props:
     items: seq[string] = @[]
     totalItemCount: int = -1     # -1 means use items.len, otherwise for lazy loading

@@ -15,7 +15,7 @@ const
   ButtonWidth = 16.0'f32   ## Must match drawSpinnerButtons in rui_drawing.
   DefaultHeight = 28.0'f32
 
-definePrimitive(NumberInput):
+defineWidget(NumberInput):
   props:
     initialValue: float32 = 0.0
     minValue: float32 = 0.0

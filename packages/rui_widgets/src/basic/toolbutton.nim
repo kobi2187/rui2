@@ -16,7 +16,7 @@ const
   IconSize = 16.0'f32
   LabelSize = 9.0'f32
 
-definePrimitive(ToolButton):
+defineWidget(ToolButton):
   props:
     iconText: string = ""        # Text icon (emoji / Unicode glyph)
     text: string = ""            # Optional label below the icon

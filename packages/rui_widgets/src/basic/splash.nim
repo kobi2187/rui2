@@ -31,7 +31,7 @@ proc fadeLeft*(sinceFinish, seconds: float): float32 =
   if seconds <= 0: return 0
   float32(clamp(1 - sinceFinish / seconds, 0.0, 1.0))
 
-definePrimitive(Splash):
+defineWidget(Splash):
   props:
     title: string = ""
     subtitle: string = ""

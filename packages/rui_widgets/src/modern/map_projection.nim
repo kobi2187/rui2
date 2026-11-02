@@ -6,7 +6,7 @@
 ##
 ## The projection lives in a `MapView` value rather than in procs over the
 ## widget for a reason that is structural, not stylistic: the widget type does
-## not exist until definePrimitive has expanded, and the widget body needs the
+## not exist until defineWidget has expanded, and the widget body needs the
 ## geometry. A value the widget can build from itself (see `viewOf`) is the way
 ## round that.
 

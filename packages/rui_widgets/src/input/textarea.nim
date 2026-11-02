@@ -635,7 +635,7 @@ template paintEditable(widget: untyped, content: TextContent, inner: Rect) =
       if half > 0:
         widget.repaintAfter(caretPhaseRemaining(now, half))
 
-definePrimitive(TextArea):
+defineWidget(TextArea):
   props:
     initialText: string = ""
     placeholder: string = "Type here..."

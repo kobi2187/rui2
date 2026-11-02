@@ -17,7 +17,7 @@ proc valueAlong(bounds: Rect, vertical: bool, pos: Point,
   else:
     valueAtPointer(pos.x, track.x, track.width, minValue, maxValue, 0.0)
 
-definePrimitive(ScrollBar):
+defineWidget(ScrollBar):
   props:
     initialValue: float32 = 0.0
     minValue: float32 = 0.0

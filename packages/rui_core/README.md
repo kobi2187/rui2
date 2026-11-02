@@ -13,4 +13,4 @@ import rui_core
 
 Provides the core types (`Widget`, `Rect`, `Color`, events), the reactive
 `Link[T]` primitive with O(1) dirty-marking, the two-pass layout/render main
-loop, and the `definePrimitive` / `defineWidget` DSL macros.
+loop, and the `defineWidget` DSL macro.

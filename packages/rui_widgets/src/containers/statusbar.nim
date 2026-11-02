@@ -10,7 +10,7 @@ template barHeightOf(w: untyped): float32 =
   ## Bar height: the prop, else the theme's.
   themedSize(w.barHeight, currentTheme.barHeight(24.0))
 
-definePrimitive(StatusBar):
+defineWidget(StatusBar):
   props:
     text: string = ""
     rightText: string = ""

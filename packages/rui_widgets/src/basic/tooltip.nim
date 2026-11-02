@@ -34,7 +34,7 @@ template tipStyle(size: float32): TextStyle =
             bold: false, italic: false, underline: false)
 
 # The floating box itself. Lives on the overlay layer, never in the tree.
-definePrimitive(TooltipTip):
+defineWidget(TooltipTip):
   props:
     text: string = ""
     fontSize: float32 = 12.0

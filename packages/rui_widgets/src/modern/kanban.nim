@@ -56,7 +56,7 @@ template geometryOf*(widget: untyped): KanbanGeometry =
       columnGap: max(8.0'f32, pad), headerHeight: line + pad * 2,
       cardHeight: cardH, cardGap: max(4.0'f32, pad * 0.6), pad: pad)
 
-definePrimitive(KanbanBoard):
+defineWidget(KanbanBoard):
   props:
     columns: seq[KanbanColumn] = @[]
     columnWidth: float32 = 0.0     # 0: 220, or shared out when the board is narrower

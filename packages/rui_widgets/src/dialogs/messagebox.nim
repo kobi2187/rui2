@@ -19,7 +19,7 @@ export messagebox_layout
 
 proc finish(widget: Widget, res: MessageBoxResult)
 
-definePrimitive(MessageBox):
+defineWidget(MessageBox):
   props:
     title: string = "Message"
     message: string = ""

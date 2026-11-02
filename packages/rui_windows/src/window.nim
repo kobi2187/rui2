@@ -41,7 +41,7 @@ proc zoomSlot(closable: bool): int =
   ## The slot of the zoom box: second from the right beside a right-hand close box.
   if closable and not tabbedTitle(): 1 else: 0
 
-definePrimitive(Window):
+defineWidget(Window):
   props:
     title: string = "Window"
     x: float32 = 80.0

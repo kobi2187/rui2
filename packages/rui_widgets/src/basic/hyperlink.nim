@@ -19,7 +19,7 @@ import std/options
 
 import raylib
 
-definePrimitive(Hyperlink):
+defineWidget(Hyperlink):
   props:
     text: string
     url: string = ""

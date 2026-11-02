@@ -71,7 +71,7 @@ template panBy(widget: untyped, dx, dy: float32) =
     if widget.onCenterChanged != nil:
       widget.onCenterChanged(widget.center)
 
-definePrimitive(MapWidget):
+defineWidget(MapWidget):
   props:
     initialCenter: MapCoord = MapCoord(lat: 0.0, lon: 0.0)
     initialZoom: float = 2.0

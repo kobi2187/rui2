@@ -1,7 +1,7 @@
 ## Virtual row scrolling arithmetic
 ##
 ## This logic used to live seven times over, once inside each scrollable
-## widget's `definePrimitive` body, where it could only be reached by building a
+## widget's `defineWidget` body, where it could only be reached by building a
 ## widget and driving a window. As a plain value it can be checked directly —
 ## which is the point of extracting it.
 

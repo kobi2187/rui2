@@ -37,7 +37,7 @@ type
     reach*: float32       ## how far past the outline it draws (a glow's spread)
     informative*: bool    ## says something: shown still, not hidden, with `motion: none`
 
-definePrimitive(Decoration):
+defineWidget(Decoration):
   props:
     inset: float32 = 0.0     ## move the path inwards (keep lights inside a hard edge)
     radius: float32 = -1.0   ## corner radius of a widget's outline; < 0: the theme's

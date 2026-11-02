@@ -38,7 +38,7 @@ template rowsOf(list: untyped): RowViewport =
   ## The list's rows as they sit in its bounds, scrolled.
   rowViewport(list.bounds.y, list.bounds.height, max(1'f32, list.itemHeight), list.scrollY)
 
-definePrimitive(ComboList):
+defineWidget(ComboList):
   ## When the window has less room than the items need (popupRect shrinks it),
   ## the rows scroll: the wheel, the scroll bar, and `reveal` for the keyboard.
   props:
@@ -150,7 +150,7 @@ template setOpen(widget: untyped, open: bool) =
       w.hoverIndex = w.selectedIndex
       w.list.reveal(w.selectedIndex)
 
-definePrimitive(ComboBox):
+defineWidget(ComboBox):
   props:
     items: seq[string] = @[]
     # Named to match the state field `selectedIndex`: the DSL seeds state from
