@@ -24,7 +24,7 @@ VStack gallery @0,0 1000x720
           Button basics.popoverButton @424,183 107x39 tabstop
             Rectangle - @424,183 107x39
             Label - @440,191 75x23
-            Fizz - @424,183 107x39
+            Fizz - @424,183 107x39 hidden
           Popover basics.popover @547,183 0x0 floating
             Label - @0,0 448x23 hidden
           Icon basics.icon @563,183 26x35
@@ -32,31 +32,31 @@ VStack gallery @0,0 1000x720
           Button basics.save @12,247 99x39 tabstop
             Rectangle - @12,247 99x39
             Label - @28,255 67x23
-            Fizz - @12,247 99x39
+            Fizz - @12,247 99x39 hidden
           Button - @121,247 68x39 tabstop
             Rectangle - @121,247 68x39
             Label - @137,255 36x23
-            Fizz - @121,247 68x39
+            Fizz - @121,247 68x39 hidden
           Button - @199,247 107x39 tabstop
             Rectangle - @199,247 107x39
             Label - @215,255 75x23
-            Fizz - @199,247 107x39
+            Fizz - @199,247 107x39 hidden
           Button - @316,247 108x39 tabstop
             Rectangle - @316,247 108x39
             Label - @332,255 76x23
-            Fizz - @316,247 108x39
+            Fizz - @316,247 108x39 hidden
           Button - @434,247 100x39 tabstop
             Rectangle - @434,247 100x39
             Label - @450,255 68x23
-            Fizz - @434,247 100x39
+            Fizz - @434,247 100x39 hidden
           Button - @544,247 112x39 tabstop
             Rectangle - @544,247 112x39
             Label - @560,255 80x23
-            Fizz - @544,247 112x39
+            Fizz - @544,247 112x39 hidden
           Button basics.counter @666,247 116x39 tabstop
             Rectangle - @666,247 116x39
             Label - @682,255 84x23
-            Fizz - @666,247 116x39
+            Fizz - @666,247 116x39 hidden
         Wrap - @12,298 976x40
           IconButton - @12,298 32x32 tabstop
           IconButton - @54,298 32x32 tabstop
@@ -67,7 +67,7 @@ VStack gallery @0,0 1000x720
             Button basics.hover @174,298 122x39 tabstop
               Rectangle - @174,298 122x39
               Label - @190,306 90x23
-              Fizz - @174,298 122x39
+              Fizz - @174,298 122x39 hidden
         Wrap - @12,350 976x72
           Checkbox basics.check @12,350 120x23 tabstop
           Checkbox - @150,350 56x23 tabstop
@@ -166,7 +166,7 @@ VStack gallery @0,0 1000x720
               Button - @110,219 184x44 hidden tabstop
                 Rectangle - @110,219 184x44
                 Label - @126,229 152x23
-                Fizz - @110,219 184x44
+                Fizz - @110,219 184x44 hidden
           Panel - @320,205 212x102
             Accordion layout.accordion @326,211 200x90
               Expander - @326,211 200x64 tabstop
@@ -358,23 +358,23 @@ VStack gallery @0,0 1000x720
             Button menus.openContext @28,149 216x39 tabstop
               Rectangle - @28,149 216x39
               Label - @44,157 184x23
-              Fizz - @28,149 216x39
+              Fizz - @28,149 216x39 hidden
             Button menus.openMessage @254,149 148x39 tabstop
               Rectangle - @254,149 148x39
               Label - @270,157 116x23
-              Fizz - @254,149 148x39
+              Fizz - @254,149 148x39 hidden
             Button menus.openFile @412,149 120x39 tabstop
               Rectangle - @412,149 120x39
               Label - @428,157 88x23
-              Fizz - @412,149 120x39
+              Fizz - @412,149 120x39 hidden
             Button menus.openDialog @542,149 90x39 tabstop
               Rectangle - @542,149 90x39
               Label - @558,157 58x23
-              Fizz - @542,149 90x39
+              Fizz - @542,149 90x39 hidden
             Button menus.openPalette @642,149 197x39 tabstop
               Rectangle - @642,149 197x39
               Label - @658,157 165x23
-              Fizz - @642,149 197x39
+              Fizz - @642,149 197x39 hidden
           ContextMenu menus.context @28,198 0x0 floating
             MenuItem - @0,0 68x24 hidden
             MenuItem - @0,0 83x24 hidden
@@ -391,7 +391,7 @@ VStack gallery @0,0 1000x720
           Button live.bump @12,176 87x39 tabstop
             Rectangle - @12,176 87x39
             Label - @28,184 55x23
-            Fizz - @12,176 87x39
+            Fizz - @12,176 87x39 hidden
           Label live.bumped @111,176 152x23
         Wrap - @12,225 976x32
           Switch live.run @12,225 144x24 tabstop
@@ -421,24 +421,24 @@ VStack gallery @0,0 1000x720
               Button - @634,509 106x39 tabstop
                 Rectangle - @634,509 106x39
                 Label - @650,517 74x23
-                Fizz - @634,509 106x39
+                Fizz - @634,509 106x39 hidden
               Button - @746,509 80x39 tabstop
                 Rectangle - @746,509 80x39
                 Label - @762,517 48x23
-                Fizz - @746,509 80x39
+                Fizz - @746,509 80x39 hidden
       Row - @122,564 756x34
         Button - @122,561 151x39 tabstop
           Rectangle - @122,561 151x39
           Label - @138,569 119x23
-          Fizz - @122,561 151x39
+          Fizz - @122,561 151x39 hidden
         Row - @281,581 405x0
         Button - @694,561 94x39 tabstop
           Rectangle - @694,561 94x39
           Label - @710,569 62x23
-          Fizz - @694,561 94x39
+          Fizz - @694,561 94x39 hidden
         Button - @796,561 82x39 tabstop
           Rectangle - @796,561 82x39
           Label - @812,569 50x23
-          Fizz - @796,561 82x39
+          Fizz - @796,561 82x39 hidden
   Dialog menus.dialog @0,0 1000x720 hidden tabstop
     Checkbox - @356,363 288x23 tabstop

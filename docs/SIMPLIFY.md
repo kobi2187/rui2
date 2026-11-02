@@ -272,7 +272,7 @@ gap as a side effect. `primitives/controls` folds into Parts.
   finish, which closes Aqua's scroll-bar gap.
 - **Documented:** `rui_drawing.nim`'s header names the three layers.
 
-### Step 8. Split the App by job (small to medium)
+### Step 8. Split the App by job (small to medium) -- done
 
 The App becomes an index of a few files, one per job:
 - window and frame loop;
@@ -280,6 +280,17 @@ The App becomes an index of a few files, one per job:
 - focus rings and help.
 
 Routing is already in a file of its own.
+
+**As done:**
+- `app.nim` is the index: the module doc, the imports and the App type.
+- Five included files hold the work, one job each:
+  - `app_setup` (creating the App, its theme, accessors, text cache);
+  - `app_events` (input, routing, help, toasts, focus rings);
+  - `app_layout` (the layout pass, hit-test rebuild, script registry);
+  - `app_compositing` (textures to the screen, overlays, glass, a frozen page);
+  - `app_loop` (scripting, the main loop and idling, stats).
+- They're included rather than imported: one module, so nothing outside sees
+  the split.
 
 ## What this buys
 

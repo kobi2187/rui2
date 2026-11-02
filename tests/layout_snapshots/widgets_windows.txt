@@ -4,7 +4,7 @@ VStack - @0,0 900x600
     Button - @0,35 148x39 tabstop
       Rectangle - @0,35 148x39
       Label - @16,43 116x23
-      Fizz - @0,35 148x39
+      Fizz - @0,35 148x39 hidden
   Window - @76,110 300x260 floating
     Column - @84,146 284x216
       Label - @84,146 93x23

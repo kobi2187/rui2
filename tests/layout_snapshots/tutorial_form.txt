@@ -17,5 +17,5 @@ Padding - @0,0 520x420
       Button - @325,264 171x39 tabstop
         Rectangle - @325,264 171x39
         Label - @341,272 139x23
-        Fizz - @325,264 171x39
+        Fizz - @325,264 171x39 hidden
     Label - @24,315 472x23

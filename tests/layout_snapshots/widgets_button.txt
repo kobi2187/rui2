@@ -3,24 +3,24 @@ VStack root @0,0 460x400
   Button bDefault @20,58 420x39 tabstop
     Rectangle - @20,58 420x39
     Label - @36,66 388x23
-    Fizz - @20,58 420x39
+    Fizz - @20,58 420x39 hidden
   Button bInfo @20,109 420x39 tabstop
     Rectangle - @20,109 420x39
     Label - @36,117 388x23
-    Fizz - @20,109 420x39
+    Fizz - @20,109 420x39 hidden
   Button bSuccess @20,160 420x39 tabstop
     Rectangle - @20,160 420x39
     Label - @36,168 388x23
-    Fizz - @20,160 420x39
+    Fizz - @20,160 420x39 hidden
   Button bWarning @20,211 420x39 tabstop
     Rectangle - @20,211 420x39
     Label - @36,219 388x23
-    Fizz - @20,211 420x39
+    Fizz - @20,211 420x39 hidden
   Button bDanger @20,262 420x39 tabstop
     Rectangle - @20,262 420x39
     Label - @36,270 388x23
-    Fizz - @20,262 420x39
+    Fizz - @20,262 420x39 hidden
   Button bDisabled @20,313 420x39 tabstop
     Rectangle - @20,313 420x39
     Label - @36,321 388x23
-    Fizz - @20,313 420x39
+    Fizz - @20,313 420x39 hidden

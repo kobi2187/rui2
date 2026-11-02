@@ -15,7 +15,7 @@ Row - @0,0 760x460
           Button - @200,69 83x39 tabstop
             Rectangle - @200,69 83x39
             Label - @216,77 51x23
-            Fizz - @200,69 83x39
+            Fizz - @200,69 83x39 hidden
           TextInput - @293,72 220x32 tabstop
           Switch - @523,76 95x24 tabstop
         TextInput - @200,122 220x32 tabstop

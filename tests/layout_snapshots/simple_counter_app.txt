@@ -5,8 +5,8 @@ VStack - @0,0 400x300
     Button - @16,91 39x39 tabstop
       Rectangle - @16,91 39x39
       Label - @32,99 7x23
-      Fizz - @16,91 39x39
+      Fizz - @16,91 39x39 hidden
     Button - @63,91 48x39 tabstop
       Rectangle - @63,91 48x39
       Label - @79,99 16x23
-      Fizz - @63,91 48x39
+      Fizz - @63,91 48x39 hidden
