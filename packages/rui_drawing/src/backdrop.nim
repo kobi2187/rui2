@@ -365,3 +365,10 @@ proc floatAbove*(widget: Widget) =
   ## glass theme.
   widget.effectReach = floatingShadowReach(currentTheme.getThemeProps(Default, Normal))
   widget.drawBehind = glassBehind()
+
+proc resetDrawingState*() =
+  ## The drawing half of the UI's global state (rui_core ui_state.nim) back to
+  ## a fresh start: the default theme, no glass page.
+  setCurrentTheme(newTheme("Default"))
+  glassPage = nil
+

@@ -106,3 +106,8 @@ proc noteInput*(now = getMonoTime()) =
     p.widget.markDirtyToRoot()
   parked.setLen(0)
 
+proc resetIdle*() =
+  ## The user just arrived, and nothing is parked (ui_state.resetUiState).
+  lastInput = getMonoTime()
+  parked.setLen(0)
+

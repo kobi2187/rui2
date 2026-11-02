@@ -241,6 +241,14 @@ proc rootRect(app: App): Rect =
     if app.shapeContent.isSome: return app.shapeContent.get
   Rect(x: 0, y: 0, width: app.window.width.float32, height: app.window.height.float32)
 
+proc resetUi*() =
+  ## Every piece of the UI's global state back to a fresh start (rui_core
+  ## ui_state.nim lists it): no popups, overlays, timers, pointer captures or
+  ## frozen pages, the default theme. For an app replacing its whole UI, and
+  ## for tests.
+  resetUiState()
+  resetDrawingState()
+
 proc setRootWidget*(app: App, root: Widget) =
   ## Set the root widget and trigger initial layout + render.
   ##

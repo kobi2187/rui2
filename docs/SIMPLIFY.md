@@ -229,7 +229,7 @@ A new look then becomes one table row and the code that draws it.
   `chrome` and `behaviour`. It would rename keys in existing theme files, and
   the generic reading made it unnecessary for adding settings.
 
-### Step 6. Name the UI context (medium, mostly mechanical)
+### Step 6. Name the UI context (medium, mostly mechanical) -- done
 
 - Gather the twelve modules' per-UI state into one documented object in
   `rui_core/context.nim`, as fields of one global `ui`: theme, pointer, focus
@@ -238,6 +238,17 @@ A new look then becomes one table row and the code that draws it.
   what is in it and why it is global.
 - Widgets keep reading it directly. The design doesn't change; it just becomes
   visible.
+
+**As done:**
+- **The index:** `rui_core/ui_state.nim` lists every piece of global UI
+  state, where it lives, and why widgets need it.
+- **The reset:** `resetUiState` (rui_core), `resetDrawingState` (rui_drawing)
+  and the App's `resetUi` reset all of it in one call. The pieces that had no
+  reset gained one: timers, pointer state, and the idle rest.
+- **The state stays where it is.** The theme is in `rui_drawing`, which
+  `rui_core` cannot import, so literally one object would mean inverting the
+  package layering. The index and the reset give the same clarity without
+  that.
 
 ### Step 7. Drawing in three layers (medium)
 
