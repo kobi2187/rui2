@@ -17,6 +17,7 @@ suite "theme: Aqua (gel, soft shadows, a breathing default button)":
     check t.assets.backgroundPattern == some("tile:pinstripes")
 
   test "the default button breathes in aqua, and is still with motion none":
+    noteInput()                      # someone is here (decorative motion rests otherwise)
     let r = newRig(stack(newButton(text = "OK", intent = ThemeIntent.Info)))
     r.app.setTheme("aqua")
     let b = Button(r.app.tree.root.children[0])

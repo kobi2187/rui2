@@ -54,6 +54,27 @@ from 22 to 13 ms, repainting one label from 0.35 to 0.13 ms.
   plus first-time text rasterisation. Culling widgets outside the viewport
   before layout and render (TODO #8) is the fix.
 
+## An idle window costs nothing
+
+With the mouse still and nothing changing, the loop blocks: no layout, no
+hit-test rebuild, no painting, no frames. Measured on the theme gallery, 10
+seconds of idle starting 12 seconds after launch: **0 CPU ticks and 0 frames
+presented**, in daylight, cyberpunk and aqua. Two things used to break this:
+
+- **A periodic present.** The window presented a frame every second "in
+  case" another window had uncovered it on a desktop with no compositor. It now
+  presents when the OS says its contents were lost (GLFW's window-refresh
+  callback, `event_source.windowExposed`), and never otherwise. `idleRefresh`
+  is still there, off by default.
+- **Decorative motion that never stops.** Aqua's breathing default button held
+  48% of a core at 30 fps forever. Decorative motion now rests once nobody has
+  touched the app for 10 seconds (`userIdleAfter`, the way GTK stops a caret
+  blinking), and the first input wakes it (`repaintWhileActive` and
+  `noteInput`). This covers the breathing button, the caret (which rests on)
+  and decorations that are not `informative`. Motion that reports progress (a
+  splash spinner, skeletons, a recording light) keeps going: an app that is
+  working is not idle.
+
 ## Check: the themes round (effect reach, finishes, Fizz)
 
 `bench --theme=NAME` runs the benchmark in any registered theme. Against `main`,

@@ -119,8 +119,9 @@ type
       ## Skip drawing and presenting frames in which nothing was painted, and
       ## sleep instead. On by default; off gives the old always-present loop.
     idleRefresh*: Duration
-      ## Present at least this often even when idle, so a window uncovered by
-      ## another one does not show garbage on a compositor-less desktop.
+      ## Present at least this often even when idle; 0 (the default) never.
+      ## A window uncovered on a compositor-less desktop is redrawn when the OS
+      ## says so (event_source `windowExposed`), so an idle window costs nothing.
     lastPresent: MonoTime
     idleRecentlyPolled: bool      # see idleUntilNextFrame
     indicatorShown: bool
@@ -202,7 +203,7 @@ proc newApp*(title = "RUI Application",
     lastScriptPoll: getMonoTime(),
     shouldClose: false,
     idleWhenClean: true,
-    idleRefresh: initDuration(seconds = 1),
+    idleRefresh: DurationZero,
 
     eventSource: newRaylibEventSource()
   )
@@ -657,6 +658,9 @@ proc collectEvents(app: App) =
   ## and run a frame with no window at all. This used to read raylib directly
   ## from here, which is why the frame pipeline had no headless tests.
   for event in app.eventSource.poll():
+    if event.kind in {evKeyDown, evKeyUp, evChar, evMouseDown, evMouseUp, evMouseMove,
+                      evMouseWheel}:
+      noteInput()            # someone is here: decorative motion that rested wakes
     when perfOn:
       if event.kind in {evKeyDown, evChar, evMouseDown, evMouseUp, evMouseMove,
                         evMouseWheel}:
@@ -1355,7 +1359,10 @@ proc shouldPresent(app: App, painted: bool, now: MonoTime): bool =
   if indicator != app.indicatorShown:
     app.indicatorShown = indicator
     return true
-  now - app.lastPresent >= app.idleRefresh
+  if windowExposed:                   # the OS lost the window's contents
+    windowExposed = false
+    return true
+  app.idleRefresh > DurationZero and now - app.lastPresent >= app.idleRefresh
 
 proc idleUntilNextFrame(app: App, frameStart: MonoTime) =
   ## An idle frame: no drawing and no buffer swap. endDrawing normally polls
@@ -1375,7 +1382,9 @@ proc idleUntilNextFrame(app: App, frameStart: MonoTime) =
                 some(initDuration(nanoseconds = 1_000_000_000 div max(1, app.window.fps)))
               else: none(Duration)
     perfTime(phIdle):
-      blockForEvents(idleWaitFor(now, nextRepaint(), app.lastPresent + app.idleRefresh, cap))
+      let refresh = if app.idleRefresh > DurationZero: app.lastPresent + app.idleRefresh
+                    else: now + initDuration(hours = 24)      # no periodic refresh
+      blockForEvents(idleWaitFor(now, nextRepaint(), refresh, cap))
   else:
     app.idleRecentlyPolled = true
     perfTime(phIdle):

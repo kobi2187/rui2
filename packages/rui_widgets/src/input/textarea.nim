@@ -625,7 +625,10 @@ template paintEditable(widget: untyped, content: TextContent, inner: Rect) =
       let x = ox + widget.lineShift(line, font, inner) + caret.x
       let y = oy + float32(row) * lineH
       # A blink is motion: with `motion: none` the caret holds still.
-      let half = if motion == motionNone: 0.0 else: prefs.caretBlinkMs.float / 1000.0
+      # It rests on, too, once the user has been away a while (a window left
+      # alone costs nothing): the first input starts it blinking again.
+      let half = if motion == motionNone or userAway(): 0.0
+                 else: prefs.caretBlinkMs.float / 1000.0
       let caretOn = half <= 0 or int(now / half) mod 2 == 0   # 0: steady
       if caretOn and x >= inner.x and x <= inner.x + inner.width:
         drawLine(x, max(y, inner.y), x, min(y + lineH, inner.y + inner.height),
@@ -633,7 +636,9 @@ template paintEditable(widget: untyped, content: TextContent, inner: Rect) =
       # Nothing else repaints an idle field, so ask for the next blink phase --
       # without this the caret froze in whichever phase the last edit left it.
       if half > 0:
-        widget.repaintAfter(caretPhaseRemaining(now, half))
+        widget.repaintWhileActive(caretPhaseRemaining(now, half))
+      elif motion != motionNone:
+        widget.repaintWhileActive(0)     # resting: wake at the next input
 
 defineWidget(TextArea):
   props:

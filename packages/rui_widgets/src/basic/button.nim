@@ -121,12 +121,14 @@ defineWidget(Button):
     # A theme with `pulse` makes the primary action breathe (Aqua's default
     # button): its face brightens and fades, a cycle `pulse` seconds long.
     var face = buttonColor
+    # It rests at its plain colour once the user has been away a while.
     if currentTheme.pulse > 0 and widget.intent == Info and not widget.disabled and
        effectsAllowed():
-      let t = float(getMonoTime().ticks) / 1e9
-      let k = float32((sin(t / currentTheme.pulse.float * 2 * PI) + 1) / 2)
-      face = mixTone(buttonColor, WHITE, 0.30 * k)
-      widget.repaintAfter(1.0 / 30.0, relayout = true)
+      if not userAway():
+        let t = float(getMonoTime().ticks) / 1e9
+        let k = float32((sin(t / currentTheme.pulse.float * 2 * PI) + 1) / 2)
+        face = mixTone(buttonColor, WHITE, 0.30 * k)
+      widget.repaintWhileActive(1.0 / 30.0, relayout = true)
     bg.color = face
     bg.cornerRadius = radius
     bg.filled = true
