@@ -77,7 +77,7 @@ type
     insetShadowDepth: Option[float32]
     insetShadowOpacity: Option[float32]
     dropShadowBlur: Option[float32]
-    cornerCut, gloss, relief: Option[float32]
+    cornerCut, gloss, relief, gradient, caustic, softShadow: Option[float32]
     dimensionLines: Option[bool]
     # Text
     fontFamily: Option[string]
@@ -145,7 +145,7 @@ type
     noTransitions: Option[bool]
     cornerCut, gloss, relief, focusGlow: Option[float32]
     dimensionLines, speechBubbleTips, fizz: Option[bool]
-    glass: Option[float32]
+    glass, gradient, caustic, softShadow, pulse: Option[float32]
 
   ThemeFile* {.sparse.} = object
     ## Top-level theme file structure (JSON or YAML)
@@ -167,6 +167,8 @@ type
       ## "box" (the default) or "bubble": tooltips as speech bubbles.
     fizz: Option[bool]
       ## Primary buttons release rising bubbles when clicked (a soda theme).
+    pulse: Option[float32]
+      ## The primary (Info) button breathes, one cycle this many seconds.
     glass: Option[float32]
       ## Floating panels (menus, open lists, popovers) as frosted glass: the
       ## blur of the page behind them, in pixels. Solid when left out.
@@ -285,6 +287,9 @@ proc toThemeProps*(fp: ThemePropsFile): ThemeProps =
   result.gloss = fp.gloss
   result.relief = fp.relief
   result.dimensionLines = fp.dimensionLines
+  result.gradient = fp.gradient
+  result.caustic = fp.caustic
+  result.softShadow = fp.softShadow
   result.fontFamily = fp.fontFamily
   if fp.fontWeight.isSome:
     result.fontWeight = some(case fp.fontWeight.get().toLowerAscii()
@@ -364,7 +369,8 @@ proc toBrandSpec*(bf: BrandFile): BrandSpec =
     cornerCut: num(bf.cornerCut), gloss: num(bf.gloss), relief: num(bf.relief),
     focusGlow: num(bf.focusGlow), dimensionLines: bf.dimensionLines.get(false),
     speechBubbleTips: bf.speechBubbleTips.get(false), glass: num(bf.glass),
-    fizz: bf.fizz.get(false))
+    fizz: bf.fizz.get(false), gradient: num(bf.gradient), caustic: num(bf.caustic),
+    softShadow: num(bf.softShadow), pulse: num(bf.pulse))
 
 proc toTheme*(tf: ThemeFile, resolver: proc(name: string): Theme): Theme =
   ## Convert a ThemeFile to a Theme, resolving extends via resolver
@@ -433,6 +439,7 @@ proc toTheme*(tf: ThemeFile, resolver: proc(name: string): Theme): Theme =
   if tf.headingFont.isSome: result.typography.headingFont = tf.headingFont
   if tf.glass.isSome: result.glass = max(0'f32, tf.glass.get)
   if tf.fizz.isSome: result.fizz = tf.fizz.get
+  if tf.pulse.isSome: result.pulse = max(0'f32, tf.pulse.get)
   if tf.tipShape.isSome:
     result.tipShape = case tf.tipShape.get.toLowerAscii
       of "box": tsBox
@@ -606,6 +613,9 @@ proc propsToJson*(p: ThemeProps): JsonNode =
   number "cornerCut", p.cornerCut
   number "gloss", p.gloss
   number "relief", p.relief
+  number "gradient", p.gradient
+  number "caustic", p.caustic
+  number "softShadow", p.softShadow
   if p.dimensionLines.isSome: result["dimensionLines"] = newJBool(p.dimensionLines.get)
   if p.fontFamily.isSome: result["fontFamily"] = newJString(p.fontFamily.get)
   if p.fontWeight.isSome:
@@ -719,6 +729,7 @@ proc themeToJson*(theme: Theme): JsonNode =
   if theme.tipShape == tsBubble: result["tipShape"] = newJString("bubble")
   if theme.glass > 0: result["glass"] = num(theme.glass)
   if theme.fizz: result["fizz"] = newJBool(true)
+  if theme.pulse > 0: result["pulse"] = num(theme.pulse)
   if background.len > 0: result["background"] = background
 
 proc yamlScalar(node: JsonNode): string =

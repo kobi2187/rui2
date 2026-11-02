@@ -43,7 +43,7 @@ background:
 
 suite "background tiles that ship with rui":
   test "every tile decodes, and a name that does not ship says which do":
-    check tileNames().len == 10
+    check tileNames().len == 12
     for name in tileNames():
       let img = tileImage("tile:" & name)
       check img.width >= 4 and img.height >= 4
@@ -58,7 +58,7 @@ suite "background tiles that ship with rui":
     # is no bigger than the steps inside it.
     proc diff(a, b: Color): int = abs(a.r.int - b.r.int) + abs(a.g.int - b.g.int) +
                                   abs(a.b.int - b.b.int) + abs(a.a.int - b.a.int)
-    for name in ["wood", "wood-dark", "parchment", "paper"]:
+    for name in ["wood", "wood-dark", "parchment", "paper", "brushed-metal"]:
       let img = tileImage("tile:" & name)
       var inside, across = 0
       for y in 0'i32 ..< img.height:

@@ -10,7 +10,7 @@
 ## ```
 ##
 ## Full-colour tiles: `wood` (light oak planks), `wood-dark` (walnut), `brick`,
-## `parchment`, `paper`. See-through tiles, white on transparent, coloured by
+## `parchment`, `paper`, `pinstripes`, `brushed-metal`. See-through tiles, white on transparent, coloured by
 ## the background's `tint`: `halftone`, `scanlines`, `graph`, `grid`, `bubbles`.
 ##
 ## They are made by tools/make_tiles.py and each repeats without a seam. A
@@ -32,7 +32,9 @@ const tileFiles = [
   ("scanlines", staticRead("../tiles/scanlines.png")),
   ("graph", staticRead("../tiles/graph.png")),
   ("grid", staticRead("../tiles/grid.png")),
-  ("bubbles", staticRead("../tiles/bubbles.png"))]
+  ("bubbles", staticRead("../tiles/bubbles.png")),
+  ("pinstripes", staticRead("../tiles/pinstripes.png")),
+  ("brushed-metal", staticRead("../tiles/brushed-metal.png"))]
 
 proc tileNames*(): seq[string] =
   for (name, _) in tileFiles: result.add name

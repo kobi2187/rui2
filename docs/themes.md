@@ -267,3 +267,38 @@ YAML or JSON, chosen by extension. `ThemeManager.addSearchPath(dir)` makes
   3 px ring) pass it at AAA, 7:1. The other shipped themes keep resting captions
   above 3:1; their pressed/selected tints and soft focus rings are below AA --
   choose a contrast theme where that matters.
+
+## Aqua: a stress test of how far a theme reaches
+
+`aqua` and `aqua-graphite` (`character_themes.nim`) recreate the Mac OS X Aqua
+look, to find where RUI's theming bends. What we learned:
+
+**It fit as it was.** Pinstripes are a background tile (`tile:pinstripes`).
+The translucent menus are `glass`, the type is the body font, and the small
+controls are metrics. The focus glow is `focusGlow`.
+
+**It needed new pieces, now general:**
+
+- `effectReach` (layout.md): a widget may paint past its bounds. The soft
+  shadow under every gel button (`softShadow`) is drawn by the button's body
+  Rectangle, outside the button, over its neighbours, with layout unchanged.
+- Two more finish terms in the box shader: `gradient` (lighter top, deeper
+  bottom) and `caustic` (light pooling inside the bottom edge). With `gloss`
+  they make the gel.
+- `accentFinish`: the parts filled with the accent (a checked box, a selected
+  radio, a progress fill, a slider's fill and thumb) were plain boxes. They
+  now take the theme's finish too, so they turn to blue gel with the buttons.
+- `pulse`: the primary button breathes, driven from its layout by a timed
+  repaint, and still with motion none. RUI has no "default button"
+  concept, so the primary (Info) intent stands in for it.
+
+**Still gaps:**
+
+- The scroll bar is drawn by a fixed primitive in translucent tints, which
+  knows nothing of the theme's finish: there is no Aqua blue pill thumb.
+- Title bars exist only on dialogs, as the BeOS tab or a plain bar. Traffic
+  lights need window chrome with real close and minimise behind them, not a
+  drawing of three buttons that do nothing.
+- Tabs are not gel segments, and the progress bar has no moving stripes.
+  Both are possible, the same way `accentFinish` and `pulse` were done;
+  neither is done yet.

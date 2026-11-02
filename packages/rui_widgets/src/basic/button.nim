@@ -30,7 +30,7 @@ import ../primitives/rectangle
 import ../input/textarea   # the caption is a Label, i.e. a non-editable TextArea
 import fizz                # a soda theme's bubbles, on a primary button's click
 import raylib
-import std/[options, json]
+import std/[options, json, monotimes, times, math]
 
 defineWidget(Button):
   props:
@@ -118,7 +118,16 @@ defineWidget(Button):
 
     # The body: inside the shadow, sunk into it while pressed.
     let body = bodyRect(widget.bounds, props, widget.isPressed and not widget.disabled)
-    bg.color = buttonColor
+    # A theme with `pulse` makes the primary action breathe (Aqua's default
+    # button): its face brightens and fades, a cycle `pulse` seconds long.
+    var face = buttonColor
+    if currentTheme.pulse > 0 and widget.intent == Info and not widget.disabled and
+       effectsAllowed():
+      let t = float(getMonoTime().ticks) / 1e9
+      let k = float32((sin(t / currentTheme.pulse.float * 2 * PI) + 1) / 2)
+      face = mixTone(buttonColor, WHITE, 0.30 * k)
+      widget.repaintAfter(1.0 / 30.0, relayout = true)
+    bg.color = face
     bg.cornerRadius = radius
     bg.filled = true
     bg.borderColor = outline
@@ -133,7 +142,7 @@ defineWidget(Button):
     bg.finish = props.boxFinish(focused = widget.focused)   # its glow too, when focused
     # Room for the theme's focus glow, kept focused or not: the body is the
     # border element that wears it, and the button (its own size) passes it on.
-    bg.effectReach = props.focusGlowReach
+    bg.effectReach = props.finishReach
     # A bevelled theme draws its 3D edge (inverted while pressed) instead of an
     # outline, and shows focus by a ring inside it rather than a fatter border.
     let bevel = props.bevelStyle.get(Flat)

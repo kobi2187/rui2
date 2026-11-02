@@ -1302,8 +1302,8 @@ base:
     let p = currentTheme.getThemeProps(Default, Focused)
     check p.boxFinish(focused = true).glow > 0
     check p.boxFinish(focused = false).glow == 0
-    check p.focusGlowReach > 0
-    check brandTheme(daylightSpec()).getThemeProps(Default, Focused).focusGlowReach == 0
+    check p.finishReach > 0
+    check brandTheme(daylightSpec()).getThemeProps(Default, Focused).finishReach == 0
 
 suite "theme: speech-bubble tooltips":
   proc noExtends(name: string): Theme = newTheme(name)
@@ -1345,3 +1345,4 @@ suite "theme: frosted glass panels":
     check t.glass == 12
     check parseTheme(t.toYaml, tffYaml, noExtends).glass == 12
     check parseTheme("name: G\nbrand:\n  accent: \"#225588\"\n  glass: 8\n", tffYaml, noExtends).glass == 8
+

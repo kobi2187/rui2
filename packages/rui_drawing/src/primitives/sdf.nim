@@ -42,6 +42,8 @@ uniform vec4 borderColor;
 uniform float cut;         // > 0: corners cut off at 45 degrees, this deep (a notch)
 uniform float gloss;       // 0..1: a sheen over the top half
 uniform float relief;      // px: > 0 raised (lit top rim, shaded bottom), < 0 carved
+uniform float gradient;    // 0..1: lighter at the top, deeper at the bottom
+uniform float caustic;     // 0..1: light pooling inside the bottom edge (a gel)
 
 float roundBox(vec2 p, vec2 half_, float r) {
   vec2 q = abs(p) - half_ + r;
@@ -61,6 +63,17 @@ void main() {
   float outer = 1.0 - smoothstep(-0.5, 0.5, d);          // inside the box
   float inner = 1.0 - smoothstep(-0.5, 0.5, d + border); // inside the border
   vec3 fill = fillColor.rgb;
+  float ty = clamp((p.y + half_.y) / boxSize.y, 0.0, 1.0);   // 0 top .. 1 bottom
+  if (gradient > 0.0) {
+    fill = ty < 0.5 ? mix(fill, vec3(1.0), gradient * 0.45 * (1.0 - ty * 2.0))
+                    : mix(fill, vec3(0.0), gradient * 0.22 * (ty * 2.0 - 1.0));
+  }
+  if (caustic > 0.0) {
+    // A soft light inside the bottom, brightest in the middle: light through gel.
+    float across = 1.0 - pow(clamp(abs(p.x) / max(half_.x, 1.0), 0.0, 1.0), 2.0);
+    float k = caustic * smoothstep(0.55, 0.92, ty) * (1.0 - smoothstep(0.92, 1.0, ty)) * across;
+    fill = mix(fill, vec3(1.0), k * 0.5);
+  }
   if (gloss > 0.0) {
     // A sheen: strongest at the top, gone by the middle, with a soft edge there.
     float t = clamp((p.y + half_.y) / boxSize.y, 0.0, 1.0);
@@ -256,16 +269,23 @@ type BoxFinish* = object
   ## sheen over the top half (0..1), a `relief` rim this many pixels deep --
   ## raised (lit top, shaded bottom) when positive, carved when negative.
   ## `dimension`: the outline drawn as a technical drawing's (shapes.drawBox).
-  ## `glow`: a soft halo of `glowColor` this many pixels outside the box -- the
-  ## widget drawing it needs `glowReach` of effect reach to show it.
-  cut*, gloss*, relief*: float32
+  ## `gradient` (0..1) lightens the top and deepens the bottom; `caustic`
+  ## (0..1) pools light inside the bottom edge, as through a gel.
+  ## `glow`: a soft halo of `glowColor` this many pixels outside the box;
+  ## `shadow`: a soft drop shadow this blurred, falling below it. Both paint
+  ## past the box: the widget needs `reach` of effect reach to show them.
+  cut*, gloss*, relief*, gradient*, caustic*: float32
   dimension*: bool
   glow*: float32
   glowColor*: Color
+  shadow*: float32
 
-proc glowReach*(f: BoxFinish): float32 =
-  ## How far past the box a finish's glow paints: what to give `effectReach`.
-  if f.glow > 0 and f.glowColor.a > 0: ceil(f.glow * 2.25) else: 0
+proc reach*(f: BoxFinish): float32 =
+  ## How far past the box a finish paints (its glow, its shadow): what to give
+  ## the widget's `effectReach`.
+  result = 0
+  if f.glow > 0 and f.glowColor.a > 0: result = ceil(f.glow * 2.25)
+  if f.shadow > 0: result = max(result, ceil(f.shadow * 2.4 + f.shadow * 0.35))
 
 proc drawSdfBox*(rect: Rect, radius, borderWidth: float32,
                  fill, border: Color, finish = BoxFinish()): bool =
@@ -275,7 +295,7 @@ proc drawSdfBox*(rect: Rect, radius, borderWidth: float32,
     return true
   let s = boxState.ready(sdfFragment,
     ["boxSize", "margin", "radius", "border", "fillColor", "borderColor",
-     "cut", "gloss", "relief"])
+     "cut", "gloss", "relief", "gradient", "caustic"])
   if s == nil: return false
   const margin = 1.0'f32
   let r = clamp(radius, 0.0'f32, min(rect.width, rect.height) / 2)
@@ -288,6 +308,8 @@ proc drawSdfBox*(rect: Rect, radius, borderWidth: float32,
   setShaderValue(s.shader, s.locs[6], clamp(finish.cut, 0'f32, min(rect.width, rect.height) / 2))
   setShaderValue(s.shader, s.locs[7], clamp(finish.gloss, 0'f32, 1'f32))
   setShaderValue(s.shader, s.locs[8], finish.relief)
+  setShaderValue(s.shader, s.locs[9], clamp(finish.gradient, 0'f32, 1'f32))
+  setShaderValue(s.shader, s.locs[10], clamp(finish.caustic, 0'f32, 1'f32))
   s.drawQuad(Rect(x: rect.x - margin, y: rect.y - margin,
                   width: rect.width + 2 * margin, height: rect.height + 2 * margin))
   true

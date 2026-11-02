@@ -162,6 +162,9 @@ type
     relief*: Option[float32]            # px: a rim lit from above; > 0 raised, < 0 carved.
                                         # Wells (fields, lists) are carved where buttons rise.
     dimensionLines*: Option[bool]       # edges that overshoot the corners, with ticks (a drawing)
+    gradient*: Option[float32]          # 0..1: lighter top, deeper bottom
+    caustic*: Option[float32]           # 0..1: light pooling inside the bottom (a gel)
+    softShadow*: Option[float32]        # px: a soft drop shadow under raised controls
     
 
     
@@ -215,6 +218,7 @@ type
     tipShape*: TipShape                   # Tooltips: a box, or a speech bubble
     glass*: float32                       # Floating panels as frosted glass: the blur, px (0: solid)
     fizz*: bool                           # Primary buttons fizz with bubbles when clicked
+    pulse*: float32                       # The primary (Info) button breathes, a cycle this long (s); 0: still
 
     statePreference*: array[ControlRole, StatePreference]
       ## Hover-or-focus-first, per control role. Read on every lookup from the

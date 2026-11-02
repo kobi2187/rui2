@@ -173,6 +173,23 @@ def grid(a):
     a[0, :] = 1
 
 
+def pinstripes(name, light, dark, size=(8, 4)):
+    """Fine horizontal stripes, two rows light and two a shade darker (Aqua's
+    window background)."""
+    w, h = size
+    rgb = np.zeros((h, w, 3)) + np.array(light, float)
+    rgb[h // 2:] = np.array(dark, float)
+    save(name, rgb)
+
+
+def brushed(name, base, size=256):
+    """Brushed metal: long horizontal streaks over a light gradient-free grey."""
+    streak = streak_noise(size, size, 60, 0)
+    fine = noise(size, size, 1)
+    k = (streak - 0.5) * 0.10 + (fine - 0.5) * 0.04
+    save(name, np.array(base, float) * (1 + k)[..., None])
+
+
 if __name__ == "__main__":
     os.makedirs(OUT, exist_ok=True)
     wood("wood", light=(236, 214, 178), dark=(150, 98, 52))           # light oak
@@ -185,5 +202,7 @@ if __name__ == "__main__":
     overlay("scanlines", (4, 4), scanlines)
     overlay("bubbles", (96, 96), bubbles)
     overlay("grid", (32, 32), grid)
+    pinstripes("pinstripes", light=(246, 246, 246), dark=(236, 236, 236))   # added last:
+    brushed("brushed-metal", base=(196, 196, 198))                          # the rest stay as they were
     for f in sorted(os.listdir(OUT)):
         print(f, os.path.getsize(os.path.join(OUT, f)), "bytes")

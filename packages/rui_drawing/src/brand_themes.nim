@@ -74,6 +74,10 @@ type
     speechBubbleTips*: bool   ## tooltips as speech bubbles pointing at the pointer
     glass*: float32           ## px: floating panels as frosted glass over the page blurred
     fizz*: bool               ## primary buttons release rising bubbles when clicked
+    gradient*: float32        ## 0..1: controls lighter at the top, deeper at the bottom
+    caustic*: float32         ## 0..1: light pooling inside the bottom edge (a gel)
+    softShadow*: float32      ## px: a soft drop shadow under raised controls
+    pulse*: float32           ## s: the primary button breathes, one cycle this long
     background*: string       ## a picture tiled behind everything: "tile:wood" (tiles.nim)
                               ## or a PNG path; none if ""
     backgroundTint*: Color    ## multiplies it (colours a see-through tile); white if unset
@@ -180,6 +184,7 @@ proc brandTheme*(spec: BrandSpec): Theme =
   if s.speechBubbleTips: result.tipShape = tsBubble
   result.glass = max(0'f32, s.glass)
   result.fizz = s.fizz
+  result.pulse = max(0'f32, s.pulse)
   if s.background.len > 0:
     result.assets.backgroundPattern = some(s.background)
     if s.backgroundTint.isSet: result.assets.backgroundTint = some(s.backgroundTint)
@@ -233,6 +238,9 @@ proc brandTheme*(spec: BrandSpec): Theme =
     if s.gloss > 0: result.gloss = some(s.gloss)
     if s.relief != 0: result.relief = some(s.relief)
     if s.dimensionLines: result.dimensionLines = some(true)
+    if s.gradient > 0: result.gradient = some(s.gradient)
+    if s.caustic > 0: result.caustic = some(s.caustic)
+    if s.softShadow > 0: result.softShadow = some(s.softShadow)
     if s.focusGlow > 0:
       result.focusGlowRadius = some(s.focusGlow)
       result.focusGlowColor = some(alpha(s.accent, 0.7))

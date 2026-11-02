@@ -248,7 +248,7 @@ definePrimitive(ComboBox):
       return true
 
   layout:
-    widget.effectReach = widget.themeProps(widget.intent, crText).focusGlowReach   # its focus glow
+    widget.effectReach = widget.themeProps(widget.intent, crText).finishReach   # its focus glow
     let props = widget.themeProps(widget.intent, crText, disabled = widget.disabled)
     let style = props.captionStyle(BLACK)
     # Just the box: the open list floats on the overlay layer.

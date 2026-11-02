@@ -190,6 +190,32 @@ proc swissDarkSpec*(): BrandSpec =
             info: hex"#6E8BFF", success: hex"#4ADE80", warning: hex"#FFB020",
             danger: hex"#FF3B30")
 
+proc aquaSpec*(): BrandSpec =
+  ## An Aqua look (Mac OS X, 2001-2007), as a test of how far a theme reaches:
+  ## gel buttons (a gradient, a gloss over the top half, light pooling inside
+  ## the bottom edge) as pills with soft shadows, the default button breathing,
+  ## blue gel check boxes, radios and progress, translucent frosted menus, and
+  ## pinstripes behind. Lucida Grande where it is installed.
+  BrandSpec(name: "Aqua", accent: hex"#3A87E5", onAccent: hex"#FFFFFF",
+            canvas: hex"#ECECEC", surface: hex"#FAFAFA", text: hex"#1A1A1A",
+            border: hex"#9A9A9A", radius: 11, controlHeight: 24, paddingX: 18,
+            padding: 4, fontSize: 13,
+            fontFamily: "Lucida Grande, Helvetica Neue, Helvetica, sans-serif",
+            headingFont: "Lucida Grande, Helvetica Neue, Helvetica, sans-serif",
+            info: hex"#2F6FD0", success: hex"#2E7D32", warning: hex"#9A6200",
+            danger: hex"#C62828",
+            gloss: 0.75, gradient: 0.5, caustic: 0.8, softShadow: 3, pulse: 1.6,
+            glass: 6, focusGlow: 3.5,
+            background: "tile:pinstripes")
+
+proc aquaGraphiteSpec*(): BrandSpec =
+  ## Aqua's Graphite variant: the same gel in blue-grey, for those it distracted.
+  var s = aquaSpec()
+  s.name = "Aqua Graphite"
+  s.accent = hex"#6E7B8B"
+  s.info = hex"#5D6B7C"
+  s
+
 proc characterThemes*(): seq[tuple[key: string, theme: Theme]] =
   ## Every themed personality, by registry name.
   @[("comic", brandTheme(comicSpec())),
@@ -204,4 +230,6 @@ proc characterThemes*(): seq[tuple[key: string, theme: Theme]] =
     ("synthwave", brandTheme(synthwaveSpec())),
     ("swiss", brandTheme(swissSpec())),
     ("swiss-klein", brandTheme(swissKleinSpec())),
-    ("swiss-dark", brandTheme(swissDarkSpec()))]
+    ("swiss-dark", brandTheme(swissDarkSpec())),
+    ("aqua", brandTheme(aquaSpec())),
+    ("aqua-graphite", brandTheme(aquaGraphiteSpec()))]

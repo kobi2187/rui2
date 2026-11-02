@@ -158,6 +158,10 @@ proc drawBox*(rect: Rect, radius: float32, fill: raylib.Color,
   ## dimension lines.
   if rect.width <= 0 or rect.height <= 0:
     return
+  if finish.shadow > 0:
+    # A soft shadow below, outside the box, in its shape.
+    discard drawSdfShadow(rect, max(radius, finish.cut * 0.6), 0, finish.shadow * 0.35,
+                          finish.shadow, 0, Color(r: 0, g: 0, b: 0, a: 70))
   if finish.glow > 0 and finish.glowColor.a > 0:
     # The halo first, outside the box: its shape, its corners or notches.
     discard drawSdfShadow(rect, max(radius, finish.cut * 0.6), 0, 0, finish.glow,
@@ -169,6 +173,7 @@ proc drawBox*(rect: Rect, radius: float32, fill: raylib.Color,
     var plain = finish
     plain.dimension = false
     plain.glow = 0
+    plain.shadow = 0
     drawBox(Rect(x: rect.x + o, y: rect.y + o, width: rect.width - 2 * o,
                  height: rect.height - 2 * o), 0, fill, fill, 0, plain)
     if bw > 0 and border.a > 0: drawDimensionOutline(rect, border, bw)
