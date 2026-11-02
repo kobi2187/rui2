@@ -1,7 +1,7 @@
 ## Theme Types - Shared Type Definitions
 ##
 ## This module contains type definitions shared between theme_sys_core
-## and drawing_effects to avoid circular dependencies.
+## and the drawing modules to avoid circular dependencies.
 
 type
   ThemeState* = enum
@@ -55,8 +55,3 @@ type
     Flatconvex # Flat design with convex highlight
     BeRaised   # BeOS R4/R5 button: grey frame, white inner top-left, mid-grey inner bottom-right
     BeSunken   # The same, pushed in: a pressed button, a text field, a well
-
-  GradientDirection* = enum
-    Vertical
-    Horizontal
-    Radial

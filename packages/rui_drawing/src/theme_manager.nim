@@ -22,11 +22,11 @@
 ##           pressedColor, hoverColor, activeColor, focusColor,
 ##           focusRingColor, focusGlowColor,
 ##           highlightColor, shadowColor, darkShadowColor,
-##           gradientStart, gradientEnd, glowColor, dropShadowColor
+##           dropShadowColor
 ##
 ##   Dimensions: borderWidth, cornerRadius, fontSize, spacing,
-##               focusRingWidth, focusGlowRadius, glowRadius,
-##               insetShadowDepth, insetShadowOpacity, dropShadowBlur
+##               focusRingWidth, focusGlowRadius,
+##               cornerCut, gloss, relief, gradient, caustic, softShadow
 ##
 ##   Text: fontFamily, textStyle
 ##
@@ -34,8 +34,9 @@
 ##
 ##   Effects: bevelStyle (Flat/Raised/Sunken/Ridge/Groove/Soft/Convex/
 ##              Drop/Interior/Flatsoft/Flatconvex)
-##            gradientDirection (Vertical/Horizontal/Radial)
-##            dropShadowOffset (tuple[x, y: float32])
+##            dropShadowOffset (tuple[x, y: float32]), dimensionLines
+##   (Older files' gradientStart/End, glowColor/Radius, insetShadowDepth and
+##    dropShadowBlur still load: theme_file maps them onto the finish.)
 ##
 ## Bevel implementation status:
 ##   Working: Flat, Raised, Sunken

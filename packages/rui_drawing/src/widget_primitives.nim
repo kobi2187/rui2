@@ -13,7 +13,7 @@ import theme_sys_core
 import theme_check
 import primitives/[shapes, text, controls, indicators, panels, sdf]
 import pango_text  # drawTextPango
-import effects/rect_effects
+import primitives/bevel
 
 import raylib
 import std/[unicode, math]
@@ -275,6 +275,12 @@ proc drawThemedBorder*(rect: Rect, props: ThemeProps, focused = false, active = 
     else:
       drawRoundedRectLines(rect, props.cornerRadius.get(4.0), w,
                            borderFor(props, focused, active))
+
+proc drawThemedPanel*(rect: Rect, props: ThemeProps) =
+  ## A themed surface -- a card, a drawer, a pane: its fill with the theme's
+  ## finish (or its bevel) and its outline. The same box every control is.
+  drawThemedBackground(rect, props)
+  drawThemedBorder(rect, props)
 
 proc drawThemedFocusRing*(rect: Rect, props: ThemeProps) =
   ## The focus ring: a solid band `focusRingWidth` deep, just inside the

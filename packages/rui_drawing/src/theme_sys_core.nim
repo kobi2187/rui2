@@ -137,23 +137,9 @@ type
     shadowColor*: Option[Color]         # Bottom-right inner edge (typically gray)
     darkShadowColor*: Option[Color]     # Bottom-right outer edge (typically black)
 
-    # Gradient effects (Mac OS X Aqua, modern UIs)
-    gradientStart*: Option[Color]
-    gradientEnd*: Option[Color]
-    gradientDirection*: Option[GradientDirection]
-
-    # Shadow effects (modern flat design, depth)
+    # A hard drop shadow (the finish's `drop`): how far, and its colour.
     dropShadowOffset*: Option[tuple[x, y: float32]]
-    dropShadowBlur*: Option[float32]
     dropShadowColor*: Option[Color]
-
-    # Glow effects (focus states, highlights)
-    glowColor*: Option[Color]
-    glowRadius*: Option[float32]
-
-    # Inner shadow (inset depth)
-    insetShadowDepth*: Option[float32]
-    insetShadowOpacity*: Option[float32]
 
     # Surface finish of a control's box (drawFinishedBox): what gives a theme
     # its material beyond colour.

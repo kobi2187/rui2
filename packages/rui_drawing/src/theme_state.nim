@@ -113,9 +113,6 @@ proc mixColors*(a, b: ThemeProps, t: float32): ThemeProps =
   mix highlightColor
   mix shadowColor
   mix darkShadowColor
-  mix gradientStart
-  mix gradientEnd
-  mix glowColor
   mix dropShadowColor
 
 proc fadeActive*(widget: Widget): bool = widget.id in fades

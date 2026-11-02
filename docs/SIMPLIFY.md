@@ -169,7 +169,7 @@ true.
 
 Afterwards there's one rule: "paint past your bounds with `effectReach`".
 
-### Step 4. One effect vocabulary: `BoxFinish` (medium)
+### Step 4. One effect vocabulary: `BoxFinish` (medium) -- done
 
 - Make the finish the only description of a surface. ThemeProps holds the
   finish terms once:

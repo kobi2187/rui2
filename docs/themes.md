@@ -157,13 +157,15 @@ metrics:
 
 Properties: colours (`backgroundColor foregroundColor borderColor
 pressedColor hoverColor activeColor focusColor focusRingColor focusGlowColor
-highlightColor shadowColor darkShadowColor gradientStart gradientEnd glowColor
-dropShadowColor`, as `"#rrggbb"`, `"#rrggbbaa"` or `rgb(r,g,b)`), sizes
-(`borderWidth cornerRadius fontSize spacing focusRingWidth focusGlowRadius
-glowRadius insetShadowDepth insetShadowOpacity dropShadowBlur dropShadowOffset`),
-text (`fontFamily fontWeight uppercase`), `padding` (`all`, `horizontal` /
-`vertical`, or `left top right bottom`), and effects (`bevelStyle
-gradientDirection`).
+highlightColor shadowColor darkShadowColor dropShadowColor`, as `"#rrggbb"`,
+`"#rrggbbaa"` or `rgb(r,g,b)`), sizes (`borderWidth cornerRadius fontSize
+spacing focusRingWidth focusGlowRadius dropShadowOffset`), the finish
+(`cornerCut gloss relief gradient caustic softShadow dimensionLines`), text
+(`fontFamily fontWeight uppercase`), `padding` (`all`, `horizontal` /
+`vertical`, or `left top right bottom`), and `bevelStyle`. Older files'
+`gradientStart`/`gradientEnd`, `glowColor`/`glowRadius`, `insetShadowDepth` and
+`dropShadowBlur` still load, as `gradient`, the focus glow, a negative `relief`
+and `softShadow`.
 
 `hint:` styles the help overlay's hint badges (F1 or `?`). By default they are
 a sign post planted on each widget's top-right corner: yellow, a thick dark

@@ -221,69 +221,33 @@ base:
     check formatFor("theme") == tffYaml          # no extension: assume YAML
 
 
-suite "which effect a theme asks for":
-  ## drawThemedRect used to hard-code both the set of effects and their order in
-  ## an if/elif chain, so precedence was control flow you had to trace and could
-  ## not assert on. It is a list now, and `effectFor` is the selection.
+suite "older effect names load as the finish":
+  ## One vocabulary: a control's surface is a BoxFinish. Files written with the
+  ## older effect names still load, mapped onto it.
+  proc noExtends(name: string): Theme = newTheme(name)
 
-  test "no effect props means a plain fill":
-    check effectFor(ThemeProps()).isNone
+  test "a gradient, a glow, an inset and a blurred shadow become finish terms":
+    let t = parseTheme("""
+name: Old
+base:
+  default:
+    gradientStart: "#FFFFFF"
+    gradientEnd: "#CCCCCC"
+    glowColor: "#3388FF"
+    glowRadius: 5
+    insetShadowDepth: 2
+    dropShadowBlur: 4
+""", tffYaml, noExtends)
+    let p = t.getThemeProps(Default, Normal)
+    check p.gradient == some(0.5'f32)
+    check p.focusGlowRadius == some(5'f32) and p.focusGlowColor.isSome
+    check p.relief == some(-2'f32)
+    check p.softShadow == some(4'f32)
 
-  test "Flat is the absence of a bevel, not a bevel":
+  test "Flat is the absence of a bevel, and draws a plain box":
     var props = ThemeProps()
     props.bevelStyle = some(Flat)
-    check effectFor(props).isNone
-
-  test "each effect is picked when its props are set":
-    var bevel = ThemeProps()
-    bevel.bevelStyle = some(Raised)
-    check effectFor(bevel).get().name == "bevel"
-
-    var gradient = ThemeProps()
-    gradient.gradientStart = some(WHITE)
-    gradient.gradientEnd = some(BLACK)
-    check effectFor(gradient).get().name == "gradient"
-
-    var shadow = ThemeProps()
-    shadow.dropShadowOffset = some((x: 4.0'f32, y: 4.0'f32))
-    check effectFor(shadow).get().name == "dropShadow"
-
-    var glow = ThemeProps()
-    glow.glowColor = some(WHITE)
-    check effectFor(glow).get().name == "glow"
-
-    var inset = ThemeProps()
-    inset.insetShadowDepth = some(3.0'f32)
-    check effectFor(inset).get().name == "inset"
-
-  test "a gradient with only one end is not a gradient":
-    var props = ThemeProps()
-    props.gradientStart = some(WHITE)
-    check effectFor(props).isNone
-
-  test "precedence: a bevel wins over everything a theme also sets":
-    # A BeOS-style theme sets a bevel and a gradient and means the bevel.
-    var props = ThemeProps()
-    props.bevelStyle = some(Raised)
-    props.gradientStart = some(WHITE)
-    props.gradientEnd = some(BLACK)
-    props.dropShadowOffset = some((x: 2.0'f32, y: 2.0'f32))
-    props.glowColor = some(WHITE)
-    check effectFor(props).get().name == "bevel"
-
-  test "precedence: depth before emphasis":
-    # A theme setting both a drop shadow and a glow is describing depth.
-    var props = ThemeProps()
-    props.dropShadowOffset = some((x: 2.0'f32, y: 2.0'f32))
-    props.glowColor = some(WHITE)
-    check effectFor(props).get().name == "dropShadow"
-
-  test "the order the table declares is the order it is searched":
-    check RectEffects.len == 5
-    var names: seq[string] = @[]
-    for e in RectEffects:
-      names.add(e.name)
-    check names == @["bevel", "gradient", "dropShadow", "glow", "inset"]
+    check props.boxFinish == BoxFinish()
 
 suite "colour helpers":
   ## `fadeColor` was private and documented as fading to transparent, while
@@ -853,7 +817,7 @@ suite "theme: writing a theme back out":
       padding: some(edgeInsetsLTRB(1, 2, 3, 4)),
       fontWeight: some(SemiBold), uppercase: some(true),
       dropShadowOffset: some((3.0'f32, 3.0'f32)),
-      bevelStyle: some(Raised), gradientDirection: some(theme_types.Radial))
+      bevelStyle: some(Raised))
     t.base[Info] = ThemeProps(padding: some(edgeInsetsSymmetric(12, 4)))
     t.base[Danger] = ThemeProps(padding: some(edgeInsets(6)), fontFamily: some("Fira Sans"))
     t.states[Default][Hovered] = ThemeProps(backgroundColor: some(Color(r: 10, g: 20, b: 30, a: 255)))

@@ -269,9 +269,6 @@ proc toThemeProps*(fp: ThemePropsFile): ThemeProps =
   result.highlightColor = optColor(fp.highlightColor)
   result.shadowColor = optColor(fp.shadowColor)
   result.darkShadowColor = optColor(fp.darkShadowColor)
-  result.gradientStart = optColor(fp.gradientStart)
-  result.gradientEnd = optColor(fp.gradientEnd)
-  result.glowColor = optColor(fp.glowColor)
   result.dropShadowColor = optColor(fp.dropShadowColor)
   result.borderWidth = fp.borderWidth
   result.cornerRadius = fp.cornerRadius
@@ -279,17 +276,26 @@ proc toThemeProps*(fp: ThemePropsFile): ThemeProps =
   result.spacing = fp.spacing
   result.focusRingWidth = fp.focusRingWidth
   result.focusGlowRadius = fp.focusGlowRadius
-  result.glowRadius = fp.glowRadius
-  result.insetShadowDepth = fp.insetShadowDepth
-  result.insetShadowOpacity = fp.insetShadowOpacity
-  result.dropShadowBlur = fp.dropShadowBlur
-  result.cornerCut = fp.cornerCut
-  result.gloss = fp.gloss
-  result.relief = fp.relief
-  result.dimensionLines = fp.dimensionLines
-  result.gradient = fp.gradient
-  result.caustic = fp.caustic
-  result.softShadow = fp.softShadow
+  # The older effect names, as the finish says them (files written before the
+  # finish keep loading): a gradient, a glow, an inset, a blurred shadow.
+  if fp.gradientStart.isSome or fp.gradientEnd.isSome:
+    result.gradient = some(0.5'f32)
+  if fp.glowColor.isSome:
+    result.focusGlowColor = optColor(fp.glowColor)
+    result.focusGlowRadius = some(fp.glowRadius.get(6.0))
+  if fp.insetShadowDepth.isSome:
+    result.relief = some(-abs(fp.insetShadowDepth.get))
+  if fp.dropShadowBlur.isSome:
+    result.softShadow = fp.dropShadowBlur
+  # The finish (set only where the file sets it: an older name above may
+  # already have filled it in).
+  if fp.cornerCut.isSome: result.cornerCut = fp.cornerCut
+  if fp.gloss.isSome: result.gloss = fp.gloss
+  if fp.relief.isSome: result.relief = fp.relief
+  if fp.dimensionLines.isSome: result.dimensionLines = fp.dimensionLines
+  if fp.gradient.isSome: result.gradient = fp.gradient
+  if fp.caustic.isSome: result.caustic = fp.caustic
+  if fp.softShadow.isSome: result.softShadow = fp.softShadow
   result.fontFamily = fp.fontFamily
   if fp.fontWeight.isSome:
     result.fontWeight = some(case fp.fontWeight.get().toLowerAscii()
@@ -332,13 +338,6 @@ proc toThemeProps*(fp: ThemePropsFile): ThemeProps =
       of "beraised": BeRaised
       of "besunken": BeSunken
       else: Flat)
-  # Gradient direction
-  if fp.gradientDirection.isSome:
-    result.gradientDirection = some(case fp.gradientDirection.get().toLowerAscii()
-      of "vertical": theme_types.Vertical
-      of "horizontal": theme_types.Horizontal
-      of "radial": theme_types.Radial
-      else: theme_types.Vertical)
 
 proc toBrandSpec*(bf: BrandFile): BrandSpec =
   ## File form to `BrandSpec`. A colour that fails to parse raises, like any
@@ -596,9 +595,6 @@ proc propsToJson*(p: ThemeProps): JsonNode =
   color "highlightColor", p.highlightColor
   color "shadowColor", p.shadowColor
   color "darkShadowColor", p.darkShadowColor
-  color "gradientStart", p.gradientStart
-  color "gradientEnd", p.gradientEnd
-  color "glowColor", p.glowColor
   color "dropShadowColor", p.dropShadowColor
   number "borderWidth", p.borderWidth
   number "cornerRadius", p.cornerRadius
@@ -606,10 +602,6 @@ proc propsToJson*(p: ThemeProps): JsonNode =
   number "spacing", p.spacing
   number "focusRingWidth", p.focusRingWidth
   number "focusGlowRadius", p.focusGlowRadius
-  number "glowRadius", p.glowRadius
-  number "insetShadowDepth", p.insetShadowDepth
-  number "insetShadowOpacity", p.insetShadowOpacity
-  number "dropShadowBlur", p.dropShadowBlur
   number "cornerCut", p.cornerCut
   number "gloss", p.gloss
   number "relief", p.relief
@@ -646,8 +638,6 @@ proc propsToJson*(p: ThemeProps): JsonNode =
            "bottom": num(e.bottom)}
   if p.bevelStyle.isSome:
     result["bevelStyle"] = newJString(($p.bevelStyle.get).toLowerAscii)
-  if p.gradientDirection.isSome:
-    result["gradientDirection"] = newJString(($p.gradientDirection.get).toLowerAscii)
 
 const IntentNames = ["default", "info", "success", "warning", "danger"]
 const StateNames = ["normal", "disabled", "hovered", "pressed", "focused",

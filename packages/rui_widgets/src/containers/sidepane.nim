@@ -94,7 +94,7 @@ defineWidget(SidePane):
     let rest = currentTheme.getThemeProps(widget.intent, Normal)
     let head = paneHeader()
     let ink = rest.foregroundColor.get(BLACK)
-    drawThemedRect(widget.bounds, rest)
+    drawThemedPanel(widget.bounds, rest)
     let header = Rect(x: widget.bounds.x, y: widget.bounds.y,
                       width: widget.bounds.width, height: if widget.expanded: head else: widget.bounds.height)
     if widget.hovered or widget.isPressed:
