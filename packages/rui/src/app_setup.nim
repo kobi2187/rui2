@@ -136,8 +136,10 @@ proc injectKey(app: App, keyName: string): bool =
 
 proc dirtyCount(widget: Widget): int =
   ## How many widgets in this subtree still want a repaint or a relayout.
-  ## Zero means the frame has settled.
-  if widget == nil:
+  ## Zero means the frame has settled. A hidden widget (a resting Fizz, an
+  ## inactive tab page) is never painted, so its flags wait for it to show and
+  ## do not count -- as the render pass's own dirty check skips it.
+  if widget == nil or not widget.visible:
     return 0
   if widget.isDirty or widget.layoutDirty:
     result = 1

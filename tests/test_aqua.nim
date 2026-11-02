@@ -7,6 +7,11 @@ import ui_harness
 import ../packages/rui_widgets/src/primitives/rectangle
 
 suite "theme: Aqua (gel, soft shadows, a breathing default button)":
+  # Each test leaves the theme as it found it: later tests measure text in it.
+  var savedTheme: Theme
+  setup: savedTheme = currentTheme
+  teardown: setCurrentTheme(savedTheme)
+
   test "aqua's controls are gel pills with soft shadows, and keep room for them":
     let t = brandTheme(aquaSpec())
     let f = t.getThemeProps(Info, Normal).boxFinish

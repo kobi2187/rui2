@@ -9,6 +9,11 @@ import ui_harness
 import ../packages/rui_widgets/src/primitives/rectangle
 
 suite "an idle window draws nothing":
+  # Each test leaves the theme as it found it: later tests measure text in it.
+  var savedTheme: Theme
+  setup: savedTheme = currentTheme
+  teardown: setCurrentTheme(savedTheme)
+
   test "decorative repaints are scheduled while active, parked while away, woken by input":
     let w = newLabel(text = "x")
     lastInput = getMonoTime()

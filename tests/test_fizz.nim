@@ -6,6 +6,11 @@ import rui
 import ui_harness
 
 suite "fizz":
+  # Each test leaves the theme as it found it: later tests measure text in it.
+  var savedTheme: Theme
+  setup: savedTheme = currentTheme
+  teardown: setCurrentTheme(savedTheme)
+
   let area = Rect(x: 10, y: 20, width: 100, height: 32)
 
   test "bubbles rise from the bottom, stay inside, and are gone by the end":
