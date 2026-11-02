@@ -74,6 +74,22 @@ render times within noise. At 10,000 widgets, layout, idle frame and a
 one-label repaint match `main` (medians of five runs: repaint 1.1 ms against
 1.6; the software renderer here varies by a factor of two from run to run).
 
+## Experiment: should shapes and shadows be cached across widgets?
+
+The classic trick is to render a shadow or a rounded box once and reuse the
+bitmap until the size changes. RUI already does this per widget: every widget
+paints into its own cached texture, so its SDF box, shadow and glow are shaded
+once and reused until that widget repaints. The open question was whether a
+cache *shared* between widgets, keyed by size, radius and finish, would pay:
+300 identical buttons would then shade their shadow once instead of 300 times.
+
+Measured by switching the box and shadow shaders off (the plain fallback still
+draws the shapes), a full repaint of 1,000 widgets took the same time, within
+noise: 9 to 16 ms either way, in daylight and in Aqua (soft shadows on every
+button). The shapes are a small slice of a repaint; allocating textures,
+setting text and compositing are the rest. **Decision: no shared shape cache.**
+It would add code and a cache to invalidate for no measurable gain.
+
 ## Experiment: would a texture atlas help?
 
 `tools/atlas_bench.nim` compares our way, one texture per text run, with a
