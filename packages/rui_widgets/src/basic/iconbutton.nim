@@ -45,6 +45,7 @@ defineWidget(IconButton):
         if widget.onClick != nil: widget.onClick()
 
   layout:
+    widget.keepFinishRoom(widget.themeProps(widget.intent, crPointer))   # its shadow, its glow
     # Square by construction; `size` is the whole story.
     if widget.bounds.width <= 0:
       widget.bounds.width = widget.size

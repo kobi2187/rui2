@@ -137,6 +137,7 @@ defineWidget(TimePicker):
       return true
 
   layout:
+    widget.keepFinishRoom(widget.themeProps(widget.intent, crText))   # its shadow, its glow
     let props = widget.themeProps(widget.intent, crText, disabled = widget.disabled)
     let style = props.captionStyle(BLACK)
     if widget.bounds.height <= 0:

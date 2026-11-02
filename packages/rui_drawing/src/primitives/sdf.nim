@@ -272,13 +272,17 @@ type BoxFinish* = object
   ## `gradient` (0..1) lightens the top and deepens the bottom; `caustic`
   ## (0..1) pools light inside the bottom edge, as through a gel.
   ## `glow`: a soft halo of `glowColor` this many pixels outside the box;
-  ## `shadow`: a soft drop shadow this blurred, falling below it. Both paint
-  ## past the box: the widget needs `reach` of effect reach to show them.
+  ## `shadow`: a soft drop shadow this blurred, falling below it. `drop`: a
+  ## hard shadow of `dropColor` this far right and down (a comic, a fat
+  ## brand). All three paint past the box: the widget needs `reach` of effect
+  ## reach to show them.
   cut*, gloss*, relief*, gradient*, caustic*: float32
   dimension*: bool
   glow*: float32
   glowColor*: Color
   shadow*: float32
+  drop*: float32
+  dropColor*: Color
 
 proc reach*(f: BoxFinish): float32 =
   ## How far past the box a finish paints (its glow, its shadow): what to give
@@ -286,6 +290,7 @@ proc reach*(f: BoxFinish): float32 =
   result = 0
   if f.glow > 0 and f.glowColor.a > 0: result = ceil(f.glow * 2.25)
   if f.shadow > 0: result = max(result, ceil(f.shadow * 2.4 + f.shadow * 0.35))
+  if f.drop > 0 and f.dropColor.a > 0: result = max(result, ceil(f.drop + 1))
 
 proc drawSdfBox*(rect: Rect, radius, borderWidth: float32,
                  fill, border: Color, finish = BoxFinish()): bool =

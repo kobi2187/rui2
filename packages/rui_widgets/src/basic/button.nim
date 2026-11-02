@@ -104,19 +104,18 @@ defineWidget(Button):
     let style = props.captionStyle(textColor, action = true)
 
     # Size to content when the parent has not imposed a size: the caption in
-    # the theme's font, the theme's padding around it, room for its shadow,
-    # and at least the theme's control height. So a bold brand's buttons are
-    # bigger than a lean one's without either writing a number.
+    # the theme's font, the theme's padding around it, and at least the theme's
+    # control height. So a bold brand's buttons are bigger than a lean one's
+    # without either writing a number. (Its shadow is outside: effect reach.)
     let metrics = measureText(caption, style)
     let pad = props.controlPadding()
-    let shadow = props.shadowOffset
     if widget.bounds.height <= 0:
-      widget.bounds.height = max(currentTheme.controlHeight - shadow.y,
-                                 metrics.height + pad.top + pad.bottom) + shadow.y
+      widget.bounds.height = max(currentTheme.controlHeight,
+                                 metrics.height + pad.top + pad.bottom)
     if widget.bounds.width <= 0:
-      widget.bounds.width = metrics.width + pad.left + pad.right + shadow.x
+      widget.bounds.width = metrics.width + pad.left + pad.right
 
-    # The body: inside the shadow, sunk into it while pressed.
+    # The body: the bounds, sunk into the shadow while pressed.
     let body = bodyRect(widget.bounds, props, widget.isPressed and not widget.disabled)
     # A theme with `pulse` makes the primary action breathe (Aqua's default
     # button): its face brightens and fades, a cycle `pulse` seconds long.
@@ -142,6 +141,8 @@ defineWidget(Button):
     fizz.bounds = body
     fizz.color = textColor.withAlpha(0.8)
     bg.finish = props.boxFinish(focused = widget.focused)   # its glow too, when focused
+    if widget.isPressed and not widget.disabled:
+      bg.finish.drop = 0                                    # pressed into its shadow
     # Room for the finish's shadow, and its focus glow while focused: the body
     # is the border element that wears them; the button (its own size) passes
     # the spill on to its parent.
@@ -177,13 +178,6 @@ defineWidget(Button):
       height: metrics.height
     )
 
-  render:
-    # Only the shadow: the body and caption are the children, drawn over it.
-    let props = currentTheme.getThemeProps(widget.intent,
-      visualState(widget.disabled, widget.isPressed,
-                  hovered = widget.under, focused = widget.focused,
-                  ladder = currentTheme.ladderFor(crPointer)))
-    drawDropShadow(widget.bounds, props, widget.isPressed and not widget.disabled)
 
 # ============================================================================
 # Scripting Support

@@ -12,6 +12,7 @@
 
 import std/unittest
 import rui
+import ../packages/rui_widgets/src/primitives/rectangle
 import std/[json, tables, strutils, options, os, monotimes, times]
 
 suite "theme: registry and switching":
@@ -565,12 +566,16 @@ metrics:
     let b = newButton(text = "Go")
     b.bounds = Rect(x: 0, y: 0, width: 100, height: 50)
     b.layout()
-    let up = b.children[0].bounds
+    let body = rectangle.Rectangle(b.children[0])
+    let up = body.bounds
+    check up.x == 0 and up.width == 100     # the body is the bounds...
+    check body.finish.drop == 4             # ...the shadow lies outside,
+    check body.effectReach >= 4             # through effect reach
     b.isPressed = true
     b.layout()
-    let down = b.children[0].bounds
-    check up.x == 0 and up.width == 96      # room left for the shadow
-    check down.x == 4 and down.y == 4       # moved into it
+    let down = body.bounds
+    check down.x == 4 and down.y == 4       # pressed, moved into it
+    check body.finish.drop == 0             # and the shadow gone
 
   test "switching theme at runtime re-measures the same widgets":
     let saved = currentTheme

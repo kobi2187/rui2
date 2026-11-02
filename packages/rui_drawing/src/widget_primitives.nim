@@ -98,14 +98,13 @@ proc shadowOffset*(props: ThemeProps): tuple[x, y: float32] =
   (max(0.0'f32, o.x), max(0.0'f32, o.y))
 
 proc bodyRect*(rect: Rect, props: ThemeProps, pressed = false): Rect =
-  ## The part of `rect` the control itself occupies, leaving room for its drop
-  ## shadow. Pressed, the body sinks into the shadow -- the press of a raised
-  ## key rather than a colour change alone.
-  let o = props.shadowOffset
-  result = Rect(x: rect.x, y: rect.y,
-                width: max(0.0'f32, rect.width - o.x),
-                height: max(0.0'f32, rect.height - o.y))
+  ## Where the control's body is drawn: its bounds, and, pressed, moved into
+  ## where its hard shadow fell -- the press of a raised key rather than a
+  ## colour change alone. (The shadow itself lies outside the bounds: the
+  ## finish's `drop`, shown through effect reach.)
+  result = rect
   if pressed:
+    let o = props.shadowOffset
     result.x += o.x
     result.y += o.y
 
@@ -122,6 +121,10 @@ proc boxFinish*(props: ThemeProps, well = false, focused = false): BoxFinish =
                      gradient: (if well: 0'f32 else: props.gradient.get(0)),
                      caustic: (if well: 0'f32 else: props.caustic.get(0)),
                      shadow: (if well: 0'f32 else: props.softShadow.get(0)))
+  let o = props.shadowOffset
+  if o.x > 0 or o.y > 0:
+    result.drop = max(o.x, o.y)
+    result.dropColor = props.dropShadowColor.get(Color(r: 0, g: 0, b: 0, a: 255))
   if focused and props.focusGlowColor.isSome:
     result.glow = props.focusGlowRadius.get(0)
     result.glowColor = props.focusGlowColor.get
@@ -132,6 +135,7 @@ proc accentFinish*(props: ThemeProps): BoxFinish =
   ## caustic, notches), without the outside effects a small part has no room for.
   result = props.boxFinish
   result.shadow = 0
+  result.drop = 0
   result.glow = 0
   result.relief = 0
   result.dimension = false
@@ -141,18 +145,6 @@ proc finishReach*(props: ThemeProps, well = false, focused = false): float32 =
   ## focus glow only while `focused` (one control at a time: keeping room for it
   ## on every button cost a neon theme 70% more texture memory).
   props.boxFinish(well, focused).reach
-
-proc drawDropShadow*(rect: Rect, props: ThemeProps, pressed = false) =
-  ## The hard shadow behind a control's body, unless it is pressed into it.
-  ## The body's shape: notched corners cast notched shadows.
-  let o = props.shadowOffset
-  if pressed or (o.x <= 0 and o.y <= 0):
-    return
-  let body = bodyRect(rect, props)
-  let color = props.dropShadowColor.get(Color(r: 0, g: 0, b: 0, a: 255))
-  drawBox(Rect(x: body.x + o.x, y: body.y + o.y, width: body.width, height: body.height),
-          props.cornerRadius.get(4.0), color, color, 0,
-          BoxFinish(cut: props.cornerCut.get(0)))
 
 proc getPaddingLeft*(props: ThemeProps, default: float32): float32 =
   props.padding.get(EdgeInsets(left: default, top: default, right: default, bottom: default)).left
@@ -242,6 +234,12 @@ proc drawFloatingShadow*(rect: Rect, props: ThemeProps) =
   drawShadow(rect, Shadow(offsetX: 0.0, offsetY: 6.0, blur: 14.0, spread: -2.0,
                           color: Color(r: 0, g: 0, b: 0, a: 56),
                           radius: props.cornerRadius.get(0.0)))
+
+proc floatingShadowReach*(props: ThemeProps): float32 =
+  ## How far a floating panel's soft shadow reaches past it (drawFloatingShadow:
+  ## 6 px down, 14 px of blur): the effect reach the panel keeps. None in a
+  ## bevelled theme, whose panels sit flat on the page.
+  if props.bevelStyle.get(Flat) != Flat: 0'f32 else: 36'f32
 
 proc glassy*(props: ThemeProps): ThemeProps =
   ## A floating panel's props in a glass theme (`Theme.glass`): its fill made
@@ -346,12 +344,12 @@ proc drawInteractiveBox*(rect: Rect, props: ThemeProps,
   ## Standard interactive box: drop shadow, body with its outline, and the
   ## focus ring -- every one of them sized by the theme. A `well` (a text
   ## field) takes the theme's carved finish rather than its raised one.
-  drawDropShadow(rect, props, pressed)
   let body = bodyRect(rect, props, pressed)
+  var finish = props.boxFinish(well, focused)
+  if pressed: finish.drop = 0          # pressed into its shadow
   if not drawBevelBody(body, props, backgroundFor(props, pressed, hovered), pressed):
     drawBox(body, props.cornerRadius.get(4.0), backgroundFor(props, pressed, hovered),
-            borderFor(props, focused, false), props.strokeWidth,
-            props.boxFinish(well, focused))
+            borderFor(props, focused, false), props.strokeWidth, finish)
   if focused:
     drawThemedFocusRing(body, props)
 
@@ -377,6 +375,12 @@ proc drawSpeechBubble*(rect: Rect, fill, border: Color, borderWidth: float32,
   discard drawSdfTriangle(Vector2(x: tip.x + k * 0.9, y: tip.y + k * 1.6),
                           Vector2(x: a.x + k, y: a.y + 0.5),
                           Vector2(x: b.x - k * 0.6, y: b.y + 0.5), fill)
+
+proc keepFinishRoom*(widget: Widget, props: ThemeProps, well = false) =
+  ## Give `widget` the effect reach its finish paints past its bounds (a hard
+  ## or soft shadow, the focus glow while it has focus). Call it in `layout`,
+  ## which runs before painting, from every widget that draws a finished box.
+  widget.effectReach = props.finishReach(well, widget.focused)
 
 proc drawSelectionBackground*(rect: Rect, props: ThemeProps,
                              selected = false, hovered = false) =
@@ -913,7 +917,7 @@ proc drawSpinner*(rect: Rect, value: string, props: ThemeProps,
   drawInteractiveBox(rect, props, focused = focused)
   let style = props.captionStyle(props.foregroundColor.get(BLACK))
   let left = props.padding.get(EdgeInsets()).left
-  let body = bodyRect(rect, props, false)   # inside the shadow and the border
+  let body = rect
   drawStyledText(value, body.x + left, body.y + (body.height - style.fontSize) / 2, style)
   drawSpinnerButtons(rect, props, upHovered, downHovered)
 

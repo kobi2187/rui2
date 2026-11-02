@@ -46,6 +46,7 @@ defineWidget(Crumb):
         if widget.onClick != nil: widget.onClick()
 
   layout:
+    widget.keepFinishRoom(widget.themeProps(widget.intent, crPointer))   # its shadow, its glow
     let props = currentTheme.getThemeProps(widget.intent, Normal)
     if widget.bounds.width <= 0:
       widget.bounds.width = measureText(widget.text, crumbStyle(props, widget.current)).width +

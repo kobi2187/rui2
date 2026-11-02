@@ -155,7 +155,7 @@ Fix the package list, the directory claim and the macro section now. Then
 rewrite it around the four ideas above once steps 3 to 6 land, so it stays
 true.
 
-### Step 3. One way past the bounds: `effectReach` (medium)
+### Step 3. One way past the bounds: `effectReach` (medium) -- done
 
 - **Hard drop shadow:** it becomes a finish term, a shadow with an offset and no
   blur, drawn through effect reach. A Button's bounds become its body, and

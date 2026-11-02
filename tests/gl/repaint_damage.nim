@@ -75,7 +75,9 @@ var before: seq[Color]
 proc fullBefore(s: Scene): seq[Color] = before
 
 proc changed(w: Widget): int =
-  ## How many widgets in the tree redrew only part of themselves last pass.
+  ## How many widgets in the tree redrew only part of themselves last pass. A
+  ## hidden widget (a Fizz at rest) draws nothing, so it does not count.
+  if not w.visible: return 0
   if w.damage.width < w.bounds.width or w.damage.height < w.bounds.height: result = 1
   for c in w.children: result += changed(c)
 

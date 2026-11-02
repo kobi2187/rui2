@@ -1146,10 +1146,9 @@ proc compositeRoot(app: App) =
     defer: glassPage = nil
     for overlay in overlays():
       if overlay.visible and overlay.cachedTexture.isSome:
-        # The chrome first: it may reach past the overlay's bounds, which its
-        # texture would clip away.
-        if overlay.chrome != nil:
-          overlay.chrome(overlay.bounds)
+        # What it draws behind itself first (glass reads the page under it).
+        if overlay.drawBehind != nil:
+          overlay.drawBehind(overlay.bounds)
         drawRenderTexture(overlay.cachedTexture.get(),        # out by its effects' margin
                           overlay.bounds.x - overlay.texturePad,
                           overlay.bounds.y - overlay.texturePad)
@@ -1377,8 +1376,10 @@ proc idleUntilNextFrame(app: App, frameStart: MonoTime) =
   if app.idleRecentlyPolled:
     app.idleRecentlyPolled = false
     let now = getMonoTime()
-    # Scripting reads command files once per frame, so it keeps the frame period.
-    let cap = if app.scriptManager != nil:
+    # Scripting reads command files once per frame, and an `onFrame` hook asked
+    # to run every frame: both keep the frame period. Otherwise the loop sleeps
+    # until something happens, and an idle window costs nothing.
+    let cap = if app.scriptManager != nil or app.onFrame != nil:
                 some(initDuration(nanoseconds = 1_000_000_000 div max(1, app.window.fps)))
               else: none(Duration)
     perfTime(phIdle):

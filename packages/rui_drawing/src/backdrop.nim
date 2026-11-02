@@ -240,7 +240,7 @@ proc drawBackdrop*(modal: Widget, bounds: Rect) =
 ## A theme with `glass` (a blur radius) gives floating panels -- menus, open
 ## lists, popovers -- a translucent fill over the page blurred behind them. The
 ## App names the page it has just put on the screen (`glassPage`) while it
-## composites the overlays; a panel's chrome (`floatingChrome`) calls
+## composites the overlays; a panel's `drawBehind` (`glassBehind`) calls
 ## `drawFrosted` for its own shape, then its texture goes over it.
 
 var glassPage*: ptr RenderTexture2D
@@ -343,19 +343,25 @@ proc drawFrosted*(area: Rect, blur: float32, radius = 0'f32, cut = 0'f32): bool 
   endShaderMode()
   true
 
-proc floatingChrome*(shadow = true): proc(bounds: Rect) {.closure.} =
-  ## The chrome for a panel that floats above the page, drawn in screen space
-  ## so its own texture does not clip it: its soft shadow (unless `shadow` is
-  ## false), and in a glass theme the page frosted behind it, the panel's shape.
+proc glassBehind*(): proc(bounds: Rect) {.closure.} =
+  ## A floating panel's `drawBehind` in a glass theme: the page frosted behind
+  ## it, in its shape. Drawn in screen space because it reads what is behind;
+  ## nothing in a theme without glass.
   result = proc(bounds: Rect) =
+    if currentTheme.glass <= 0: return
     let props = currentTheme.getThemeProps(Default, Normal)
-    if shadow: drawFloatingShadow(bounds, props)
-    if currentTheme.glass > 0:
-      # The page texture is clear where the window's canvas shows, so the sharp
-      # page already on the screen is covered first, in the panel's shape.
-      let canvas = currentTheme.canvasColor()
-      drawBox(bounds, props.cornerRadius.get(4.0), canvas, canvas, 0,
-              BoxFinish(cut: props.cornerCut.get(0)))
-      discard drawFrosted(bounds, currentTheme.glass, props.cornerRadius.get(4.0),
-                          props.cornerCut.get(0))
+    # The page texture is clear where the window's canvas shows, so the sharp
+    # page already on the screen is covered first, in the panel's shape.
+    let canvas = currentTheme.canvasColor()
+    drawBox(bounds, props.cornerRadius.get(4.0), canvas, canvas, 0,
+            BoxFinish(cut: props.cornerCut.get(0)))
+    discard drawFrosted(bounds, currentTheme.glass, props.cornerRadius.get(4.0),
+                        props.cornerCut.get(0))
 
+proc floatAbove*(widget: Widget) =
+  ## Make `widget` a panel that floats above the page (a menu, a popover, an
+  ## in-app window): room for the soft shadow it draws past its bounds (its
+  ## `render` calls drawFloatingShadow first), and the glass behind it in a
+  ## glass theme.
+  widget.effectReach = floatingShadowReach(currentTheme.getThemeProps(Default, Normal))
+  widget.drawBehind = glassBehind()

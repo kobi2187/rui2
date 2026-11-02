@@ -121,6 +121,7 @@ defineWidget(NumberInput):
         return false
 
   layout:
+    widget.keepFinishRoom(widget.themeProps(widget.intent, crText))   # its shadow, its glow
     let style = TextStyle(fontFamily: "", fontSize: 14.0, color: BLACK,
                           bold: false, italic: false, underline: false)
     let m = measureText(formatFloat(widget.maxValue, ffDecimal, widget.decimals), style)

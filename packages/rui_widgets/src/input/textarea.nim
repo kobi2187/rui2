@@ -876,10 +876,8 @@ defineWidget(TextArea):
 
   layout:
     # A field wears the theme's focus glow past its edge: keep room for it.
-    widget.effectReach = if widget.framed:
-                           widget.themeProps(widget.intent, crText).finishReach(well = true,
-                                                                              focused = widget.focused)
-                         else: 0
+    if widget.framed: widget.keepFinishRoom(widget.themeProps(widget.intent, crText), well = true)
+    else: widget.effectReach = 0
     widget.cursorShape = if widget.takesInput: csText else: csDefault
     widget.blockReading = widget.blockReading or widget.secret
     widget.takesText = widget.takesInput

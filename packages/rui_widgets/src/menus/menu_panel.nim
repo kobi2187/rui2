@@ -39,13 +39,14 @@ proc layoutMenuColumn*(widget: Widget, padding, minWidth: float32) =
 proc drawMenuPanel*(widget: Widget, intent: ThemeIntent) =
   ## The panel only: the items are composited over it by the render pass.
   let props = currentTheme.getThemeProps(intent, Normal).glassy   # frosted in a glass theme
+  drawFloatingShadow(widget.bounds, props)       # past its bounds: floatAbove gave it room
   drawThemedBackground(widget.bounds, props)
   drawThemedBorder(widget.bounds, props)
 
 proc showMenuLayer*(widget: Widget) =
   ## Put the panel on the overlay layer, where it takes the pointer; opening
   ## changes its size, so layout has to re-run.
-  widget.chrome = floatingChrome()
+  widget.floatAbove()
   showOverlay(widget, interactive = true)
   widget.isDirty = true
   widget.layoutDirty = true

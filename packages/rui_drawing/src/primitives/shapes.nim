@@ -158,6 +158,12 @@ proc drawBox*(rect: Rect, radius: float32, fill: raylib.Color,
   ## dimension lines.
   if rect.width <= 0 or rect.height <= 0:
     return
+  if finish.drop > 0 and finish.dropColor.a > 0:
+    # A hard shadow, right and down, in the box's shape (notches included).
+    discard drawSdfBox(Rect(x: rect.x + finish.drop, y: rect.y + finish.drop,
+                            width: rect.width, height: rect.height),
+                       radius, 0, finish.dropColor, finish.dropColor,
+                       BoxFinish(cut: finish.cut))
   if finish.shadow > 0:
     # A soft shadow below, outside the box, in its shape.
     discard drawSdfShadow(rect, max(radius, finish.cut * 0.6), 0, finish.shadow * 0.35,
@@ -174,6 +180,7 @@ proc drawBox*(rect: Rect, radius: float32, fill: raylib.Color,
     plain.dimension = false
     plain.glow = 0
     plain.shadow = 0
+    plain.drop = 0
     drawBox(Rect(x: rect.x + o, y: rect.y + o, width: rect.width - 2 * o,
                  height: rect.height - 2 * o), 0, fill, fill, 0, plain)
     if bw > 0 and border.a > 0: drawDimensionOutline(rect, border, bw)

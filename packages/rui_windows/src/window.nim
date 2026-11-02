@@ -131,6 +131,7 @@ defineWidget(Window):
   render:
     let props = currentTheme.getThemeProps(Default, Normal)
     let active = activeWindow() == widget
+    drawFloatingShadow(widget.bounds, props)       # past its bounds: floatAbove gave it room
     drawThemedBackground(widget.bounds, props)
     drawThemedBorder(widget.bounds, props)
     let bar = Rect(x: widget.bounds.x, y: widget.bounds.y,
