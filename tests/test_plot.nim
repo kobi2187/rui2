@@ -133,7 +133,12 @@ suite "plot on a zoomable x (xView)":
     let whole = p.plotFrame.l.yHi
     view.value = view.value.showing(0, 100, p.plotFrame.area.width)
     let f = p.plotFrame
-    check abs(f.l.xLo) < 1e-9 and abs(f.l.xHi - 100) < 1e-6
+    # x spans exactly what the view shows across the area. The area itself can
+    # change width once y re-fits (y-tick labels of another width), so compare
+    # against the view at the area's current width, not the literal 100.
+    check abs(f.l.xLo) < 1e-9
+    check abs(f.l.xHi - view.value.perPixel * f.area.width) < 1e-6
+    check f.l.xHi > 90 and f.l.xHi < 110
     check f.l.yHi < whole              # the early, small swings fill the height
 
   test "Ctrl+wheel zooms about the pointer; a drag pans; every widget on the view follows":
