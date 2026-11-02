@@ -11,7 +11,7 @@ const
   ButtonWidth = 16.0'f32   ## Must match drawSpinnerButtons in rui_drawing.
   DefaultHeight = 28.0'f32
 
-definePrimitive(Spinner):
+defineWidget(Spinner):
   props:
     initialValue: float32 = 0.0
     minValue: float32 = 0.0
@@ -68,6 +68,7 @@ definePrimitive(Spinner):
       return false
 
   layout:
+    widget.keepFinishRoom(widget.themeProps(widget.intent, crText))   # its shadow, its glow
     let style = TextStyle(fontFamily: "", fontSize: 14.0, color: BLACK,
                           bold: false, italic: false, underline: false)
     let m = measureText(widget.textLeft & formatFloat(widget.maxValue, ffDecimal, widget.decimals), style)

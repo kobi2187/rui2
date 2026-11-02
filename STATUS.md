@@ -19,7 +19,7 @@ for usage.
 |------|--------|
 | Core types, Widget tree, App, main loop | ✅ Working |
 | Two-pass layout + render with per-widget texture caching | ✅ Working |
-| `definePrimitive` / `defineWidget` DSL macros | ✅ Working |
+| `defineWidget` DSL macro (`definePrimitive` is a deprecated alias) | ✅ Working |
 | `Link[T]` reactive primitive (O(1) dirty-marking) | ✅ Working |
 | `Link[T].bindTo` (widget follows a Link, repainting on change) | ✅ Working — see `examples/widgets/binding.nim` |
 | Theme system (ThemeState × ThemeIntent), runtime switching | ✅ Working |
@@ -83,10 +83,10 @@ Local dev resolves packages by bare name via the root `config.nims` (`import rui
 - Window resizing with `resizable` + `minWidth`/`minHeight` (default min 320×240).
 
 ### Widget DSL
-- Both macros in `rui_core` generate type, constructor, reactive `state`
-  (auto-wrapped `Link[T]`), `Option[proc]` actions, event routing, and lifecycle
-  methods. `definePrimitive` generates `render`; `defineWidget` generates `layout`
-  (+ a default child-compositing `render`) and auto-generates `getTypeName`.
+- `defineWidget` in `rui_core` generates the type, the constructor, reactive
+  `state` (auto-wrapped `Link[T]`), `Option[proc]` actions, event routing, and
+  the methods for whichever of `init`, `layout` and `render` a widget declares.
+  `definePrimitive` is a deprecated alias: the two always generated the same code.
 
 ### Widgets that compile and work
 
@@ -303,7 +303,7 @@ remaining 26 have not been assessed one by one; `interval_tree.removeNode`
 complexity — interval-tree rebalancing does not decompose into smaller pieces
 without becoming harder to read.
 
-Note that cyc cannot see inside `definePrimitive` bodies — they are macro
+Note that cyc cannot see inside `defineWidget` bodies — they are macro
 arguments, not routines — so it reports "0 routines" for a file that is all
 widget. Widget logic has to be extracted into named modules to be measured at
 all, which is most of why `rui_widgets` is 79 files rather than 47.

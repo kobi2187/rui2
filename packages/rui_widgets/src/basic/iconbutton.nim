@@ -17,7 +17,7 @@ import raylib
 # they live in a global table and are borrowed for drawing.
 var textureCache {.global.}: Table[string, Texture2D]
 
-definePrimitive(IconButton):
+defineWidget(IconButton):
   props:
     iconText: string = ""         # Text icon (e.g. "*", "OK", an emoji)
     iconTexturePath: string = ""  # Path to an icon image file
@@ -45,6 +45,7 @@ definePrimitive(IconButton):
         if widget.onClick != nil: widget.onClick()
 
   layout:
+    widget.keepFinishRoom(widget.themeProps(widget.intent, crPointer))   # its shadow, its glow
     # Square by construction; `size` is the whole story.
     if widget.bounds.width <= 0:
       widget.bounds.width = widget.size

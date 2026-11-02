@@ -65,5 +65,5 @@ only the paragraphs on the two pages (and a stretch ahead), in the background.
 `Paint(onPaint = proc(area: Rect) = ...)` is a widget that is only a drawing,
 made with rui_drawing's calls (`drawSdfBox`, `drawSdfSegment`, `drawStyledText`
 and the rest). For a whole widget type, with props, state, events, layout and
-render together, use `definePrimitive` (see any widget under
+render together, use `defineWidget` (see any widget under
 `packages/rui_widgets/src`).

@@ -98,6 +98,21 @@ var
   raylibMouseCb: GlfwMouseCb
   buttonHooked: bool
 
+# The window's contents were lost (uncovered on a desktop without a compositor,
+# say) and must be shown again. GLFW reports it; the App presents a frame when it
+# sees `windowExposed`, instead of presenting on a timer just in case.
+type GlfwRefreshCb = proc (window: pointer) {.cdecl.}
+proc glfwSetWindowRefreshCallback(window: pointer, cb: GlfwRefreshCb): GlfwRefreshCb
+  {.importc: "glfwSetWindowRefreshCallback", cdecl.}
+var
+  windowExposed*: bool
+    ## Set when the OS says the window needs drawing again; the App clears it.
+  raylibRefreshCb: GlfwRefreshCb
+
+proc onRefresh(window: pointer) {.cdecl.} =
+  if raylibRefreshCb != nil: raylibRefreshCb(window)
+  windowExposed = true
+
 proc onMouseButton(window: pointer, button, action, mods: cint) {.cdecl.} =
   if raylibMouseCb != nil:
     raylibMouseCb(window, button, action, mods)      # raylib keeps its own state
@@ -111,6 +126,7 @@ proc hookMouseButtons() =
   let window = glfwGetCurrentContext()     # the GLFWwindow (raylib's own handle is the X11 one)
   if window == nil: return
   raylibMouseCb = glfwSetMouseButtonCallback(window, onMouseButton)
+  raylibRefreshCb = glfwSetWindowRefreshCallback(window, onRefresh)
   buttonHooked = true
 
 proc buttonEvents(dest: var seq[GuiEvent], at: Point) =

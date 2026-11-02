@@ -6,7 +6,7 @@
 import rui_core
 import rui_drawing
 
-definePrimitive(Separator):
+defineWidget(Separator):
   props:
     vertical: bool = false
     thickness: float32 = 1.0

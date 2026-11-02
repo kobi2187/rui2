@@ -3,6 +3,7 @@
 
 import std/[unittest, options, monotimes, unicode]
 import rui
+import ui_harness
 from raylib import KeyboardKey
 
 proc key(k: KeyboardKey, focused: Widget = nil): GuiEvent =
@@ -187,6 +188,21 @@ suite "Autocomplete":
     for ch in "ber": discard a.input.handleInput(typed(ch))
     check a.handleInput(key(KeyboardKey.Escape))
     check not a.isOpen and a.input.text == "ber"
+
+  test "through the real event router, the arrows reach the list (plain keys do not bubble)":
+    var picked = ""
+    let a = newAutocomplete(suggestions = @["Berlin", "Bern"],
+                            onPick = proc(s: string) = picked = s)
+    let r = newRig(stack(a.frame(width = 200)), 300, 200)
+    r.focus(a.input)
+    r.typeText("ber")
+    check a.isOpen
+    r.key(KeyboardKey.Down)
+    r.key(KeyboardKey.Down)
+    check a.hoverIndex == 1
+    r.key(KeyboardKey.Enter)
+    check picked == "Bern" and a.input.text == "Bern"
+    disposeTree(r.root)
 
 suite "RangeSlider":
 

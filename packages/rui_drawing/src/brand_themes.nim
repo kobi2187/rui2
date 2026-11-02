@@ -40,6 +40,7 @@ type
     radius*: float32        ## corner radius for every control
     fontSize*: float32      ## 14 if unset
     fontFamily*: string     ## "" is the system sans
+    headingFont*: string    ## titles and headings; fontFamily if ""
     padding*: float32       ## vertical padding inside controls; 8 if unset
     paddingX*: float32      ## horizontal padding in buttons; 2 x padding if unset
 
@@ -64,6 +65,24 @@ type
     highContrast*: bool       ## hover, press and selection invert (ink on surface becomes
                               ## surface on ink) and the focus ring is the opaque accent
     backdrop*: BackdropStyle  ## the page behind an open modal; half-dark if unset
+    # Surface finish (drawFinishedBox / boxFinish): the material of the controls.
+    cornerCut*: float32       ## corners cut off at 45 degrees this deep (notches); 0 none
+    gloss*: float32           ## 0..1: a sheen over the top half of buttons
+    relief*: float32          ## px: a rim lit from above, buttons raised and fields carved
+    dimensionLines*: bool     ## outlines drawn as a technical drawing's
+    focusGlow*: float32       ## px: a soft glow of the accent around the focused control
+    speechBubbleTips*: bool   ## tooltips as speech bubbles pointing at the pointer
+    glass*: float32           ## px: floating panels as frosted glass over the page blurred
+    fizz*: bool               ## primary buttons release rising bubbles when clicked
+    gradient*: float32        ## 0..1: controls lighter at the top, deeper at the bottom
+    caustic*: float32         ## 0..1: light pooling inside the bottom edge (a gel)
+    softShadow*: float32      ## px: a soft drop shadow under raised controls
+    pulse*: float32           ## s: the primary button breathes, one cycle this long
+    background*: string       ## a picture tiled behind everything: "tile:wood" (tiles.nim)
+                              ## or a PNG path; none if ""
+    backgroundTint*: Color    ## multiplies it (colours a see-through tile); white if unset
+    backgroundOpacity*: float32  ## over the canvas colour; 1 if unset
+    backgroundScale*: float32 ## each tile this many times its size; 1 if unset
 
 # ----------------------------------------------------------------------------
 # Colour arithmetic
@@ -162,6 +181,15 @@ proc brandTheme*(spec: BrandSpec): Theme =
 
   result = newTheme(s.name)
   result.backdrop = s.backdrop
+  if s.speechBubbleTips: result.tipShape = tsBubble
+  result.glass = max(0'f32, s.glass)
+  result.fizz = s.fizz
+  result.pulse = max(0'f32, s.pulse)
+  if s.background.len > 0:
+    result.assets.backgroundPattern = some(s.background)
+    if s.backgroundTint.isSet: result.assets.backgroundTint = some(s.backgroundTint)
+    if s.backgroundOpacity > 0: result.assets.backgroundPatternOpacity = some(s.backgroundOpacity)
+    if s.backgroundScale > 0: result.assets.backgroundScale = some(s.backgroundScale)
   result.brandPalette = BrandPalette(
     primaryColor: some(s.accent), accentColor: some(s.accent),
     surfaceColor: some(s.canvas), neutralLight: some(s.border),
@@ -170,6 +198,8 @@ proc brandTheme*(spec: BrandSpec): Theme =
   if s.fontFamily.len > 0:
     result.typography.primaryFont = some(s.fontFamily)
     result.typography.secondaryFont = some(s.fontFamily)
+  if s.headingFont.len > 0:
+    result.typography.headingFont = some(s.headingFont)
   if s.boldCaptions:
     result.typography.headingWeight = some(Bold)
   result.animation.durationFast =
@@ -204,6 +234,16 @@ proc brandTheme*(spec: BrandSpec): Theme =
     if s.shadow > 0:
       result.dropShadowOffset = some((s.shadow, s.shadow))
       result.dropShadowColor = some(s.shadowColor)
+    if s.cornerCut > 0: result.cornerCut = some(s.cornerCut)
+    if s.gloss > 0: result.gloss = some(s.gloss)
+    if s.relief != 0: result.relief = some(s.relief)
+    if s.dimensionLines: result.dimensionLines = some(true)
+    if s.gradient > 0: result.gradient = some(s.gradient)
+    if s.caustic > 0: result.caustic = some(s.caustic)
+    if s.softShadow > 0: result.softShadow = some(s.softShadow)
+    if s.focusGlow > 0:
+      result.focusGlowRadius = some(s.focusGlow)
+      result.focusGlowColor = some(alpha(s.accent, 0.7))
 
   var default = shaped(ThemeProps(
     backgroundColor: some(s.surface), foregroundColor: some(s.text),

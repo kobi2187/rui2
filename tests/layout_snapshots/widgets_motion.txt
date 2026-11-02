@@ -5,21 +5,26 @@ Row - @0,0 760x520
       Button goInbox @14,45 84x39 tabstop
         Rectangle - @14,45 84x39
         Label - @30,53 52x23
+        Fizz - @14,45 84x39 hidden
       Button goCalendar @14,92 115x39 tabstop
         Rectangle - @14,92 115x39
         Label - @30,100 83x23
+        Fizz - @14,92 115x39 hidden
       Button goNotes @14,139 85x39 tabstop
         Rectangle - @14,139 85x39
         Label - @30,147 53x23
+        Fizz - @14,139 85x39 hidden
   Expanded - @170,0 590x520
     Column - @170,0 590x520
       Row - @186,16 558x39
         Button menu @186,16 83x39 tabstop
           Rectangle - @186,16 83x39
           Label - @202,24 51x23
+          Fizz - @186,16 83x39 hidden
         Button grow @277,16 79x39 tabstop
           Rectangle - @277,16 79x39
           Label - @293,24 47x23
+          Fizz - @277,16 79x39 hidden
       Column moving @186,65 558x53
         Label growing @186,65 558x24
         Label follower @186,95 558x23

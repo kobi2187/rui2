@@ -203,6 +203,8 @@ app.run()
 
 ## Where next
 
+- **The tree:** [ui_dsl.md](ui_dsl.md) -- everything `ui:` does: the rules,
+  handles, loops, modifiers, bindings, `Embed` and your own components.
 - **Share state:** [store.md](store.md) -- `Link`, `derive`, the named `Store`, and
   binding in `ui:` (`->`, handlers, `{interpolation}`).
 - **Make it yours:** [themes.md](themes.md) -- colours, fonts *and* stroke

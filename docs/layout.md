@@ -79,3 +79,24 @@ more.
 `tools/layout_snapshot.sh` lays every example out without a window and diffs
 each widget's rect against `tests/layout_snapshots/`. Run it after a layout
 change; `update` records an intended change.
+
+## Effects past the bounds: `effectReach`
+
+A widget can paint outside its bounds -- a glow, a soft shadow -- by setting
+`effectReach` (pixels, every side) before it paints. Layout, hit-testing and
+focus keep using `bounds`: the widgets beside it sit where they always would,
+and the effect lies over them. The render pass gives its texture that margin,
+and a parent whose children spill past its own edges gets a margin too
+(`inkPad`), so a glowing button inside a frame its own size is not clipped. A
+viewport (`childClip`) stops the spill, and the window's root has none. A child
+with a margin is composited after its siblings when their bounds do not
+overlap, so the effect is on top; where they overlap (a Stack), order wins.
+
+Keep the reach as large as the effect ever gets (a focus glow reserves its
+room whether focused or not), so turning the effect on repaints only the
+widget. The box finish is the ready-made one: its hard shadow (`drop`), soft
+shadow and focus glow all lie past the box, and `keepFinishRoom(widget, props)`
+in a widget's `layout` gives it the reach they need. A Button's bounds are its
+body; its shadow is outside. A floating panel calls `floatAbove()` for its
+soft shadow's room (and the glass behind it). The one thing drawn in screen
+space instead is glass, which reads the page under a panel: `drawBehind`.

@@ -38,7 +38,7 @@ template segmentWidths(widget: untyped, style: TextStyle, pad: float32): seq[flo
       ws.add measureText(o, style).width + pad * 2
     ws
 
-definePrimitive(SegmentedControl):
+defineWidget(SegmentedControl):
   props:
     options: seq[string] = @[]
     initialSelectedIndex: int = 0

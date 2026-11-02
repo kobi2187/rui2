@@ -30,5 +30,6 @@ import outline;           export outline
 import timers;            export timers
 import input_mode;        export input_mode
 import popups;            export popups
+import ui_state;          export ui_state   # the index of the UI's global state, and one reset
 import perf;              export perf
 import yui_names;          export yui_names

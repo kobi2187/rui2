@@ -602,58 +602,33 @@ proc buildRegistration(name: NimNode, sections: WidgetSections): NimNode =
       props: @`props`,
       actions: @`actions`))
 
-macro definePrimitive*(name: untyped, body: untyped): untyped =
-  ## Define a primitive widget - clean, composable implementation
+proc buildWidget(name, body: NimNode): NimNode =
+  ## Everything one widget definition generates.
   result = newStmtList()
-
-  # Parse all sections
   let sections = parseSections(body)
-
-  # Generate type
   result.add(buildWidgetType(name, sections))
   result.add(buildPropAccessors(name, sections))
-
-  # Generate constructor
   result.add(buildConstructor(name, sections))
-
-  # Generate methods
-  # Primitives may also declare a `layout:` section -- a leaf still needs to be
-  # able to size itself to its content (a Label measuring its own text, say).
-  # buildUpdateLayoutMethod returns an empty node when there is no such section.
-  result.add(buildUpdateLayoutMethod(name, sections))
-  result.add(buildRenderMethod(name, sections))
+  result.add(buildUpdateLayoutMethod(name, sections))  # empty when there is no `layout:`
+  result.add(buildRenderMethod(name, sections))        # empty when there is no `render:`
   result.add(buildEventHandler(name, sections))
-  result.add(buildGetTypeNameMethod(name, sections))  # Auto-generate type name
-  result.add(buildScriptStateMethod(name, sections))   # Scripting bridge
-  result.add(buildScriptActionMethod(name, sections))  # Scripting bridge
-  result.add(buildRegistration(name, sections))        # Widgets by name
-
-# ============================================================================
-# Main Macro - defineWidget
-# ============================================================================
+  result.add(buildGetTypeNameMethod(name, sections))
+  result.add(buildScriptStateMethod(name, sections))   # scripting bridge
+  result.add(buildScriptActionMethod(name, sections))  # scripting bridge
+  result.add(buildRegistration(name, sections))        # widgets by name
 
 macro defineWidget*(name: untyped, body: untyped): untyped =
-  ## Define a composite widget - clean, composable implementation
-  result = newStmtList()
+  ## Define a widget: its type, its `newName` constructor (one keyword argument
+  ## per prop), and the methods for whichever sections it declares --
+  ## `props`, `state`, `actions`, `events`, and optional `init`, `layout` and
+  ## `render`. A widget that draws itself, one that arranges children, and one
+  ## that does both are all defined this way.
+  buildWidget(name, body)
 
-  # Parse all sections
-  let sections = parseSections(body)
-
-  # Generate type
-  result.add(buildWidgetType(name, sections))
-  result.add(buildPropAccessors(name, sections))
-
-  # Generate constructor
-  result.add(buildConstructor(name, sections))
-
-  # Generate methods
-  result.add(buildUpdateLayoutMethod(name, sections))  # Layout required for composites
-  result.add(buildRenderMethod(name, sections))        # Render optional
-  result.add(buildEventHandler(name, sections))
-  result.add(buildGetTypeNameMethod(name, sections))    # Auto-generate type name
-  result.add(buildScriptStateMethod(name, sections))    # Scripting bridge
-  result.add(buildScriptActionMethod(name, sections))   # Scripting bridge
-  result.add(buildRegistration(name, sections))         # Widgets by name
+macro definePrimitive*(name: untyped, body: untyped): untyped {.deprecated:
+    "use defineWidget: the two always generated the same code".} =
+  ## The old name for `defineWidget`, kept so code that uses it still builds.
+  buildWidget(name, body)
 
 # ============================================================================
 # Utilities

@@ -30,7 +30,7 @@ template selectTab(widget: untyped, index: int) =
       if widget.onTabChanged != nil:
         widget.onTabChanged(i)
 
-definePrimitive(TabControl):
+defineWidget(TabControl):
   props:
     tabs: seq[string] = @[]      # Tab titles
     initialActiveTab: int = 0

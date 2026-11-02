@@ -14,7 +14,7 @@ import rui_core
 import rui_drawing
 import raylib
 
-definePrimitive(Toast):
+defineWidget(Toast):
   props:
     text: string = ""
     intent: ThemeIntent = Default

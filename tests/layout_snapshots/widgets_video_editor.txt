@@ -3,12 +3,15 @@ Column - @0,0 1000x640
     Button - @10,10 147x39 tabstop
       Rectangle - @10,10 147x39
       Label - @26,18 115x23
+      Fizz - @10,10 147x39 hidden
     Button - @165,10 194x39 tabstop
       Rectangle - @165,10 194x39
       Label - @181,18 162x23
+      Fizz - @165,10 194x39 hidden
     Button - @367,10 94x39 tabstop
       Rectangle - @367,10 94x39
       Label - @383,18 62x23
+      Fizz - @367,10 94x39 hidden
     Label status @469,18 114x23
   Expanded - @10,57 980x573
     SplitView main @10,57 980x573

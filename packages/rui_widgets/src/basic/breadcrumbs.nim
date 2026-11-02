@@ -25,7 +25,7 @@ proc crumbStyle(props: ThemeProps, current: bool): TextStyle =
   result = props.captionStyle(props.foregroundColor.get(BLACK))
   result.bold = current
 
-definePrimitive(Crumb):
+defineWidget(Crumb):
   props:
     text: string = ""
     current: bool = false        # the last step: where you are
@@ -46,6 +46,7 @@ definePrimitive(Crumb):
         if widget.onClick != nil: widget.onClick()
 
   layout:
+    widget.keepFinishRoom(widget.themeProps(widget.intent, crPointer))   # its shadow, its glow
     let props = currentTheme.getThemeProps(widget.intent, Normal)
     if widget.bounds.width <= 0:
       widget.bounds.width = measureText(widget.text, crumbStyle(props, widget.current)).width +
@@ -79,7 +80,7 @@ proc steps*(path: string): seq[tuple[name, path: string]] =
 proc navigateTo(widget: Widget, target: string): proc()
 proc buildCrumbs(widget: Widget)
 
-definePrimitive(Breadcrumbs):
+defineWidget(Breadcrumbs):
   props:
     path: string = ""
     height: float32 = 28.0

@@ -25,7 +25,7 @@ import ../sources/samples
 import wave_draw
 import axis_marks
 
-definePrimitive(Waveform):
+defineWidget(Waveform):
   props:
     source: SampleSource = nil
     view: Link[AxisView] = nil      ## seconds; made over the whole source if not given

@@ -30,7 +30,7 @@ template choose*(widget: untyped) =
   if widget.onClick != nil:
     widget.onClick()
 
-definePrimitive(MenuItem):
+defineWidget(MenuItem):
   props:
     text: string = ""
     shortcut: string = ""        # e.g. "Ctrl+S", "F5"

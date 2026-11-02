@@ -82,7 +82,7 @@ const
 template areaLeft(widget: untyped): float32 = widget.bounds.x + widget.headerWidth
 template areaWidth(widget: untyped): float32 = max(1'f32, widget.bounds.width - widget.headerWidth)
 
-definePrimitive(Lanes):
+defineWidget(Lanes):
   props:
     view: Link[AxisView] = nil
     lanes: seq[Lane] = @[]

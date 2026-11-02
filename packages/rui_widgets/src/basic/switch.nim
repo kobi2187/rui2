@@ -27,7 +27,7 @@ proc thumbX*(track: Rect, t: float32): float32 =
   let d = track.height - 4
   track.x + 2 + clamp(t, 0.0'f32, 1.0'f32) * (track.width - 4 - d)
 
-definePrimitive(Switch):
+defineWidget(Switch):
   props:
     text: string = ""
     initialOn: bool = false

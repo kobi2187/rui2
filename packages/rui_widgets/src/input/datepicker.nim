@@ -17,7 +17,7 @@ from raylib import KeyboardKey
 type CalendarSource* = proc(): tuple[year, month: int, selected: string, hover: int,
                                       mondayFirst: bool] {.closure.}
 
-definePrimitive(CalendarPopup):
+defineWidget(CalendarPopup):
   props:
     intent: ThemeIntent = Default
 
@@ -117,7 +117,7 @@ template pickDate(widget: untyped, text: string) =
       widget.layoutDirty = true
       if widget.onChange != nil: widget.onChange(wanted)
 
-definePrimitive(DatePicker):
+defineWidget(DatePicker):
   props:
     initialValue: string = ""
     placeholder: string = "Select date..."

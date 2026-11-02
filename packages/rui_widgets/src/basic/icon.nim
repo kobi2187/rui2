@@ -12,7 +12,7 @@ import rui_core
 import rui_drawing
 import std/options
 
-definePrimitive(Icon):
+defineWidget(Icon):
   props:
     glyph: string = ""
     size: float32 = 18.0

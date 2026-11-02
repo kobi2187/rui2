@@ -6,3 +6,4 @@ VStack - @0,0 360x260
   Button clear @20,188 320x39 tabstop
     Rectangle - @20,188 320x39
     Label - @36,196 288x23
+    Fizz - @20,188 320x39 hidden

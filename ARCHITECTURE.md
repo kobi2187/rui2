@@ -13,13 +13,13 @@ labelled roadmap items. For a feature-by-feature status, see
 1. [Design philosophy](#design-philosophy)
 2. [Core types](#core-types)
 3. [Two-pass layout and render](#two-pass-layout-and-render)
-4. [The widget DSL: definePrimitive vs defineWidget](#the-widget-dsl-defineprimitive-vs-definewidget)
+4. [The widget DSL: defineWidget](#the-widget-dsl-definewidget)
 5. [Reactivity: Link[T]](#reactivity-linkt)
 6. [Theme system](#theme-system)
 7. [Manager architecture](#manager-architecture)
 8. [Scripting subsystem](#scripting-subsystem)
 9. [Text rendering](#text-rendering)
-10. [The 7-package architecture](#the-7-package-architecture)
+10. [The packages](#the-packages)
 
 ---
 
@@ -132,9 +132,9 @@ records the old bounds, calls `widget.layout()` (dynamic dispatch), and if the
 bounds changed marks the widget `isDirty` so it will re-render. Then it clears
 `layoutDirty` and recurses into children.
 
-- **Composites** (`defineWidget`) override `layout()` to position/create children.
-- **Primitives** (`definePrimitive`) use the base no-op `layout()` — they don't
-  arrange anything.
+- A widget with a `layout:` section sizes itself and positions its children
+  there; one without it keeps the base no-op `layout()` and is sized by its
+  parent.
 
 ### Pass 2 — Render
 
@@ -174,26 +174,19 @@ everything else is a cached texture blit.
 
 ---
 
-## The widget DSL: definePrimitive vs defineWidget
+## The widget DSL: defineWidget
 
-Both macros live in `core/widget_dsl.nim`. They generate the widget's `ref
-object` type, a constructor (`newXxx`), the reactive-state plumbing, event
-routing, and the lifecycle methods. They cut widget boilerplate dramatically
-versus writing the type/constructor/methods by hand.
+One macro, `defineWidget` in `rui_core/widget_dsl.nim`, defines every widget.
+It generates the widget's `ref object` type, a `newXxx` constructor with one
+keyword argument per prop, the reactive-state plumbing, event routing,
+scripting access, registration by name (for yui files), and the methods for
+whichever sections the widget declares. A widget that draws itself (a Label),
+one that arranges children (a VStack), and one that does both (a Button: a
+Rectangle and a Label it lays out) are all written the same way.
 
-The two macros encode a single, clean distinction:
-
-- **`definePrimitive`** = *"I draw myself."* A leaf that renders directly with
-  drawing primitives (`drawText`, `drawRect`, `drawCircle`, …). It generates a
-  `render` method and **no** `layout` — primitives are positioned by their parent.
-  Examples: `Label`, `Rectangle`, `Circle`.
-- **`defineWidget`** = *"I arrange others."* A composite that creates and/or
-  positions children. It generates a `layout` method (and a default `render` that
-  composites children). Examples: `Button` (Rectangle + Label), `VStack`,
-  `HStack`, `ZStack`, `ScrollView`.
-
-This mirrors raylib's immediate-mode style: low-level draw calls for atoms,
-explicit composition for compound controls.
+`definePrimitive` is a deprecated alias. The two macros once meant "draws
+itself" and "arranges others", but they had come to generate identical code,
+so the distinction was a rule the code no longer kept.
 
 ### Section format
 
@@ -261,14 +254,12 @@ Notes that hold in the current code:
   then re-add), reading theme + state at build time. This is deliberate for
   immediate-mode rendering; see the reactivity caveat below.
 
-### Primitive purity
+### Leaves stay cheap
 
-There was a real design question of whether primitives may also use internal
-layout/children, or stay pure (draw-only). The resolution favours **pure
-primitives** for performance and a clear conceptual boundary: pure primitives
-avoid per-child widget allocation, extra layout calculations, and dispatch
-indirection. Compound controls use `defineWidget` and compose primitives. (A
-hybrid primitive remains possible but is not the default pattern.)
+A widget that only draws (a Label, a Rectangle) declares `render` and perhaps
+`layout` to size itself, and has no children. Compound controls compose those
+leaves as children built in `init`. A leaf that needed internal children would
+become a compound control, defined the same way.
 
 ---
 
@@ -513,21 +504,22 @@ Delete. There is no IME composition yet (see TODO.md).
 
 ---
 
-## The 7-package architecture
+## The packages
 
-RUI2 is being restructured so each subsystem is a self-contained package under
-`packages/<name>/`, later split into separate git repos via
-`git subtree split`. Several subsystems (interval-tree hit-testing, the event
+Each subsystem is a self-contained package under `packages/<name>/`, which
+could later be split into separate git repos with `git subtree split`. Several subsystems (interval-tree hit-testing, the event
 manager, the theme system) are deliberately decoupled and usable standalone.
 
 | Package          | Responsibility |
 |------------------|----------------|
-| `rui_core`       | Shared base: Widget/Rect/Color/event types, `Link[T]` reactive primitive, two-pass main loop, the `definePrimitive`/`defineWidget` DSL macros. |
+| `rui_core`       | Shared base: Widget/Rect/Color/event types, `Link[T]` reactive primitive, two-pass main loop, the `defineWidget` DSL macro and `ui:`, overlays, popups, timers, pointer state, preferences. |
 | `rui_hittest`    | Generic interval tree + Widget-aware spatial hit-testing. |
 | `rui_events`     | Time-budgeted event manager + focus manager. |
 | `rui_drawing`    | Drawing primitives, effects, theme system (state × intent), text cache, theme-aware widget primitives. |
 | `rui_scripting`  | File-based GUI automation (query/set widget values) used for testing. |
-| `rui_widgets`    | Concrete widgets: primitives (label/rectangle/circle), basic (button/checkbox/radiobutton/slider/progressbar/hyperlink/image), containers (vstack/hstack/zstack/scrollview). |
+| `rui_widgets`    | Every widget (basic, input, containers, layout, data, menus, dialogs, modern, mobile) and the shared behaviour they call (press, choice, scroll_drag, popup_field, value_input...). |
+| `rui_windows`    | Optional in-app windows (move, resize, stack). Not in the `rui` barrel: `import rui_windows`. |
+| `rui_shaped`     | Optional shaped (non-rectangular) OS windows: capability detection, masks, X11 shape. |
 | `rui` (umbrella) | `App` object + main-loop integrator + re-exports everything. |
 
 ### Dependency graph
@@ -554,8 +546,41 @@ manager, the theme system) are deliberately decoupled and usable standalone.
 - `rui_drawing`, `rui_hittest`, `rui_events`, `rui_scripting` build on `rui_core`.
 - `rui_widgets` builds on `rui_core` + `rui_drawing` (and the event types).
 - `rui` (umbrella) integrates the managers and re-exports the whole API.
+- `rui_windows` (on `rui_core`, `rui_drawing`, `rui_events`) and `rui_shaped`
+  are optional: an app imports them when it wants them.
 
-> **Status:** this layout is the **target**. The current tree still uses the flat
-> `core/`, `widgets/`, `drawing_primitives/`, `managers/`, `hit-testing/`,
-> `scripting/` directories, with `rui.nim` as the umbrella and `modules/*/api`
-> shims exposing each subsystem. See [STATUS.md](STATUS.md).
+This is the tree as it is. Where RUI is heading next, see
+[docs/SIMPLIFY.md](docs/SIMPLIFY.md).
+
+---
+
+## The design in one page
+
+What a reader needs to hold, after the simplification in
+[docs/SIMPLIFY.md](docs/SIMPLIFY.md):
+
+- **A widget** is one `defineWidget`: props, state, actions, events, and
+  optional `init`, `layout` and `render`. It paints into its own cached
+  texture; its parent composites the textures.
+- **Past the bounds** there is one rule, `effectReach`: a widget may paint that
+  far outside its bounds (a shadow, a glow), layout and hit-testing keep the
+  real bounds, and the effect covers its neighbours. The one thing drawn in
+  screen space instead is glass (`drawBehind`), which reads the page under a
+  panel.
+- **A surface** has one description, the `BoxFinish` (notches, gloss, gradient,
+  caustic, relief, dimension lines, hard and soft shadows, glow), drawn by
+  `drawBox` in the box shader.
+- **Drawing** comes in three layers in `rui_drawing`: shapes (theme-free),
+  parts (each themed piece of a control), surfaces (window background, tiles,
+  glass, backdrops).
+- **A theme** is data, State x Intent -> ThemeProps, and a theme file is the
+  fields of the runtime types by name: ThemeProps for per-state properties,
+  BrandSpec for a brand, a few named Theme fields for theme-wide looks. A new
+  setting is a field and the code that draws it.
+- **Global UI state** (theme, pointer, popups, overlays, timers, frozen pages,
+  input mode, motion) is listed in `rui_core/ui_state.nim`, and `resetUi`
+  resets all of it.
+- **The App** (`rui/app.nim`) is an index of five files, one job each: setup,
+  events, layout, compositing, the loop. An idle window costs nothing: the loop
+  sleeps until input, a timer or an expose, and decorative motion rests after
+  ten seconds without input.

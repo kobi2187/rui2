@@ -26,6 +26,7 @@
 
 import raylib
 import rui_core
+import std/math
 
 const sdfFragment = """
 #version 330
@@ -38,6 +39,75 @@ uniform float radius;
 uniform float border;
 uniform vec4 fillColor;
 uniform vec4 borderColor;
+uniform float cut;         // > 0: corners cut off at 45 degrees, this deep (a notch)
+uniform float gloss;       // 0..1: a sheen over the top half
+uniform float relief;      // px: > 0 raised (lit top rim, shaded bottom), < 0 carved
+uniform float gradient;    // 0..1: lighter at the top, deeper at the bottom
+uniform float caustic;     // 0..1: light pooling inside the bottom edge (a gel)
+
+float roundBox(vec2 p, vec2 half_, float r) {
+  vec2 q = abs(p) - half_ + r;
+  return length(max(q, 0.0)) + min(max(q.x, q.y), 0.0) - r;
+}
+
+float cutBox(vec2 p, vec2 half_, float c) {
+  vec2 q = abs(p) - half_;
+  float box = length(max(q, 0.0)) + min(max(q.x, q.y), 0.0);
+  return max(box, (q.x + q.y + c) * 0.70710678);
+}
+
+void main() {
+  vec2 p = (fragTexCoord - 0.5) * (boxSize + 2.0 * margin);
+  vec2 half_ = boxSize * 0.5;
+  float d = cut > 0.0 ? cutBox(p, half_, cut) : roundBox(p, half_, radius);
+  float outer = 1.0 - smoothstep(-0.5, 0.5, d);          // inside the box
+  float inner = 1.0 - smoothstep(-0.5, 0.5, d + border); // inside the border
+  vec3 fill = fillColor.rgb;
+  float ty = clamp((p.y + half_.y) / boxSize.y, 0.0, 1.0);   // 0 top .. 1 bottom
+  if (gradient > 0.0) {
+    fill = ty < 0.5 ? mix(fill, vec3(1.0), gradient * 0.45 * (1.0 - ty * 2.0))
+                    : mix(fill, vec3(0.0), gradient * 0.22 * (ty * 2.0 - 1.0));
+  }
+  if (caustic > 0.0) {
+    // A soft light inside the bottom, brightest in the middle: light through gel.
+    float across = 1.0 - pow(clamp(abs(p.x) / max(half_.x, 1.0), 0.0, 1.0), 2.0);
+    float k = caustic * smoothstep(0.55, 0.92, ty) * (1.0 - smoothstep(0.92, 1.0, ty)) * across;
+    fill = mix(fill, vec3(1.0), k * 0.5);
+  }
+  if (gloss > 0.0) {
+    // A sheen: strongest at the top, gone by the middle, with a soft edge there.
+    float t = clamp((p.y + half_.y) / boxSize.y, 0.0, 1.0);
+    float sheen = gloss * (0.55 * (1.0 - smoothstep(0.0, 0.5, t)) + 0.12);
+    fill = mix(fill, vec3(1.0), sheen * (1.0 - smoothstep(0.46, 0.5, t)));
+  }
+  if (relief != 0.0) {
+    // A rim `relief` deep inside the edge, lit from above: lighter at the top
+    // and darker at the bottom when raised, the other way round when carved.
+    float depth = abs(relief);
+    float rim = 1.0 - clamp(-(d + border) / depth, 0.0, 1.0);
+    float side = clamp(-p.y / max(half_.y, 1.0), -1.0, 1.0) * sign(relief);
+    float k = rim * side * 0.45;
+    fill = k > 0.0 ? mix(fill, vec3(1.0), k) : mix(fill, vec3(0.0), -k);
+  }
+  // Blend fill over border in premultiplied space (no dark fringe), then
+  // hand back straight colour and the box's coverage as alpha.
+  float a = borderColor.a * (1.0 - inner) + fillColor.a * inner;
+  vec3 c = borderColor.rgb * borderColor.a * (1.0 - inner) +
+           fill * fillColor.a * inner;
+  finalColor = vec4(c / max(a, 0.0001), a * outer);
+}
+"""
+
+const sdfImageFragment = """
+#version 330
+in vec2 fragTexCoord;
+in vec4 fragColor;
+out vec4 finalColor;
+
+uniform sampler2D texture0;
+uniform vec4 uvRect;       // the part of the texture drawn: u0, v0, u1, v1
+uniform vec2 boxSize;      // the box on screen, in pixels
+uniform float radius;
 
 float roundBox(vec2 p, vec2 half_, float r) {
   vec2 q = abs(p) - half_ + r;
@@ -45,16 +115,11 @@ float roundBox(vec2 p, vec2 half_, float r) {
 }
 
 void main() {
-  vec2 p = (fragTexCoord - 0.5) * (boxSize + 2.0 * margin);
-  float d = roundBox(p, boxSize * 0.5, radius);
-  float outer = 1.0 - smoothstep(-0.5, 0.5, d);          // inside the box
-  float inner = 1.0 - smoothstep(-0.5, 0.5, d + border); // inside the border
-  // Blend fill over border in premultiplied space (no dark fringe), then
-  // hand back straight colour and the box's coverage as alpha.
-  float a = borderColor.a * (1.0 - inner) + fillColor.a * inner;
-  vec3 c = borderColor.rgb * borderColor.a * (1.0 - inner) +
-           fillColor.rgb * fillColor.a * inner;
-  finalColor = vec4(c / max(a, 0.0001), a * outer);
+  vec2 local = (fragTexCoord - uvRect.xy) / (uvRect.zw - uvRect.xy);   // 0..1 over the box
+  float d = roundBox((local - 0.5) * boxSize, boxSize * 0.5, radius);
+  float inside = 1.0 - smoothstep(-0.5, 0.5, d);
+  vec4 t = texture(texture0, fragTexCoord) * fragColor;
+  finalColor = vec4(t.rgb, t.a * inside);
 }
 """
 
@@ -158,6 +223,7 @@ var
   shadowState: ptr GlShader
   segmentState: ptr GlShader
   triangleState: ptr GlShader
+  imageState: ptr GlShader
 
 proc loadGlShader(slot: var ptr GlShader, fragment: string,
                   names: openArray[string]): ptr GlShader =
@@ -197,14 +263,44 @@ proc drawQuad(s: ptr GlShader, quad: Rect) =
               Vector2(x: 0, y: 0), 0.0, White)
   endShaderMode()
 
+type BoxFinish* = object
+  ## How a box's surface is finished, beyond its fill and border (all off by
+  ## default): corners `cut` off at 45 degrees this deep (a notch), a `gloss`
+  ## sheen over the top half (0..1), a `relief` rim this many pixels deep --
+  ## raised (lit top, shaded bottom) when positive, carved when negative.
+  ## `dimension`: the outline drawn as a technical drawing's (shapes.drawBox).
+  ## `gradient` (0..1) lightens the top and deepens the bottom; `caustic`
+  ## (0..1) pools light inside the bottom edge, as through a gel.
+  ## `glow`: a soft halo of `glowColor` this many pixels outside the box;
+  ## `shadow`: a soft drop shadow this blurred, falling below it. `drop`: a
+  ## hard shadow of `dropColor` this far right and down (a comic, a fat
+  ## brand). All three paint past the box: the widget needs `reach` of effect
+  ## reach to show them.
+  cut*, gloss*, relief*, gradient*, caustic*: float32
+  dimension*: bool
+  glow*: float32
+  glowColor*: Color
+  shadow*: float32
+  drop*: float32
+  dropColor*: Color
+
+proc reach*(f: BoxFinish): float32 =
+  ## How far past the box a finish paints (its glow, its shadow): what to give
+  ## the widget's `effectReach`.
+  result = 0
+  if f.glow > 0 and f.glowColor.a > 0: result = ceil(f.glow * 2.25)
+  if f.shadow > 0: result = max(result, ceil(f.shadow * 2.4 + f.shadow * 0.35))
+  if f.drop > 0 and f.dropColor.a > 0: result = max(result, ceil(f.drop + 1))
+
 proc drawSdfBox*(rect: Rect, radius, borderWidth: float32,
-                 fill, border: Color): bool =
+                 fill, border: Color, finish = BoxFinish()): bool =
   ## Fill and an inset border in one pass. `radius` is in pixels and is capped
-  ## at half the short side.
+  ## at half the short side; `finish` notches, glosses or embosses it.
   if rect.width <= 0 or rect.height <= 0:
     return true
   let s = boxState.ready(sdfFragment,
-    ["boxSize", "margin", "radius", "border", "fillColor", "borderColor"])
+    ["boxSize", "margin", "radius", "border", "fillColor", "borderColor",
+     "cut", "gloss", "relief", "gradient", "caustic"])
   if s == nil: return false
   const margin = 1.0'f32
   let r = clamp(radius, 0.0'f32, min(rect.width, rect.height) / 2)
@@ -214,8 +310,35 @@ proc drawSdfBox*(rect: Rect, radius, borderWidth: float32,
   setShaderValue(s.shader, s.locs[3], max(0.0'f32, borderWidth))
   setShaderValue(s.shader, s.locs[4], norm(fill))
   setShaderValue(s.shader, s.locs[5], norm(border))
+  setShaderValue(s.shader, s.locs[6], clamp(finish.cut, 0'f32, min(rect.width, rect.height) / 2))
+  setShaderValue(s.shader, s.locs[7], clamp(finish.gloss, 0'f32, 1'f32))
+  setShaderValue(s.shader, s.locs[8], finish.relief)
+  setShaderValue(s.shader, s.locs[9], clamp(finish.gradient, 0'f32, 1'f32))
+  setShaderValue(s.shader, s.locs[10], clamp(finish.caustic, 0'f32, 1'f32))
   s.drawQuad(Rect(x: rect.x - margin, y: rect.y - margin,
                   width: rect.width + 2 * margin, height: rect.height + 2 * margin))
+  true
+
+proc drawSdfImage*(tex: Texture2D, src: Rectangle, rect: Rect, radius: float32,
+                   tint = White): bool =
+  ## The `src` part of `tex` stretched over `rect`, cut to a box with corners
+  ## of `radius` (half the short side: a circle), with the same smooth edge as
+  ## drawSdfBox. False when the shader cannot run here.
+  if rect.width <= 0 or rect.height <= 0 or tex.width <= 0 or tex.height <= 0:
+    return true
+  let s = imageState.ready(sdfImageFragment, ["uvRect", "boxSize", "radius"])
+  if s == nil: return false
+  let w = tex.width.float32
+  let h = tex.height.float32
+  setShaderValue(s.shader, s.locs[0], Vector4(x: src.x / w, y: src.y / h,
+                                              z: (src.x + src.width) / w,
+                                              w: (src.y + src.height) / h))
+  setShaderValue(s.shader, s.locs[1], Vector2(x: rect.width, y: rect.height))
+  setShaderValue(s.shader, s.locs[2], clamp(radius, 0'f32, min(rect.width, rect.height) / 2))
+  beginShaderMode(s.shader)
+  drawTexture(tex, src, Rectangle(x: rect.x, y: rect.y, width: rect.width, height: rect.height),
+              Vector2(x: 0, y: 0), 0.0, tint)
+  endShaderMode()
   true
 
 proc drawSdfShadow*(rect: Rect, radius, offsetX, offsetY, blur, spread: float32,

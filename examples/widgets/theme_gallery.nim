@@ -1,14 +1,18 @@
 ## Theme gallery
 ##
 ## Every shipped brand theme over the same screen, laid out entirely by layout
-## primitives -- no widget here sets its own position. Pick a theme with the
-## buttons along the top, or start on one:
+## primitives -- no widget here sets its own position. Pick a theme from the
+## dropdown at the top, or start on one:
 ##
 ##   nim c -r -d:useGraphics examples/widgets/theme_gallery.nim aurora
 ##
 ## Themes: daylight (light), midnight (dark), aurora, ocean, forest, rose,
 ## ember, graphite, beos (BeOS R4: bevels, square, grey) -- and at the two extremes of geometry, punch (fat, bold,
-## shadowed) and hairline (thin and lean). Each is one
+## shadowed) and hairline (thin and lean). Then popular palettes and design
+## systems, translated: nord, dracula, solarized, gruvbox, catppuccin, one-dark,
+## tokyo-night, material, fluent, adwaita, cupertino. And themes with a
+## personality: comic, soda, cyberpunk, woodshop, apothecary, paper, terminal,
+## blueprint, synthwave, swiss. Each is one
 ## `brandTheme(BrandSpec(...))` call -- see
 ## packages/rui_drawing/src/brand_themes.nim to make your own.
 
@@ -18,18 +22,22 @@ import std/os
 let startTheme = if paramCount() >= 1: paramStr(1) else: "daylight"
 let app = newApp("RUI2 - Theme gallery", 760, 740)
 
-const brands = ["daylight", "midnight", "aurora", "ocean",
-                "forest", "rose", "ember", "graphite", "punch", "hairline", "beos"]
+var names = @["daylight", "midnight", "aurora", "ocean",
+              "forest", "rose", "ember", "graphite", "punch", "hairline", "beos"]
+for (key, _) in popularThemes(): names.add key
+for (key, _) in characterThemes(): names.add key
 
 var title: Label
-var switcher: Wrap
+var switcher: ComboBox
 var volume: Slider
 var meter: ProgressBar
 
 let root = ui:
   VStack(spacing = 16.0, padding = 24.0):
-    title = Label(text = "", fontSize = 24.0, bold = true)
-    switcher = Wrap(spacing = 6.0, runSpacing = 6.0)
+    Row(spacing = 12.0):
+      Expanded():
+        title = Label(text = "", fontSize = 24.0, heading = true)
+      switcher = ComboBox(items = names, initialSelectedIndex = 0)
 
     # A form: labels in a column as wide as the widest, inputs taking the rest.
     Table(columnWidths = @[IntrinsicColumnWidth(), FlexColumnWidth()],
@@ -76,18 +84,11 @@ proc show(name: string) =
   app.setTheme(name)
   title.text = "Theme: " & name
 
-proc addSwitch(name: string) =
-  ## A proc, so each button's closure gets its own `name`: in a loop at module level
-  ## the variables are globals and every button would switch to the last theme.
-  let b = newButton(text = name)
-  b.onClick = proc() = show(name)
-  switcher.addChild(b)
-
-for brand in brands:
-  addSwitch(brand)
+switcher.onSelect = proc(i: int) = show(names[i])
 
 volume.onChange = proc(v: float32) = meter.value = float(v)
 
 show(startTheme)
+switcher.selectedIndex = max(0, names.find(startTheme))
 app.setRootWidget(root)
 app.run()

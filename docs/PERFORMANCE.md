@@ -53,3 +53,106 @@ from 22 to 13 ms, repainting one label from 0.35 to 0.13 ms.
 - *Full repaint is slow at scale.* 1 s for 10,000 widgets: texture creation
   plus first-time text rasterisation. Culling widgets outside the viewport
   before layout and render (TODO #8) is the fix.
+
+## An idle window costs nothing
+
+With the mouse still and nothing changing, the loop blocks: no layout, no
+hit-test rebuild, no painting, no frames. Measured on the theme gallery, 10
+seconds of idle starting 12 seconds after launch: **0 CPU ticks and 0 frames
+presented**, in daylight, cyberpunk and aqua. Two things used to break this:
+
+- **A periodic present.** The window presented a frame every second "in
+  case" another window had uncovered it on a desktop with no compositor. It now
+  presents when the OS says its contents were lost (GLFW's window-refresh
+  callback, `event_source.windowExposed`), and never otherwise. `idleRefresh`
+  is still there, off by default.
+- **Decorative motion that never stops.** Aqua's breathing default button held
+  48% of a core at 30 fps forever. Decorative motion now rests once nobody has
+  touched the app for 10 seconds (`userIdleAfter`, the way GTK stops a caret
+  blinking), and the first input wakes it (`repaintWhileActive` and
+  `noteInput`). This covers the breathing button, the caret (which rests on)
+  and decorations that are not `informative`. Motion that reports progress (a
+  splash spinner, skeletons, a recording light) keeps going: an app that is
+  working is not idle.
+
+## Check: the themes round (effect reach, finishes, Fizz)
+
+`bench --theme=NAME` runs the benchmark in any registered theme. Against `main`,
+at 1,000 widgets, it found two regressions, both fixed:
+
+- **Every widget owns a texture, so an idle child costs one.** The Fizz added
+  to every button (a soda theme's bubbles) took a full repaint from 7.2 to
+  12.6 ms. Fizz is now hidden except while it rises: back to 7-8 ms, the same
+  as `main`.
+- **Effect room kept on every control costs memory.** Reserving the focus
+  glow's room on every button whether focused or not took a neon theme
+  (cyberpunk) from 38 to 65 MB of textures. The room is now taken only by the
+  focused control: 38 MB.
+
+What is left is what the effects draw. Aqua's soft shadows are on every
+button, so it carries 14% more texture memory (43.8 MB against 38.4), with
+render times within noise. At 10,000 widgets, layout, idle frame and a
+one-label repaint match `main` (medians of five runs: repaint 1.1 ms against
+1.6; the software renderer here varies by a factor of two from run to run).
+
+## Experiment: should shapes and shadows be cached across widgets?
+
+The classic trick is to render a shadow or a rounded box once and reuse the
+bitmap until the size changes. RUI already does this per widget: every widget
+paints into its own cached texture, so its SDF box, shadow and glow are shaded
+once and reused until that widget repaints. The open question was whether a
+cache *shared* between widgets, keyed by size, radius and finish, would pay:
+300 identical buttons would then shade their shadow once instead of 300 times.
+
+Measured by switching the box and shadow shaders off (the plain fallback still
+draws the shapes), a full repaint of 1,000 widgets took the same time, within
+noise: 9 to 16 ms either way, in daylight and in Aqua (soft shadows on every
+button). The shapes are a small slice of a repaint; allocating textures,
+setting text and compositing are the rest. **Decision: no shared shape cache.**
+It would add code and a cache to invalidate for no measurable gain.
+
+## Experiment: would a texture atlas help?
+
+`tools/atlas_bench.nim` compares our way, one texture per text run, with a
+game engine's way, everything packed into one atlas. It uses N text-sized
+bitmaps (40-200 x 16-24 px), and every timing ends with `glFinish`. These
+results are from the Xvfb software renderer (llvmpipe); run it on a real GPU
+before deciding anything.
+
+| N | upload, one each | upload, atlas (+ CPU packing) | draw N quads, one texture each | draw N quads, atlas |
+|---:|---:|---:|---:|---:|
+| 100 | 2.0 ms | 0.7 ms (+ 1.5) | 4.2 ms | 1.4 ms |
+| 500 | 3.2 ms | 3.1 ms (+ 7.0) | 8.5 ms | 4.2 ms |
+| 2,000 | 11.6 ms | 12.6 ms (+ 30) | 26.9 ms | 13.7 ms |
+
+- **Uploading: no.** The cost follows the bytes, not how many textures carry
+  them, and packing adds a CPU copy. In rui an upload also happens only once
+  per distinct string, so after the first frame there is almost nothing to
+  upload.
+- **Drawing: yes, two to three times faster.** raylib ends a batch, with one
+  draw call, at every texture change, while quads from one atlas go out
+  together. This only pays where many textures are drawn in one frame: a
+  repaint of everything, and text-heavy widgets. An idle frame or a one-label
+  change is already well under a millisecond.
+- **Where it would go:**
+  - **A glyph-run atlas in `pango_text.nim`:** contained in one module, it
+    speeds every text-heavy repaint and means fewer GPU objects.
+  - **An atlas for widget textures:** pieces of a few large render targets
+    instead of one each. It is a bigger change (a widget that resizes needs a
+    new place in the atlas), and it overlaps the open "memory per widget"
+    item above.
+
+
+**Decision: no atlas for now.** The packing time is not the obstacle: a real
+atlas would give each new text run a free slot as it is made and upload just
+that rectangle, which costs about what a separate upload costs. The gain is.
+The benchmark drew quads from textures back to back, the best case for an
+atlas. rui draws a box, its text, then a box again, and the boxes, shadows
+and lines are shaders (`drawSdfBox` and the rest), and every shader change
+ends raylib's batch just as a texture change does. So an atlas would merge
+little, while it brings lasting complexity into the module every widget uses:
+holes as text is evicted, page eviction against the cache's memory budget,
+full pages, and sampling kept inside each slot. Keep the benchmark, and
+measure a real app on a real GPU before revisiting it. The cheaper way to
+fewer textures per frame is the open "memory per widget" item: draw cheap
+leaves into their parent.

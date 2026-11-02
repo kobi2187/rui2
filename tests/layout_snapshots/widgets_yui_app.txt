@@ -16,7 +16,9 @@ Column - @0,0 640x460
     Button - @24,340 77x39 tabstop
       Rectangle - @24,340 77x39
       Label - @40,348 45x23
+      Fizz - @24,340 77x39 hidden
     Button - @109,340 83x39 tabstop
       Rectangle - @109,340 83x39
       Label - @125,348 51x23
+      Fizz - @109,340 83x39 hidden
     Label - @200,348 94x23 hidden

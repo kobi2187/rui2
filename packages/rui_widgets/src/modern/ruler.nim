@@ -25,7 +25,7 @@ import ../pointers
 import axis_ticks
 export axis_ticks
 
-definePrimitive(Ruler):
+defineWidget(Ruler):
   props:
     view: Link[AxisView] = nil
     ticks: TickFormat = plainTicks()

@@ -22,7 +22,7 @@ import std/options
 
 import raylib
 
-definePrimitive(RadioButton):
+defineWidget(RadioButton):
   props:
     text: string = ""
     value: string = ""

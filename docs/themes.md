@@ -15,6 +15,94 @@ Eight themes ship as brands -- `daylight`, `midnight`, `aurora`, `ocean`,
 `forest`, `rose`, `ember`, `graphite` -- plus `punch` (fat) and `hairline`
 (lean). `examples/widgets/theme_gallery.nim` shows them all.
 
+Popular palettes and design systems come translated too
+(`popular_themes.nim`): `nord`, `nord-light`, `dracula`, `solarized-light`,
+`solarized-dark`, `gruvbox`, `catppuccin-latte`, `catppuccin-mocha`,
+`one-dark`, `tokyo-night`, and the looks of `material` (Material 3),
+`fluent` (Windows 11), `adwaita`, `adwaita-dark` (GNOME) and `cupertino`.
+They are brands like the others: the palette's own colours, and the design
+system's rounding, control sizes and font where it has one. Every one passes
+the same readability checks as the rest, so where a palette's body text is
+too faint for WCAG AA (Solarized's base00 on base3) the nearest shade of the
+same palette that reads is used.
+
+Themes with a personality (`character_themes.nim`): `comic` (ink outlines,
+flat 4 px shadows, halftone dots), `soda` (90s neon on midnight, bubbles),
+`cyberpunk` (laser cyan HUD, scanlines), `woodshop` (walnut, oak and brass,
+on oak planks), `apothecary` (sepia on a parchment tile, wax-seal red, a
+classical serif), `paper` (charcoal on a paper tile, a reading serif), `terminal` and
+`terminal-amber` (phosphor on black, monospaced, inverted hover), `blueprint`
+(white on cyanotype, graph paper, square), `synthwave` (peach and mint on
+indigo, a violet grid) and `swiss`, `swiss-klein`, `swiss-dark` (one accent,
+no corners, no shadows, no texture). The personality is palette, geometry,
+type and background tile; the readability checks are the same as everyone's.
+
+### Heading font and control finish
+
+A theme can name a heading font beside its body font: titles (dialog, group
+box, app bar, splash) and `Label(heading = true)` use it, everything else keeps
+the body font. In a brand, `headingFont: "Zilla Slab, Arvo, serif"`; in a file,
+a top-level `headingFont:`.
+
+Beyond colour, a control's box has a finish, set per intent and state like any
+other property (or once in a brand):
+
+| Property | Brand field | What it does |
+|---|---|---|
+| `cornerCut` | `cornerCut` | corners cut off at 45 degrees, this many px (notches); shadows and the focus ring follow |
+| `gloss` | `gloss` | 0..1, a sheen over the top half of buttons |
+| `relief` | `relief` | px, a rim lit from above: buttons raised, text fields and lists carved in |
+| `dimensionLines` | `dimensionLines` | outlines drawn as a technical drawing's: edges past the corners, ticks |
+| `focusGlowRadius` + `focusGlowColor` | `focusGlow` | a soft glow round the control the keyboard has reached |
+
+They are drawn in the box shader, so they follow the shape exactly. The glow
+is worn by the focused control itself, past its bounds (its `effectReach`, see
+layout.md), over whatever is beside it. Cyberpunk is notched with
+a glow, soda glossy, woodshop bevelled, blueprint in dimension lines.
+
+### Speech-bubble tooltips
+
+`tipShape: bubble` (a brand's `speechBubbleTips: true`) draws tooltips as
+speech bubbles in the theme's outline, the tail pointing back at the pointer;
+comic has them. `drawSpeechBubble` draws the shape for your own primitives.
+
+### Frosted glass
+
+`glass: 10` (a brand's `glass`) makes floating panels -- menus, popovers, open
+dropdown lists -- translucent over the page blurred behind them, in the panel's
+own shape. The App names the page it has just drawn while it composites the
+overlays, and each panel's chrome frosts its area (`drawFrosted`). Cyberpunk
+has it. Modals already have their own backdrop (`backdrop:` above).
+
+### Fizz
+
+`fizz: true` (a brand's `fizz`) sends bubbles rising through a primary (Info)
+button when it is clicked, for under a second: soda has it. The bubbles are a
+`Fizz` primitive inside the button; with motion none they never start.
+
+### Background tiles
+
+Any PNG can be tiled behind everything; ten ship with rui, built into the
+program, and are named `tile:<name>` (`tiles.nim`):
+
+```yaml
+background:
+  image: "tile:wood"          # or textures/brick.png, relative to this file
+  opacity: 0.45               # over the canvas colour
+  scale: 1                    # each tile at this many times its size
+  tint: "#E63946"             # multiplies it: colours a see-through tile
+```
+
+or `BrandSpec(background: "tile:brick", backgroundOpacity: 0.35)`. Full-colour
+tiles: `wood` (light oak planks), `wood-dark` (walnut), `brick`, `parchment`,
+`paper`. See-through tiles, white on transparent so the `tint` colours them:
+`halftone`, `scanlines`, `graph`, `grid`, `bubbles`. `tools/make_tiles.py`
+makes them, each repeating without a seam.
+
+Labels sit straight on the background, so keep a busy tile faint (woodshop's
+planks are at 0.45 over a cream canvas); the contrast checks see only the
+canvas colour.
+
 ## Three ways to write one
 
 ### 1. A brand: a handful of choices (usually enough)
@@ -69,13 +157,15 @@ metrics:
 
 Properties: colours (`backgroundColor foregroundColor borderColor
 pressedColor hoverColor activeColor focusColor focusRingColor focusGlowColor
-highlightColor shadowColor darkShadowColor gradientStart gradientEnd glowColor
-dropShadowColor`, as `"#rrggbb"`, `"#rrggbbaa"` or `rgb(r,g,b)`), sizes
-(`borderWidth cornerRadius fontSize spacing focusRingWidth focusGlowRadius
-glowRadius insetShadowDepth insetShadowOpacity dropShadowBlur dropShadowOffset`),
-text (`fontFamily fontWeight uppercase`), `padding` (`all`, `horizontal` /
-`vertical`, or `left top right bottom`), and effects (`bevelStyle
-gradientDirection`).
+highlightColor shadowColor darkShadowColor dropShadowColor`, as `"#rrggbb"`,
+`"#rrggbbaa"` or `rgb(r,g,b)`), sizes (`borderWidth cornerRadius fontSize
+spacing focusRingWidth focusGlowRadius dropShadowOffset`), the finish
+(`cornerCut gloss relief gradient caustic softShadow dimensionLines`), text
+(`fontFamily fontWeight uppercase`), `padding` (`all`, `horizontal` /
+`vertical`, or `left top right bottom`), and `bevelStyle`. Older files'
+`gradientStart`/`gradientEnd`, `glowColor`/`glowRadius`, `insetShadowDepth` and
+`dropShadowBlur` still load, as `gradient`, the focus glow, a negative `relief`
+and `softShadow`.
 
 `hint:` styles the help overlay's hint badges (F1 or `?`). By default they are
 a sign post planted on each widget's top-right corner: yellow, a thick dark
@@ -105,6 +195,20 @@ What is *drawn* on the frozen page is code, not theme: `setBackdropPainter`
 (for every modal, or one) takes ready-made painters -- `cautionTape("WAITING
 FOR AN ANSWER")`, `hazardStripes()`, `backdropCaption("Frozen")` -- or any
 `proc(area: Rect)`. It runs once, when the page is pictured.
+
+`background:` is a picture behind everything, tiled over the canvas colour:
+wood, brick, paper, a subtle pattern. `image` is a path relative to the theme
+file or `tile:<name>` for a tile that ships (see Background tiles above),
+`opacity` (0 to 1) lets the canvas colour through, and `scale` draws each tile
+at that many times its size. Widgets that paint their own background cover
+it; the rest of the window shows it. If the picture can't be loaded, the plain
+canvas colour stays. In code, the same is
+`theme.assets.backgroundPattern = some("paper.png")` (with
+`backgroundPatternOpacity`, `backgroundScale` and `backgroundTint`).
+
+```yaml
+background: {image: textures/paper.png, opacity: 0.6, scale: 2}
+```
 
 Hover-versus-focus priority is the theme's too:
 
@@ -165,3 +269,38 @@ YAML or JSON, chosen by extension. `ThemeManager.addSearchPath(dir)` makes
   3 px ring) pass it at AAA, 7:1. The other shipped themes keep resting captions
   above 3:1; their pressed/selected tints and soft focus rings are below AA --
   choose a contrast theme where that matters.
+
+## Aqua: a stress test of how far a theme reaches
+
+`aqua` and `aqua-graphite` (`character_themes.nim`) recreate the Mac OS X Aqua
+look, to find where RUI's theming bends. What we learned:
+
+**It fit as it was.** Pinstripes are a background tile (`tile:pinstripes`).
+The translucent menus are `glass`, the type is the body font, and the small
+controls are metrics. The focus glow is `focusGlow`.
+
+**It needed new pieces, now general:**
+
+- `effectReach` (layout.md): a widget may paint past its bounds. The soft
+  shadow under every gel button (`softShadow`) is drawn by the button's body
+  Rectangle, outside the button, over its neighbours, with layout unchanged.
+- Two more finish terms in the box shader: `gradient` (lighter top, deeper
+  bottom) and `caustic` (light pooling inside the bottom edge). With `gloss`
+  they make the gel.
+- `accentFinish`: the parts filled with the accent (a checked box, a selected
+  radio, a progress fill, a slider's fill and thumb) were plain boxes. They
+  now take the theme's finish too, so they turn to blue gel with the buttons.
+- `pulse`: the primary button breathes, driven from its layout by a timed
+  repaint, and still with motion none. RUI has no "default button"
+  concept, so the primary (Info) intent stands in for it.
+
+**Still gaps:**
+
+- ~~The scroll bar ignores the theme's finish.~~ Closed: the scroll bar is
+  now a themed part, and in a gel theme its thumb is a pill of the accent.
+- Title bars exist only on dialogs, as the BeOS tab or a plain bar. Traffic
+  lights need window chrome with real close and minimise behind them, not a
+  drawing of three buttons that do nothing.
+- Tabs are not gel segments, and the progress bar has no moving stripes.
+  Both are possible, the same way `accentFinish` and `pulse` were done;
+  neither is done yet.

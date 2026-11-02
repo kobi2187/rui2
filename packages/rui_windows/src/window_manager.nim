@@ -52,7 +52,7 @@ proc raiseWindow*(w: Widget) =
     stack.delete(stack.find(w))
     stack.add w
     hideOverlay(w)
-  w.chrome = floatingChrome()
+  w.floatAbove()
   showOverlay(w, interactive = true)
   setActive(w)
 

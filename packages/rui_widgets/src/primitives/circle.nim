@@ -13,7 +13,7 @@ import rui_core
 import rui_drawing
 import raylib
 
-definePrimitive(Circle):
+defineWidget(Circle):
   props:
     color: raylib.Color = GRAY
     filled: bool = true

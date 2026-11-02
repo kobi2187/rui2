@@ -28,8 +28,9 @@ import ../press
 import rui_drawing
 import ../primitives/rectangle
 import ../input/textarea   # the caption is a Label, i.e. a non-editable TextArea
+import fizz                # a soda theme's bubbles, on a primary button's click
 import raylib
-import std/[options, json]
+import std/[options, json, monotimes, times, math]
 
 defineWidget(Button):
   props:
@@ -55,6 +56,7 @@ defineWidget(Button):
     widget.addChild(newRectangle(filled = true))
     widget.addChild(newLabel(text = "", fontSize = 14.0,
                              align = TextAlign.Center))
+    widget.addChild(newFizz())       # bubbles over the body, in a theme with `fizz`
 
   events:
     on_mouse_down: return widget.pressDown(event, not widget.disabled)
@@ -63,6 +65,8 @@ defineWidget(Button):
 
     on_mouse_up:
       return widget.pressUp(event):
+        if currentTheme.fizz and widget.intent == Info:
+          Fizz(widget.children[2]).burst()     # a soda theme's carbonation
         if widget.onClick != nil: widget.onClick()
 
   layout:
@@ -100,21 +104,31 @@ defineWidget(Button):
     let style = props.captionStyle(textColor, action = true)
 
     # Size to content when the parent has not imposed a size: the caption in
-    # the theme's font, the theme's padding around it, room for its shadow,
-    # and at least the theme's control height. So a bold brand's buttons are
-    # bigger than a lean one's without either writing a number.
+    # the theme's font, the theme's padding around it, and at least the theme's
+    # control height. So a bold brand's buttons are bigger than a lean one's
+    # without either writing a number. (Its shadow is outside: effect reach.)
     let metrics = measureText(caption, style)
     let pad = props.controlPadding()
-    let shadow = props.shadowOffset
     if widget.bounds.height <= 0:
-      widget.bounds.height = max(currentTheme.controlHeight - shadow.y,
-                                 metrics.height + pad.top + pad.bottom) + shadow.y
+      widget.bounds.height = max(currentTheme.controlHeight,
+                                 metrics.height + pad.top + pad.bottom)
     if widget.bounds.width <= 0:
-      widget.bounds.width = metrics.width + pad.left + pad.right + shadow.x
+      widget.bounds.width = metrics.width + pad.left + pad.right
 
-    # The body: inside the shadow, sunk into it while pressed.
+    # The body: the bounds, sunk into the shadow while pressed.
     let body = bodyRect(widget.bounds, props, widget.isPressed and not widget.disabled)
-    bg.color = buttonColor
+    # A theme with `pulse` makes the primary action breathe (Aqua's default
+    # button): its face brightens and fades, a cycle `pulse` seconds long.
+    var face = buttonColor
+    # It rests at its plain colour once the user has been away a while.
+    if currentTheme.pulse > 0 and widget.intent == Info and not widget.disabled and
+       effectsAllowed():
+      if not userAway():
+        let t = float(getMonoTime().ticks) / 1e9
+        let k = float32((sin(t / currentTheme.pulse.float * 2 * PI) + 1) / 2)
+        face = mixTone(buttonColor, WHITE, 0.30 * k)
+      widget.repaintWhileActive(1.0 / 30.0, relayout = true)
+    bg.color = face
     bg.cornerRadius = radius
     bg.filled = true
     bg.borderColor = outline
@@ -123,6 +137,16 @@ defineWidget(Button):
     bg.borderWidth = props.strokeWidth +
                      (if widget.focused: props.focusRingWidth.get(2.0) else: 0.0f32)
     bg.bounds = body
+    let fizz = Fizz(widget.children[2])
+    fizz.bounds = body
+    fizz.color = textColor.withAlpha(0.8)
+    bg.finish = props.boxFinish(focused = widget.focused)   # its glow too, when focused
+    if widget.isPressed and not widget.disabled:
+      bg.finish.drop = 0                                    # pressed into its shadow
+    # Room for the finish's shadow, and its focus glow while focused: the body
+    # is the border element that wears them; the button (its own size) passes
+    # the spill on to its parent.
+    bg.effectReach = props.finishReach(focused = widget.focused)
     # A bevelled theme draws its 3D edge (inverted while pressed) instead of an
     # outline, and shows focus by a ring inside it rather than a fatter border.
     let bevel = props.bevelStyle.get(Flat)
@@ -154,13 +178,6 @@ defineWidget(Button):
       height: metrics.height
     )
 
-  render:
-    # Only the shadow: the body and caption are the children, drawn over it.
-    let props = currentTheme.getThemeProps(widget.intent,
-      visualState(widget.disabled, widget.isPressed,
-                  hovered = widget.under, focused = widget.focused,
-                  ladder = currentTheme.ladderFor(crPointer)))
-    drawDropShadow(widget.bounds, props, widget.isPressed and not widget.disabled)
 
 # ============================================================================
 # Scripting Support

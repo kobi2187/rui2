@@ -17,7 +17,7 @@ import rui_core
 import rui_drawing
 import raylib
 
-definePrimitive(HelpOverlay):
+defineWidget(HelpOverlay):
   props:
     items: seq[HelpEntry] = @[]       # the navigation keys, along the top
     notes: seq[HelpEntry] = @[]       # application shortcuts with no widget

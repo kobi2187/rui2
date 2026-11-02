@@ -41,7 +41,7 @@ proc zoomSlot(closable: bool): int =
   ## The slot of the zoom box: second from the right beside a right-hand close box.
   if closable and not tabbedTitle(): 1 else: 0
 
-definePrimitive(Window):
+defineWidget(Window):
   props:
     title: string = "Window"
     x: float32 = 80.0
@@ -131,6 +131,7 @@ definePrimitive(Window):
   render:
     let props = currentTheme.getThemeProps(Default, Normal)
     let active = activeWindow() == widget
+    drawFloatingShadow(widget.bounds, props)       # past its bounds: floatAbove gave it room
     drawThemedBackground(widget.bounds, props)
     drawThemedBorder(widget.bounds, props)
     let bar = Rect(x: widget.bounds.x, y: widget.bounds.y,

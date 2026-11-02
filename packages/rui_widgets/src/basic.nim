@@ -79,3 +79,20 @@ export icon
 
 import basic/rangeslider
 export rangeslider
+
+import basic/knob
+export knob
+
+import basic/avatar
+export avatar
+
+import basic/skeleton
+import basic/fizz
+export skeleton
+export fizz
+
+import basic/stepper
+export stepper
+
+import basic/splash
+export splash

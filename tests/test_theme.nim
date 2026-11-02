@@ -12,6 +12,7 @@
 
 import std/unittest
 import rui
+import ../packages/rui_widgets/src/primitives/rectangle
 import std/[json, tables, strutils, options, os, monotimes, times]
 
 suite "theme: registry and switching":
@@ -220,69 +221,33 @@ base:
     check formatFor("theme") == tffYaml          # no extension: assume YAML
 
 
-suite "which effect a theme asks for":
-  ## drawThemedRect used to hard-code both the set of effects and their order in
-  ## an if/elif chain, so precedence was control flow you had to trace and could
-  ## not assert on. It is a list now, and `effectFor` is the selection.
+suite "older effect names load as the finish":
+  ## One vocabulary: a control's surface is a BoxFinish. Files written with the
+  ## older effect names still load, mapped onto it.
+  proc noExtends(name: string): Theme = newTheme(name)
 
-  test "no effect props means a plain fill":
-    check effectFor(ThemeProps()).isNone
+  test "a gradient, a glow, an inset and a blurred shadow become finish terms":
+    let t = parseTheme("""
+name: Old
+base:
+  default:
+    gradientStart: "#FFFFFF"
+    gradientEnd: "#CCCCCC"
+    glowColor: "#3388FF"
+    glowRadius: 5
+    insetShadowDepth: 2
+    dropShadowBlur: 4
+""", tffYaml, noExtends)
+    let p = t.getThemeProps(Default, Normal)
+    check p.gradient == some(0.5'f32)
+    check p.focusGlowRadius == some(5'f32) and p.focusGlowColor.isSome
+    check p.relief == some(-2'f32)
+    check p.softShadow == some(4'f32)
 
-  test "Flat is the absence of a bevel, not a bevel":
+  test "Flat is the absence of a bevel, and draws a plain box":
     var props = ThemeProps()
     props.bevelStyle = some(Flat)
-    check effectFor(props).isNone
-
-  test "each effect is picked when its props are set":
-    var bevel = ThemeProps()
-    bevel.bevelStyle = some(Raised)
-    check effectFor(bevel).get().name == "bevel"
-
-    var gradient = ThemeProps()
-    gradient.gradientStart = some(WHITE)
-    gradient.gradientEnd = some(BLACK)
-    check effectFor(gradient).get().name == "gradient"
-
-    var shadow = ThemeProps()
-    shadow.dropShadowOffset = some((x: 4.0'f32, y: 4.0'f32))
-    check effectFor(shadow).get().name == "dropShadow"
-
-    var glow = ThemeProps()
-    glow.glowColor = some(WHITE)
-    check effectFor(glow).get().name == "glow"
-
-    var inset = ThemeProps()
-    inset.insetShadowDepth = some(3.0'f32)
-    check effectFor(inset).get().name == "inset"
-
-  test "a gradient with only one end is not a gradient":
-    var props = ThemeProps()
-    props.gradientStart = some(WHITE)
-    check effectFor(props).isNone
-
-  test "precedence: a bevel wins over everything a theme also sets":
-    # A BeOS-style theme sets a bevel and a gradient and means the bevel.
-    var props = ThemeProps()
-    props.bevelStyle = some(Raised)
-    props.gradientStart = some(WHITE)
-    props.gradientEnd = some(BLACK)
-    props.dropShadowOffset = some((x: 2.0'f32, y: 2.0'f32))
-    props.glowColor = some(WHITE)
-    check effectFor(props).get().name == "bevel"
-
-  test "precedence: depth before emphasis":
-    # A theme setting both a drop shadow and a glow is describing depth.
-    var props = ThemeProps()
-    props.dropShadowOffset = some((x: 2.0'f32, y: 2.0'f32))
-    props.glowColor = some(WHITE)
-    check effectFor(props).get().name == "dropShadow"
-
-  test "the order the table declares is the order it is searched":
-    check RectEffects.len == 5
-    var names: seq[string] = @[]
-    for e in RectEffects:
-      names.add(e.name)
-    check names == @["bevel", "gradient", "dropShadow", "glow", "inset"]
+    check props.boxFinish == BoxFinish()
 
 suite "colour helpers":
   ## `fadeColor` was private and documented as fading to transparent, while
@@ -565,12 +530,16 @@ metrics:
     let b = newButton(text = "Go")
     b.bounds = Rect(x: 0, y: 0, width: 100, height: 50)
     b.layout()
-    let up = b.children[0].bounds
+    let body = rectangle.Rectangle(b.children[0])
+    let up = body.bounds
+    check up.x == 0 and up.width == 100     # the body is the bounds...
+    check body.finish.drop == 4             # ...the shadow lies outside,
+    check body.effectReach >= 4             # through effect reach
     b.isPressed = true
     b.layout()
-    let down = b.children[0].bounds
-    check up.x == 0 and up.width == 96      # room left for the shadow
-    check down.x == 4 and down.y == 4       # moved into it
+    let down = body.bounds
+    check down.x == 4 and down.y == 4       # pressed, moved into it
+    check body.finish.drop == 0             # and the shadow gone
 
   test "switching theme at runtime re-measures the same widgets":
     let saved = currentTheme
@@ -848,7 +817,7 @@ suite "theme: writing a theme back out":
       padding: some(edgeInsetsLTRB(1, 2, 3, 4)),
       fontWeight: some(SemiBold), uppercase: some(true),
       dropShadowOffset: some((3.0'f32, 3.0'f32)),
-      bevelStyle: some(Raised), gradientDirection: some(theme_types.Radial))
+      bevelStyle: some(Raised))
     t.base[Info] = ThemeProps(padding: some(edgeInsetsSymmetric(12, 4)))
     t.base[Danger] = ThemeProps(padding: some(edgeInsets(6)), fontFamily: some("Fira Sans"))
     t.states[Default][Hovered] = ThemeProps(backgroundColor: some(Color(r: 10, g: 20, b: 30, a: 255)))
@@ -1229,3 +1198,121 @@ suite "BeOS theme":
   test "its window titles are tabs, and a theme without a titleColor is not":
     check be.titleColor.isSome
     check createLightTheme().titleColor.isNone
+
+suite "theme: heading font":
+  proc noExtends(name: string): Theme = newTheme(name)
+
+  test "a brand's heading font reaches headings, and only headings":
+    setCurrentTheme(brandTheme(BrandSpec(name: "H", accent: hex"#225588", canvas: hex"#FFFFFF",
+                                         surface: hex"#FFFFFF", text: hex"#111111",
+                                         border: hex"#999999", fontFamily: "Inter",
+                                         headingFont: "Playfair Display")))
+    defer: setCurrentTheme(newTheme("default"))
+    let props = currentTheme.getThemeProps(Default, Normal)
+    check props.headingStyle(BLACK).fontFamily == "Playfair Display"
+    check props.headingStyle(BLACK).bold
+    check props.headingStyle(BLACK, 2).fontSize == props.fontSize.get(14) * 2
+    check props.captionStyle(BLACK).fontFamily != "Playfair Display"   # body text keeps its font
+
+  test "a theme without one uses its body font for headings":
+    setCurrentTheme(brandTheme(BrandSpec(name: "B", accent: hex"#225588", canvas: hex"#FFFFFF",
+                                         surface: hex"#FFFFFF", text: hex"#111111",
+                                         border: hex"#999999", fontFamily: "Inter")))
+    defer: setCurrentTheme(newTheme("default"))
+    check themeHeadingFamily == "Inter"
+
+  test "the heading font is read from a file and written back":
+    let t = parseTheme("name: T\nheadingFont: Zilla Slab\n", tffYaml, noExtends)
+    check t.typography.headingFont == some("Zilla Slab")
+    check parseTheme(t.toYaml, tffYaml, noExtends).typography.headingFont == some("Zilla Slab")
+    let b = parseTheme("name: T\nbrand:\n  accent: \"#225588\"\n  headingFont: Arvo\n", tffYaml, noExtends)
+    check b.typography.headingFont == some("Arvo")
+
+suite "theme: control finish":
+  proc noExtends(name: string): Theme = newTheme(name)
+
+  test "a brand's finish reaches every intent; wells are carved and never glossy":
+    let t = brandTheme(BrandSpec(name: "F", accent: hex"#225588", canvas: hex"#FFFFFF",
+                                 surface: hex"#FFFFFF", text: hex"#111111", border: hex"#999999",
+                                 cornerCut: 6, gloss: 0.5, relief: 2, dimensionLines: true))
+    for intent in ThemeIntent:
+      let f = t.getThemeProps(intent, Normal).boxFinish
+      check f.cut == 6 and f.gloss == 0.5 and f.relief == 2 and f.dimension
+    let well = t.getThemeProps(Default, Normal).boxFinish(well = true)
+    check well.relief == -2 and well.gloss == 0 and well.cut == 6
+
+  test "a theme without a finish draws plain boxes":
+    let f = brandTheme(daylightSpec()).getThemeProps(Default, Normal).boxFinish
+    check f == BoxFinish()
+
+  test "the finish is read from a file and written back":
+    let t = parseTheme("""
+name: F
+base:
+  default:
+    cornerCut: 8
+    gloss: 0.4
+    relief: -1.5
+    dimensionLines: true
+""", tffYaml, noExtends)
+    let p = t.getThemeProps(Default, Normal)
+    check p.cornerCut == some(8'f32) and p.gloss == some(0.4'f32)
+    check p.relief == some(-1.5'f32) and p.dimensionLines == some(true)
+    let again = parseTheme(t.toYaml, tffYaml, noExtends).getThemeProps(Default, Normal)
+    check again.cornerCut == p.cornerCut and again.dimensionLines == p.dimensionLines
+    let b = parseTheme("name: B\nbrand:\n  accent: \"#225588\"\n  cornerCut: 5\n  focusGlow: 6\n",
+                       tffYaml, noExtends)
+    check b.getThemeProps(Info, Normal).cornerCut == some(5'f32)
+    check b.getThemeProps(Default, Focused).focusGlowRadius == some(6'f32)
+
+  test "a focused control wears the theme's glow, and keeps room for it":
+    setCurrentTheme(brandTheme(cyberpunkSpec()))
+    defer: setCurrentTheme(newTheme("default"))
+    let p = currentTheme.getThemeProps(Default, Focused)
+    check p.boxFinish(focused = true).glow > 0
+    check p.boxFinish(focused = false).glow == 0
+    check p.finishReach(focused = true) > 0
+    check p.finishReach(focused = false) == 0               # room only on the focused one
+    check brandTheme(daylightSpec()).getThemeProps(Default, Focused).finishReach(focused = true) == 0
+
+suite "theme: speech-bubble tooltips":
+  proc noExtends(name: string): Theme = newTheme(name)
+
+  test "comic's tooltips are speech bubbles; a file can ask for them":
+    check brandTheme(comicSpec()).tipShape == tsBubble
+    check brandTheme(daylightSpec()).tipShape == tsBox
+    let t = parseTheme("name: T\ntipShape: bubble\n", tffYaml, noExtends)
+    check t.tipShape == tsBubble
+    check parseTheme(t.toYaml, tffYaml, noExtends).tipShape == tsBubble
+    expect ValueError:
+      discard parseTheme("name: T\ntipShape: cloud\n", tffYaml, noExtends)
+
+  test "a bubble tip makes room for its tail above the text":
+    setCurrentTheme(brandTheme(daylightSpec()))
+    let boxTip = newTooltipTip(text = "Saves the file")
+    boxTip.layout()
+    setCurrentTheme(brandTheme(comicSpec()))
+    defer: setCurrentTheme(newTheme("default"))
+    let bubbleTip = newTooltipTip(text = "Saves the file")
+    bubbleTip.layout()
+    check bubbleTip.bounds.height >= boxTip.bounds.height + BubbleTail
+
+suite "theme: frosted glass panels":
+  proc noExtends(name: string): Theme = newTheme(name)
+
+  test "a glass theme makes floating panels translucent; a solid one leaves them":
+    setCurrentTheme(brandTheme(cyberpunkSpec()))
+    defer: setCurrentTheme(newTheme("default"))
+    check currentTheme.glass > 0
+    let p = currentTheme.getThemeProps(Default, Normal)
+    check p.glassy.backgroundColor.get.a < p.backgroundColor.get.a
+    setCurrentTheme(brandTheme(daylightSpec()))
+    let q = currentTheme.getThemeProps(Default, Normal)
+    check q.glassy.backgroundColor == q.backgroundColor
+
+  test "glass is read from a file and written back":
+    let t = parseTheme("name: G\nglass: 12\n", tffYaml, noExtends)
+    check t.glass == 12
+    check parseTheme(t.toYaml, tffYaml, noExtends).glass == 12
+    check parseTheme("name: G\nbrand:\n  accent: \"#225588\"\n  glass: 8\n", tffYaml, noExtends).glass == 8
+

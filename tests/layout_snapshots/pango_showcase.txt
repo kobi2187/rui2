@@ -17,8 +17,10 @@ VStack root @0,0 760x740
     Button clickButton @22,588 111x39 tabstop
       Rectangle - @22,588 111x39
       Label - @38,596 79x23
+      Fizz - @22,588 111x39 hidden
     Button quitButton @143,588 71x39 tabstop
       Rectangle - @143,588 71x39
       Label - @159,596 39x23
+      Fizz - @143,588 71x39 hidden
   Checkbox agree @22,636 716x23 tabstop
   ProgressBar progress @22,668 716x23

@@ -20,7 +20,7 @@ import std/options
 
 import raylib
 
-definePrimitive(Checkbox):
+defineWidget(Checkbox):
   props:
     text: string = ""
     initialChecked: bool = false

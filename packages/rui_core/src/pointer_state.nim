@@ -42,6 +42,12 @@ proc releasePointer*(pointer = 0) = captured.del pointer
 proc releaseAllPointers*() = captured.clear()
 proc pointerCapture*(pointer = 0): Widget = captured.getOrDefault(pointer)
 
+proc resetPointerState*() =
+  ## Nothing under the pointer, nothing holding it (ui_state.resetUiState).
+  captured.clear()
+  pointerOver = nil
+  pointerAt = Point()
+
 proc setPointer*(over: Widget, at: Point) =
   ## Called by the event router on every pointer move.
   pointerOver = over

@@ -37,7 +37,7 @@ proc rebuildList(widget: Widget)
 proc openDirectory*(widget: Widget, path: string)
 proc pathOf*(widget: Widget, entry: string): string
 
-definePrimitive(FilePicker):
+defineWidget(FilePicker):
   props:
     mode: FilePickerMode = fpOpen
     filters: seq[string] = @[]   # e.g. @["*.txt", "*.nim"]

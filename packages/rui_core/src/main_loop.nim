@@ -22,10 +22,29 @@ from rlgl import setBlendFactorsSeparate, BlendFactor, BlendFuncOrEq
 
 
 proc texturePad*(widget: Widget): float32 =
-  ## The clear margin round a `subpixel` widget's picture: what smooth
-  ## filtering blends its edges into when it lands between pixels. 0 for
-  ## everything else.
-  if widget.subpixel: 1'f32 else: 0'f32
+  ## The clear margin round a widget's picture, on every side: what its effects
+  ## and its children's spill past its bounds (`inkPad`, below). 0 for most.
+  widget.inkPad
+
+proc inkPadFor(widget: Widget): float32 =
+  ## How big the margin round `widget`'s texture has to be: its own `effectReach`, a
+  ## pixel for a `subpixel` widget (what smooth filtering blends its edges
+  ## into), and however far a child's picture spills past this widget's edges
+  ## -- so a glowing button inside a frame its own size is not clipped by the
+  ## frame. A viewport (`childClip`) clips its children, so nothing spills
+  ## through it; the top of the tree has nowhere to spill to.
+  result = max(0'f32, widget.effectReach)
+  if widget.subpixel: result = max(result, 1)
+  if widget.parent != nil and widget.childClip.isNone:
+    let b = widget.bounds
+    for child in widget.children:
+      if not child.visible or child.floating or child.inkPad <= 0: continue
+      let p = child.inkPad
+      let c = child.bounds
+      result = max(result, max(max(b.x - (c.x - p), b.y - (c.y - p)),
+                               max((c.x + c.width + p) - (b.x + b.width),
+                                   (c.y + c.height + p) - (b.y + b.height))))
+  result = ceil(result)
 
 proc createWidgetTexture*(widget: Widget): RenderTexture2D =
   ## Create a render texture for the widget
@@ -404,7 +423,9 @@ proc renderChildrenFirst(widget: Widget, view: Option[Rect],
     if child.floating:
       discard                          # painted on the overlay layer
     elif childView.isSome and child.visible and
-       not overlapsView(child.bounds, childView.get()):
+       not overlapsView(Rect(x: child.bounds.x - child.inkPad, y: child.bounds.y - child.inkPad,
+                             width: child.bounds.width + 2 * child.inkPad,
+                             height: child.bounds.height + 2 * child.inkPad), childView.get()):
       child.culled = true
     else:
       if child.culled:
@@ -432,31 +453,51 @@ proc compositeChildren(widget: Widget, originalX, originalY: float32,
   ## Blit each child's cached texture into this widget's, in coordinates
   ## relative to this widget's top-left -- which is where bounds.x/y have been
   ## zeroed to for the duration.
-  for child in widget.children:
-    if not child.visible or child.culled or child.floating or
-       child.cachedTexture.isNone:
-      continue
-    var dest = Rect(x: child.bounds.x - originalX,
-                    y: child.bounds.y - originalY,
-                    width: child.bounds.width, height: child.bounds.height)
+  ##
+  ## A child whose picture spills past its bounds (an `effectReach`) goes
+  ## after its siblings, so the effect lies over its neighbours -- unless its
+  ## bounds overlap a later sibling's, where the order is the point (a Stack).
+  proc blit(child: Widget) =
+    let p = child.texturePad
+    # Where the whole texture goes: the bounds, out by its margin.
+    let dest = Rect(x: child.bounds.x - originalX - p, y: child.bounds.y - originalY - p,
+                    width: child.bounds.width + 2 * p, height: child.bounds.height + 2 * p)
     if only.isSome and not overlapsView(dest, only.get()):
-      continue                         # a partial update: this one is outside it
+      return                           # a partial update: this one is outside it
     perfCount(pcBlits)
     when perfOn:                       # what the blit can touch: clipped to a partial update
-      let reach = if only.isSome: intersect(dest, only.get()) else: dest
-      perfCount(pcBlitPixels, int(reach.width * reach.height))
+      let area = if only.isSome: intersect(dest, only.get()) else: dest
+      perfCount(pcBlitPixels, int(area.width * area.height))
     if child.subpixel:
-      # Drawn between pixels: its clear margin is what the filter blends
-      # its edges into, so the picture starts that margin up and left.
+      # Drawn between pixels: its clear margin is what the filter blends into.
       setTextureFilter(child.cachedTexture.get().texture, TextureFilter.Bilinear)
-      dest.x -= child.texturePad
-      dest.y -= child.texturePad
     if widget.childClip.isSome:
       drawRenderTexturePart(child.cachedTexture.get(), dest,
                             widget.childClip.get(), widget.softClip)
     else:
       drawRenderTexture(child.cachedTexture.get(), dest.x, dest.y,
                         snap = not child.subpixel)
+
+  proc overlapsLater(i: int): bool =
+    let a = widget.children[i].bounds
+    for j in i + 1 ..< widget.children.len:
+      let o = widget.children[j]
+      if o.visible and not o.floating and
+         a.x < o.bounds.x + o.bounds.width and o.bounds.x < a.x + a.width and
+         a.y < o.bounds.y + o.bounds.height and o.bounds.y < a.y + a.height:
+        return true
+    false
+
+  var spilling: seq[Widget]
+  for i, child in widget.children:
+    if not child.visible or child.culled or child.floating or
+       child.cachedTexture.isNone:
+      continue
+    if child.texturePad > 0 and not child.subpixel and not overlapsLater(i):
+      spilling.add child               # over its neighbours, after them
+    else:
+      blit(child)
+  for child in spilling: blit(child)
 
 var partialRepaint* = true
   ## Repaint only the damaged area of a widget whose children repainted, instead
@@ -476,7 +517,7 @@ proc paintSignature(widget: Widget): int =
     h = h !& hash(child.id) !& hash(child.bounds.x) !& hash(child.bounds.y) !&
         hash(child.bounds.width) !& hash(child.bounds.height) !&
         hash(child.visible) !& hash(child.culled) !& hash(child.floating) !&
-        hash(child.zIndex) !& hash(child.cachedTexture.isSome)
+        hash(child.zIndex) !& hash(child.cachedTexture.isSome) !& hash(child.inkPad)
   !$h
 
 proc textureFits(widget: Widget): bool =
@@ -513,13 +554,17 @@ proc partialRegions(widget: Widget, changed: seq[Rect]): seq[Rect] =
   ## damage stays separate -- a ticking label and a progress bar two rows apart
   ## are two small repaints, not one rectangle covering the rows between them.
   ## Empty: nothing to repaint.
-  let texW = widget.bounds.width
-  let texH = widget.bounds.height
+  # Texture space: its origin is the bounds' corner out by the margin.
+  let pad = widget.texturePad
+  let ox = widget.bounds.x - pad
+  let oy = widget.bounds.y - pad
+  let texW = widget.bounds.width + 2 * pad
+  let texH = widget.bounds.height + 2 * pad
   for d in changed:
-    let lx = max(0'f32, floor(d.x - widget.bounds.x) - 1)
-    let ly = max(0'f32, floor(d.y - widget.bounds.y) - 1)
-    let rx = min(texW, ceil(d.x + d.width - widget.bounds.x) + 1)
-    let ry = min(texH, ceil(d.y + d.height - widget.bounds.y) + 1)
+    let lx = max(0'f32, floor(d.x - ox) - 1)
+    let ly = max(0'f32, floor(d.y - oy) - 1)
+    let rx = min(texW, ceil(d.x + d.width - ox) + 1)
+    let ry = min(texH, ceil(d.y + d.height - oy) + 1)
     if rx > lx and ry > ly:
       result.add Rect(x: lx, y: ly, width: rx - lx, height: ry - ly)
   # Merge any that touch, until none do.
@@ -550,6 +595,10 @@ proc renderToTexture(widget: Widget, changed: seq[Rect], partialOk: bool) =
   ## (clipped to it by the GPU) and blit the children that reach into it. The
   ## blend is per pixel, so the result is identical to a full repaint, at the
   ## cost of the damaged area instead of the widget's whole.
+  # The margin first: it sets the texture's size, and a change of it (an effect
+  # turning on or off, a child's spill) means a whole repaint.
+  let oldPad = widget.inkPad
+  widget.inkPad = inkPadFor(widget)
   let sig = paintSignature(widget)
   var regions: seq[Rect]               # empty: the whole texture
   if partialRepaint and partialOk and not widget.ownDirty and changed.len > 0 and
@@ -613,12 +662,14 @@ proc renderToTexture(widget: Widget, changed: seq[Rect], partialOk: bool) =
   widget.damageParts = @[]
   if regions.len > 0:
     for r in regions:
-      widget.damageParts.add Rect(x: originalX + r.x, y: originalY + r.y,
+      widget.damageParts.add Rect(x: originalX - widget.texturePad + r.x,
+                                  y: originalY - widget.texturePad + r.y,
                                   width: r.width, height: r.height)
     widget.damage = unionOf(widget.damageParts)
   else:
-    # A subpixel widget's edges blend a pixel beyond its bounds.
-    let p = widget.texturePad
+    # Its picture reaches its margin past the bounds -- and where a margin has
+    # just shrunk (a glow gone), the old, larger area has to be cleared too.
+    let p = max(widget.texturePad, oldPad)
     widget.damage = Rect(x: widget.bounds.x - p, y: widget.bounds.y - p,
                          width: widget.bounds.width + 2 * p, height: widget.bounds.height + 2 * p)
     widget.damageParts = @[widget.damage]

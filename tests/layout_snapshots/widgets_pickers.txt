@@ -34,3 +34,4 @@ Stack - @0,0 760x520
       Button - @339,288 82x39 tabstop
         Rectangle - @339,288 82x39
         Label - @355,296 50x23
+        Fizz - @339,288 82x39 hidden

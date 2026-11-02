@@ -16,7 +16,7 @@ import rui_core
 import rui_drawing
 import raylib
 
-definePrimitive(Rectangle):
+defineWidget(Rectangle):
   props:
     color: raylib.Color = GRAY
     cornerRadius: float = 0.0
@@ -29,6 +29,7 @@ definePrimitive(Rectangle):
     bevelDark: raylib.Color = BLACK
     ringWidth: float = 0.0       # a focus ring drawn inside a bevel (0: none)
     ringColor: raylib.Color = BLACK
+    finish: BoxFinish = BoxFinish()  # notched, glossy, embossed, dimension lines (sdf.nim)
 
   render:
     # Fill and border in one shape, the border inside the bounds.
@@ -45,4 +46,4 @@ definePrimitive(Rectangle):
                            widget.ringWidth.float32, widget.ringColor)
       return
     drawBox(widget.bounds, widget.cornerRadius, fill,
-            widget.borderColor, widget.borderWidth)
+            widget.borderColor, widget.borderWidth, widget.finish)

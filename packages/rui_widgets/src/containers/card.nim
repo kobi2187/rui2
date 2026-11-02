@@ -24,10 +24,11 @@ defineWidget(Card):
     intent: ThemeIntent = Default
 
   layout:
+    widget.keepFinishRoom(currentTheme.getThemeProps(widget.intent, Normal))   # its shadow
     wrapChild(widget, cardInsets(widget, widget.padding, widget.intent))
 
   render:
-    drawThemedRect(widget.bounds, currentTheme.getThemeProps(widget.intent, Normal))
+    drawThemedPanel(widget.bounds, currentTheme.getThemeProps(widget.intent, Normal))
 
 method computeSize*(widget: Card, c: Constraints): Size =
   widget.wrapSize(c, cardInsets(widget, widget.padding, widget.intent))

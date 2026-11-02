@@ -5,17 +5,22 @@ VStack root @0,0 640x620
     Button mFree @16,320 117x39 tabstop
       Rectangle - @16,320 117x39
       Label - @32,328 85x23
+      Fizz - @16,320 117x39 hidden
     Button mLine @139,320 70x39 tabstop
       Rectangle - @139,320 70x39
       Label - @155,328 38x23
+      Fizz - @139,320 70x39 hidden
     Button mRect @215,320 72x39 tabstop
       Rectangle - @215,320 72x39
       Label - @231,328 40x23
+      Fizz - @215,320 72x39 hidden
     Button mCircle @293,320 83x39 tabstop
       Rectangle - @293,320 83x39
       Label - @309,328 51x23
+      Fizz - @293,320 83x39 hidden
     Button clearBtn @382,320 80x39 tabstop
       Rectangle - @382,320 80x39
       Label - @398,328 48x23
+      Fizz - @382,320 80x39 hidden
   Label t1 @16,369 608x23
   DragDropArea drop @16,402 580x110 tabstop

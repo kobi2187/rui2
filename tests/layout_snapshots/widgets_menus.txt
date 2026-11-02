@@ -14,6 +14,7 @@ VStack root @0,0 560x400
     Button popBtn @20,125 520x39 tabstop
       Rectangle - @20,125 520x39
       Label - @36,133 488x23
+      Fizz - @20,125 520x39 hidden
     ContextMenu ctx @20,174 0x0 floating
       MenuItem ctxCut @0,0 154x24 hidden
       MenuItem ctxCopy @0,0 169x24 hidden

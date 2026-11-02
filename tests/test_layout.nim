@@ -324,7 +324,7 @@ suite "composites reuse their children":
     let b = newButton(text = "press")
     b.layoutDirty = true
     b.layoutPass()
-    check b.children.len == 2
+    check b.children.len == 3          # body, caption, and the fizz a soda theme bubbles
     let bgId = b.children[0].id
     let labelId = b.children[1].id
 
@@ -333,7 +333,7 @@ suite "composites reuse their children":
     b.layoutDirty = true
     b.layoutPass()
 
-    check b.children.len == 2
+    check b.children.len == 3
     check b.children[0].id == bgId        # same widget, not a replacement
     check b.children[1].id == labelId
 

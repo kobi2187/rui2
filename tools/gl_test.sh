@@ -28,8 +28,12 @@ DISP=":$N"
 Xvfb "$DISP" -screen 0 1024x768x24 -nolisten tcp >/dev/null 2>&1 &
 XPID=$!
 trap 'kill $XPID 2>/dev/null; rmdir "/tmp/rui_xdisp_$N" 2>/dev/null' EXIT
-for _ in $(seq 1 50); do
+# Up to 30 s: with the whole suite building and running in parallel, Xvfb can
+# take well over the 5 s this used to allow, and the test then failed with
+# "Failed to open display" though nothing was wrong with it.
+for _ in $(seq 1 300); do
   [ -e "/tmp/.X11-unix/X$N" ] && break
   sleep 0.1
 done
+[ -e "/tmp/.X11-unix/X$N" ] || { echo "Xvfb $DISP did not start" >&2; exit 1; }
 DISPLAY="$DISP" "$OUT"

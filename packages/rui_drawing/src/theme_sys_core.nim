@@ -39,6 +39,7 @@ type
     monoFont*: Option[string]         # Code, monospace (e.g., "JetBrains Mono")
     defaultWeight*: Option[FontWeight]
     headingWeight*: Option[FontWeight]
+    headingFont*: Option[string]      # Titles and headings; the primary font when unset
     lineHeight*: Option[float32]      # e.g., 1.5
     letterSpacing*: Option[float32]   # e.g., 0.02 for slight spacing
 
@@ -67,6 +68,11 @@ type
     durationSlow*: Option[float32]    # Slow transitions (e.g., 400ms)
     defaultEasing*: Option[AnimationEasing]
 
+  TipShape* = enum
+    ## How a tooltip's box is shaped.
+    tsBox       ## a plain box beside the pointer
+    tsBubble    ## a speech bubble, its tail pointing back at the pointer (a comic)
+
   BackdropStyle* = object
     ## What a modal's frozen page looks like behind it: tinted by `color`
     ## (its alpha is how much), blurred by `blur` pixels, and its colour kept
@@ -81,8 +87,12 @@ type
     logoPath*: Option[string]               # Path to company logo
     iconPackPath*: Option[string]           # Directory with custom icons
     cursorPath*: Option[string]             # Custom cursor image
-    backgroundPattern*: Option[string]      # Background texture/pattern path
-    backgroundPatternOpacity*: Option[float32]  # Opacity of pattern (0.0-1.0)
+    backgroundPattern*: Option[string]
+      ## A picture tiled behind the whole widget tree, over the canvas colour
+      ## (theme_background.nim). A theme file's `background: image:`.
+    backgroundPatternOpacity*: Option[float32]  ## 0 .. 1; 1 when unset
+    backgroundScale*: Option[float32]           ## a tile drawn this many times its size; 1 when unset
+    backgroundTint*: Option[Color]              ## multiplies the picture; white when unset
 
   # Branding: Theme Metadata
   ThemeMetadata* = object
@@ -127,23 +137,20 @@ type
     shadowColor*: Option[Color]         # Bottom-right inner edge (typically gray)
     darkShadowColor*: Option[Color]     # Bottom-right outer edge (typically black)
 
-    # Gradient effects (Mac OS X Aqua, modern UIs)
-    gradientStart*: Option[Color]
-    gradientEnd*: Option[Color]
-    gradientDirection*: Option[GradientDirection]
-
-    # Shadow effects (modern flat design, depth)
+    # A hard drop shadow (the finish's `drop`): how far, and its colour.
     dropShadowOffset*: Option[tuple[x, y: float32]]
-    dropShadowBlur*: Option[float32]
     dropShadowColor*: Option[Color]
 
-    # Glow effects (focus states, highlights)
-    glowColor*: Option[Color]
-    glowRadius*: Option[float32]
-
-    # Inner shadow (inset depth)
-    insetShadowDepth*: Option[float32]
-    insetShadowOpacity*: Option[float32]
+    # Surface finish of a control's box (drawFinishedBox): what gives a theme
+    # its material beyond colour.
+    cornerCut*: Option[float32]         # corners cut off at 45 degrees this deep (notches)
+    gloss*: Option[float32]             # 0..1: a sheen over the top half
+    relief*: Option[float32]            # px: a rim lit from above; > 0 raised, < 0 carved.
+                                        # Wells (fields, lists) are carved where buttons rise.
+    dimensionLines*: Option[bool]       # edges that overshoot the corners, with ticks (a drawing)
+    gradient*: Option[float32]          # 0..1: lighter top, deeper bottom
+    caustic*: Option[float32]           # 0..1: light pooling inside the bottom (a gel)
+    softShadow*: Option[float32]        # px: a soft drop shadow under raised controls
     
 
     
@@ -194,6 +201,10 @@ type
     metrics*: ControlMetrics              # Control geometry
     hint*: HintStyle                      # Help-overlay hint badges
     backdrop*: BackdropStyle              # The page behind an open modal
+    tipShape*: TipShape                   # Tooltips: a box, or a speech bubble
+    glass*: float32                       # Floating panels as frosted glass: the blur, px (0: solid)
+    fizz*: bool                           # Primary buttons fizz with bubbles when clicked
+    pulse*: float32                       # The primary (Info) button breathes, a cycle this long (s); 0: still
 
     statePreference*: array[ControlRole, StatePreference]
       ## Hover-or-focus-first, per control role. Read on every lookup from the
@@ -424,6 +435,8 @@ proc setCurrentTheme*(theme: Theme) =
   inc settleEpoch                # a new theme lands at once, without fading
   inc measureEpoch               # and nothing keeps the old theme's sizes
   themeFontFamily = theme.typography.primaryFont.get("")
+  themeHeadingFamily = theme.typography.headingFont.get(themeFontFamily)
+  themeHeadingBold = theme.typography.headingWeight.get(Bold) >= SemiBold
 
 proc makeColor*(r, g, b: int, a: int = 255): Color =
   Color(

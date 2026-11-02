@@ -5,15 +5,25 @@ import std/options
 import rui_core
 import raylib
 
-proc popupRect*(field: Rect, width, height: float32): Rect =
+proc popupRect*(field: Rect, width, height: float32, shrink = false): Rect =
   ## Where a popup of this size goes: below the field, flipped above it when
-  ## the window has no room underneath.
+  ## the window has no room underneath. With `shrink` (a list that scrolls),
+  ## when neither side has room it takes the roomier side and is cut to fit.
   var top = field.y + field.height
+  var h = height
   if renderView.isSome:
     let view = renderView.get
-    if top + height > view.y + view.height and field.y - height >= view.y:
-      top = field.y - height
-  Rect(x: field.x, y: top, width: width, height: height)
+    let below = view.y + view.height - top
+    let above = field.y - view.y
+    if h > below:
+      if h <= above: top = field.y - h
+      elif shrink:
+        if above > below:
+          h = above
+          top = view.y
+        else:
+          h = max(0'f32, below)
+  Rect(x: field.x, y: top, width: width, height: h)
 
 template setFieldOpen*(widget, popupOf: untyped, wantOpen: bool) =
   ## Show or hide the popup. Open, it is a registered popup -- a press anywhere
@@ -32,6 +42,7 @@ template setFieldOpen*(widget, popupOf: untyped, wantOpen: bool) =
           hideOverlay(popup)
           w.isDirty = true
           w.layoutDirty = true)
+        popup.drawBehind = glassBehind()               # frosted in a glass theme
         showOverlay(popup, interactive = true)
       else:
         closedPopup(w)

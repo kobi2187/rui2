@@ -40,7 +40,7 @@ template setThumb(w, which, computed: untyped) =
       w.isDirty = true
       if w.onChange != nil: w.onChange(w.low, w.high)
 
-definePrimitive(RangeSlider):
+defineWidget(RangeSlider):
   props:
     initialLow: float32 = 0.0
     initialHigh: float32 = 100.0

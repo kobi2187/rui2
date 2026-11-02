@@ -305,8 +305,11 @@ template contentOf*(widget: untyped): TextContent =
   ## editing, line by line, so both are off while `editable`.
   TextContent(
     text: widget.text,
-    style: textStyle(widget.fontSizeOf, widget.textColor, widget.fontFamily,
-                     widget.bold, widget.italic, widget.underline),
+    style: textStyle(widget.fontSizeOf, widget.textColor,
+                     (if widget.heading and widget.fontFamily.len == 0: themeHeadingFamily
+                      else: widget.fontFamily),
+                     widget.bold or (widget.heading and themeHeadingBold),
+                     widget.italic, widget.underline),
     align: widget.align,
     wrap: widget.wrap and not widget.editable,
     markup: widget.markup and not widget.editable,
@@ -622,7 +625,10 @@ template paintEditable(widget: untyped, content: TextContent, inner: Rect) =
       let x = ox + widget.lineShift(line, font, inner) + caret.x
       let y = oy + float32(row) * lineH
       # A blink is motion: with `motion: none` the caret holds still.
-      let half = if motion == motionNone: 0.0 else: prefs.caretBlinkMs.float / 1000.0
+      # It rests on, too, once the user has been away a while (a window left
+      # alone costs nothing): the first input starts it blinking again.
+      let half = if motion == motionNone or userAway(): 0.0
+                 else: prefs.caretBlinkMs.float / 1000.0
       let caretOn = half <= 0 or int(now / half) mod 2 == 0   # 0: steady
       if caretOn and x >= inner.x and x <= inner.x + inner.width:
         drawLine(x, max(y, inner.y), x, min(y + lineH, inner.y + inner.height),
@@ -630,9 +636,11 @@ template paintEditable(widget: untyped, content: TextContent, inner: Rect) =
       # Nothing else repaints an idle field, so ask for the next blink phase --
       # without this the caret froze in whichever phase the last edit left it.
       if half > 0:
-        widget.repaintAfter(caretPhaseRemaining(now, half))
+        widget.repaintWhileActive(caretPhaseRemaining(now, half))
+      elif motion != motionNone:
+        widget.repaintWhileActive(0)     # resting: wake at the next input
 
-definePrimitive(TextArea):
+defineWidget(TextArea):
   props:
     initialText: string = ""
     placeholder: string = "Type here..."
@@ -640,6 +648,7 @@ definePrimitive(TextArea):
     color: Color = ThemeColor    ## Transparent: use the theme's foreground
     fontFamily: string = ""      ## "" resolves to the system Sans alias
     bold: bool = false
+    heading: bool = false        ## a title: the theme's heading font and weight
     italic: bool = false
     underline: bool = false
     align: TextAlign = TextAlign.Left
@@ -793,6 +802,9 @@ definePrimitive(TextArea):
 
       case event.key
       of Backspace:
+        # In an empty field there is nothing to delete: not used, so it reaches
+        # the parent (a chip input takes it to remove its last chip).
+        if widget.text.len == 0: return false
         widget.edit: discard buf.backspace()
         return true
 
@@ -863,6 +875,9 @@ definePrimitive(TextArea):
         return false
 
   layout:
+    # A field wears the theme's focus glow past its edge: keep room for it.
+    if widget.framed: widget.keepFinishRoom(widget.themeProps(widget.intent, crText), well = true)
+    else: widget.effectReach = 0
     widget.cursorShape = if widget.takesInput: csText else: csDefault
     widget.blockReading = widget.blockReading or widget.secret
     widget.takesText = widget.takesInput
@@ -896,7 +911,7 @@ definePrimitive(TextArea):
     let props = widget.themeProps(widget.intent, crText, disabled = widget.disabled)
     if widget.framed:
       if not drawBevelBody(widget.bounds, props, props.fieldColor, style = some(BeSunken)):
-        drawInteractiveBox(widget.bounds, props, focused = widget.focused)
+        drawInteractiveBox(widget.bounds, props, focused = widget.focused, well = true)
       elif widget.focused:
         # A bevelled field shows focus as a ring inside its sunken edge.
         drawThemedFocusRing(widget.bounds, props)
@@ -954,14 +969,15 @@ type
 
 proc newLabel*(text = "", fontSize: float32 = ThemeFontSize, color: Color = ThemeColor,
                fontFamily = "", bold = false, italic = false, underline = false,
-               align = TextAlign.Left, wrap = false, markup = false): Label =
+               align = TextAlign.Left, wrap = false, markup = false,
+               heading = false): Label =
   ## Display text, in the theme's text colour unless given one. It was black
   ## by default, which vanished on every dark theme.
   newTextArea(initialText = text, placeholder = "", fontSize = fontSize,
               color = color, fontFamily = fontFamily, bold = bold,
               italic = italic, underline = underline, align = align,
               wrap = wrap, markup = markup, editable = false,
-              multiline = true, framed = false, padding = 0.0)
+              multiline = true, framed = false, padding = 0.0, heading = heading)
 
 proc newTextInput*(initialText = "", placeholder = "Type here...",
                    fontSize: float32 = ThemeFontSize, maxLength = -1,

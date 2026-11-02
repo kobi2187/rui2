@@ -32,3 +32,6 @@ export axis_marks
 
 import modern/lanes
 export lanes
+
+import modern/heatmap
+export heatmap

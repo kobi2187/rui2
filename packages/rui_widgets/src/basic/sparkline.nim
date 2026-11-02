@@ -26,7 +26,7 @@ proc sparkPoints*(values: openArray[float], area: Rect): seq[tuple[x, y: float32
             else: float32(mapTo(v, r.lo, r.hi, float64(area.y + area.height), float64(area.y)))
     result.add (x, y)
 
-definePrimitive(Sparkline):
+defineWidget(Sparkline):
   props:
     values: seq[float] = @[]
     filled: bool = true

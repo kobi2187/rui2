@@ -104,7 +104,7 @@ proc splitChain(node: NimNode): tuple[base: NimNode, mods: seq[NimNode]] =
     result.mods.add outerFirst[i]
 
 proc constructorName(callee: NimNode): NimNode =
-  ## `Label` -> `newLabel`, matching what definePrimitive generates.
+  ## `Label` -> `newLabel`, matching what defineWidget generates.
   ident("new" & callee.strVal)
 
 proc buildWidget(node: NimNode): NimNode

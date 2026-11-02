@@ -41,7 +41,7 @@ proc barContent(widget: Widget): float32
 proc barView(widget: Widget): float32
 proc barScroll(widget: Widget): float32
 
-definePrimitive(TextView):
+defineWidget(TextView):
   props:
     source: RowSource = nil        ## one paragraph a row
     fontSize: float32 = 16.0

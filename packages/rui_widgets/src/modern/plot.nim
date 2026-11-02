@@ -185,7 +185,7 @@ template plotFrame*(widget: untyped): tuple[area: Rect, l: PlotLayout, tickStyle
     (area, layoutPlot(widget.series, area, widget.includeZero, widget.yMin, widget.yMax, view),
      tickStyle, titleStyle, lineH, legendH)
 
-definePrimitive(Plot):
+defineWidget(Plot):
   props:
     series: seq[Series] = @[]
     title: string = ""

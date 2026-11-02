@@ -5,7 +5,7 @@
 ##
 ## The projection lives in a `TimelineAxis` value rather than in procs over the
 ## widget for a structural reason: the widget type does not exist until
-## definePrimitive has expanded, and the widget body needs the geometry. A value
+## defineWidget has expanded, and the widget body needs the geometry. A value
 ## the widget can build from itself (see `axisOf`) is the way round that.
 
 import rui_core
@@ -66,7 +66,7 @@ type
   TimelineAxis* = object
     ## The time-to-pixel projection, pulled out of the widget so the geometry
     ## helpers can be defined before it. A proc taking `Timeline` cannot be:
-    ## the type does not exist until definePrimitive has expanded, and the
+    ## the type does not exist until defineWidget has expanded, and the
     ## widget's own body needs these helpers.
     originX*: float32
     areaTop*: float32

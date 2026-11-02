@@ -6,6 +6,8 @@ VStack root @0,0 520x320
     Button minus @20,132 63x39 tabstop
       Rectangle - @20,132 63x39
       Label - @36,140 31x23
+      Fizz - @20,132 63x39 hidden
     Button plus @91,132 72x39 tabstop
       Rectangle - @91,132 72x39
       Label - @107,140 40x23
+      Fizz - @91,132 72x39 hidden

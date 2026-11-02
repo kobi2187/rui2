@@ -16,7 +16,7 @@ const
   IconSize = 16.0'f32
   LabelSize = 9.0'f32
 
-definePrimitive(ToolButton):
+defineWidget(ToolButton):
   props:
     iconText: string = ""        # Text icon (emoji / Unicode glyph)
     text: string = ""            # Optional label below the icon
@@ -49,6 +49,7 @@ definePrimitive(ToolButton):
         if widget.onClick != nil: widget.onClick()
 
   layout:
+    widget.keepFinishRoom(widget.themeProps(widget.intent, crPointer))   # its shadow, its glow
     let labelStyle = TextStyle(fontFamily: "", fontSize: LabelSize, color: BLACK,
                                bold: false, italic: false, underline: false)
     let labelW = if widget.showText and widget.text.len > 0:

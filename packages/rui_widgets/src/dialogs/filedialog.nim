@@ -47,7 +47,7 @@ proc accept(widget: Widget)
 proc dismiss(widget: Widget)
 proc chosenChanged(widget: Widget)
 
-definePrimitive(FileDialog):
+defineWidget(FileDialog):
   props:
     title: string = "Select File"
     mode: FileDialogMode = fdOpen

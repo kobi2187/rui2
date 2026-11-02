@@ -46,7 +46,7 @@ proc stepPart*(minutes, part, steps, minuteStep: int, use24h: bool): int =
     hour * 60 + ((minute + steps * stepBy) mod 60 + 60) mod 60
   else: (minutes + 12 * 60) mod (24 * 60)
 
-definePrimitive(TimePicker):
+defineWidget(TimePicker):
   props:
     initialValue: string = "00:00"
     use24h: bool = true
@@ -137,6 +137,7 @@ definePrimitive(TimePicker):
       return true
 
   layout:
+    widget.keepFinishRoom(widget.themeProps(widget.intent, crText))   # its shadow, its glow
     let props = widget.themeProps(widget.intent, crText, disabled = widget.disabled)
     let style = props.captionStyle(BLACK)
     if widget.bounds.height <= 0:

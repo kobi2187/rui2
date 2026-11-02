@@ -60,7 +60,7 @@ proc formatProgress*(value, maxValue: float, format: string): string =
   let spec = parseProgressFormat(format)
   if spec.isNone: format else: spec.get().render(value, maxValue)
 
-definePrimitive(ProgressBar):
+defineWidget(ProgressBar):
   props:
     initialValue: float = 0.0
     maxValue: float = 100.0

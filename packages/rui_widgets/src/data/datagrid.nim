@@ -116,7 +116,7 @@ proc cellText(row: GridRow, colIdx: int,
   else:
     getStringValue(value)
 
-definePrimitive(DataGrid):
+defineWidget(DataGrid):
   props:
     columns: seq[GridColumn] = @[]
     data: seq[GridRow] = @[]     # Loaded rows; may be a prefix of the dataset

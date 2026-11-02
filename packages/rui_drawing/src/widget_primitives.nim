@@ -11,12 +11,12 @@
 import rui_core
 import theme_sys_core
 import theme_check
-import primitives/[shapes, text, controls, indicators, panels]
+import primitives/[shapes, text, marks, sdf]
 import pango_text  # drawTextPango
-import effects/rect_effects
+import primitives/bevel
 
 import raylib
-import std/unicode
+import std/[unicode, math]
 
 export types, theme_sys_core
 
@@ -73,6 +73,12 @@ proc captionStyle*(props: ThemeProps, color: Color,
             fontSize: props.fontSize.get(size), color: color,
             bold: action and props.isBold, italic: false, underline: false)
 
+proc headingStyle*(props: ThemeProps, color: Color, scale = 1.0'f32): TextStyle =
+  ## A title's style: the theme's heading font and weight, at `scale` times its
+  ## text size. Body text and captions keep the body font (captionStyle).
+  TextStyle(fontFamily: themeHeadingFamily, fontSize: props.fontSize.get(14.0) * scale,
+            color: color, bold: themeHeadingBold)
+
 proc captionText*(props: ThemeProps, text: string): string =
   ## A button caption as the theme shows it: in capitals, if the theme says
   ## so. Only action captions take this -- list rows and field text do not.
@@ -92,39 +98,65 @@ proc shadowOffset*(props: ThemeProps): tuple[x, y: float32] =
   (max(0.0'f32, o.x), max(0.0'f32, o.y))
 
 proc bodyRect*(rect: Rect, props: ThemeProps, pressed = false): Rect =
-  ## The part of `rect` the control itself occupies, leaving room for its drop
-  ## shadow. Pressed, the body sinks into the shadow -- the press of a raised
-  ## key rather than a colour change alone.
-  let o = props.shadowOffset
-  result = Rect(x: rect.x, y: rect.y,
-                width: max(0.0'f32, rect.width - o.x),
-                height: max(0.0'f32, rect.height - o.y))
+  ## Where the control's body is drawn: its bounds, and, pressed, moved into
+  ## where its hard shadow fell -- the press of a raised key rather than a
+  ## colour change alone. (The shadow itself lies outside the bounds: the
+  ## finish's `drop`, shown through effect reach.)
+  result = rect
   if pressed:
+    let o = props.shadowOffset
     result.x += o.x
     result.y += o.y
 
-proc drawDropShadow*(rect: Rect, props: ThemeProps, pressed = false) =
-  ## The hard shadow behind a control's body, unless it is pressed into it.
+proc boxFinish*(props: ThemeProps, well = false, focused = false): BoxFinish =
+  ## The theme's surface finish for a control's box (see ThemeProps:
+  ## cornerCut, gloss, relief, dimensionLines). A `well` -- a text field, a
+  ## list -- is carved where buttons are raised, and takes no gloss. A
+  ## `focused` control wears the theme's focus glow (focusGlowRadius/Color).
+  let relief = props.relief.get(0)
+  result = BoxFinish(cut: props.cornerCut.get(0),
+                     gloss: (if well: 0'f32 else: props.gloss.get(0)),
+                     relief: (if well: -abs(relief) else: relief),
+                     dimension: props.dimensionLines.get(false),
+                     gradient: (if well: 0'f32 else: props.gradient.get(0)),
+                     caustic: (if well: 0'f32 else: props.caustic.get(0)),
+                     shadow: (if well: 0'f32 else: props.softShadow.get(0)))
   let o = props.shadowOffset
-  if pressed or (o.x <= 0 and o.y <= 0):
-    return
-  let body = bodyRect(rect, props)
-  let color = props.dropShadowColor.get(Color(r: 0, g: 0, b: 0, a: 255))
-  drawRoundedRect(Rect(x: body.x + o.x, y: body.y + o.y,
-                       width: body.width, height: body.height),
-                  props.cornerRadius.get(4.0), color)
+  if o.x > 0 or o.y > 0:
+    result.drop = max(o.x, o.y)
+    result.dropColor = props.dropShadowColor.get(Color(r: 0, g: 0, b: 0, a: 255))
+  if focused and props.focusGlowColor.isSome:
+    result.glow = props.focusGlowRadius.get(0)
+    result.glowColor = props.focusGlowColor.get
+
+proc accentFinish*(props: ThemeProps): BoxFinish =
+  ## The finish of a part filled with the accent -- a checked box, a selected
+  ## radio, a progress bar's fill: the theme's surface (gloss, gradient,
+  ## caustic, notches), without the outside effects a small part has no room for.
+  result = props.boxFinish
+  result.shadow = 0
+  result.drop = 0
+  result.glow = 0
+  result.relief = 0
+  result.dimension = false
+
+proc finishReach*(props: ThemeProps, well = false, focused = false): float32 =
+  ## The effect reach a control needs for its finish: its shadow always, the
+  ## focus glow only while `focused` (one control at a time: keeping room for it
+  ## on every button cost a neon theme 70% more texture memory).
+  props.boxFinish(well, focused).reach
 
 proc getPaddingLeft*(props: ThemeProps, default: float32): float32 =
   props.padding.get(EdgeInsets(left: default, top: default, right: default, bottom: default)).left
 
 proc drawArrow*(x, y, size: float32, angle: float32, color: raylib.Color) =
-  let direction: controls.ArrowDirection = if angle == 90.0f32: ArrowDirection.Down
+  let direction: marks.ArrowDirection = if angle == 90.0f32: ArrowDirection.Down
                   elif angle == -90.0f32: ArrowDirection.Up
                   elif angle == 0.0f32: ArrowDirection.Right
                   elif angle == 180.0f32 or angle == -180.0f32: ArrowDirection.Left
                   else: ArrowDirection.Right
   let rect = Rect(x: x - size, y: y - size, width: size * 2, height: size * 2)
-  controls.drawArrow(rect, direction, color)
+  marks.drawArrow(rect, direction, color)
 
 # ============================================================================
 # Atomic Parts (smallest building blocks)
@@ -203,11 +235,20 @@ proc drawFloatingShadow*(rect: Rect, props: ThemeProps) =
                           color: Color(r: 0, g: 0, b: 0, a: 56),
                           radius: props.cornerRadius.get(0.0)))
 
-proc floatingChrome*(): proc(bounds: Rect) {.closure.} =
-  ## The chrome for a panel that floats above the page: its shadow, drawn in
-  ## screen space so it is not clipped to the panel's own texture.
-  result = proc(bounds: Rect) =
-    drawFloatingShadow(bounds, currentTheme.getThemeProps(Default, Normal))
+proc floatingShadowReach*(props: ThemeProps): float32 =
+  ## How far a floating panel's soft shadow reaches past it (drawFloatingShadow:
+  ## 6 px down, 14 px of blur): the effect reach the panel keeps. None in a
+  ## bevelled theme, whose panels sit flat on the page.
+  if props.bevelStyle.get(Flat) != Flat: 0'f32 else: 36'f32
+
+proc glassy*(props: ThemeProps): ThemeProps =
+  ## A floating panel's props in a glass theme (`Theme.glass`): its fill made
+  ## translucent, for the frosted page (backdrop.nim drawFrosted) to show
+  ## through. Unchanged in any other theme.
+  result = props
+  if currentTheme.glass > 0 and props.backgroundColor.isSome:
+    let c = props.backgroundColor.get
+    result.backgroundColor = some(Color(r: c.r, g: c.g, b: c.b, a: uint8(float32(c.a) * 0.62)))
 
 proc drawThemedBackground*(rect: Rect, props: ThemeProps,
                           pressed = false, hovered = false, well = false) =
@@ -217,8 +258,8 @@ proc drawThemedBackground*(rect: Rect, props: ThemeProps,
     if drawBevelBody(rect, props, props.fieldColor, style = some(BeSunken)): return
   elif drawBevelBody(rect, props, backgroundFor(props, pressed, hovered), pressed):
     return
-  drawRoundedRect(rect, props.cornerRadius.get(4.0),
-                  backgroundFor(props, pressed, hovered))
+  let fill = backgroundFor(props, pressed, hovered)
+  drawBox(rect, props.cornerRadius.get(4.0), fill, fill, 0, props.boxFinish(well))
 
 proc drawThemedBorder*(rect: Rect, props: ThemeProps, focused = false, active = false) =
   ## The theme's outline, `borderWidth` deep inside `rect`.
@@ -226,8 +267,20 @@ proc drawThemedBorder*(rect: Rect, props: ThemeProps, focused = false, active = 
   if props.bevelStyle.get(Flat) != Flat:
     return                     # the bevel is the outline
   if w > 0:
-    drawRoundedRectLines(rect, props.cornerRadius.get(4.0), w,
-                         borderFor(props, focused, active))
+    if props.dimensionLines.get(false):
+      drawDimensionOutline(rect, borderFor(props, focused, active), w)
+    elif props.cornerCut.get(0) > 0:
+      drawBox(rect, 0, Color(), borderFor(props, focused, active), w,
+              BoxFinish(cut: props.cornerCut.get(0)))
+    else:
+      drawRoundedRectLines(rect, props.cornerRadius.get(4.0), w,
+                           borderFor(props, focused, active))
+
+proc drawThemedPanel*(rect: Rect, props: ThemeProps) =
+  ## A themed surface -- a card, a drawer, a pane: its fill with the theme's
+  ## finish (or its bevel) and its outline. The same box every control is.
+  drawThemedBackground(rect, props)
+  drawThemedBorder(rect, props)
 
 proc drawThemedFocusRing*(rect: Rect, props: ThemeProps) =
   ## The focus ring: a solid band `focusRingWidth` deep, just inside the
@@ -291,16 +344,49 @@ proc drawRightArrow*(x, y, size: float32, color: Color) =
 # ============================================================================
 
 proc drawInteractiveBox*(rect: Rect, props: ThemeProps,
-                        pressed = false, hovered = false, focused = false) =
+                        pressed = false, hovered = false, focused = false, well = false) =
+  ## (A focused box wears the theme's focus glow: give the widget
+  ## `finishReach` of effect reach so it shows.)
   ## Standard interactive box: drop shadow, body with its outline, and the
-  ## focus ring -- every one of them sized by the theme.
-  drawDropShadow(rect, props, pressed)
+  ## focus ring -- every one of them sized by the theme. A `well` (a text
+  ## field) takes the theme's carved finish rather than its raised one.
   let body = bodyRect(rect, props, pressed)
+  var finish = props.boxFinish(well, focused)
+  if pressed: finish.drop = 0          # pressed into its shadow
   if not drawBevelBody(body, props, backgroundFor(props, pressed, hovered), pressed):
     drawBox(body, props.cornerRadius.get(4.0), backgroundFor(props, pressed, hovered),
-            borderFor(props, focused, false), props.strokeWidth)
+            borderFor(props, focused, false), props.strokeWidth, finish)
   if focused:
     drawThemedFocusRing(body, props)
+
+const BubbleTail* = 10'f32
+  ## How tall a speech bubble's tail is, above its body.
+
+proc drawSpeechBubble*(rect: Rect, fill, border: Color, borderWidth: float32,
+                       radius = 10'f32) =
+  ## A speech bubble filling `rect`: a rounded body `BubbleTail` below its top,
+  ## and a tail from the body up to the top-left corner of `rect` -- where the
+  ## thing it speaks for is (a tooltip puts that corner by the pointer). The
+  ## outline runs round body and tail as one shape.
+  let body = Rect(x: rect.x, y: rect.y + BubbleTail, width: rect.width,
+                  height: rect.height - BubbleTail)
+  let bw = max(0'f32, borderWidth)
+  let tip = Vector2(x: rect.x + 3, y: rect.y)
+  let a = Vector2(x: rect.x + 10, y: body.y + bw + 1)
+  let b = Vector2(x: rect.x + 26, y: body.y + bw + 1)
+  if bw > 0: discard drawSdfTriangle(tip, a, b, border)          # the tail's outline
+  drawBox(body, radius, fill, border, bw)
+  # The tail's inside, over the body's top edge so the two read as one.
+  let k = bw * 1.5
+  discard drawSdfTriangle(Vector2(x: tip.x + k * 0.9, y: tip.y + k * 1.6),
+                          Vector2(x: a.x + k, y: a.y + 0.5),
+                          Vector2(x: b.x - k * 0.6, y: b.y + 0.5), fill)
+
+proc keepFinishRoom*(widget: Widget, props: ThemeProps, well = false) =
+  ## Give `widget` the effect reach its finish paints past its bounds (a hard
+  ## or soft shadow, the focus glow while it has focus). Call it in `layout`,
+  ## which runs before painting, from every widget that draws a finished box.
+  widget.effectReach = props.finishReach(well, widget.focused)
 
 proc drawSelectionBackground*(rect: Rect, props: ThemeProps,
                              selected = false, hovered = false) =
@@ -347,7 +433,7 @@ proc drawCheckbox*(rect: Rect, checked: bool, props: ThemeProps,
       drawSmoothLine(Vector2(x: x0, y: y0), Vector2(x: x1, y: y1), 2.0, ink)
       drawSmoothLine(Vector2(x: x0, y: y1), Vector2(x: x1, y: y0), 2.0, ink)
   elif checked:
-    drawBox(rect, radius, accent, accent, 0)
+    drawBox(rect, radius, accent, accent, 0, props.accentFinish)
     drawCheckmark(rect, onFillInk(accent), max(2.0'f32, w * 1.25))
   else:
     let bg = if hovered: props.hoverColor.get(props.backgroundColor.get(WHITE))
@@ -385,6 +471,12 @@ proc drawRadioButton*(rect: Rect, selected: bool, props: ThemeProps,
     drawSmoothDisc(Vector2(x: cx + 1, y: cy + 1), r - 3, bg)
     if selected:
       drawSmoothDisc(c, r * 0.42, props.foregroundColor.get(BLACK))
+    return
+  if selected and props.gloss.get(0) > 0:
+    # A gel theme (Aqua): the whole button a glossy drop of the accent, a dot in it.
+    drawBox(Rect(x: cx - r, y: cy - r, width: 2 * r, height: 2 * r), r, accent, accent, 0,
+            props.accentFinish)
+    drawSmoothDisc(c, r * 0.32, onFillInk(accent))
     return
   let ringW = if selected: max(w, r * 0.3) else: w
   drawSmoothDisc(c, r, ring)
@@ -434,7 +526,7 @@ proc drawSlider*(rect: Rect, value, minVal, maxVal: float32, props: ThemeProps,
   drawBox(track, radius, rail, rail, 0)
   let x = clamp(rect.x + rect.width * t, rect.x + d / 2, rect.x + rect.width - d / 2)
   drawBox(Rect(x: rect.x, y: track.y, width: x - rect.x, height: th), radius,
-          accent, accent, 0)
+          accent, accent, 0, props.accentFinish)
   # The thumb: round unless the theme is square-cornered.
   let thumb = Rect(x: x - d / 2, y: cy - d / 2, width: d, height: d)
   let thumbRadius = if props.cornerRadius.get(4.0) >= 2: d / 2 else: 0.0'f32
@@ -442,9 +534,35 @@ proc drawSlider*(rect: Rect, value, minVal, maxVal: float32, props: ThemeProps,
   if w >= 2:
     # A heavy-stroke theme outlines the thumb in its ink.
     drawBox(thumb, thumbRadius, accent,
-            props.foregroundColor.get(Color(r: 0, g: 0, b: 0, a: 255)), w)
+            props.foregroundColor.get(Color(r: 0, g: 0, b: 0, a: 255)), w, props.accentFinish)
   else:
-    drawBox(thumb, thumbRadius, accent, accent, 0)
+    drawBox(thumb, thumbRadius, accent, accent, 0, props.accentFinish)
+
+proc drawKnob*(center: Vector2, radius, value, minVal, maxVal: float32,
+               props: ThemeProps, dragging = false) =
+  ## A knob: a 270-degree track round a round body, filled with the accent up
+  ## to the value, and a pointer on the body. The theme's rail, accent and ink.
+  let t = if maxVal > minVal: clamp((value - minVal) / (maxVal - minVal), 0.0, 1.0)
+          else: 0.0'f32
+  let accent = props.activeColor.get(Color(r: 100, g: 150, b: 255, a: 255))
+  let rail = props.borderColor.get(Color(r: 200, g: 200, b: 200, a: 255))
+  let ink = props.foregroundColor.get(Color(r: 40, g: 40, b: 40, a: 255))
+  let body = props.backgroundColor.get(Color(r: 245, g: 245, b: 245, a: 255))
+  let track = max(3'f32, min(currentTheme.trackThickness, radius * 0.3))
+  const startAngle = 135'f32           # bottom left, round over the top
+  const sweep = 270'f32
+  let segs = int32(max(24'f32, radius))
+  drawRing(center, radius - track, radius, startAngle, startAngle + sweep, segs, rail)
+  if t > 0:
+    drawRing(center, radius - track, radius, startAngle, startAngle + sweep * t, segs, accent)
+  let inner = radius - track - max(2'f32, radius * 0.08)
+  drawCircle(center, inner, body)
+  drawRing(center, inner - max(1'f32, props.strokeWidth), inner, 0, 360, segs,
+           ink.withAlpha(if dragging: 0.6 else: 0.3))
+  let a = degToRad(startAngle + sweep * t)
+  let tip = Vector2(x: center.x + cos(a) * inner * 0.8, y: center.y + sin(a) * inner * 0.8)
+  let base = Vector2(x: center.x + cos(a) * inner * 0.25, y: center.y + sin(a) * inner * 0.25)
+  drawLine(base, tip, max(2'f32, props.strokeWidth * 1.5), ink)
 
 proc drawProgressBar*(rect: Rect, progress: float32, props: ThemeProps) =
   ## A progress bar: the theme's rounding and outline, filled with the accent.
@@ -466,7 +584,8 @@ proc drawProgressBar*(rect: Rect, progress: float32, props: ThemeProps) =
                      width: (rect.width - 2 * w) * p, height: rect.height - 2 * w)
     if inner.width > 0 and inner.height > 0:
       let accent = props.activeColor.get(Color(r: 100, g: 150, b: 255, a: 255))
-      drawBox(inner, max(0.0'f32, min(radius - w, inner.width / 2)), accent, accent, 0)
+      drawBox(inner, max(0.0'f32, min(radius - w, inner.width / 2)), accent, accent, 0,
+              props.accentFinish)
 
 proc themeBevelled*(): bool =
   ## True when the current theme draws bevels (BeOS): its scroll bars then have
@@ -549,14 +668,31 @@ proc drawScrollbar*(rect: Rect, contentSize, viewSize, offset: float32,
   if props.bevelStyle.get(Flat) != Flat:
     drawBeScrollbar(rect, contentSize, viewSize, offset, props)
     return
-  drawScrollbar(
-    rect,
-    contentSize,
-    viewSize,
-    offset,
-    props.foregroundColor.get(Color(r: 40, g: 40, b: 40, a: 255)),
-    hovered
-  )
+  # Track and thumb are translucent tints of the theme's ink; a gel theme
+  # (gloss or gradient: Aqua) makes the thumb a pill of its accent instead.
+  let ink = props.foregroundColor.get(Color(r: 40, g: 40, b: 40, a: 255))
+  drawRect(rect, ink.withAlpha(0.08))
+  let thumb = scrollThumb(rect, contentSize, viewSize, offset)
+  let radius = min(thumb.width, thumb.height) / 2
+  if props.gloss.get(0) > 0 or props.gradient.get(0) > 0:
+    let accent = props.activeColor.get(ink)
+    drawBox(thumb, radius, accent, accent, 0, props.accentFinish)
+  else:
+    drawRoundedRect(thumb, radius, ink.withAlpha(if hovered: 0.55 else: 0.35))
+
+proc drawTooltip*(text: string, rect: Rect,
+                  backgroundColor: raylib.Color, textColor: raylib.Color,
+                  style: TextStyle) =
+  ## A tooltip box filling `rect`, with the text inset by 6 px.
+  let padding = 6.0'f32
+  drawRoundedRect(rect, 4, backgroundColor)
+  drawRoundedRectLines(rect, 4, 1, Color(r: 0, g: 0, b: 0, a: 60))
+  drawText(text,
+           Rect(x: rect.x + padding, y: rect.y + padding,
+                width: rect.width - padding * 2,
+                height: rect.height - padding * 2),
+           TextStyle(fontFamily: style.fontFamily, fontSize: style.fontSize,
+                     color: textColor))
 
 proc selectedRowProps(props: ThemeProps): ThemeProps =
   ## The props a selected menu or list row is drawn with: its caption in the ink
@@ -804,7 +940,7 @@ proc drawSpinner*(rect: Rect, value: string, props: ThemeProps,
   drawInteractiveBox(rect, props, focused = focused)
   let style = props.captionStyle(props.foregroundColor.get(BLACK))
   let left = props.padding.get(EdgeInsets()).left
-  let body = bodyRect(rect, props, false)   # inside the shadow and the border
+  let body = rect
   drawStyledText(value, body.x + left, body.y + (body.height - style.fontSize) / 2, style)
   drawSpinnerButtons(rect, props, upHovered, downHovered)
 
@@ -814,20 +950,20 @@ proc drawGroupBox*(rect: Rect, title: string, props: ThemeProps) =
   let textColor = props.foregroundColor.get(Color(r: 60, g: 60, b: 60, a: 255))
 
   # TODO: figure out enhancing ThemeProps to also include GroupBoxStyle, and other specific widgets
-  let style = panels.GroupBoxStyle(
-    borderStyle: panels.BorderStyle(
-      style: panels.Solid,
+  let style = marks.GroupBoxStyle(
+    borderStyle: marks.BorderStyle(
+      style: marks.Solid,
       color: borderColor,
       width: max(1.0'f32, props.strokeWidth),
       radius: props.cornerRadius.get(4.0)
     ),
-    titleStyle: props.captionStyle(textColor, action = true),
+    titleStyle: props.headingStyle(textColor),
     backgroundColor: props.backgroundColor.get(Color(r: 255, g: 255, b: 255, a: 255)),
     titlePosition: TextAlign.Left,
     titlePadding: 8.0f32,
     titleBackgroundColor: none(Color)
   )
-  panels.drawGroupBox(rect, title, style)
+  marks.drawGroupBox(rect, title, style)
 
 proc drawStatusBar*(rect: Rect, text: string, props: ThemeProps) =
   ## Status bar = background + top border + padded text

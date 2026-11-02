@@ -22,11 +22,11 @@
 ##           pressedColor, hoverColor, activeColor, focusColor,
 ##           focusRingColor, focusGlowColor,
 ##           highlightColor, shadowColor, darkShadowColor,
-##           gradientStart, gradientEnd, glowColor, dropShadowColor
+##           dropShadowColor
 ##
 ##   Dimensions: borderWidth, cornerRadius, fontSize, spacing,
-##               focusRingWidth, focusGlowRadius, glowRadius,
-##               insetShadowDepth, insetShadowOpacity, dropShadowBlur
+##               focusRingWidth, focusGlowRadius,
+##               cornerCut, gloss, relief, gradient, caustic, softShadow
 ##
 ##   Text: fontFamily, textStyle
 ##
@@ -34,8 +34,9 @@
 ##
 ##   Effects: bevelStyle (Flat/Raised/Sunken/Ridge/Groove/Soft/Convex/
 ##              Drop/Interior/Flatsoft/Flatconvex)
-##            gradientDirection (Vertical/Horizontal/Radial)
-##            dropShadowOffset (tuple[x, y: float32])
+##            dropShadowOffset (tuple[x, y: float32]), dimensionLines
+##   (Older files' gradientStart/End, glowColor/Radius, insetShadowDepth and
+##    dropShadowBlur still load: theme_file maps them onto the finish.)
 ##
 ## Bevel implementation status:
 ##   Working: Flat, Raised, Sunken
@@ -52,6 +53,7 @@ import theme_sys_core
 import theme_types
 import theme_file
 import builtin_themes
+import tiles
 import rui_core
 
 export theme_sys_core, theme_types, theme_file
@@ -92,6 +94,10 @@ proc newThemeManager*(): ThemeManager =
   result.registry["joy"] = createJoyTheme()
   result.registry["wide"] = createWideTheme()
   for (key, theme) in brandThemes():
+    result.registry[key] = theme
+  for (key, theme) in popularThemes():
+    result.registry[key] = theme
+  for (key, theme) in characterThemes():
     result.registry[key] = theme
   result.current = result.registry["light"]
   setCurrentTheme(result.current)
@@ -210,6 +216,10 @@ proc loadFromFile*(tm: ThemeManager, path: string): Theme =
   except ValueError as e:
     # Say which file: the parser only knows it was handed some text.
     raise newException(ValueError, path & ": " & e.msg)
+  # A background picture is named relative to the theme file.
+  if result.assets.backgroundPattern.isSome and not result.assets.backgroundPattern.get.isAbsolute and
+     not result.assets.backgroundPattern.get.isTile:
+    result.assets.backgroundPattern = some(absolutePath(parentDir(path) / result.assets.backgroundPattern.get))
   # Auto-register under filename if not already registered
   let regName = if result.name.len > 0: result.name
                 else: path.splitFile().name

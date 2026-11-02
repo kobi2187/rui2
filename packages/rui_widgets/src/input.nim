@@ -22,3 +22,5 @@ import input/datepicker
 export datepicker
 import input/colorpicker
 export colorpicker
+import input/chip_input
+export chip_input

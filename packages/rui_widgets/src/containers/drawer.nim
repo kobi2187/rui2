@@ -19,7 +19,7 @@ import std/options
 
 type DrawerSide* = enum dsLeft, dsRight
 
-definePrimitive(Drawer):
+defineWidget(Drawer):
   props:
     width: float32 = 240.0
     initialOpen: bool = true
@@ -49,7 +49,7 @@ definePrimitive(Drawer):
 
   render:
     if widget.shown > 0.01:
-      drawThemedRect(widget.bounds, currentTheme.getThemeProps(widget.intent, Normal))
+      drawThemedPanel(widget.bounds, currentTheme.getThemeProps(widget.intent, Normal))
 
 method computeSize*(widget: Drawer, c: Constraints): Size =
   # Where the slide is now, not where it is going: the content beside it

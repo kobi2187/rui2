@@ -128,3 +128,8 @@ proc stopTimers*(widget: Widget) =
 proc timerCount*(widget: Widget): int =
   for t in timers:
     if t.widget == widget: inc result
+
+proc clearTimers*() =
+  ## Drop every widget timer (ui_state.resetUiState).
+  timers.setLen(0)
+

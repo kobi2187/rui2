@@ -1,6 +1,6 @@
 ## Canvas draw commands: the shape vocabulary and how each one paints.
 ##
-## Split out of canvas.nim, whose definePrimitive body was otherwise carrying a
+## Split out of canvas.nim, whose defineWidget body was otherwise carrying a
 ## hundred lines of shape drawing alongside its input handling.
 ##
 ## Every command stores canvas-relative coordinates and is painted at an

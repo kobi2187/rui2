@@ -37,7 +37,7 @@ type
     reach*: float32       ## how far past the outline it draws (a glow's spread)
     informative*: bool    ## says something: shown still, not hidden, with `motion: none`
 
-definePrimitive(Decoration):
+defineWidget(Decoration):
   props:
     inset: float32 = 0.0     ## move the path inwards (keep lights inside a hard edge)
     radius: float32 = -1.0   ## corner radius of a widget's outline; < 0: the theme's
@@ -68,7 +68,10 @@ definePrimitive(Decoration):
             else: 0'f32
     e.paint(path, t)
     if moving:
-      widget.repaintAfter(1.0 / 60.0)    # the next step; stops when it is hidden
+      # The next step; stops when it is hidden. A decorative effect rests while
+      # the user is away; one that informs (a recording light) keeps going.
+      if e.informative: widget.repaintAfter(1.0 / 60.0)
+      else: widget.repaintWhileActive(1.0 / 60.0)
 
 proc margin(d: Decoration): float32 =
   ## How far the decoration's area reaches past its widget: the effect's own

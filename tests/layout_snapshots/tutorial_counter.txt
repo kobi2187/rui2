@@ -5,6 +5,8 @@ Center - @0,0 360x220
       Button - @132,118 39x39 tabstop
         Rectangle - @132,118 39x39
         Label - @148,126 7x23
+        Fizz - @132,118 39x39 hidden
       Button - @179,118 48x39 tabstop
         Rectangle - @179,118 48x39
         Label - @195,126 16x23
+        Fizz - @179,118 48x39 hidden

@@ -123,17 +123,69 @@ proc drawRoundedRectLines*(rect: Rect, radius, lineThickness: float32,
   ## Draws rounded rectangle outline (convenience wrapper)
   drawRoundedRect(rect, radius, color, filled = false, lineThickness = lineThickness)
 
+const DimensionOvershoot* = 4'f32
+  ## How far a dimension-line outline runs past each corner.
+
+proc drawDimensionOutline*(rect: Rect, color: raylib.Color, width: float32) =
+  ## An outline as a technical drawing has it, all inside `rect`: the four
+  ## edges, `DimensionOvershoot` in from it, run on past the corners to its
+  ## edge, with a short 45-degree tick through each corner.
+  let o = DimensionOvershoot
+  let w = max(1'f32, width)
+  let x0 = rect.x + o
+  let y0 = rect.y + o
+  let x1 = rect.x + rect.width - o
+  let y1 = rect.y + rect.height - o
+  proc seg(ax, ay, bx, by: float32, t: float32) =
+    if not drawSdfSegment(Vector2(x: ax, y: ay), Vector2(x: bx, y: by), t, color):
+      raylib.drawLine(Vector2(x: ax, y: ay), Vector2(x: bx, y: by), t, color)
+  seg(rect.x, y0, rect.x + rect.width, y0, w)                     # top
+  seg(rect.x, y1, rect.x + rect.width, y1, w)                     # bottom
+  seg(x0, rect.y, x0, rect.y + rect.height, w)                    # left
+  seg(x1, rect.y, x1, rect.y + rect.height, w)                    # right
+  let t = o * 0.9
+  for (cx, cy) in [(x0, y0), (x1, y0), (x0, y1), (x1, y1)]:       # ticks
+    seg(cx - t, cy + t, cx + t, cy - t, max(1'f32, w * 0.8))
+
 proc drawBox*(rect: Rect, radius: float32, fill: raylib.Color,
-              border: raylib.Color, borderWidth: float32) =
+              border: raylib.Color, borderWidth: float32, finish = BoxFinish()) =
   ## A filled box with a border `borderWidth` deep, entirely inside `rect`:
   ## the one shape behind buttons, inputs and panels, at any stroke from a
   ## hairline to a slab. An opaque fill is drawn as the border colour with the
   ## fill inset over it, which gives exact, even edges at any width; a
-  ## translucent one gets its outline stroked instead.
+  ## translucent one gets its outline stroked instead. `finish` notches,
+  ## glosses or embosses it (where the shader runs), or draws its outline as
+  ## dimension lines.
   if rect.width <= 0 or rect.height <= 0:
     return
+  if finish.drop > 0 and finish.dropColor.a > 0:
+    # A hard shadow, right and down, in the box's shape (notches included).
+    discard drawSdfBox(Rect(x: rect.x + finish.drop, y: rect.y + finish.drop,
+                            width: rect.width, height: rect.height),
+                       radius, 0, finish.dropColor, finish.dropColor,
+                       BoxFinish(cut: finish.cut))
+  if finish.shadow > 0:
+    # A soft shadow below, outside the box, in its shape.
+    discard drawSdfShadow(rect, max(radius, finish.cut * 0.6), 0, finish.shadow * 0.35,
+                          finish.shadow, 0, Color(r: 0, g: 0, b: 0, a: 70))
+  if finish.glow > 0 and finish.glowColor.a > 0:
+    # The halo first, outside the box: its shape, its corners or notches.
+    discard drawSdfShadow(rect, max(radius, finish.cut * 0.6), 0, 0, finish.glow,
+                          finish.glow * 0.25, finish.glowColor)
   let bw = max(0.0'f32, borderWidth)
-  if drawSdfBox(rect, radius, bw, fill, border):
+  if finish.dimension and rect.width > 2 * DimensionOvershoot and
+     rect.height > 2 * DimensionOvershoot:
+    let o = DimensionOvershoot
+    var plain = finish
+    plain.dimension = false
+    plain.glow = 0
+    plain.shadow = 0
+    plain.drop = 0
+    drawBox(Rect(x: rect.x + o, y: rect.y + o, width: rect.width - 2 * o,
+                 height: rect.height - 2 * o), 0, fill, fill, 0, plain)
+    if bw > 0 and border.a > 0: drawDimensionOutline(rect, border, bw)
+    return
+  if drawSdfBox(rect, radius, bw, fill, border, finish):
     return
   if bw <= 0 or border.a == 0:
     if fill.a > 0: drawRoundedRect(rect, radius, fill)

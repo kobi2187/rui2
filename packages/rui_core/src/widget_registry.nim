@@ -1,6 +1,6 @@
 ## Widgets by name: construct one, set its props from JSON, attach handlers.
 ##
-## `definePrimitive` / `defineWidget` register every widget they define, so a
+## `defineWidget` register every widget they define, so a
 ## program that only has a *name* and some values -- a .yui file, a script, a
 ## test -- can build the widget without a line of per-widget code:
 ##

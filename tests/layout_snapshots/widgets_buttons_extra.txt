@@ -17,3 +17,4 @@ VStack root @0,0 520x400
       Button hoverTarget @20,281 122x39 tabstop
         Rectangle - @20,281 122x39
         Label - @36,289 90x23
+        Fizz - @20,281 122x39 hidden

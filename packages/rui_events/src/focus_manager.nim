@@ -160,10 +160,18 @@ proc ensureFocusChain(fm: FocusManager, rootWidget: Widget) =
 # Focus Management
 # ============================================================================
 
+proc restyle(w: Widget) =
+  ## Focus changes how a widget looks (its outline, a theme's glow, and the
+  ## room the glow takes past its bounds, set in `layout`): lay it out and
+  ## repaint it.
+  w.layoutDirty = true
+  w.markDirtyToRoot()
+
 proc blurCurrent(fm: FocusManager) =
   if fm.focusedWidget == nil:
     return
   fm.focusedWidget.focused = false
+  fm.focusedWidget.restyle()
   if fm.focusedWidget.onBlur != nil:
     fm.focusedWidget.onBlur()
 
@@ -194,6 +202,7 @@ proc setFocus*(fm: FocusManager, widget: Widget) =
   fm.focusedWidget = widget
   fm.activeGroup = enclosingGroup(widget)
   widget.focused = true
+  widget.restyle()
   # Trigger onFocus callback on new widget
   if widget.onFocus != nil:
     widget.onFocus()

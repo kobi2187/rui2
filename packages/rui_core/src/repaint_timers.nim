@@ -62,3 +62,52 @@ proc pendingRepaints*(): seq[tuple[widget: Widget, at: MonoTime]] =
   ## Every timer still set: who asked, and for when. For tests and tools that
   ## want to know what keeps an app awake.
   for entry in pending: result.add((entry.widget, entry.at))
+
+# ----------------------------------------------------------------------------
+# Decorative motion rests while the user is away
+# ----------------------------------------------------------------------------
+##
+## A window left alone should cost nothing. Motion that only decorates -- a
+## caret blinking, a default button breathing, lights running round a border
+## -- runs while someone is using the app, and rests once nobody has touched
+## it for `userIdleAfter` (as GTK stops a caret blinking after ten seconds).
+## The first input wakes it. Motion that reports work in progress (a loading
+## spinner, a progress bar) keeps going: an app that is loading is not idle.
+
+const userIdleAfter* = initDuration(seconds = 10)
+  ## How long without input before decorative motion rests.
+
+var
+  lastInput* = getMonoTime()
+    ## When the user last did anything (the App notes every input event).
+  parked: seq[tuple[widget: Widget, relayout: bool]]
+
+proc userAway*(now = getMonoTime()): bool =
+  ## Nobody has touched the app for `userIdleAfter`: decorative motion rests.
+  now - lastInput >= userIdleAfter
+
+proc repaintWhileActive*(widget: Widget, seconds: float, relayout = false) =
+  ## A repaint for decorative motion: in `seconds` while the user is active,
+  ## or, once they are away, at their next input -- so an idle window draws
+  ## nothing. A widget that calls this should also show its resting look
+  ## while `userAway()` (the caret on, the button its plain colour).
+  if userAway():
+    for p in parked:
+      if p.widget == widget: return
+    parked.add (widget, relayout)
+  else:
+    widget.repaintAfter(seconds, relayout)
+
+proc noteInput*(now = getMonoTime()) =
+  ## The user did something: decorative motion that rested wakes up.
+  lastInput = now
+  for p in parked:
+    if p.relayout: p.widget.layoutDirty = true
+    p.widget.markDirtyToRoot()
+  parked.setLen(0)
+
+proc resetIdle*() =
+  ## The user just arrived, and nothing is parked (ui_state.resetUiState).
+  lastInput = getMonoTime()
+  parked.setLen(0)
+

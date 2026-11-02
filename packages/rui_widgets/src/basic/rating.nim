@@ -31,7 +31,7 @@ proc starAt*(x, left, step: float32, count: int): int =
   let n = int((x - left) / step) + 1
   if n > count: 0 else: n
 
-definePrimitive(Rating):
+defineWidget(Rating):
   props:
     maxStars: int = 5
     initialValue: int = 0
