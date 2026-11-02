@@ -551,3 +551,36 @@ manager, the theme system) are deliberately decoupled and usable standalone.
 
 This is the tree as it is. Where RUI is heading next, see
 [docs/SIMPLIFY.md](docs/SIMPLIFY.md).
+
+---
+
+## The design in one page
+
+What a reader needs to hold, after the simplification in
+[docs/SIMPLIFY.md](docs/SIMPLIFY.md):
+
+- **A widget** is one `defineWidget`: props, state, actions, events, and
+  optional `init`, `layout` and `render`. It paints into its own cached
+  texture; its parent composites the textures.
+- **Past the bounds** there is one rule, `effectReach`: a widget may paint that
+  far outside its bounds (a shadow, a glow), layout and hit-testing keep the
+  real bounds, and the effect covers its neighbours. The one thing drawn in
+  screen space instead is glass (`drawBehind`), which reads the page under a
+  panel.
+- **A surface** has one description, the `BoxFinish` (notches, gloss, gradient,
+  caustic, relief, dimension lines, hard and soft shadows, glow), drawn by
+  `drawBox` in the box shader.
+- **Drawing** comes in three layers in `rui_drawing`: shapes (theme-free),
+  parts (each themed piece of a control), surfaces (window background, tiles,
+  glass, backdrops).
+- **A theme** is data, State x Intent -> ThemeProps, and a theme file is the
+  fields of the runtime types by name: ThemeProps for per-state properties,
+  BrandSpec for a brand, a few named Theme fields for theme-wide looks. A new
+  setting is a field and the code that draws it.
+- **Global UI state** (theme, pointer, popups, overlays, timers, frozen pages,
+  input mode, motion) is listed in `rui_core/ui_state.nim`, and `resetUi`
+  resets all of it.
+- **The App** (`rui/app.nim`) is an index of five files, one job each: setup,
+  events, layout, compositing, the loop. An idle window costs nothing: the loop
+  sleeps until input, a timer or an expose, and decorative motion rests after
+  ten seconds without input.
