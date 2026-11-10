@@ -1,7 +1,7 @@
 Padding - @0,0 1000x520
   Column - @16,16 968x488
     Label - @16,16 442x35
-    Row - @16,61 1091x407
+    Row - @16,61 968x407
       Column - @16,61 270x407
         Label - @16,61 160x23
         ListView - @16,88 270x380 tabstop
@@ -11,3 +11,7 @@ Padding - @0,0 1000x520
       Column - @655,61 452x407
         Label - @655,61 452x23
         DataTable - @655,88 360x380 tabstop
+          TextInput - @657,90 116x22 tabstop
+          TextInput - @777,90 116x22 tabstop
+          TextInput - @897,90 116x22 tabstop
+          TextInput - @1017,90 116x22 tabstop

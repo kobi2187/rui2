@@ -15,8 +15,10 @@
 ##     Button(text = "OK").frame(minWidth = 96)
 ## ```
 ##
-## A requested dimension overrides whatever the parent assigns (an explicit
-## width beats stretch, as in CSS); min/max clamp the final size either way.
+## As in Flutter, a request is a wish within the parent's constraints: a
+## tight parent (a stretched Column, an Expanded share) wins, and min/max are
+## enforced within the parent's range too (docs/layout.md). In a VStack /
+## HStack, which stretch the CSS way, a requested width does beat the stretch.
 ## 0 leaves a value as it was, so `frame(height = 40)` keeps any width request.
 
 import types

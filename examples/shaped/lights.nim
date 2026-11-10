@@ -19,7 +19,7 @@ app.placeShape(60, 40)
 let root = ui:
   Column(spacing = 10.0, padding = EdgeInsets(left: 50, top: 120, right: 130, bottom: 0),
          crossAxisAlignment = CrossAxisAlignment.start):
-    Label(text = "Lights along the outline", bold = true)
+    Label(text = "Lights along the outline", bold = true, wrap = true)
     Label(text = "Drag me to move")
     Button(text = "Close", onClick = proc() = app.shouldClose = true).named("closeBtn")
 

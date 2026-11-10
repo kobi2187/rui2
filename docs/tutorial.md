@@ -89,6 +89,7 @@ let root = ui:
       # A Table sizes its first column to its labels and gives the rest to the
       # inputs -- the usual form layout, with no widths written down.
       Table(columnWidths = @[IntrinsicColumnWidth(), FlexColumnWidth()],
+            defaultVerticalAlignment = TableCellVerticalAlignment.middle,
             columnSpacing = 12.0, rowSpacing = 10.0):
         TableRow():
           Label(text = "Name")

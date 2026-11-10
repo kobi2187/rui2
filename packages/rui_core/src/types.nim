@@ -136,6 +136,28 @@ proc constrain*(c: Constraints, size: Size): Size =
   Size(width: clamp(size.width, c.minWidth, c.maxWidth),
        height: clamp(size.height, c.minHeight, c.maxHeight))
 
+proc hasBoundedWidth*(c: Constraints): bool = c.maxWidth < Inf
+proc hasBoundedHeight*(c: Constraints): bool = c.maxHeight < Inf
+
+proc loosen*(c: Constraints): Constraints =
+  ## The same maxima, no minima: "any size up to this". What Center, Align
+  ## and a loose Stack give their child, and a Row its children across.
+  Constraints(maxWidth: c.maxWidth, maxHeight: c.maxHeight)
+
+proc biggest*(c: Constraints): Size =
+  ## The largest size `c` allows (Inf on an unbounded axis).
+  Size(width: c.maxWidth, height: c.maxHeight)
+
+proc enforce*(c, parent: Constraints): Constraints =
+  ## `c` brought within `parent`: each limit of `c` clamped into the
+  ## parent's range, so the parent always wins (Flutter's
+  ## `BoxConstraints.enforce`). A widget's own wishes -- a SizedBox's size, a
+  ## ConstrainedBox's limits -- are applied this way.
+  Constraints(minWidth: clamp(c.minWidth, parent.minWidth, parent.maxWidth),
+              maxWidth: clamp(c.maxWidth, parent.minWidth, parent.maxWidth),
+              minHeight: clamp(c.minHeight, parent.minHeight, parent.maxHeight),
+              maxHeight: clamp(c.maxHeight, parent.minHeight, parent.maxHeight))
+
 proc `$`*(c: Constraints): string =
   proc axis(lo, hi: float32): string =
     if lo >= hi: $lo elif hi == Inf: $lo & ".." else: $lo & ".." & $hi
@@ -228,12 +250,15 @@ type
       ## own right -- its members are.
 
     sizeRequest*: Size
-      ## The size this widget asks for, per dimension; 0 is "no request". It
-      ## wins over what a parent assigns -- an explicit width beats stretch,
-      ## as in CSS -- and is set with `frame(width = ..., height = ...)`
-      ## rather than by writing `bounds`, which layout owns.
+      ## The size this widget asks for, per dimension; 0 is "no request". As
+      ## in Flutter it is a wish within the parent's constraints, not over
+      ## them: a stretched cross axis or an Expanded share wins (wrap the
+      ## widget in Align or UnconstrainedBox to keep its size there). Set it
+      ## with `frame(width = ..., height = ...)` rather than by writing
+      ## `bounds`, which layout owns.
     sizeMin*, sizeMax*: Size
-      ## Limits applied after layout; 0 in `sizeMax` is "unbounded".
+      ## The widget's own limits, also within the parent's constraints; 0 in
+      ## `sizeMax` is "unbounded".
     ownWidth*, ownHeight*: float32
       ## The size this widget gave *itself* at its last layout, or -1 for a
       ## dimension its parent assigned. See `beginSelfSizing`.
@@ -658,22 +683,15 @@ proc beginSelfSizing*(widget: Widget): SelfSizing =
     widget.bounds.width = 0
   if widget.ownHeight >= 0 and widget.bounds.height == widget.ownHeight:
     widget.bounds.height = 0
-  # A requested size is an assignment the widget makes on its own behalf, and
-  # it overrides the parent's -- so it is applied before the body runs and
-  # the children lay out inside it.
-  if widget.sizeRequest.width > 0:
-    widget.bounds.width = widget.sizeRequest.width
-  if widget.sizeRequest.height > 0:
-    widget.bounds.height = widget.sizeRequest.height
   result = (widget.bounds.width <= 0, widget.bounds.height <= 0)
-  # An assigned size is clamped now, before the children see it; a self-
-  # computed one after the body has measured it (endSelfSizing).
-  if not result.width:
-    widget.bounds.width = clampDimension(widget.bounds.width,
-                                         widget.sizeMin.width, widget.sizeMax.width)
-  if not result.height:
-    widget.bounds.height = clampDimension(widget.bounds.height,
-                                          widget.sizeMin.height, widget.sizeMax.height)
+  # A size the parent assigned is final (it measured this widget, with its
+  # request and limits, before deciding). Only where the widget sizes itself
+  # does its request apply -- before the body runs, so the children lay out
+  # inside it; endSelfSizing clamps and remembers it.
+  if result.width and widget.sizeRequest.width > 0:
+    widget.bounds.width = widget.sizeRequest.width
+  if result.height and widget.sizeRequest.height > 0:
+    widget.bounds.height = widget.sizeRequest.height
 
 proc endSelfSizing*(widget: Widget, sizing: SelfSizing) =
   ## Run after `layout`: clamp what the widget gave itself, and remember it.
@@ -719,10 +737,12 @@ method layout*(widget: Widget) {.base.}=
 # A container answers the first by measuring its children -- never by laying
 # them out to see where they land -- and the second exactly once per child.
 #
-# Constraints in this release are tight or unbounded per axis: tight is a
-# size the parent decides (a stretched cross axis, a flex share), unbounded
-# is "your natural size". That is what the old `bounds.width <= 0` protocol
-# expressed, and keeping the meaning lets widgets move over one at a time.
+# Constraints are Flutter's: per axis a range from min to max. Tight (min =
+# max) is a size the parent decides (a stretched cross axis, a flex share);
+# loose (0 to max) is "any size up to this" (inside Center, Align, across a
+# Row); unbounded (max = Inf) is "your natural size" (along a Row, inside a
+# scroll view). The parent always wins: whatever a widget computes is
+# brought within its constraints by `measure`.
 # ----------------------------------------------------------------------------
 
 method computeSize*(widget: Widget, c: Constraints): Size {.base.} =
@@ -740,24 +760,41 @@ method computeSize*(widget: Widget, c: Constraints): Size {.base.} =
   widget.ownWidth = -1
   widget.ownHeight = -1
   widget.layout()
+  # Loose constraints ("up to 300"): a widget whose natural size is wider
+  # than allowed is laid out again at the limit, the way a Flutter widget
+  # honours its maximum -- which is where wrapping text gets its height.
+  if not c.tightWidth and c.hasBoundedWidth and widget.bounds.width > c.maxWidth:
+    widget.bounds.width = c.maxWidth
+    widget.bounds.height = if c.tightHeight: c.minHeight else: 0.0'f32
+    widget.ownWidth = -1
+    widget.ownHeight = -1
+    widget.layout()
   Size(width: widget.bounds.width, height: widget.bounds.height)
 
-proc applySizing*(widget: Widget, c: Constraints): Constraints =
-  ## `c` with the widget's own sizing applied, as `beginSelfSizing` does for
-  ## the old protocol: a requested size wins over the parent's (an explicit
-  ## width beats stretch, as in CSS), and a fixed axis is clamped to the
-  ## widget's min/max before its children see it.
-  result = c
+method ownConstraints*(widget: Widget): Constraints {.base.} =
+  ## What a widget asks of itself before its parent has a say: its limits
+  ## (`sizeMin` / `sizeMax`, a ConstrainedBox's) and, within them, its
+  ## requested size (`frame`) as a tight dimension. SizedBox overrides it.
+  result = Constraints(minWidth: widget.sizeMin.width,
+    maxWidth: (if widget.sizeMax.width > 0: widget.sizeMax.width else: Inf),
+    minHeight: widget.sizeMin.height,
+    maxHeight: (if widget.sizeMax.height > 0: widget.sizeMax.height else: Inf))
   if widget.sizeRequest.width > 0:
-    result = result.withWidth(widget.sizeRequest.width)
+    result = result.withWidth(clamp(widget.sizeRequest.width, result.minWidth, result.maxWidth))
   if widget.sizeRequest.height > 0:
-    result = result.withHeight(widget.sizeRequest.height)
-  if result.tightWidth:
-    result = result.withWidth(clampDimension(result.minWidth,
-                              widget.sizeMin.width, widget.sizeMax.width))
-  if result.tightHeight:
-    result = result.withHeight(clampDimension(result.minHeight,
-                               widget.sizeMin.height, widget.sizeMax.height))
+    result = result.withHeight(clamp(widget.sizeRequest.height, result.minHeight, result.maxHeight))
+
+proc applySizing*(widget: Widget, c: Constraints): Constraints =
+  ## `c` with the widget's own sizing applied: its request and limits
+  ## (`ownConstraints`) enforced within `c`, so the parent always wins, as in
+  ## Flutter. A request beyond what the parent allows is cut to it; to let a
+  ## child keep a size its parent would not give, put it in an
+  ## UnconstrainedBox or OverflowBox.
+  result = widget.ownConstraints.enforce(c)
+  # An infinite request (SizedBox.expand) in an unbounded parent has nothing
+  # to expand into; Flutter reports it, RUI falls back to the natural size.
+  if result.minWidth == Inf: result.minWidth = 0
+  if result.minHeight == Inf: result.minHeight = 0
 
 proc clampSize*(widget: Widget, size: Size): Size =
   ## A measured size within the widget's own min/max.
@@ -786,7 +823,8 @@ proc measure*(widget: Widget, c: Constraints): Size =
     if entry.constraints == c and entry.epoch == measureEpoch and
        (entry.pass == layoutPassNumber or not widget.layoutDirty):
       return entry.size
-  result = widget.clampSize(widget.computeSize(widget.applySizing(c)))
+  let inner = widget.applySizing(c)
+  result = inner.constrain(widget.computeSize(inner))
   # Few distinct questions are ever asked of one widget (natural size, a
   # flex share, a stretched width); a short list keeps the latest.
   if widget.measured.len >= 4:
@@ -795,6 +833,21 @@ proc measure*(widget: Widget, c: Constraints): Size =
     if widget.measured[i].constraints == c:
       widget.measured.delete(i)
   widget.measured.add((c, result, layoutPassNumber, measureEpoch))
+
+proc arrangeConstraints*(widget: Widget): Constraints =
+  ## The constraints to lay this widget's children out under, now that its
+  ## rect is known: the ones it was measured with to get that size, if it
+  ## was (so a child laid out "up to 300" at measure time is not given
+  ## exactly the final width at arrange time -- Flutter lays out once, under
+  ## the incoming constraints); otherwise the rect itself, as fixed sides.
+  let size = Size(width: widget.bounds.width, height: widget.bounds.height)
+  for i in countdown(widget.measured.high, 0):
+    let entry = widget.measured[i]
+    if entry.size == size and entry.epoch == measureEpoch:
+      return widget.applySizing(entry.constraints)
+  result = unbounded()
+  if size.width > 0: result = result.withWidth(size.width)
+  if size.height > 0: result = result.withHeight(size.height)
 
 proc arrange*(widget: Widget, rect: Rect) =
   ## Give `widget` its final rect and let it place its children -- skipped

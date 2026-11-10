@@ -102,6 +102,7 @@ proc columnWidth(v: JsonNode): TableColumnWidth =
   of "fixed": FixedColumnWidth(v[1].getFloat.float32)
   of "intrinsic": IntrinsicColumnWidth()
   of "flex": FlexColumnWidth(v[1].getFloat.float32)
+  of "fraction": FractionColumnWidth(v[1].getFloat.float32)
   else: nope("Table.columnWidths " & v[0].getStr & "ColumnWidth")
 
 proc build(node: JsonNode, ctx: var Ctx): Widget =
@@ -109,13 +110,8 @@ proc build(node: JsonNode, ctx: var Ctx): Widget =
   let fill = Color(r: 0, g: 170, b: 0, a: 128)
   case ps.w
   of "Box":
-    # Flutter's SizedBox: 0 is a size, null is "not given". RUI's SizedBox
-    # takes 0 to mean "not given", so a 0 cannot be said.
-    let w = ps.num("width", 0)
-    let h = ps.num("height", 0)
-    if (ps.has("width") and w == 0) or (ps.has("height") and h == 0):
-      nope("SizedBox.width/height=0 (RUI reads 0 as unset)")
-    result = newSizedBox(width = w, height = h).adopt(@[Widget(newRectangle(color = fill))])
+    result = newSizedBox(width = ps.num("width", NaN), height = ps.num("height", NaN)
+                        ).adopt(@[Widget(newRectangle(color = fill))])
   of "Fill":
     result = newContainer(color = fill)
   of "Text":
@@ -139,36 +135,32 @@ proc build(node: JsonNode, ctx: var Ctx): Widget =
   of "Padding":
     result = newPadding(padding = insets(ps.get("padding"))).adopt(kids(node, ctx))
   of "SizedBox":
-    let w = ps.num("width", 0)
-    let h = ps.num("height", 0)
-    if (ps.has("width") and w == 0) or (ps.has("height") and h == 0):
-      nope("SizedBox.width/height=0 (RUI reads 0 as unset)")
-    result = newSizedBox(width = w, height = h).adopt(kids(node, ctx))
+    result = newSizedBox(width = ps.num("width", NaN), height = ps.num("height", NaN)
+                        ).adopt(kids(node, ctx))
   of "ConstrainedBox":
     let c = Constraints(minWidth: ps.num("minWidth", 0), maxWidth: ps.num("maxWidth", Inf),
                         minHeight: ps.num("minHeight", 0), maxHeight: ps.num("maxHeight", Inf))
     result = newConstrainedBox(constraints = c).adopt(kids(node, ctx))
   of "Container":
-    ps.unsupported("minWidth", "minHeight")       # Container.constraints
-    result = newContainer(width = ps.num("width", 0), height = ps.num("height", 0),
+    result = newContainer(constraints = Constraints(minWidth: ps.num("minWidth", 0),
+                                                    minHeight: ps.num("minHeight", 0)),
+      width = ps.num("width", 0), height = ps.num("height", 0),
       padding = (if ps.has("padding"): insets(ps.get("padding")) else: EdgeInsets()),
       margin = (if ps.has("margin"): insets(ps.get("margin")) else: EdgeInsets()),
       color = (if ps.has("color"): (discard ps.get("color"); fill) else: Color()),
       alignment = (if ps.has("alignment"): some(ps.alignment("alignment", AlignmentCenter))
                    else: none(Alignment))).adopt(kids(node, ctx))
   of "Align":
-    ps.unsupported("widthFactor", "heightFactor")
-    result = newAlign(alignment = ps.alignment("alignment", AlignmentCenter)).adopt(kids(node, ctx))
+    result = newAlign(alignment = ps.alignment("alignment", AlignmentCenter),
+                      widthFactor = ps.num("widthFactor", NaN),
+                      heightFactor = ps.num("heightFactor", NaN)).adopt(kids(node, ctx))
   of "Center":
-    ps.unsupported("widthFactor", "heightFactor")
-    result = newCenter().adopt(kids(node, ctx))
+    result = newCenter(widthFactor = ps.num("widthFactor", NaN),
+                       heightFactor = ps.num("heightFactor", NaN)).adopt(kids(node, ctx))
   of "Stack":
     ps.unsupported("textDirection")
-    let fit = ps.str("fit", "loose")
-    if fit == "passthrough": nope("Stack.fit=passthrough")
     result = newStack(alignment = ps.alignment("alignment", AlignmentTopLeft),
-                      fit = (if fit == "expand": StackFit.expand else: StackFit.loose)
-                     ).adopt(kids(node, ctx))
+                      fit = ps.enumOf("fit", StackFit.loose)).adopt(kids(node, ctx))
   of "Positioned":
     ps.unsupported("start", "end")                # PositionedDirectional
     result = newPositioned(left = ps.num("left", NaN), top = ps.num("top", NaN),
@@ -192,14 +184,9 @@ proc build(node: JsonNode, ctx: var Ctx): Widget =
       for k, _ in cw: most = max(most, parseInt(k))
       for i in 0 .. most:
         widths.add(if cw.hasKey($i): columnWidth(cw[$i]) else: default)
-    # Flutter's default is top; RUI's is middle.
-    let v = ps.str("defaultVerticalAlignment", "top")
-    if v == "fill": nope("Table.defaultVerticalAlignment=fill")
     let t = newTable(columnWidths = widths, defaultColumnWidth = default,
-      defaultVerticalAlignment = (case v
-        of "middle": TableCellVerticalAlignment.middle
-        of "bottom": TableCellVerticalAlignment.bottom
-        else: TableCellVerticalAlignment.top))
+      defaultVerticalAlignment = ps.enumOf("defaultVerticalAlignment",
+                                           TableCellVerticalAlignment.top))
     for r in node["c"]:
       let row = newTableRow()
       ctx.ids.add (r["id"].getStr, Widget(row))
@@ -235,9 +222,26 @@ proc build(node: JsonNode, ctx: var Ctx): Widget =
     let col = newColumn(crossAxisAlignment = CrossAxisAlignment.stretch,
                         mainAxisSize = MainAxisSize.min).adopt(kids(node, ctx))
     result = newScrollView(padding = 0, wrapToWidth = true).adopt(@[Widget(col)])
-  of "AspectRatio", "FractionallySizedBox", "IntrinsicHeight", "IntrinsicWidth",
-     "LimitedBox", "UnconstrainedBox", "OverflowBox", "Offstage", "Visibility":
-    nope(ps.w & " (no such widget)")
+  of "AspectRatio":
+    result = newAspectRatio(aspectRatio = ps.num("aspectRatio", 1)).adopt(kids(node, ctx))
+  of "FractionallySizedBox":
+    result = newFractionallySizedBox(widthFactor = ps.num("widthFactor", NaN),
+      heightFactor = ps.num("heightFactor", NaN),
+      alignment = ps.alignment("alignment", AlignmentCenter)).adopt(kids(node, ctx))
+  of "IntrinsicHeight": result = newIntrinsicHeight().adopt(kids(node, ctx))
+  of "IntrinsicWidth": result = newIntrinsicWidth().adopt(kids(node, ctx))
+  of "LimitedBox":
+    result = newLimitedBox(maxWidth = ps.num("maxWidth", Inf),
+                           maxHeight = ps.num("maxHeight", Inf)).adopt(kids(node, ctx))
+  of "UnconstrainedBox": result = newUnconstrainedBox().adopt(kids(node, ctx))
+  of "OverflowBox":
+    result = newOverflowBox(minWidth = ps.num("minWidth", NaN), maxWidth = ps.num("maxWidth", NaN),
+      minHeight = ps.num("minHeight", NaN), maxHeight = ps.num("maxHeight", NaN)).adopt(kids(node, ctx))
+  of "Offstage": result = newOffstage().adopt(kids(node, ctx))
+  of "Visibility":
+    result = newVisibility(shown = (if ps.has("visible"): ps.get("visible").getBool else: true),
+      maintainSize = (if ps.has("maintainSize"): ps.get("maintainSize").getBool else: false)
+     ).adopt(kids(node, ctx))
   else:
     nope(ps.w & " (unknown to the runner)")
   ps.done()

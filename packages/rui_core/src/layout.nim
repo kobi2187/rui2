@@ -19,6 +19,7 @@
 ## a4bcc18. The helpers below are its working half, under their original
 ## names.
 
+import std/math
 import types
 
 type
@@ -96,10 +97,22 @@ proc vertical*(e: EdgeInsets): float32 = e.top + e.bottom
 proc tight*(T: typedesc[BoxConstraints], width, height: float32): BoxConstraints =
   BoxConstraints(minWidth: width, maxWidth: width, minHeight: height, maxHeight: height)
 
-proc tightFor*(T: typedesc[BoxConstraints], width = 0.0'f32,
-               height = 0.0'f32): BoxConstraints =
-  ## Tight in the dimensions given (non-zero), unconstrained in the others.
-  BoxConstraints(minWidth: width, maxWidth: width, minHeight: height, maxHeight: height)
+proc tightFor*(T: typedesc[BoxConstraints], width = NaN.float32,
+               height = NaN.float32): BoxConstraints =
+  ## Tight in the dimensions given, unconstrained in the others (Flutter's
+  ## `BoxConstraints.tightFor`; 0 is a size, leave a dimension out to free it).
+  BoxConstraints(minWidth: (if width.isNaN: 0.0'f32 else: width),
+                 maxWidth: (if width.isNaN: Inf.float32 else: width),
+                 minHeight: (if height.isNaN: 0.0'f32 else: height),
+                 maxHeight: (if height.isNaN: Inf.float32 else: height))
+
+proc expand*(T: typedesc[BoxConstraints]): BoxConstraints =
+  ## As big as the parent allows (Flutter's `BoxConstraints.expand`).
+  BoxConstraints(minWidth: Inf, maxWidth: Inf, minHeight: Inf, maxHeight: Inf)
+
+proc loose*(T: typedesc[BoxConstraints], width, height: float32): BoxConstraints =
+  ## Up to this size.
+  BoxConstraints(maxWidth: width, maxHeight: height)
 
 # ============================================================================
 # The restored helpers (modules/layout/layout_helpers.nim)
@@ -181,20 +194,24 @@ proc constraintsOf*(bounds: Rect): Constraints =
   if bounds.height > 0: result = result.withHeight(bounds.height)
 
 proc deflate*(c: Constraints, padding: EdgeInsets): Constraints =
-  ## What is left for a child inside `padding`: fixed sides shrink by it,
-  ## free ones stay free.
-  result = unbounded()
-  if c.tightWidth: result = result.withWidth(max(0.0'f32, c.minWidth - padding.horizontal))
-  if c.tightHeight: result = result.withHeight(max(0.0'f32, c.minHeight - padding.vertical))
+  ## What is left for a child inside `padding`: every limit shrinks by it
+  ## (never below 0), an unbounded one stays unbounded.
+  let h = padding.horizontal
+  let v = padding.vertical
+  result = Constraints(minWidth: max(0.0'f32, c.minWidth - h),
+                       maxWidth: max(0.0'f32, c.maxWidth - h),
+                       minHeight: max(0.0'f32, c.minHeight - v),
+                       maxHeight: max(0.0'f32, c.maxHeight - v))
 
 proc wrapSize*(widget: Widget, c: Constraints, padding = EdgeInsets()): Size =
-  ## The single-child wrapper's measure: a fixed side is kept, a free one is
-  ## the child's natural size plus the padding.
+  ## The single-child wrapper's measure (Padding, Expanded, SizedBox, ...):
+  ## the child measured inside `padding`, plus the padding, brought within
+  ## `c` -- so a tight side is the parent's and a loose one the child's.
   var inner = Size()
   if widget.children.len > 0:
     inner = widget.children[0].measure(c.deflate(padding))
-  Size(width: (if c.tightWidth: c.minWidth else: inner.width + padding.horizontal),
-       height: (if c.tightHeight: c.minHeight else: inner.height + padding.vertical))
+  c.constrain(Size(width: inner.width + padding.horizontal,
+                   height: inner.height + padding.vertical))
 
 proc wrapChild*(widget: Widget, padding = EdgeInsets()) =
   ## The single-child wrapper's arrange (Padding, Expanded, SizedBox, ...):

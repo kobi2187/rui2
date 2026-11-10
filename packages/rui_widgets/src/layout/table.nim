@@ -28,14 +28,16 @@ import rui_core
 
 type
   ColumnWidthKind* = enum
-    cwFixed, cwIntrinsic, cwFlex
+    cwFixed, cwIntrinsic, cwFlex, cwFraction
 
   TableColumnWidth* = object
     kind*: ColumnWidthKind
-    value*: float32              ## pixels for fixed, the factor for flex
+    value*: float32              ## pixels for fixed, the factor for flex,
+                                 ## the share of the table's width for fraction
 
   TableCellVerticalAlignment* {.pure.} = enum
-    top, middle, bottom
+    top, middle, bottom,
+    fill        ## every cell as tall as its row
 
 proc FixedColumnWidth*(width: float32): TableColumnWidth =
   TableColumnWidth(kind: cwFixed, value: width)
@@ -43,6 +45,9 @@ proc IntrinsicColumnWidth*(): TableColumnWidth =
   TableColumnWidth(kind: cwIntrinsic)
 proc FlexColumnWidth*(flex = 1.0'f32): TableColumnWidth =
   TableColumnWidth(kind: cwFlex, value: flex)
+proc FractionColumnWidth*(fraction: float32): TableColumnWidth =
+  ## A share (0..1) of the width the table is allowed (0 when it has none).
+  TableColumnWidth(kind: cwFraction, value: fraction)
 
 proc resolveColumnWidths*(rules: openArray[TableColumnWidth],
                           intrinsic: openArray[float32],
@@ -56,6 +61,7 @@ proc resolveColumnWidths*(rules: openArray[TableColumnWidth],
     case r.kind
     of cwFixed: result[i] = r.value
     of cwIntrinsic: result[i] = intrinsic[i]
+    of cwFraction: result[i] = max(0.0'f32, available) * r.value
     of cwFlex:
       flexTotal += max(r.value, 0.0)
       continue
@@ -91,37 +97,40 @@ proc planTable[W](widget: W, c: Constraints): TablePlan =
   for row in widget.children:
     for i, cell in row.children:
       intrinsic[i] = max(intrinsic[i], cell.measure(unbounded()).width)
-  let hasWidth = c.tightWidth and c.minWidth > 0
+  # Flex and fraction columns share the width the table may have -- all of
+  # it, as in Flutter, when that is bounded (tight or loose).
+  let hasWidth = c.hasBoundedWidth
   let gaps = totalSpacing(n, widget.columnSpacing)
   result.widths = resolveColumnWidths(rules, intrinsic,
-                                      (if hasWidth: c.minWidth - gaps else: 0.0'f32))
+                                      (if hasWidth: c.maxWidth - gaps else: 0.0'f32))
   var tableWidth = gaps
   for w in result.widths: tableWidth += w
   var total = 0.0'f32
   for row in widget.children:
     var sizes: seq[Size]
     var rowHeight = 0.0'f32
+    let fill = widget.defaultVerticalAlignment == TableCellVerticalAlignment.fill
     for i, cell in row.children:
       let s = cell.measure(unbounded().withWidth(result.widths[i]))
       sizes.add s
-      rowHeight = max(rowHeight, s.height)
+      # A filling cell takes the row's height rather than setting it (Flutter).
+      if not fill: rowHeight = max(rowHeight, s.height)
     result.cells.add sizes
     result.heights.add rowHeight
     total += rowHeight
   total += totalSpacing(widget.children.len, widget.rowSpacing)
-  result.own = Size(width: (if hasWidth: c.minWidth else: tableWidth),
-                    height: (if c.tightHeight and c.minHeight > 0: c.minHeight else: total))
+  result.own = c.constrain(Size(width: tableWidth, height: total))
 
 defineWidget(Table):
   props:
     columnWidths: seq[TableColumnWidth] = @[]
     defaultColumnWidth: TableColumnWidth = TableColumnWidth(kind: cwFlex, value: 1.0)
-    defaultVerticalAlignment: TableCellVerticalAlignment = TableCellVerticalAlignment.middle
+    defaultVerticalAlignment: TableCellVerticalAlignment = TableCellVerticalAlignment.top
     columnSpacing: float32 = 0.0     # beyond Flutter: gaps between columns
     rowSpacing: float32 = 0.0        # and between rows
 
   layout:
-    let plan = widget.planTable(constraintsOf(widget.bounds))
+    let plan = widget.planTable(widget.arrangeConstraints)
     widget.bounds.width = plan.own.width
     widget.bounds.height = plan.own.height
     var tableWidth = totalSpacing(plan.widths.len, widget.columnSpacing)
@@ -133,10 +142,12 @@ defineWidget(Table):
       for i, cell in row.children:
         let s = plan.cells[r][i]
         let dy = case widget.defaultVerticalAlignment
-                 of TableCellVerticalAlignment.top: 0.0'f32
+                 of TableCellVerticalAlignment.top, TableCellVerticalAlignment.fill: 0.0'f32
                  of TableCellVerticalAlignment.middle: (rowHeight - s.height) / 2
                  of TableCellVerticalAlignment.bottom: rowHeight - s.height
-        cell.arrange(Rect(x: x, y: y + dy, width: s.width, height: s.height))
+        let h = if widget.defaultVerticalAlignment == TableCellVerticalAlignment.fill: rowHeight
+                else: s.height
+        cell.arrange(Rect(x: x, y: y + dy, width: s.width, height: h))
         x += plan.widths[i] + widget.columnSpacing
       row.bounds = Rect(x: widget.bounds.x, y: y, width: tableWidth, height: rowHeight)
       y += rowHeight + widget.rowSpacing
@@ -149,17 +160,16 @@ proc gridSize[W](widget: W, c: Constraints): Size =
   ## the widest child per column -- and rows at the aspect ratio.
   let n = max(1, widget.crossAxisCount)
   let gaps = totalSpacing(n, widget.crossAxisSpacing)
-  var width = c.minWidth
-  if not (c.tightWidth and c.minWidth > 0):
+  var width = c.maxWidth
+  if not c.hasBoundedWidth:
     var widest = 0.0'f32
     for child in widget.children:
       widest = max(widest, child.measure(unbounded()).width)
     width = widest * float32(n) + gaps
   let cellH = (width - gaps) / float32(n) / max(0.01'f32, widget.childAspectRatio)
   let rows = (widget.children.len + n - 1) div n
-  Size(width: width,
-       height: (if c.tightHeight and c.minHeight > 0: c.minHeight
-                else: float32(rows) * cellH + totalSpacing(rows, widget.mainAxisSpacing)))
+  c.constrain(Size(width: width,
+                   height: float32(rows) * cellH + totalSpacing(rows, widget.mainAxisSpacing)))
 
 defineWidget(GridView):
   props:

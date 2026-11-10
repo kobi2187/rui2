@@ -80,11 +80,13 @@ node's rect.
 mobile/layout_conformance/run.sh
 ```
 
-First run: 78 match, 52 mismatch, 34 inexpressible, 2 silent. Two decisions
-in RUI's constraint model explain 47 of the mismatches: a requested size
-beats the parent's constraints, and there are no loose constraints. The rest
-of `FINDINGS.md` lists every widget, prop and concept (RTL, intrinsics,
-horizontal scrolling) that cannot be said in RUI yet. `known.json` is the
+The first run gave 78 match, 52 mismatch, 34 inexpressible and 2 silent.
+Most of the mismatches came from two decisions in RUI's constraint model: a
+requested size beat the parent's constraints, and there were no loose
+constraints. RUI now follows Flutter's model, and the same suite gives 142
+match, 7 mismatch, 15 inexpressible and 2 silent. `FINDINGS.md` lists what
+is still open: the ScrollView gutter, RTL, Wrap's direction, horizontal
+scrolling, and a few properties. `known.json` is the
 baseline: CI fails if a case gets worse, and `run.sh --update` records
 progress.
 

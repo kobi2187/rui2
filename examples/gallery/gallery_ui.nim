@@ -243,6 +243,42 @@ proc layoutTab(): Widget =
             Badge(text = "b")
             Badge(text = "c")
             Badge(text = "wrap")
+      # The boxes that change their child's constraints (constraint_boxes.nim).
+      Wrap(spacing = 12.0, runSpacing = 8.0):
+        Panel(padding = 6.0, cornerRadius = 0.0):
+          SizedBox(width = 200, height = 60):
+            Row(crossAxisAlignment = CrossAxisAlignment.stretch, spacing = 6.0):
+              UnconstrainedBox().named("layout.unconstrained"):     # keeps its size in the stretch
+                Badge(text = "kept")
+              IntrinsicHeight().named("layout.intrinsicHeight"):
+                Row(crossAxisAlignment = CrossAxisAlignment.stretch):
+                  Rectangle(color = Color(r: 90, g: 140, b: 220, a: 255)).size(20, 20)
+                  Rectangle(color = Color(r: 220, g: 120, b: 90, a: 255)).size(6, 0)
+        Panel(padding = 6.0, cornerRadius = 0.0):
+          SizedBox(width = 120, height = 60):
+            AspectRatio(aspectRatio = 16.0 / 9.0).named("layout.aspect"):
+              Rectangle(color = Color(r: 110, g: 180, b: 120, a: 255))
+        Panel(padding = 6.0, cornerRadius = 0.0):
+          SizedBox(width = 120, height = 60):
+            FractionallySizedBox(widthFactor = 0.5, heightFactor = 0.5).named("layout.fraction"):
+              Rectangle(color = Color(r: 220, g: 160, b: 120, a: 255))
+        Panel(padding = 6.0, cornerRadius = 0.0):
+          SizedBox(width = 80, height = 40):
+            OverflowBox(maxWidth = 100).named("layout.overflow"):
+              Rectangle(color = Color(r: 200, g: 140, b: 200, a: 120))
+        Panel(padding = 6.0, cornerRadius = 0.0):
+          Column(mainAxisSize = MainAxisSize.min):
+            LimitedBox(maxHeight = 20).named("layout.limited"):
+              Rectangle(color = Color(r: 120, g: 160, b: 220, a: 255)).size(60, 0)
+            Offstage().named("layout.offstage"):
+              Label(text = "laid out, not shown")
+            Visibility(shown = false, maintainSize = true).named("layout.visibility"):
+              Label(text = "hidden, room kept")
+            Label(text = "IntrinsicWidth:")
+            IntrinsicWidth().named("layout.intrinsicWidth"):
+              Column(crossAxisAlignment = CrossAxisAlignment.stretch):
+                Button(text = "short")
+                Button(text = "a longer one")
       Wrap(spacing = 12.0, runSpacing = 8.0):
         Panel(padding = 6.0, cornerRadius = 0.0):
           GridView(crossAxisCount = 3, mainAxisSpacing = 4.0, crossAxisSpacing = 4.0).size(180, 70):
@@ -251,7 +287,8 @@ proc layoutTab(): Widget =
             Rectangle(color = Color(r: 220, g: 120, b: 90, a: 255))
         Panel(padding = 6.0, cornerRadius = 0.0):
           Table(columnWidths = @[IntrinsicColumnWidth(), FlexColumnWidth()],
-                columnSpacing = 8.0, rowSpacing = 4.0).size(240, 84):
+                columnSpacing = 8.0, rowSpacing = 4.0,
+                defaultVerticalAlignment = TableCellVerticalAlignment.middle).size(240, 84):
             TableRow():
               Label(text = "Name")
               TextInput(placeholder = "Ada")
