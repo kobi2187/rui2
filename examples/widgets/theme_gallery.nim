@@ -41,6 +41,7 @@ let root = ui:
 
     # A form: labels in a column as wide as the widest, inputs taking the rest.
     Table(columnWidths = @[IntrinsicColumnWidth(), FlexColumnWidth()],
+          defaultVerticalAlignment = TableCellVerticalAlignment.middle,
           columnSpacing = 12.0, rowSpacing = 10.0):
       TableRow():
         Label(text = "Name")

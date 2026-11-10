@@ -21,20 +21,25 @@ proc showOnlyIndexed(widget: Widget, index: int) =
 defineWidget(IndexedStack):
   props:
     index: int = 0
+    alignment: Alignment = AlignmentTopLeft
 
   layout:
-    let own = widget.measure(constraintsOf(widget.bounds))
+    # A Stack (Flutter): as big as its biggest child, each child at its own
+    # size -- any size up to the stack's -- placed by `alignment`.
+    let given = widget.arrangeConstraints
+    let own = given.constrain(widget.measure(given))
     widget.bounds.width = own.width
     widget.bounds.height = own.height
     showOnlyIndexed(widget, widget.index)
     for child in widget.children:
-      child.arrange(Rect(x: widget.bounds.x, y: widget.bounds.y,
-                         width: own.width, height: own.height))
+      let s = child.measure(given.loosen())
+      let off = alignmentOffset(widget.alignment, (own.width - s.width, own.height - s.height))
+      child.arrange(Rect(x: widget.bounds.x + off.x, y: widget.bounds.y + off.y,
+                         width: s.width, height: s.height))
 
 method computeSize*(widget: IndexedStack, c: Constraints): Size =
   for child in widget.children:
-    let s = child.measure(c)
+    let s = child.measure(c.loosen())
     result.width = max(result.width, s.width)
     result.height = max(result.height, s.height)
-  if c.tightWidth: result.width = c.minWidth
-  if c.tightHeight: result.height = c.minHeight
+  result = c.constrain(result)

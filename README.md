@@ -56,9 +56,13 @@ code generation step.
   `Padding`, `SizedBox`, `ConstrainedBox`, `Align`, `Center`, `Container`
   (with a `BoxDecoration`); `Stack` + `Positioned`; `Wrap`; `Table` with
   `FixedColumnWidth` / `IntrinsicColumnWidth` / `FlexColumnWidth`;
-  `GridView`. Plus `Dock` for app windows and `ScrollView`. A widget never
-  writes its own position; it can *ask* for size with
-  `.frame(width = 300, minHeight = 40)`. `VStack`/`HStack`/`ZStack` remain
+  `GridView`; `UnconstrainedBox`, `AspectRatio`, `FractionallySizedBox`,
+  `IntrinsicHeight`, `LimitedBox`, `OverflowBox`, `Visibility`. Plus `Dock`
+  for app windows and `ScrollView`. Constraints work as in Flutter: the parent
+  wins. A widget never writes its own position; it can *ask* for size with
+  `.frame(width = 300, minHeight = 40)`, and the common wrappers are short
+  modifiers: `.center`, `.ownSize`, `.aspect(16 / 9)`, `.at(right = 8)`,
+  `.sameHeight`, `Gap(12)` (see [docs/sizing.md](docs/sizing.md)). `VStack`/`HStack`/`ZStack` remain
   as stretch-by-default shorthands.
 - **Themes** -- `app.setTheme("daylight")`: daylight, midnight, aurora,
   ocean, forest, rose, ember, graphite, plus two at the extremes of

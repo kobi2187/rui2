@@ -21,8 +21,9 @@ import rui_core
 import std/math
 
 type StackFit* {.pure.} = enum
-  loose    ## plain children at their natural size
-  expand   ## plain children fill the stack
+  loose        ## plain children: any size up to the stack's
+  expand       ## plain children fill the stack
+  passthrough  ## plain children get the stack's own constraints
 
 # A child pinned by its edges. Leave an edge as NaN (the default) to unpin it.
 defineWidget(Positioned):
@@ -37,34 +38,53 @@ defineWidget(Positioned):
   layout:
     wrapChild(widget)
 
-proc place(pinA, pinB, fixed, natural, extent: float32): tuple[pos, size: float32] =
-  ## One axis of a Positioned child: pinned at both ends it spans between
-  ## them; otherwise its fixed or natural size, pinned at whichever end is set.
-  let size = if not pinA.isNaN and not pinB.isNaN: max(0.0'f32, extent - pinA - pinB)
-             elif not fixed.isNaN: fixed
-             else: natural
-  let pos = if not pinA.isNaN: pinA
-            elif not pinB.isNaN: extent - pinB - size
-            else: 0.0'f32
-  (pos, size)
+proc pinnedConstraints(p: Positioned, inner: Size): Constraints =
+  ## What a Positioned child may be (Flutter): exactly the span between two
+  ## pinned edges, or its width / height; free on an axis with neither.
+  result = unbounded()
+  if not p.left.isNaN and not p.right.isNaN:
+    result = result.withWidth(max(0.0'f32, inner.width - p.left - p.right))
+  elif not p.width.isNaN:
+    result = result.withWidth(p.width)
+  if not p.top.isNaN and not p.bottom.isNaN:
+    result = result.withHeight(max(0.0'f32, inner.height - p.top - p.bottom))
+  elif not p.height.isNaN:
+    result = result.withHeight(p.height)
+
+proc place(pinA, pinB, size, extent, aligned: float32): float32 =
+  ## Where a Positioned child starts on one axis: at the pinned edge, or by
+  ## the stack's alignment when neither is pinned.
+  if not pinA.isNaN: pinA
+  elif not pinB.isNaN: extent - pinB - size
+  else: aligned
+
+proc plainConstraints(fit: StackFit, c: Constraints): Constraints =
+  case fit
+  of StackFit.loose: c.loosen()
+  of StackFit.expand:
+    Constraints(minWidth: (if c.hasBoundedWidth: c.maxWidth else: 0.0'f32), maxWidth: c.maxWidth,
+                minHeight: (if c.hasBoundedHeight: c.maxHeight else: 0.0'f32), maxHeight: c.maxHeight)
+  of StackFit.passthrough: c
 
 proc stackSize[W](widget: W, c: Constraints): Size =
-  ## A Stack's measure: a fixed side is kept; a free one fits the widest /
-  ## tallest plain (non-Positioned) child. An expanding stack offers its
-  ## fixed sides to its children.
+  ## A Stack's measure (Flutter's RenderStack): as big as its biggest plain
+  ## (non-Positioned) child, within its constraints; with no plain child, as
+  ## big as allowed.
   let pad = widget.padding
-  let expand = widget.fit == StackFit.expand
-  var childC = unbounded()
-  if expand and c.tightWidth: childC = childC.withWidth(c.minWidth - pad.horizontal)
-  if expand and c.tightHeight: childC = childC.withHeight(c.minHeight - pad.vertical)
+  let inner = c.deflate(pad)
+  let childC = plainConstraints(widget.fit, inner)
   var widest, tallest = 0.0'f32
+  var plain = false
   for child in widget.children:
     if child of Positioned: continue
+    plain = true
     let s = child.measure(childC)
     widest = max(widest, s.width)
     tallest = max(tallest, s.height)
-  Size(width: (if c.tightWidth: c.minWidth else: widest + pad.horizontal),
-       height: (if c.tightHeight: c.minHeight else: tallest + pad.vertical))
+  if not plain:
+    widest = if inner.hasBoundedWidth: inner.maxWidth else: inner.minWidth
+    tallest = if inner.hasBoundedHeight: inner.maxHeight else: inner.minHeight
+  c.constrain(Size(width: widest + pad.horizontal, height: tallest + pad.vertical))
 
 defineWidget(Stack):
   props:
@@ -80,29 +100,25 @@ defineWidget(Stack):
 
   layout:
     let pad = widget.padding
-    let own = widget.stackSize(constraintsOf(widget.bounds))
+    let given = widget.arrangeConstraints
+    let own = given.constrain(widget.measure(given))
     widget.bounds.width = own.width
     widget.bounds.height = own.height
     let inner = Size(width: own.width - pad.horizontal, height: own.height - pad.vertical)
-    let expand = widget.fit == StackFit.expand
+    let childC = plainConstraints(widget.fit, given.deflate(pad))
     for child in widget.children:
+      let size = if child of Positioned: child.measure(pinnedConstraints(Positioned(child), inner))
+                 else: child.measure(childC)
+      let off = alignmentOffset(widget.alignment,
+                                (inner.width - size.width, inner.height - size.height))
+      var x = off.x
+      var y = off.y
       if child of Positioned:
         let p = Positioned(child)
-        let natural = p.measure(unbounded())
-        let (x, w) = place(p.left, p.right, p.width, natural.width, inner.width)
-        let (y, h) = place(p.top, p.bottom, p.height, natural.height, inner.height)
-        p.arrange(Rect(x: widget.bounds.x + pad.left + x,
-                       y: widget.bounds.y + pad.top + y, width: w, height: h))
-      elif expand:
-        child.arrange(Rect(x: widget.bounds.x + pad.left, y: widget.bounds.y + pad.top,
-                           width: inner.width, height: inner.height))
-      else:
-        let natural = child.measure(unbounded())
-        let off = alignmentOffset(widget.alignment,
-                                  (inner.width - natural.width, inner.height - natural.height))
-        child.arrange(Rect(x: widget.bounds.x + pad.left + off.x,
-                           y: widget.bounds.y + pad.top + off.y,
-                           width: natural.width, height: natural.height))
+        x = place(p.left, p.right, size.width, inner.width, off.x)
+        y = place(p.top, p.bottom, size.height, inner.height, off.y)
+      child.arrange(Rect(x: widget.bounds.x + pad.left + x, y: widget.bounds.y + pad.top + y,
+                         width: size.width, height: size.height))
 
 method computeSize*(widget: Stack, c: Constraints): Size = widget.stackSize(c)
 method computeSize*(widget: Positioned, c: Constraints): Size = widget.wrapSize(c)

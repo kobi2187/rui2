@@ -31,6 +31,7 @@ proc buildUI*(): Widget =
     VStack(spacing = 12.0, padding = 20.0):
       Label(text = "Settings", fontSize = 22.0, bold = true)
       Table(columnWidths = @[IntrinsicColumnWidth(), FlexColumnWidth()],
+            defaultVerticalAlignment = TableCellVerticalAlignment.middle,
             columnSpacing = 12.0, rowSpacing = 10.0):
         TableRow():
           Label(text = "Nickname")

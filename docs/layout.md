@@ -20,14 +20,48 @@ child.arrange(Rect(x: x, y: y, width: share.width, height: share.height))
 with `unbounded()`, `tight(w, h)`, `loose(w, h)`, `c.withWidth(w)`,
 `c.withHeight(h)`, and bring a size within them with `c.constrain(size)`.
 
-In this release a container fixes an axis (tight) or leaves it free
-(unbounded): tight is a stretched cross axis, a flex share, a cell's column;
-free is "your natural size".
+The rules are Flutter's:
 
-A widget's own sizing is applied by `measure`, so a container never has to:
-a requested size (`.frame(width = ...)`, `SizedBox`) wins over the
-constraints -- an explicit width beats stretch, as in CSS -- and `sizeMin` /
-`sizeMax` clamp the answer.
+- **Constraints go down, sizes go up, the parent wins.** Per axis a
+  constraint is *tight* (min = max: a stretched cross axis, an `Expanded`
+  share, a table cell, a `Positioned` pinned at both edges, the window),
+  *loose* (0 to max: inside `Center`, `Align`, a loose `Stack`, across a Row,
+  in a Wrap), or *unbounded* (max = `Inf`: along a Row or Column, inside a
+  scroll view). Whatever a widget computes, `measure` brings within its
+  constraints.
+- **A requested size is a wish within them.** `.frame(width = ...)`,
+  `SizedBox`, `ConstrainedBox` and `sizeMin` / `sizeMax` are the widget's own
+  constraints, enforced within the parent's (`ownConstraints.enforce(c)`):
+  a SizedBox of 500 in a 300-wide slot is 300; in a stretched Column it is
+  as wide as the Column.
+- **What wants to fill, fills the room it is allowed.** A `Row` / `Column`
+  with `mainAxisSize.max`, an empty `Container`, a `Container` with an
+  alignment, `Align` and `Center` take all of a bounded axis and their
+  content's size on an unbounded one. Text wraps at the width it is allowed.
+- **Children are laid out under the constraints their parent was measured
+  with** (`arrangeConstraints`), not the final rect turned tight, so arranging
+  a loose child never stretches it.
+
+To keep a child's own size where the parent would decide it, say so, as in
+Flutter: `Align` / `Center` around it, or `UnconstrainedBox` (the child at its
+natural size, overflowing if it must), or `OverflowBox` (constraints of your
+choosing). `VStack` / `HStack`, RUI's own pre-Flutter names, stretch the CSS
+way: a child with its own width or limits keeps them. A stretching Flex with
+no limit across (a Column in a Row) stretches its children to the widest of
+them, CSS's shrink-to-fit -- where Flutter would report an error and want an
+`IntrinsicWidth`.
+
+The boxes that change constraints (rui_widgets/layout/constraint_boxes.nim):
+`UnconstrainedBox`, `OverflowBox`, `LimitedBox`, `AspectRatio`,
+`FractionallySizedBox`, `IntrinsicWidth`, `IntrinsicHeight`, `Offstage`,
+`Visibility` (Flutter's `visible` is `shown`). `SizedBox` takes NaN for "not
+given", 0 for zero and `Inf` for "as big as allowed" (`SizedBox.expand`,
+`SizedBox.shrink`).
+
+How to use them, with the short forms (`.ownSize`, `.aspect(16 / 9)`,
+`.at(right = 8)`, `Gap(12)` ...): [sizing.md](sizing.md).
+`mobile/layout_conformance/` checks all of this against Flutter itself, case
+by case.
 
 ## Measurements are remembered
 

@@ -1,5 +1,49 @@
 # Layout conformance: what RUI does differently from Flutter
 
+## Status
+
+The first run (below, kept for the record) gave 78 match, 52 mismatch,
+34 inexpressible and 2 silent. Since then RUI's constraint model has been
+moved to Flutter's (docs/layout.md): the parent wins, constraints can be
+loose, and what wants to fill fills. The constraint boxes have been added
+(UnconstrainedBox, OverflowBox, LimitedBox, AspectRatio, FractionallySizedBox,
+IntrinsicWidth/Height, Offstage, Visibility), along with Align/Center factors,
+`Container.constraints`, `Stack.fit.passthrough`, `FractionColumnWidth`,
+`TableCellVerticalAlignment.fill` and SizedBox's NaN / 0 / Inf. Now:
+
+**142 match, 7 mismatch, 15 inexpressible, 2 silent.**
+
+Still open:
+
+- **ScrollView's scroll-bar gutter** (5 mismatches). The content is 12 px
+  narrower even when nothing overflows; Flutter overlays its scroll bars.
+- **Text metrics** (1). The same text is 470 px wide in Flutter and 465 px in
+  RUI: Pango rounds each glyph's advance to whole pixels.
+- **`Table` with every cell `fill`** (1). Flutter gives the row 0 height. RUI's
+  old "0 = size yourself" arrange protocol cannot assign a 0, so the cells
+  keep their own heights. It is a degenerate case.
+- **Inexpressible:**
+  - text direction (RTL) on Row, Column, Stack and Wrap; `verticalDirection`
+    (7 cases);
+  - Wrap's `direction` and `runAlignment` (5);
+  - horizontal scrolling (2);
+  - `GridView.extent` and `ListView.itemExtent`.
+- **Silent:** an Expanded in an unbounded Column, and an Expanded outside a
+  Flex. Flutter reports both as errors; RUI accepts them without a word.
+
+Where RUI deliberately differs:
+
+- `VStack` / `HStack` stretch the CSS way: a child's own width wins.
+- A stretching Flex with an unbounded cross axis stretches its children to
+  the widest one; Flutter reports an error there.
+- Visibility's `visible` is named `shown`, because every widget already has a
+  `visible` field.
+
+---
+
+# First run
+
+
 166 cases, every Flutter layout container. Each case was built from the same
 JSON by both toolkits and compared node by node: **78 match, 52 mismatch,
 34 inexpressible, 2 silent** (first run; `known.json` is the baseline).

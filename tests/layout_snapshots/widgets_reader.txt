@@ -18,11 +18,11 @@ Stack - @0,0 720x520
   Positioned - @582,14 120x52
     HoverReveal textBar @582,14 120x52
       Row - @590,22 104x36 hidden
-        Button smaller @590,20 51x39 tabstop
-          Rectangle - @590,20 51x39
+        Button smaller @590,22 51x36 tabstop
+          Rectangle - @590,22 51x36
           Label - @606,28 19x23
-          Fizz - @590,20 51x39 hidden
-        Button larger @649,20 61x39 tabstop
-          Rectangle - @649,20 61x39
+          Fizz - @590,22 51x36 hidden
+        Button larger @649,22 61x36 tabstop
+          Rectangle - @649,22 61x36
           Label - @665,28 29x23
-          Fizz - @649,20 61x39 hidden
+          Fizz - @649,22 61x36 hidden

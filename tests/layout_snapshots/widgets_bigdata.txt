@@ -1,7 +1,7 @@
 Padding - @0,0 1000x520
   Column - @16,16 968x488
     Label - @16,16 442x35
-    Row - @16,61 1091x407
+    Row - @16,61 968x407
       Column - @16,61 270x407
         Label - @16,61 160x23
         ListView - @16,88 270x380 tabstop

@@ -43,15 +43,26 @@ type WrapPlan = object
   own: Size
 
 proc planWrap[W](widget: W, c: Constraints): WrapPlan =
-  ## Children at their natural size, broken into runs that fit the width.
-  let hasWidth = c.tightWidth and c.minWidth > 0
+  ## Children at their natural size -- each at most the Wrap's width --
+  ## broken into runs that fit the width (Flutter's RenderWrap).
+  let hasWidth = c.hasBoundedWidth
   var sizes: seq[Size]
   var widths: seq[float32]
   for child in widget.children:
-    let s = child.measure(unbounded())
+    let s = child.measure(Constraints(maxWidth: c.maxWidth, maxHeight: Inf))
     sizes.add s
     widths.add s.width
-  let runs = lineBreaks(widths, (if hasWidth: c.minWidth else: 0.0'f32), widget.spacing)
+  let runs = lineBreaks(widths, (if hasWidth: c.maxWidth else: 0.0'f32), widget.spacing)
+  # The Wrap is as wide as its widest run, within its constraints (so the
+  # whole width when that is tight); each run is aligned within that.
+  var widestRun = 0.0'f32
+  block:
+    for r, first in runs:
+      let last = (if r + 1 < runs.len: runs[r + 1] else: widget.children.len) - 1
+      var w = totalSpacing(last - first + 1, widget.spacing)
+      for i in first .. last: w += widths[i]
+      widestRun = max(widestRun, w)
+  let ownWidth = clamp(widestRun, c.minWidth, c.maxWidth)
   result.rects.setLen(widget.children.len)
   var y = 0.0'f32
   var widest = 0.0'f32
@@ -62,8 +73,7 @@ proc planWrap[W](widget: W, c: Constraints): WrapPlan =
       runWidth += widths[i]
       runHeight = max(runHeight, sizes[i].height)
     let count = last - first + 1
-    let extent = if hasWidth: c.minWidth
-                 else: runWidth + totalSpacing(count, widget.spacing)
+    let extent = ownWidth
     let (gap, start) = calculateDistributedSpacing(widget.alignment, extent,
                                                    runWidth, count, widget.spacing)
     var x = start
@@ -76,10 +86,9 @@ proc planWrap[W](widget: W, c: Constraints): WrapPlan =
       x += widths[i] + gap
     widest = max(widest, runWidth + totalSpacing(count, widget.spacing))
     y += runHeight + widget.runSpacing
-  result.own = Size(
-    width: (if hasWidth: c.minWidth else: widest),
-    height: (if c.tightHeight and c.minHeight > 0: c.minHeight
-             else: max(0.0'f32, y - (if runs.len > 0: widget.runSpacing else: 0.0'f32))))
+  discard widest
+  result.own = c.constrain(Size(width: ownWidth,
+    height: max(0.0'f32, y - (if runs.len > 0: widget.runSpacing else: 0.0'f32))))
 
 defineWidget(Wrap):
   props:
@@ -89,7 +98,7 @@ defineWidget(Wrap):
     crossAxisAlignment: WrapCrossAlignment = WrapCrossAlignment.start
 
   layout:
-    let plan = widget.planWrap(constraintsOf(widget.bounds))
+    let plan = widget.planWrap(widget.arrangeConstraints)
     widget.bounds.width = plan.own.width
     widget.bounds.height = plan.own.height
     for i, child in widget.children:

@@ -3,7 +3,7 @@ Row - @0,0 760x460
     Padding - @0,0 180x460
       Column - @14,14 152x432
         Label - @14,14 58x23
-        Row - @14,47 90x27
+        Row - @14,47 152x27
           Label - @14,49 52x23
           Badge - @74,47 30x27 clipped=30x27
         Label - @14,84 42x23
@@ -11,7 +11,7 @@ Row - @0,0 760x460
     Padding - @180,0 580x460
       Column - @200,20 540x420
         Label - @200,20 183x35
-        Row - @200,69 418x39
+        Row - @200,69 540x39
           Button - @200,69 83x39 tabstop
             Rectangle - @200,69 83x39
             Label - @216,77 51x23
@@ -25,7 +25,7 @@ Row - @0,0 760x460
             Column - @216,239 240x43
               Label - @216,239 83x23
               ProgressBar - @216,268 240x14
-          Label - @200,223 272x75 hidden
+          Label - @200,223 267x23 hidden
         Expander - @200,312 115x24 tabstop
           Padding - @0,0 177x31 clipped=0x0 hidden
             Checkbox - @0,4 177x23 clipped=0x0 tabstop

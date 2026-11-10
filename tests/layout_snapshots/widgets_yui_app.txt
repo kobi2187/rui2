@@ -1,10 +1,10 @@
 Column - @0,0 640x460
   Label - @24,24 100x23
-  Row - @24,61 306x32
+  Row - @24,61 592x32
     Label - @24,65 54x23
     TextInput - @90,61 240x32 tabstop
   Checkbox - @24,107 143x23 tabstop
-  Row - @24,144 350x28
+  Row - @24,144 592x28
     Label - @24,146 98x23
     Slider - @134,144 240x28 tabstop
   TabControl - @24,186 480x140 tabstop
@@ -12,7 +12,7 @@ Column - @0,0 640x460
       Label - @147,214 234x23
       Checkbox - @182,237 164x23 tabstop
     Label - @24,214 480x112 hidden
-  Row - @24,340 270x39
+  Row - @24,340 592x39
     Button - @24,340 77x39 tabstop
       Rectangle - @24,340 77x39
       Label - @40,348 45x23

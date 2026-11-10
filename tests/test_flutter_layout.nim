@@ -90,12 +90,14 @@ suite "Row and Column":
     e.layout()
     check d.bounds.x == 90.0 and c.bounds.x == 76.0
 
-  test "MainAxisSize.min shrinks to the children even when given room":
+  test "MainAxisSize.min shrinks to the children when it may; a tight size wins":
     let c = newColumn(mainAxisSize = MainAxisSize.min)
-    c.bounds = Rect(x: 0, y: 0, width: 100, height: 400)
     c.addChild(box(10, 30))
+    check c.measure(loose(100, 400)).height == 30.0      # room to spare: its content
+    check newColumn().measure(loose(100, 400)).height == 400.0   # max: all of it
+    c.bounds = Rect(x: 0, y: 0, width: 100, height: 400)
     c.layout()
-    check c.bounds.height == 30.0
+    check c.bounds.height == 400.0                        # assigned: the parent's
 
   test "CrossAxisAlignment.stretch fills the cross axis":
     let c = newColumn(crossAxisAlignment = CrossAxisAlignment.stretch)
@@ -165,8 +167,23 @@ suite "boxes":
     col.bounds = Rect(x: 0, y: 0, width: 300, height: 100)
     col.addChild(s)
     col.layout()
-    check s.bounds.width == 80.0                 # beats stretch
-    check l.bounds.width == 80.0 and l.bounds.height == 30.0
+    check s.bounds.width == 300.0                # Flutter: the stretch wins
+    check l.bounds.width == 300.0 and l.bounds.height == 30.0
+    # The ways to keep the 80: an Align around it, or a VStack (CSS stretch).
+    let kept = newSizedBox(width = 80, height = 30)
+    let a = newAlign(alignment = Alignment.topLeft)
+    a.addChild(kept)
+    let col2 = newColumn(crossAxisAlignment = CrossAxisAlignment.stretch)
+    col2.bounds = Rect(x: 0, y: 0, width: 300, height: 100)
+    col2.addChild(a)
+    col2.layout()
+    check kept.bounds.width == 80.0
+    let css = newSizedBox(width = 80, height = 30)
+    let v = newVStack()
+    v.bounds = Rect(x: 0, y: 0, width: 300, height: 100)
+    v.addChild(css)
+    v.layout()
+    check css.bounds.width == 80.0
 
   test "ConstrainedBox":
     let c = newConstrainedBox(constraints = BoxConstraints(minWidth: 100, maxHeight: 10))
@@ -240,7 +257,7 @@ suite "Wrap, Table, GridView, Dock":
     check kids[2].bounds.x == 30.0            # alone on its run, centred
     check w.bounds.height == 44.0
 
-  test "Table: intrinsic and flex columns, rows centred":
+  test "Table: intrinsic and flex columns, cells at the top (or centred)":
     let t = newTable(columnWidths = @[IntrinsicColumnWidth(), FlexColumnWidth()])
     t.bounds = Rect(x: 0, y: 0, width: 300, height: 0)
     let r1 = newTableRow()
@@ -250,8 +267,11 @@ suite "Wrap, Table, GridView, Dock":
     t.addChild(r1)
     t.layout()
     check field.bounds.x == 40.0 and field.bounds.width == 260.0
-    check lbl.bounds.y == 10.0                 # middle of a 30-high row
+    check lbl.bounds.y == 0.0                  # Flutter's default: top
     check t.bounds.height == 30.0
+    t.defaultVerticalAlignment = TableCellVerticalAlignment.middle
+    t.layout()
+    check lbl.bounds.y == 10.0                 # middle of a 30-high row
 
   test "GridView.count":
     let g = newGridView(crossAxisCount = 3, crossAxisSpacing = 10, mainAxisSpacing = 10,
