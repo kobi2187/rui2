@@ -47,3 +47,7 @@ kotlin {
 flutter {
     source = "../.."
 }
+
+dependencies {
+    implementation(project(":rui"))
+}

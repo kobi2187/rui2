@@ -24,7 +24,10 @@ import theme_check;        export theme_check   # contrast ratios, contrastProbl
 import builtin_themes;     export builtin_themes
 import widget_primitives;  export widget_primitives
 import backdrop;           export backdrop     # a modal's frozen, themed page
-import pango_binding;       export pango_binding   # Pango/Cairo FFI
+when defined(android) or defined(ruiTextStb):
+  import text_types;        export text_types      # no Pango: the stb text engine
+else:
+  import pango_binding;     export pango_binding   # Pango/Cairo FFI
 import pango_text;          export pango_text      # glyph cache, cursor + hit-test API
 import primitives/text;       export text
 # primitives/text_cache was deleted: 428 lines with no callers anywhere. The

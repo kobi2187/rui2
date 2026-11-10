@@ -24,3 +24,8 @@ plugins {
 }
 
 include(":app")
+
+// RUI's Android runtime (RuiActivity + libmain.so), shared with the plain
+// Kotlin host in mobile/android. Run mobile/android/build_rui.sh first.
+include(":rui")
+project(":rui").projectDir = file("../../../android/rui")

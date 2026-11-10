@@ -13,14 +13,18 @@ W=360; H=800
 export RUI_PREFERENCES=/nonexistent/rui-preferences.yaml
 export FONTCONFIG_FILE="$ROOT/mobile/compare/fonts.conf"
 THEME="${RUI_MOCKUP_THEME:-material}"
+# RUI_TEXT_ENGINE=stb draws text with the engine Android uses
+# (rui_drawing/text_engine_stb.nim) instead of Pango.
+ENGINE="${RUI_TEXT_ENGINE:-pango}"
+EXTRA=""; [ "$ENGINE" = stb ] && EXTRA="-d:ruiTextStb"
 
 DEP=""
 for pkg in naylib yaml db_connector; do
   p="$(nimble path "$pkg" 2>/dev/null | tail -1)"; [ -n "$p" ] && DEP="$DEP --path:$p"
 done
 BIN="$OUT/.mockups"
-( cd "$ROOT" && nim c --hints:off --warnings:off -d:useGraphics $DEP \
-    --nimcache:/tmp/rui_mobile_nc -o:"$BIN" mobile/mockups/rui/mockups.nim ) >"$OUT/.build.log" 2>&1 \
+( cd "$ROOT" && nim c --hints:off --warnings:off -d:useGraphics $EXTRA $DEP \
+    --nimcache:"/tmp/rui_mobile_nc_$ENGINE" -o:"$BIN" mobile/mockups/rui/mockups.nim ) >"$OUT/.build.log" 2>&1 \
   || { echo "BUILD FAIL"; tail -20 "$OUT/.build.log"; exit 1; }
 
 SCREENS=("$@")

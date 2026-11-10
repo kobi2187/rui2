@@ -3,6 +3,9 @@
 ##
 ##   mockups <screen> [theme]       e.g. mockups 02_counter material
 ##
+## On Android the same program is libmain.so inside RuiActivity, and the
+## screen comes from the Intent's "screen" extra (mobile/android/build_rui.sh).
+##
 ## Each screen has a Flutter twin of the same name under
 ## mobile/mockups/flutter/lib/screens/, and mobile/compare/compare.sh renders
 ## both and diffs them.
@@ -21,14 +24,21 @@ let screens* = {
   "04_inbox": inboxScreen,
 }.toOrderedTable
 
-when isMainModule:
-  let name = if paramCount() >= 1: paramStr(1) else: "01_hello"
-  let theme = if paramCount() >= 2: paramStr(2) else: "material"
-  if name notin screens:
-    stderr.writeLine "unknown screen " & name & "; one of:"
-    for k in screens.keys: stderr.writeLine "  " & k
-    quit 2
+proc showScreen(name, theme: string) =
   let app = newApp("RUI " & name, PhoneWidth, PhoneHeight, resizable = false)
   app.setTheme(theme)
   app.setRootWidget(screens[name]())
   app.run()
+
+when isMainModule:
+  ruiAndroidMain:
+    # The desktop takes the screen from the command line, Android from the
+    # Intent that started RuiActivity (mobile/android/rui/).
+    var name = if paramCount() >= 1: paramStr(1) else: intentExtra("screen", "01_hello")
+    let theme = if paramCount() >= 2: paramStr(2) else: intentExtra("theme", "material")
+    if name notin screens:
+      stderr.writeLine "unknown screen " & name & "; one of:"
+      for k in screens.keys: stderr.writeLine "  " & k
+      when defined(android): name = "01_hello"
+      else: quit 2
+    showScreen(name, theme)

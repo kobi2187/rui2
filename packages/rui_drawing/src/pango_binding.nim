@@ -10,7 +10,8 @@
 ## Only the calls used by `pango_text.nim` are declared. Everything is an opaque
 ## pointer; nothing here is exposed to widget code.
 
-import std/strutils
+import text_types
+export text_types
 
 {.passC: staticExec("pkg-config --cflags pangocairo").}
 {.passL: staticExec("pkg-config --libs pangocairo").}
@@ -58,31 +59,6 @@ type
     ## Pango units (1/1024 px), not pixels.
     x*, y*, width*, height*: cint
 
-  CairoAntialias* {.size: sizeof(cint).} = enum
-    ## cairo_antialias_t
-    CairoAntialiasDefault = 0
-    CairoAntialiasNone = 1
-    CairoAntialiasGray = 2
-    CairoAntialiasSubpixel = 3
-    CairoAntialiasFast = 4
-    CairoAntialiasGood = 5
-    CairoAntialiasBest = 6
-
-  CairoSubpixelOrder* {.size: sizeof(cint).} = enum
-    ## cairo_subpixel_order_t
-    CairoSubpixelDefault = 0
-    CairoSubpixelRgb = 1
-    CairoSubpixelBgr = 2
-    CairoSubpixelVrgb = 3
-    CairoSubpixelVbgr = 4
-
-  CairoHintStyle* {.size: sizeof(cint).} = enum
-    ## cairo_hint_style_t
-    CairoHintDefault = 0
-    CairoHintNone = 1
-    CairoHintSlight = 2
-    CairoHintMedium = 3
-    CairoHintFull = 4
 
 const
   PANGO_SCALE* = 1024
@@ -275,16 +251,5 @@ proc toPixels*(pangoUnits: cint): float32 {.inline.} =
 proc toPangoUnits*(pixels: float32): cint {.inline.} =
   cint(pixels * PANGO_SCALE.float32)
 
-# ---------------------------------------------------------------------------
-# Font description strings
-# ---------------------------------------------------------------------------
-proc fontDescString*(family: string, size: float32,
-                     bold = false, italic = false): string =
-  ## Build a Pango font description such as "DejaVu Sans Bold Italic 14".
-  ## An empty family falls back to the fontconfig "Sans" alias, which resolves
-  ## on any system with fonts installed.
-  result = if family.len == 0: "Sans" else: family
-  if bold: result.add " Bold"
-  if italic: result.add " Italic"
-  # Pango parses a trailing number as the size in points.
-  result.add " " & formatFloat(size, ffDecimal, 1)
+# Font description strings live in text_types.nim (fontDescString), shared by
+# every text engine.
