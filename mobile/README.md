@@ -17,6 +17,8 @@ mobile/
     rui/        mockups.nim + screens/sNN_name.nim   -- the RUI side
     flutter/    a Flutter app, lib/screens/sNN_name.dart -- the Flutter twins
   compare/      render both on the host, score, side-by-side pictures
+  layout_conformance/  every Flutter layout container, case by case, RUI vs
+                Flutter rect by rect; FINDINGS.md says what differs and why
   android/      Gradle project: `rui` library (RuiActivity + libmain.so),
                 `kotlin-host` app, Robolectric tests; build_rui.sh, device_check.sh
 ```
@@ -61,6 +63,30 @@ read anyway. So the loop is built from things that run on a plain Linux box:
 Robolectric runs no native code, so it checks the Kotlin/Java seam, not the
 pixels; the pixels are checked on the host. The gap between the two -- EGL,
 the Android input queue, lifecycle -- is what `device_check.sh` is for.
+
+## Layout conformance
+
+The ladder compares whole screens by their pixels. `layout_conformance/`
+compares layout *behaviour*, which is where a Flutter developer gets
+surprised. 166 cases cover Row/Column/Flex, Expanded/Flexible/Spacer, Padding,
+SizedBox, ConstrainedBox, Container, Align/Center, Stack/Positioned,
+IndexedStack, Wrap, Table, GridView, AspectRatio, the intrinsics, scrolling
+and text in layouts, plus their edge cases (overflow, unbounded constraints,
+misuse). They are written once in Flutter's vocabulary (`cases.py`). Flutter
+builds them in `flutter test` and RUI builds them headless; both report every
+node's rect.
+
+```bash
+mobile/layout_conformance/run.sh
+```
+
+First run: 78 match, 52 mismatch, 34 inexpressible, 2 silent. Two decisions
+in RUI's constraint model explain 47 of the mismatches: a requested size
+beats the parent's constraints, and there are no loose constraints. The rest
+of `FINDINGS.md` lists every widget, prop and concept (RTL, intrinsics,
+horizontal scrolling) that cannot be said in RUI yet. `known.json` is the
+baseline: CI fails if a case gets worse, and `run.sh --update` records
+progress.
 
 ## The ladder
 

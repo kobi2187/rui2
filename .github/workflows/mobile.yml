@@ -59,7 +59,14 @@ jobs:
           RUI_COMPARE_OUT=$PWD/compare-out mobile/compare/compare.sh
           RUI_TEXT_ENGINE=stb mobile/compare/render_rui.sh $PWD/compare-out/rui-stb
           cat compare-out/report.md >> "$GITHUB_STEP_SUMMARY"
+      - name: Layout conformance (fails if a case got worse than known.json)
+        run: |
+          mobile/layout_conformance/run.sh $PWD/layout-out
+          head -12 layout-out/report.md >> "$GITHUB_STEP_SUMMARY"
       - uses: actions/upload-artifact@v4
+        if: always()
         with:
           name: rui-vs-flutter
-          path: compare-out/
+          path: |
+            compare-out/
+            layout-out/
