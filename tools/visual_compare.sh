@@ -17,6 +17,7 @@
 #
 #   tools/visual_compare.sh                         everything, against origin/main
 #   tools/visual_compare.sh HEAD~1 widgets/stacks   one example against the last commit
+#   RUI_VISUAL_REUSE=1 tools/visual_compare.sh      keep the binaries of the last run (captures only)
 set -uo pipefail
 cd "$(dirname "$(readlink -f "$0")")/.."
 ROOT="$PWD"
@@ -73,12 +74,16 @@ build_shard() {   # build_shard <tree> <side> <k>
     i=$((i + 1))
   done
 }
+if [ "${RUI_VISUAL_REUSE:-0}" = 1 ]; then
+  echo "reusing the binaries in $OUT/bin"
+else
 echo "building ${#EXAMPLES[@]} examples at $REF and now..."
 for side in before after; do
   tree=$([ $side = before ] && echo "$WT" || echo "$ROOT")
   for k in $(seq 0 $((JOBS - 1))); do build_shard "$tree" $side $k & done
   wait
 done
+fi
 
 # Run and capture: one Xvfb per job, the window grabbed by its id.
 shoot() {   # shoot <display> <binary> <png>
