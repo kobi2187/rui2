@@ -23,7 +23,7 @@
 ##     UnconstrainedBox():                 # not stretched: keeps its 40 px
 ##       Button(text = "OK")
 ##     AspectRatio(aspectRatio = 16 / 9):
-##       Image(path = "cover.png")
+##       ImageWidget(imagePath = "cover.png")
 ## ```
 
 import rui_core

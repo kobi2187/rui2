@@ -93,7 +93,7 @@ These go after the call. Each returns the widget, except `margin` and
 
 | Modifier | What it does |
 |---|---|
-| `.frame(width = 200, height = 40)` | a fixed size on either axis (0 leaves that axis free) |
+| `.frame(width = 200, height = 40)` | a size on either axis (0 leaves that axis free), within the parent's limits |
 | `.size(200, 40)` | the same as `.frame` with both |
 | `.flex` / `.flex(2)` | takes a share of the spare room in a Row or Column |
 | `.margin(8)`, `.margin("8px 16px")` | wraps the widget in a Padding; later modifiers apply to the wrapper |
@@ -102,6 +102,22 @@ These go after the call. Each returns the widget, except `margin` and
 | `.shortcut("Ctrl+S")` | a key chord that presses it, shown by the help overlay |
 | `.hint("Saves the file")` | text the help overlay shows beside it |
 | `.onKey(proc(k: KeyboardKey): bool = ...)` | a handler for keys the widget left unused |
+| `.flexible` / `.flexible(2)` | at most a share (Flutter's `Flexible`); `.flex` is `Expanded` |
+| `.center`, `.align(Alignment.topRight)` | wraps it in Center / Align |
+| `.ownSize` | wraps it in UnconstrainedBox: keeps its own size in a stretch |
+| `.aspect(16 / 9)`, `.fraction(width = 0.5)` | AspectRatio, FractionallySizedBox |
+| `.sameHeight`, `.sameWidth` | IntrinsicHeight / IntrinsicWidth around a Row or Column |
+| `.at(right = 8, top = 8)`, `.cover` | Positioned in a Stack; `.cover` fills it |
+| `.limit(height = 200)`, `.overflow(maxWidth = 96)` | LimitedBox, OverflowBox |
+| `.showIf(cond, keepSize = false)`, `.offstage` | Visibility, Offstage |
+
+The wrapping modifiers (from `.margin` down) return the wrapper, so a later
+`.flex` goes to it, and a child block still goes to the widget itself:
+`Row().sameHeight:` then the Row's children. Their block forms, for wrapping a
+subtree, are short constructors: `Gap(12)`, `Ratio(16 / 9):`,
+`Fraction(width = 0.5):`, `SameHeight():`, `SameWidth():`, `OwnSize():`,
+`Limit(height = 200):`, `ShowIf(cond):`, `At(left = 8):`. Recipes and the
+Flutter names they stand for are in [sizing.md](sizing.md).
 
 ```nim
 let root = ui:

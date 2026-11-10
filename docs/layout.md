@@ -58,6 +58,8 @@ The boxes that change constraints (rui_widgets/layout/constraint_boxes.nim):
 given", 0 for zero and `Inf` for "as big as allowed" (`SizedBox.expand`,
 `SizedBox.shrink`).
 
+How to use them, with the short forms (`.ownSize`, `.aspect(16 / 9)`,
+`.at(right = 8)`, `Gap(12)` ...): [sizing.md](sizing.md).
 `mobile/layout_conformance/` checks all of this against Flutter itself, case
 by case.
 

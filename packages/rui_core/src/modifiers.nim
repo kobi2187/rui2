@@ -68,9 +68,18 @@ proc animateLayout*[T: Widget](widget: T, on = true): T =
   widget
 
 proc flex*[T: Widget](widget: T, weight = 1.0'f32): T =
-  ## Take `weight` shares of the leftover main-axis space in a VStack or
-  ## HStack (CSS flex-grow). `flex(0)` turns it off.
+  ## Take `weight` shares of the leftover main-axis space in a Row or Column
+  ## (Flutter's `Expanded`, CSS flex-grow). `flex(0)` turns it off.
   widget.flexGrow = weight
+  widget.flexLoose = false
+  widget.layoutDirty = true
+  widget
+
+proc flexible*[T: Widget](widget: T, weight = 1.0'f32): T =
+  ## Flutter's `Flexible`: at most `weight` shares of the leftover room -- its
+  ## own size if that is smaller. (`.flex` is `Expanded`: exactly the share.)
+  widget.flexGrow = weight
+  widget.flexLoose = true
   widget.layoutDirty = true
   widget
 

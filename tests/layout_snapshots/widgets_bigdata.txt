@@ -11,7 +11,3 @@ Padding - @0,0 1000x520
       Column - @655,61 452x407
         Label - @655,61 452x23
         DataTable - @655,88 360x380 tabstop
-          TextInput - @657,90 116x22 tabstop
-          TextInput - @777,90 116x22 tabstop
-          TextInput - @897,90 116x22 tabstop
-          TextInput - @1017,90 116x22 tabstop
