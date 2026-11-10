@@ -87,16 +87,22 @@ fi
 
 # Run and capture: one Xvfb per job, the window grabbed by its id.
 shoot() {   # shoot <display> <binary> <png>
-  local d="$1" bin="$2" png="$3" w ap
+  # Every step is bounded, so no example can stall the run: the app dies on
+  # its own after WAIT + 15 s, and a hard kill follows a polite one.
+  local d="$1" bin="$2" png="$3" w="" pid t0=$SECONDS
   [ -x "$bin" ] || return
-  ( cd "$(dirname "$bin")" && DISPLAY=":$d" timeout 30 "$bin" >"$png.log" 2>&1 ) & ap=$!
+  ( cd "$(dirname "$bin")" && DISPLAY=":$d" exec timeout -k 2 $((WAIT + 15)) "$bin" ) \
+    >"$png.log" 2>&1 &
+  pid=$!
   for _ in $(seq 1 50); do
-    w=$(DISPLAY=":$d" xdotool search --onlyvisible --name . 2>/dev/null | head -1)
+    w=$(DISPLAY=":$d" timeout 3 xdotool search --onlyvisible --name . 2>/dev/null | head -1)
     [ -n "$w" ] && break; sleep 0.1
   done
   sleep "$WAIT"
-  [ -n "${w:-}" ] && DISPLAY=":$d" import -window "$w" "$png" 2>/dev/null
-  kill $ap 2>/dev/null; pkill -P $ap 2>/dev/null; wait $ap 2>/dev/null
+  [ -n "$w" ] && DISPLAY=":$d" timeout 15 import -window "$w" "$png" 2>/dev/null
+  kill "$pid" 2>/dev/null; sleep 0.3; pkill -KILL -P "$pid" 2>/dev/null; kill -KILL "$pid" 2>/dev/null
+  wait "$pid" 2>/dev/null
+  echo "  $(basename "$png" .png) ($(basename "$(dirname "$png")")) $((SECONDS - t0)) s$([ -f "$png" ] || echo ', no picture')"
 }
 run_job() {   # run_job <k>: every JOBS-th example, both sides, on display 150+k
   local k="$1" d=$((150 + k)) i=0 f n xp
