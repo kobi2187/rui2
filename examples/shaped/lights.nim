@@ -17,7 +17,7 @@ app.setWindowShape(currentSourcePath().parentDir / "skin.png")
 app.placeShape(60, 40)
 
 let root = ui:
-  Column(spacing = 10.0, padding = EdgeInsets(left: 50, top: 120, right: 130, bottom: 0),
+  Column(spacing = 10.0, padding = EdgeInsets(left: 50, top: 120, right: 80, bottom: 0),
          crossAxisAlignment = CrossAxisAlignment.start):
     Label(text = "Lights along the outline", bold = true, wrap = true)
     Label(text = "Drag me to move")

@@ -86,12 +86,12 @@ done
 fi
 
 # Run and capture: one Xvfb per job, the window grabbed by its id.
-shoot() {   # shoot <display> <binary> <png>
+shoot() {   # shoot <display> <binary> <png> <tree>: run from the tree's root, as examples expect
   # Every step is bounded, so no example can stall the run: the app dies on
   # its own after WAIT + 15 s, and a hard kill follows a polite one.
-  local d="$1" bin="$2" png="$3" w="" pid t0=$SECONDS
+  local d="$1" bin="$2" png="$3" tree="$4" w="" pid t0=$SECONDS
   [ -x "$bin" ] || return
-  ( cd "$(dirname "$bin")" && DISPLAY=":$d" exec timeout -k 2 $((WAIT + 15)) "$bin" ) \
+  ( cd "$tree" && DISPLAY=":$d" exec timeout -k 2 $((WAIT + 15)) "$bin" ) \
     >"$png.log" 2>&1 &
   pid=$!
   for _ in $(seq 1 50); do
@@ -111,8 +111,8 @@ run_job() {   # run_job <k>: every JOBS-th example, both sides, on display 150+k
   for f in "${EXAMPLES[@]}"; do
     if [ $((i % JOBS)) -eq "$k" ]; then
       n="$(echo "${f#examples/}" | tr / _)"; n="${n%.nim}"
-      shoot $d "$OUT/bin/before_$n" "$OUT/before/$n.png"
-      shoot $d "$OUT/bin/after_$n" "$OUT/after/$n.png"
+      shoot $d "$OUT/bin/before_$n" "$OUT/before/$n.png" "$WT"
+      shoot $d "$OUT/bin/after_$n" "$OUT/after/$n.png" "$ROOT"
     fi
     i=$((i + 1))
   done
