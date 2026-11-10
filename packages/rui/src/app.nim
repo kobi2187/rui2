@@ -11,6 +11,7 @@ import event_source
 import idle_wait
 import event_routing
 import inspect
+import fit_check
 import visual
 export visual
 import preferences_file
@@ -30,7 +31,7 @@ export theme_manager  # Export theme manager
 export script_manager # Export script manager
 export hittest_system # Export hit test system
 import raylib
-import std/[monotimes, times, os, options]
+import std/[monotimes, times, os, options, strutils]
 when defined(ruiShaped):
   # Non-rectangular windows (packages/rui_shaped), only when asked for: an app
   # built without -d:ruiShaped carries none of it.

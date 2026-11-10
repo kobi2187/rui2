@@ -213,6 +213,11 @@ Spinner().offstage                                            # laid out, never 
 and `GridView` are in [layout.md](layout.md) and the README. Every one of
 them is checked against Flutter by `mobile/layout_conformance/run.sh`.
 
+## Checking it on phones
+
+`tools/fit_check.sh app.nim` runs the app at the sizes of common phones and
+tablets and lists what does not fit on each ([fit_check.md](fit_check.md)).
+
 ## When Flutter and RUI differ on purpose
 
 - `VStack` / `HStack` stretch the CSS way: a child's own width or limits win.

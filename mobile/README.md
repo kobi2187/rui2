@@ -90,6 +90,17 @@ scrolling, and a few properties. `known.json` is the
 baseline: CI fails if a case gets worse, and `run.sh --update` records
 progress.
 
+## Does it fit this phone?
+
+```bash
+tools/fit_check.sh --shots mobile/mockups/rui/mockups.nim -- 04_inbox
+```
+
+This lays a screen out at the size of a dozen common phones and tablets and
+says, per device, whether it fits. If not, it reports what is off-screen,
+overflowing, scrolling sideways or cut off, and which tap targets are too
+small. See [docs/fit_check.md](../docs/fit_check.md).
+
 ## The ladder
 
 Each rung is one screen, in both toolkits, named the same

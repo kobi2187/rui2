@@ -13,10 +13,23 @@ proc newApp*(title = "RUI Application",
              minHeight = 240): App =
   ## Create a new RUI application.
   ##
+  ## `RUI_WINDOW_SIZE=WxH` overrides `width` and `height` (tools/fit_check.sh).
+  ##
   ## The user's preferences (keys, motion, scroll speed, ...) are read here,
   ## once: they belong to the person at the keyboard and are the same in every
   ## RUI app. A file with mistakes is reported on stderr and degrades only the
   ## settings that are wrong.
+  # RUI_WINDOW_SIZE=WxH: the window (or, for a headless check, the screen)
+  # at another size than the app asked for -- to see it on a phone's.
+  var width = width
+  var height = height
+  let forced = getEnv("RUI_WINDOW_SIZE").toLowerAscii.split('x')
+  if forced.len == 2:
+    try:
+      width = parseInt(forced[0].strip())
+      height = parseInt(forced[1].strip())
+    except ValueError:
+      stderr.writeLine "rui: RUI_WINDOW_SIZE is not WxH: " & getEnv("RUI_WINDOW_SIZE")
   let (userPrefs, problems) = loadPreferences()
   applyPreferences(userPrefs)
   for problem in problems:

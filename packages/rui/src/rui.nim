@@ -19,6 +19,7 @@ import rui_scripting; export rui_scripting  # GUI automation (query/set values)
 import rui_widgets;   export rui_widgets    # label, button, stacks, image, ...
 import app;           export app            # App object + main loop integrator
 import android_host;  export android_host   # Intent extras, density, the Android entry point
+import fit_check;     export fit_check      # what does not fit the screen (tools/fit_check.sh)
 
 const
   RuiVersionMajor* = 0

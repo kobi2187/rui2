@@ -17,7 +17,7 @@ proc inboxScreen*(): Widget =
       Column(crossAxisAlignment = CrossAxisAlignment.stretch):
         AppBar(title = "Inbox", leading = "☰")
         Expanded():
-          ScrollView():
+          ScrollView(padding = 0.0, wrapToWidth = true):
             Column(crossAxisAlignment = CrossAxisAlignment.stretch):
               for (name, line) in people:
                 Padding(padding = EdgeInsets.symmetric(horizontal = 16.0, vertical = 8.0)):

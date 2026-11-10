@@ -225,6 +225,9 @@ proc run*(app: App, maxFrames: int = -1) =
   ## old headless mode on purpose, and this is the graphics-only equivalent --
   ## a real window, really rendered, for a bounded number of frames.
   ##
+  ## `RUI_FIT_CHECK=<file>` does the same and writes what does not fit the
+  ## screen (fit_check.nim).
+  ##
   ## `RUI_LAYOUT_DUMP=<file>` instead lays the tree out once without a window,
   ## writes the geometry of every widget to the file and returns: the snapshot
   ## that `tools/layout_snapshot.sh` diffs to catch layout drift.
@@ -232,6 +235,14 @@ proc run*(app: App, maxFrames: int = -1) =
   if dump.len > 0:
     app.stepHeadless()
     writeFile(dump, inspectTree(app.tree.root))
+    return
+  # `RUI_FIT_CHECK=<file>`: the same headless layout, checked for what does not
+  # fit the screen (fit_check.nim), as JSON. tools/fit_check.sh uses it with
+  # RUI_WINDOW_SIZE to try an app on many phones.
+  let fit = getEnv("RUI_FIT_CHECK")
+  if fit.len > 0:
+    app.stepHeadless()
+    writeFile(fit, $fitReport(app.tree.root, app.rootRect))
     return
   app.openWindow()
   defer:
