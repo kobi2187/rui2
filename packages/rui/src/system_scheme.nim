@@ -7,9 +7,12 @@
 ##   Linux    `gsettings get org.gnome.desktop.interface color-scheme`
 ##   macOS    `defaults read -g AppleInterfaceStyle`   ("Dark" when dark)
 ##   Windows  `reg query ...\Themes\Personalize /v AppsUseLightTheme`  (0x0 = dark)
+##   Android  the Activity's configuration (UI_MODE_NIGHT_YES), android_host.nim
 
-import std/[osproc, strutils]
+import std/strutils
+when not defined(android): import std/osproc
 import rui_core
+import android_host
 
 proc parseSystemScheme*(output: string): ColorScheme =
   ## What the platform tools print, as a scheme. Unrecognised output is light.
@@ -24,7 +27,9 @@ proc parseSystemScheme*(output: string): ColorScheme =
 proc detectSystemScheme*(): ColorScheme =
   ## Ask the platform. Never raises, never returns `schemeSystem`.
   try:
-    when defined(linux):
+    when defined(android):
+      result = if systemNightMode(): schemeDark else: schemeLight
+    elif defined(linux):
       result = parseSystemScheme(execProcess("gsettings",
         args = ["get", "org.gnome.desktop.interface", "color-scheme"],
         options = {poUsePath, poStdErrToStdOut}))
@@ -71,7 +76,9 @@ proc parseSystemMotion*(output: string): Motion =
 proc detectSystemMotion*(): Motion =
   ## Ask the platform. Never raises, never returns `motionSystem`.
   try:
-    when defined(linux):
+    when defined(android):
+      result = motionFull     # TODO: Settings.Global.ANIMATOR_DURATION_SCALE == 0
+    elif defined(linux):
       result = parseSystemMotion(execProcess("gsettings",
         args = ["get", "org.gnome.desktop.interface", "enable-animations"],
         options = {poUsePath, poStdErrToStdOut}))

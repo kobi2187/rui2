@@ -87,11 +87,15 @@ type
   ButtonEvent = tuple[down: bool, at: Point, stamp: MonoTime]
   GlfwMouseCb = proc (window: pointer, button, action, mods: cint) {.cdecl.}
 
-proc glfwSetMouseButtonCallback(window: pointer, cb: GlfwMouseCb): GlfwMouseCb
-  {.importc: "glfwSetMouseButtonCallback", cdecl.}
-proc glfwGetCurrentContext(): pointer {.importc: "glfwGetCurrentContext", cdecl.}
-proc glfwGetCursorPos(window: pointer, x, y: ptr cdouble)
-  {.importc: "glfwGetCursorPos", cdecl.}
+# Android has no GLFW: raylib reads touches from the input queue itself, and
+# buttonEvents polls (a tap is a whole frame or more of a finger down).
+const glfwHooks = not defined(android)
+when glfwHooks:
+  proc glfwSetMouseButtonCallback(window: pointer, cb: GlfwMouseCb): GlfwMouseCb
+    {.importc: "glfwSetMouseButtonCallback", cdecl.}
+  proc glfwGetCurrentContext(): pointer {.importc: "glfwGetCurrentContext", cdecl.}
+  proc glfwGetCursorPos(window: pointer, x, y: ptr cdouble)
+    {.importc: "glfwGetCursorPos", cdecl.}
 
 var
   buttonQueue: seq[ButtonEvent]
@@ -102,8 +106,9 @@ var
 # say) and must be shown again. GLFW reports it; the App presents a frame when it
 # sees `windowExposed`, instead of presenting on a timer just in case.
 type GlfwRefreshCb = proc (window: pointer) {.cdecl.}
-proc glfwSetWindowRefreshCallback(window: pointer, cb: GlfwRefreshCb): GlfwRefreshCb
-  {.importc: "glfwSetWindowRefreshCallback", cdecl.}
+when glfwHooks:
+  proc glfwSetWindowRefreshCallback(window: pointer, cb: GlfwRefreshCb): GlfwRefreshCb
+    {.importc: "glfwSetWindowRefreshCallback", cdecl.}
 var
   windowExposed*: bool
     ## Set when the OS says the window needs drawing again; the App clears it.
@@ -113,21 +118,23 @@ proc onRefresh(window: pointer) {.cdecl.} =
   if raylibRefreshCb != nil: raylibRefreshCb(window)
   windowExposed = true
 
-proc onMouseButton(window: pointer, button, action, mods: cint) {.cdecl.} =
-  if raylibMouseCb != nil:
-    raylibMouseCb(window, button, action, mods)      # raylib keeps its own state
-  if button == 0 and action in [0.cint, 1.cint]:      # GLFW_MOUSE_BUTTON_LEFT; release / press
-    var x, y: cdouble
-    glfwGetCursorPos(window, addr x, addr y)
-    buttonQueue.add (action == 1, Point(x: x.float32, y: y.float32), getMonoTime())
+when glfwHooks:
+  proc onMouseButton(window: pointer, button, action, mods: cint) {.cdecl.} =
+    if raylibMouseCb != nil:
+      raylibMouseCb(window, button, action, mods)      # raylib keeps its own state
+    if button == 0 and action in [0.cint, 1.cint]:      # GLFW_MOUSE_BUTTON_LEFT; release / press
+      var x, y: cdouble
+      glfwGetCursorPos(window, addr x, addr y)
+      buttonQueue.add (action == 1, Point(x: x.float32, y: y.float32), getMonoTime())
 
 proc hookMouseButtons() =
-  if buttonHooked: return
-  let window = glfwGetCurrentContext()     # the GLFWwindow (raylib's own handle is the X11 one)
-  if window == nil: return
-  raylibMouseCb = glfwSetMouseButtonCallback(window, onMouseButton)
-  raylibRefreshCb = glfwSetWindowRefreshCallback(window, onRefresh)
-  buttonHooked = true
+  when glfwHooks:
+    if buttonHooked: return
+    let window = glfwGetCurrentContext()     # the GLFWwindow (raylib's own handle is the X11 one)
+    if window == nil: return
+    raylibMouseCb = glfwSetMouseButtonCallback(window, onMouseButton)
+    raylibRefreshCb = glfwSetWindowRefreshCallback(window, onRefresh)
+    buttonHooked = true
 
 proc buttonEvents(dest: var seq[GuiEvent], at: Point) =
   ## epHigh because their order matters and they must not be coalesced away --

@@ -18,6 +18,7 @@ import rui_drawing;   export rui_drawing    # drawing primitives + theme system
 import rui_scripting; export rui_scripting  # GUI automation (query/set values)
 import rui_widgets;   export rui_widgets    # label, button, stacks, image, ...
 import app;           export app            # App object + main loop integrator
+import android_host;  export android_host   # Intent extras, density, the Android entry point
 
 const
   RuiVersionMajor* = 0

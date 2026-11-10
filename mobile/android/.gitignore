@@ -1,0 +1,6 @@
+.gradle/
+build/
+local.properties
+# Built by build_rui.sh from the Nim sources and the system's Roboto:
+rui/src/main/jniLibs/
+rui/src/main/assets/

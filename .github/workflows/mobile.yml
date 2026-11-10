@@ -1,0 +1,72 @@
+name: Mobile
+
+# The mobile track (mobile/README.md): RUI cross-compiled for Android, the
+# Kotlin host's Robolectric tests, and the RUI-vs-Flutter comparison, whose
+# side-by-side pictures are uploaded for a person to look at. Runs when the
+# mobile folder or the toolkit changes; the same scripts run locally.
+on:
+  pull_request:
+    paths: ['mobile/**', 'packages/**', '.github/workflows/mobile.yml']
+  push:
+    branches: [main]
+    paths: ['mobile/**', 'packages/**']
+  workflow_dispatch:
+
+concurrency:
+  group: mobile-${{ github.event.pull_request.number || github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  android:
+    name: Android build + Robolectric
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-java@v4
+        with: {distribution: temurin, java-version: '21'}
+      - name: Toolchain (mobile/env/setup.sh)
+        run: mobile/env/setup.sh apt nim android
+      - name: Doctor
+        run: mobile/env/doctor.sh || true
+      - name: Cross-compile RUI (libmain.so, arm64-v8a + x86_64)
+        run: mobile/android/build_rui.sh
+      - name: Kotlin host APK and Robolectric tests
+        working-directory: mobile/android
+        run: ./gradlew --no-daemon :kotlin-host:assembleDebug :kotlin-host:testDebugUnitTest
+      - name: The APK carries RUI
+        run: |
+          unzip -l mobile/android/kotlin-host/build/outputs/apk/debug/kotlin-host-debug.apk \
+            | grep -E 'lib/arm64-v8a/libmain.so|assets/fonts/Roboto-Regular.ttf|assets/rui_screens.txt'
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: kotlin-host-apk
+          path: |
+            mobile/android/kotlin-host/build/outputs/apk/debug/*.apk
+            mobile/android/kotlin-host/build/reports/tests/
+
+  compare:
+    name: RUI vs Flutter pictures
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@v4
+      - name: Toolchain (mobile/env/setup.sh)
+        run: mobile/env/setup.sh apt nim flutter
+      - name: Render and compare
+        run: |
+          RUI_COMPARE_OUT=$PWD/compare-out mobile/compare/compare.sh
+          RUI_TEXT_ENGINE=stb mobile/compare/render_rui.sh $PWD/compare-out/rui-stb
+          cat compare-out/report.md >> "$GITHUB_STEP_SUMMARY"
+      - name: Layout conformance (fails if a case got worse than known.json)
+        run: |
+          mobile/layout_conformance/run.sh $PWD/layout-out
+          head -12 layout-out/report.md >> "$GITHUB_STEP_SUMMARY"
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: rui-vs-flutter
+          path: |
+            compare-out/
+            layout-out/

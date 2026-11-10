@@ -7,12 +7,22 @@
 ## them. Another thread that has queued work for the UI calls `wakeMainLoop`.
 ##
 ## raylib's own `EnableEventWaiting` blocks with no timeout, which would
-## starve the timers; GLFW's `waitEventsTimeout` is what we need.
+## starve the timers; GLFW's `waitEventsTimeout` is what we need. On Android
+## there is no GLFW: the main thread's ALooper is what input and lifecycle
+## events arrive on, so the loop waits on that, and is woken through it.
 
 import std/[monotimes, times, options]
 
-proc glfwWaitEventsTimeout(seconds: cdouble) {.importc: "glfwWaitEventsTimeout", cdecl.}
-proc glfwPostEmptyEvent() {.importc: "glfwPostEmptyEvent", cdecl.}
+when defined(android):
+  type ALooper = pointer
+  proc ALooper_forThread(): ALooper {.importc, header: "<android/looper.h>".}
+  proc ALooper_pollOnce(timeoutMillis: cint, outFd, outEvents: ptr cint,
+                        outData: ptr pointer): cint {.importc, header: "<android/looper.h>".}
+  proc ALooper_wake(looper: ALooper) {.importc, header: "<android/looper.h>".}
+  var mainLooper: ALooper     # the UI thread's, seen at its first wait
+else:
+  proc glfwWaitEventsTimeout(seconds: cdouble) {.importc: "glfwWaitEventsTimeout", cdecl.}
+  proc glfwPostEmptyEvent() {.importc: "glfwPostEmptyEvent", cdecl.}
 
 const
   minWait = initDuration(milliseconds = 1)     # never spin tighter than this
@@ -32,9 +42,18 @@ proc idleWaitFor*(now: MonoTime, nextTimer: Option[MonoTime], refreshAt: MonoTim
 
 proc blockForEvents*(timeout: Duration) =
   ## Return when an event arrives, `wakeMainLoop` is called, or `timeout` ends.
-  glfwWaitEventsTimeout(cdouble(timeout.inNanoseconds) / 1e9)
+  when defined(android):
+    # Only waits: whatever woke the looper stays queued for raylib's
+    # PollInputEvents to process at the start of the next frame.
+    if mainLooper == nil: mainLooper = ALooper_forThread()
+    discard ALooper_pollOnce(cint(max(1'i64, timeout.inMilliseconds)), nil, nil, nil)
+  else:
+    glfwWaitEventsTimeout(cdouble(timeout.inNanoseconds) / 1e9)
 
 proc wakeMainLoop*() =
   ## Interrupt a blocked loop. Safe from any thread -- the way for a worker to
   ## tell the UI there is something to show.
-  glfwPostEmptyEvent()
+  when defined(android):
+    if mainLooper != nil: ALooper_wake(mainLooper)
+  else:
+    glfwPostEmptyEvent()
