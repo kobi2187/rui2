@@ -19,6 +19,7 @@ import rui_core
 import rui_events
 import std/[monotimes, unicode, options, tables]
 import touch_source
+when defined(android): import android_host   # links android_glue.c (rui_hook_touch)
 
 import raylib
 
@@ -87,8 +88,9 @@ type
   ButtonEvent = tuple[down: bool, at: Point, stamp: MonoTime]
   GlfwMouseCb = proc (window: pointer, button, action, mods: cint) {.cdecl.}
 
-# Android has no GLFW: raylib reads touches from the input queue itself, and
-# buttonEvents polls (a tap is a whole frame or more of a finger down).
+# Android has no GLFW: there the first finger's down and up are caught by
+# wrapping raylib's Android input callback instead (android_glue.c), into the
+# same queue.
 const glfwHooks = not defined(android)
 when glfwHooks:
   proc glfwSetMouseButtonCallback(window: pointer, cb: GlfwMouseCb): GlfwMouseCb
@@ -101,6 +103,27 @@ var
   buttonQueue: seq[ButtonEvent]
   raylibMouseCb: GlfwMouseCb
   buttonHooked: bool
+
+proc queueButton*(down: bool, at: Point, stamp = getMonoTime()) =
+  ## A press or release as it happened, kept in order until the next frame
+  ## collects it -- so a tap that goes down and up between two frames is still
+  ## a press and a release. Called by the platform hooks (GLFW's button
+  ## callback, the Android touch hook); exported for tests.
+  buttonQueue.add (down, at, stamp)
+
+proc drainButtonQueue*(dest: var seq[GuiEvent]) =
+  ## The queued presses and releases as events, oldest first, and the queue
+  ## emptied.
+  for b in buttonQueue:
+    dest.add(GuiEvent(kind: (if b.down: evMouseDown else: evMouseUp), priority: epHigh,
+                      timestamp: b.stamp, mousePos: b.at))
+  buttonQueue.setLen(0)
+
+when defined(android):
+  type RuiTouchCb = proc (down: cint, x, y: cfloat) {.cdecl.}
+  proc ruiHookTouch(cb: RuiTouchCb): cint {.importc: "rui_hook_touch", cdecl.}
+  proc onTouch(down: cint, x, y: cfloat) {.cdecl.} =
+    queueButton(down != 0, Point(x: x.float32, y: y.float32))
 
 # The window's contents were lost (uncovered on a desktop without a compositor,
 # say) and must be shown again. GLFW reports it; the App presents a frame when it
@@ -125,7 +148,7 @@ when glfwHooks:
     if button == 0 and action in [0.cint, 1.cint]:      # GLFW_MOUSE_BUTTON_LEFT; release / press
       var x, y: cdouble
       glfwGetCursorPos(window, addr x, addr y)
-      buttonQueue.add (action == 1, Point(x: x.float32, y: y.float32), getMonoTime())
+      queueButton(action == 1, Point(x: x.float32, y: y.float32))
 
 proc hookMouseButtons() =
   when glfwHooks:
@@ -135,6 +158,9 @@ proc hookMouseButtons() =
     raylibMouseCb = glfwSetMouseButtonCallback(window, onMouseButton)
     raylibRefreshCb = glfwSetWindowRefreshCallback(window, onRefresh)
     buttonHooked = true
+  elif defined(android):
+    if buttonHooked: return
+    buttonHooked = ruiHookTouch(onTouch) != 0     # 0 until raylib has its window
 
 proc buttonEvents(dest: var seq[GuiEvent], at: Point) =
   ## epHigh because their order matters and they must not be coalesced away --
@@ -148,10 +174,7 @@ proc buttonEvents(dest: var seq[GuiEvent], at: Point) =
       dest.add(GuiEvent(kind: evMouseUp, priority: epHigh,
                         timestamp: getMonoTime(), mousePos: at))
     return
-  for b in buttonQueue:
-    dest.add(GuiEvent(kind: (if b.down: evMouseDown else: evMouseUp), priority: epHigh,
-                      timestamp: b.stamp, mousePos: b.at))
-  buttonQueue.setLen(0)
+  drainButtonQueue(dest)
 
 proc dropEvents(dest: var seq[GuiEvent], at: Point) =
   ## Files dropped on the window from the OS. One event for the whole drop,
