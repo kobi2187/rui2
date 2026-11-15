@@ -57,3 +57,50 @@ int rui_night_mode(void) {
   if (!app || !app->config) return 0;
   return AConfiguration_getUiModeNight(app->config) == ACONFIGURATION_UI_MODE_NIGHT_YES;
 }
+
+/* Every finger-down and finger-up, as it happens.
+ *
+ * raylib reads touches in its input callback and keeps only the state: a
+ * finger that goes down and up between two frames leaves the state as it was,
+ * and the tap is lost. RUI's desktop side catches GLFW's button callback for
+ * the same reason (event_source.nim); this is the Android equivalent: wrap the
+ * callback raylib set on the android_app, let raylib handle the event first,
+ * then report the transition with the position raylib computed for it (in
+ * screen coordinates, as GetMousePosition gives everywhere else).
+ *
+ * The first finger is the mouse: DOWN is it touching, UP the last finger
+ * lifting. CANCEL (the system took the gesture, a back swipe say) is reported
+ * as a release, as raylib treats it. */
+#include <android/input.h>
+#include "raylib.h"
+
+typedef int32_t (*RuiInputFn)(struct android_app *, AInputEvent *);
+typedef void (*RuiTouchCb)(int down, float x, float y);
+static RuiInputFn raylibInput = NULL;
+static RuiTouchCb ruiTouch = NULL;
+
+static int32_t ruiInputWrapper(struct android_app *app, AInputEvent *event) {
+  int32_t handled = raylibInput ? raylibInput(app, event) : 0;
+  if (ruiTouch && AInputEvent_getType(event) == AINPUT_EVENT_TYPE_MOTION) {
+    int32_t action = AMotionEvent_getAction(event) & AMOTION_EVENT_ACTION_MASK;
+    if (action == AMOTION_EVENT_ACTION_DOWN || action == AMOTION_EVENT_ACTION_UP ||
+        action == AMOTION_EVENT_ACTION_CANCEL) {
+      Vector2 at = GetMousePosition();
+      ruiTouch(action == AMOTION_EVENT_ACTION_DOWN, at.x, at.y);
+    }
+  }
+  return handled;
+}
+
+/* Install the wrapper once raylib has set its callback (after InitWindow).
+ * Returns 1 when hooked, 0 when there is no app or callback yet. */
+int rui_hook_touch(RuiTouchCb cb) {
+  struct android_app *app = GetAndroidApp();
+  if (!app || !app->onInputEvent) return 0;
+  if (app->onInputEvent != ruiInputWrapper) {
+    raylibInput = app->onInputEvent;
+    app->onInputEvent = ruiInputWrapper;
+  }
+  ruiTouch = cb;
+  return 1;
+}

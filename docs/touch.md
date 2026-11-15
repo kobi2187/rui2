@@ -19,6 +19,22 @@ What uses it: `MapWidget` and `Timeline` zoom about the point between the finger
 `ScrollView` scrolls with a finger beyond the first; the row lists (`ListView`,
 `ListBox`, `TreeView`, `DataTable`, `DataGrid`) scroll with two fingers.
 
+## Taps are never lost between frames
+
+raylib keeps the button's *state*, so a press and release that both land
+between two frames (a quick tap, or any tap while a frame is slow) would leave
+it unchanged and the click would vanish. RUI catches every transition as it
+happens instead and keeps them in order until the next frame
+(`queueButton` / `drainButtonQueue` in `event_source.nim`). On the desktop it
+hooks GLFW's button callback. On Android it wraps the input callback raylib
+sets on the activity (`rui_hook_touch` in `android_glue.c`): raylib handles
+each event first, then the first finger's down and up are queued with the
+position raylib computed.
+
+Android's `ACTION_CANCEL` (the system took the gesture, a back swipe say) is a
+release, as in raylib. RUI has no cancel event yet, so a press under a
+cancelled gesture can still click.
+
 ## Mouse or touch
 
 `isTouch()` (rui_core/input_mode.nim) is the one global widgets consult. With a mouse a
@@ -42,5 +58,5 @@ A finger also gets what a mouse has, not less:
   friction; touching again stops it) in `ScrollView` and the row lists.
 
 Not yet: rotation in the Map (it has no bearing), long-press as right-click / tooltip
-(hover has no touch equivalent yet), and real-device testing (raylib's own touch to
+(hover has no touch equivalent yet), a pointer-cancel event, and real-device testing (raylib's own touch to
 mouse emulation is assumed to mirror finger 0).
