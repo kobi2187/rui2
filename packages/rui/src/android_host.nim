@@ -18,6 +18,12 @@
 
 when defined(android):
   {.compile: "android_glue.c".}
+  # stdout and stderr into logcat from the moment libmain.so loads: Android
+  # discards both, so a program that fails while starting (an exception in a
+  # module initializer, a {.dynlib.} library that cannot be loaded) otherwise
+  # ends with "exited cleanly (1)" and no message. -d:ruiKeepStdio: leave them.
+  when defined(ruiKeepStdio): {.passC: "-DRUI_KEEP_STDIO".}
+  {.compile: "android_stdio.c".}
   proc ruiIntentExtra(key: cstring, buf: cstring, bufLen: cint): cint {.importc: "rui_intent_extra".}
   proc ruiDisplayDpi(): cint {.importc: "rui_display_dpi".}
   proc ruiNightMode(): cint {.importc: "rui_night_mode".}

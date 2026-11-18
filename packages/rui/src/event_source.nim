@@ -63,7 +63,7 @@ method poll*(source: ListEventSource): seq[GuiEvent] =
 proc motionEvents(dest: var seq[GuiEvent], at: Point) =
   ## Movement and wheel are epNormal because the event manager coalesces them:
   ## a drag produces one event per frame however many the OS delivered.
-  let delta = getMouseDelta()
+  let delta = logicalMouseDelta()
   if delta.x != 0 or delta.y != 0:
     dest.add(GuiEvent(kind: evMouseMove, priority: epNormal,
                       timestamp: getMonoTime(), mousePos: at))
@@ -148,7 +148,8 @@ when glfwHooks:
     if button == 0 and action in [0.cint, 1.cint]:      # GLFW_MOUSE_BUTTON_LEFT; release / press
       var x, y: cdouble
       glfwGetCursorPos(window, addr x, addr y)
-      queueButton(action == 1, Point(x: x.float32, y: y.float32))
+      # Window pixels -> logical ones (pixel_density.nim), like every other position.
+      queueButton(action == 1, Point(x: x.float32 / pixelScale, y: y.float32 / pixelScale))
 
 proc hookMouseButtons() =
   when glfwHooks:
@@ -187,7 +188,7 @@ proc dropEvents(dest: var seq[GuiEvent], at: Point) =
                       paths: getDroppedFiles()))
 
 proc pointerEvents(dest: var seq[GuiEvent]) =
-  let mousePos = getMousePosition()
+  let mousePos = logicalMousePosition()     # logical pixels (pixel_density.nim)
   let at = Point(x: mousePos.x, y: mousePos.y)
   motionEvents(dest, at)
   buttonEvents(dest, at)
@@ -219,8 +220,8 @@ proc windowEvents(dest: var seq[GuiEvent]) =
   if isWindowResized():
     dest.add(GuiEvent(kind: evWindowResize, priority: epNormal,
                       timestamp: getMonoTime(),
-                      windowSize: Size(width: float32(getScreenWidth()),
-                                       height: float32(getScreenHeight()))))
+                      windowSize: Size(width: logicalScreenWidth(),
+                                       height: logicalScreenHeight())))
 
 proc heldMods(): set[KeyMod] =
   ## The modifiers down right now, read once per poll.
@@ -237,7 +238,7 @@ proc touchEvents(dest: var seq[GuiEvent], known: var Table[int, rui_core.Point])
   if n <= 1 and known.len == 0: return
   var frame: TouchFrame
   for i in 0 ..< n:
-    let p = getTouchPosition(i.int32)
+    let p = logicalTouchPosition(i.int32)
     frame.add (id: getTouchPointId(i.int32).int, at: rui_core.Point(x: p.x, y: p.y))
   dest.add touchDiff(known, frame)
 

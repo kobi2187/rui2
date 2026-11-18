@@ -70,7 +70,7 @@ proc refreshLayout*(app: App) =
   app.tree.registerWidgetRecursive(app.tree.root)
 
 proc windowArea(app: App): Rect =
-  Rect(x: 0, y: 0, width: getScreenWidth().float32, height: getScreenHeight().float32)
+  Rect(x: 0, y: 0, width: logicalScreenWidth(), height: logicalScreenHeight())
 
 proc drawWindowBackground(app: App) =
   ## What is behind the widget tree. The window surround follows the active
@@ -98,12 +98,13 @@ proc takePicture(app: App, modal: Widget) =
   ## Needs a window; without one the modal falls back to a plain tint.
   if not isWindowReady() or app.tree.root.cachedTexture.isNone:
     return
-  var screen = loadRenderTexture(getScreenWidth(), getScreenHeight())
+  var screen = loadRenderTexture(getScreenWidth(), getScreenHeight())   # physical
   beginTextureMode(screen)
-  app.drawWindowBackground()
-  compositingTextures:
-    drawRenderTexture(app.tree.root.cachedTexture.get(),
-                      app.tree.root.bounds.x, app.tree.root.bounds.y)
+  scaledDrawing:
+    app.drawWindowBackground()
+    compositingTextures:
+      drawRenderTexture(app.tree.root.cachedTexture.get(),
+                        app.tree.root.bounds.x, app.tree.root.bounds.y)
   endTextureMode()
   setBackdrop(modal, makeBackdrop(screen, currentTheme, backdropPainterFor(modal)))
   # It is drawn inside the modal's texture: repaint that with it.
@@ -120,8 +121,8 @@ proc updateLayoutAndRender(app: App): bool =
     app.syncFocusRings()
   # What the window shows: anything wholly outside it is not painted until it
   # scrolls into view.
-  renderView = some(Rect(x: 0, y: 0, width: getScreenWidth().float32,
-                         height: getScreenHeight().float32))
+  renderView = some(Rect(x: 0, y: 0, width: logicalScreenWidth(),
+                         height: logicalScreenHeight()))
   let top = frozenBy(app.tree.root)
   if top != nil:
     # Frozen behind a modal: the page is painted only to be pictured, and the

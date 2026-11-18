@@ -233,14 +233,16 @@ proc enableScripting*(app: App, scriptDir: string) =
       app.answerInspect(selector, what)
     app.probe = newVisualProbe(scriptDir / "shots")
     app.probe.rectOf = proc(selector: string): Option[tuple[x, y, w, h: int]] =
+      # The probe reads the framebuffer: physical pixels (pixel_density.nim).
       if selector == "*":
         return some((0, 0, getScreenWidth().int, getScreenHeight().int))
       let widget = app.tree.findWidget(selector)
       if widget.isNone: return none(tuple[x, y, w, h: int])
       let r = widget.get().visibleRect
-      some((r.x.int, r.y.int, r.width.int, r.height.int))
+      some((int(r.x * pixelScale), int(r.y * pixelScale),
+            int(r.width * pixelScale), int(r.height * pixelScale)))
     app.probe.resizeTo = proc(width, height: int) =
-      setWindowSize(width.int32, height.int32)
+      setWindowSize(physicalExtent(width.float32), physicalExtent(height.float32))
       if app.tree.root != nil:
         app.tree.root.layoutDirty = true
         app.tree.root.isDirty = true
@@ -333,7 +335,7 @@ proc currentWidget*(app: App): Widget =
   ## Get the widget currently under the mouse cursor
   ## Returns nil if no widget is under the cursor
   ## Queries hitTestSystem with current mouse position
-  let mousePos = getMousePosition()
+  let mousePos = logicalMousePosition()
   return app.hitTestSystem.getWidgetAt(mousePos.x, mousePos.y)
 proc currentFocusedWidget*(app: App): Widget =
   ## Get the widget that currently has keyboard focus
@@ -367,8 +369,8 @@ proc printTextCacheStats*(app: App) =
        s.measureHits, " hits / ", s.measureMisses, " misses"
 
 proc setWindowSize*(app: App, width, height: int) =
-  ## Programmatically resize the window
-  setWindowSize(width.int32, height.int32)
+  ## Programmatically resize the window (logical pixels).
+  setWindowSize(physicalExtent(width.float32), physicalExtent(height.float32))
   app.window.width = width
   app.window.height = height
   app.tree.anyDirty = true  # Trigger relayout
@@ -489,7 +491,7 @@ when defined(ruiShaped):
   proc dragByBackground(app: App) =
     ## A press on the background -- nothing that takes a click itself -- and a
     ## drag move the window: it has no title bar to be moved by.
-    let m = getMousePosition()
+    let m = logicalMousePosition()
     var allow = false
     if isMouseButtonPressed(MouseButton.Left):
       var hit = overlayAt(m.x, m.y)

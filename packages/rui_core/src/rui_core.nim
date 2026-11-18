@@ -11,6 +11,7 @@ import background;         export background
 import mailbox;            export mailbox
 import store;              export store
 import main_loop;          export main_loop
+import pixel_density;      export pixel_density
 import widget_dsl;         export widget_dsl
 import widget_dsl_helpers; export widget_dsl_helpers
 import ui_tree;           export ui_tree

@@ -36,11 +36,13 @@
 ##    darkens every partially transparent pixel.
 
 import std/[tables, hashes, math, unicode, options]
+import std/strutils except splitWhitespace, strip, align
 import std/times as stdtimes  # raylib also exports stdtimes.getTime()
 import raylib
 import text_types
 import text_engine
 import perf
+import pixel_density
 import std/monotimes
 
 export text_types
@@ -53,6 +55,7 @@ type
     wrapWidth: int32   ## -1 for "no wrapping"
     markup: bool
     dir: TextDir
+    scale: float32     ## pixelScale it was rasterised at
 
   CachedGlyphs = object
     texture: Texture2D
@@ -74,6 +77,7 @@ proc hash(k: CacheKey): Hash =
   h = h !& hash(k.font)
   h = h !& hash(k.wrapWidth)
   h = h !& hash(k.markup)
+  h = h !& hash(k.scale)
   !$h
 
 # ---------------------------------------------------------------------------
@@ -223,10 +227,23 @@ proc evictIfNeeded(newBytes: int) =
          cacheMemoryBytes + newBytes > maxCacheBytes()):
     evictOldest()
 
+proc scaledFont*(desc: string, scale: float32): string =
+  ## A font description at `scale` times its size: "Roboto Bold 14" at 2.5 is
+  ## "Roboto Bold 35". The size is the last word; without one, Pango's default
+  ## of 10 is assumed.
+  if scale == 1: return desc
+  let words = strutils.splitWhitespace(desc)
+  if words.len > 0:
+    try:
+      let size = parseFloat(words[^1])
+      return words[0 ..< ^1].join(" ") & " " & formatFloat(size * scale, ffDecimal, 3)
+    except ValueError: discard
+  desc & " " & formatFloat(10.0 * scale, ffDecimal, 3)
+
 proc getGlyphs(text, font: string, wrapWidth: int32,
                markup: bool, dir = tdAuto): ptr CachedGlyphs =
   let key = CacheKey(text: text, font: font, wrapWidth: wrapWidth,
-                     markup: markup, dir: dir)
+                     markup: markup, dir: dir, scale: pixelScale)
   if key in cache:
     inc cacheHits
     perfCount(pcTextHit)
@@ -235,13 +252,20 @@ proc getGlyphs(text, font: string, wrapWidth: int32,
 
   inc cacheMisses
   perfCount(pcTextMiss)
-  let m = measure(text, font, wrapWidth, markup, dir)
+  # Rasterised at the screen's resolution: the font scaled up by pixelScale
+  # (pixel_density.nim), measured again at that size. The texture is physical
+  # pixels; the sizes kept with it are logical.
+  let s = pixelScale
+  let rasterFont = scaledFont(font, s)
+  let rasterWrap = if s == 1 or wrapWidth < 0: wrapWidth
+                   else: int32(round(wrapWidth.float32 * s))
+  let m = measure(text, rasterFont, rasterWrap, markup, dir)
   let rasterStart = when perfOn: getMonoTime() else: default(MonoTime)
   let w = max(1'i32, m.width.int32)
   let h = max(1'i32, m.height.int32)
 
-  let pixels = if markup: engineRasteriseArgb32(text, font, wrapWidth, m)
-               else: engineRasteriseA8(text, font, wrapWidth, m, dir)
+  let pixels = if markup: engineRasteriseArgb32(text, rasterFont, rasterWrap, m)
+               else: engineRasteriseA8(text, rasterFont, rasterWrap, m, dir)
 
   let bytes = w.int * h.int * 4
   evictIfNeeded(bytes)
@@ -251,8 +275,8 @@ proc getGlyphs(text, font: string, wrapWidth: int32,
   # edges exactly as Pango antialiased them rather than blurring them again.
   setTextureFilter(tex, TextureFilter.Point)
 
-  cache[key] = CachedGlyphs(texture: tex, width: m.width, height: m.height,
-                            baseline: m.baseline, lastUsed: stdtimes.getTime(),
+  cache[key] = CachedGlyphs(texture: tex, width: m.width / s, height: m.height / s,
+                            baseline: m.baseline / s, lastUsed: stdtimes.getTime(),
                             memoryBytes: bytes)
   cacheMemoryBytes += bytes
   when perfOn: perfAdd(phTextRaster, (getMonoTime() - rasterStart).inNanoseconds)
@@ -261,6 +285,16 @@ proc getGlyphs(text, font: string, wrapWidth: int32,
 # ---------------------------------------------------------------------------
 # Public drawing API
 # ---------------------------------------------------------------------------
+proc drawGlyphs(g: ptr CachedGlyphs, x, y: float32, tint: Color) =
+  ## The glyph texture with its top-left at (x, y), one texel per physical
+  ## pixel: at its logical size, on a whole physical pixel.
+  let tw = g.texture.width.float32
+  let th = g.texture.height.float32
+  drawTexture(g.texture, Rectangle(x: 0, y: 0, width: tw, height: th),
+              Rectangle(x: snapLogical(x), y: snapLogical(y),
+                        width: tw / pixelScale, height: th / pixelScale),
+              Vector2(x: 0, y: 0), 0.0, tint)
+
 proc drawTextPango*(text: string, x, y: float32, font: string,
                     color: Color, wrapWidth: int32 = -1) =
   ## Draw `text` with its top-left corner at (x, y).
@@ -273,7 +307,7 @@ proc drawTextPango*(text: string, x, y: float32, font: string,
   if text.len == 0:
     return
   let g = getGlyphs(text, font, wrapWidth, markup = false)
-  drawTexture(g.texture, Vector2(x: round(x), y: round(y)), color)
+  drawGlyphs(g, x, y, color)
 
 proc drawTextPangoClipped*(text: string, x, y: float32, font: string,
                            color: Color, clip: Rectangle, dir = tdAuto) =
@@ -286,17 +320,20 @@ proc drawTextPangoClipped*(text: string, x, y: float32, font: string,
   if text.len == 0:
     return
   let g = getGlyphs(text, font, -1'i32, markup = false, dir)
-  let dx = round(x)
-  let dy = round(y)
+  let dx = snapLogical(x)
+  let dy = snapLogical(y)
+  let gw = g.texture.width.float32 / pixelScale
+  let gh = g.texture.height.float32 / pixelScale
   let left = max(dx, clip.x)
   let top = max(dy, clip.y)
-  let right = min(dx + g.width, clip.x + clip.width)
-  let bottom = min(dy + g.height, clip.y + clip.height)
+  let right = min(dx + gw, clip.x + clip.width)
+  let bottom = min(dy + gh, clip.y + clip.height)
   if right <= left or bottom <= top:
     return
+  let s = pixelScale                    # source in texels: physical pixels
   drawTexture(g.texture,
-              Rectangle(x: left - dx, y: top - dy,
-                        width: right - left, height: bottom - top),
+              Rectangle(x: (left - dx) * s, y: (top - dy) * s,
+                        width: (right - left) * s, height: (bottom - top) * s),
               Rectangle(x: left, y: top, width: right - left, height: bottom - top),
               Vector2(x: 0, y: 0), 0.0, color)
 
@@ -308,7 +345,7 @@ proc drawMarkupPango*(markup: string, x, y: float32, font: string,
   if markup.len == 0:
     return
   let g = getGlyphs(markup, font, wrapWidth, markup = true)
-  drawTexture(g.texture, Vector2(x: round(x), y: round(y)), White)
+  drawGlyphs(g, x, y, White)
 
 proc measureTextPango*(text: string, font: string,
                        wrapWidth: int32 = -1, dir = tdAuto): TextMeasure =

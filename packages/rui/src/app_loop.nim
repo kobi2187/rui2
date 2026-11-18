@@ -56,6 +56,14 @@ proc quietRaylibLog() =
       else: TraceLogLevel.Info
   setTraceLogLevel(level)
 
+proc chosenPixelScale*(): float32 =
+  ## The phone's density on Android (dpi / 160); RUI_SCALE on the desktop, 1 by default.
+  when defined(android):
+    max(1'f32, displayDpi().float32 / 160)
+  else:
+    try: max(0.25'f32, parseFloat(getEnv("RUI_SCALE", "1")).float32)
+    except ValueError: 1'f32
+
 proc openWindow(app: App) =
   quietRaylibLog()
   when defined(ruiShaped):
@@ -64,7 +72,19 @@ proc openWindow(app: App) =
       # and a see-through framebuffer where a compositor can show one).
       app.shaped = prepareShapedWindow(app.shapeSoftEdges, app.shapeClickThrough,
                                        backdrop = currentTheme.canvasColor())
-  initWindow(app.window.width.int32, app.window.height.int32, app.window.title)
+  # Physical pixels per logical one (pixel_density.nim): the phone's density on
+  # Android, RUI_SCALE on the desktop (to see a phone's layout at its sharpness).
+  pixelScale = chosenPixelScale()
+  when defined(android):
+    # The display's own size: drawn at full resolution, not a small window
+    # stretched to fit (which is what made text soft). The layout fills it in
+    # logical pixels.
+    initWindow(0, 0, app.window.title)
+    app.window.width = int(logicalScreenWidth())
+    app.window.height = int(logicalScreenHeight())
+  else:
+    initWindow(physicalExtent(app.window.width.float32),
+               physicalExtent(app.window.height.float32), app.window.title)
   if app.pendingWindowPos.isSome:
     let (x, y) = app.pendingWindowPos.get
     setWindowPosition(x.int32, y.int32)
@@ -79,11 +99,13 @@ proc openWindow(app: App) =
     return
   setWindowState(flags(WindowResizable))
   if app.window.minWidth > 0 and app.window.minHeight > 0:
-    setWindowMinSize(app.window.minWidth.int32, app.window.minHeight.int32)
+    setWindowMinSize(physicalExtent(app.window.minWidth.float32),
+                     physicalExtent(app.window.minHeight.float32))
 
 proc announce(app: App) =
   echo "RUI Application Started"
-  echo "  Window: ", app.window.width, "x", app.window.height
+  echo "  Window: ", app.window.width, "x", app.window.height,
+       (if pixelScale != 1: " at " & $pixelScale & "x" else: "")
   echo "  Target FPS: ", app.window.fps
   echo "  Resizable: ", app.window.resizable
   if app.window.resizable:

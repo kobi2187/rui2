@@ -17,6 +17,7 @@ export visual
 import preferences_file
 export preferences_file
 import system_scheme
+import android_host           # displayDpi: the phone's density (pixel_density.nim)
 export system_scheme
 from rui_widgets import HelpOverlay, newHelpOverlay, hints, `hints=`, FocusRing, newFocusRing,
   Toast, newToast, MenuBar, findMenuBar, openFromKeyboard,

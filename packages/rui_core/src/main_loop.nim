@@ -9,7 +9,7 @@
 ## - Parent composites children's textures into its own
 ## - Cached Texture2D is reused when widget is clean
 
-import types, perf
+import types, perf, pixel_density
 import std/[algorithm, math, options, hashes]
 import raylib
 import rlgl
@@ -49,9 +49,11 @@ proc inkPadFor(widget: Widget): float32 =
 proc createWidgetTexture*(widget: Widget): RenderTexture2D =
   ## Create a render texture for the widget
   ## Size is based on widget's bounds (and a subpixel widget's margin)
+  # Logical size as before, then physical: the texture holds the widget at the
+  # screen's resolution (pixel_density.nim).
   let pad = int32(widget.texturePad * 2)
-  let width = max(1, widget.bounds.width.int32) + pad
-  let height = max(1, widget.bounds.height.int32) + pad
+  let width = physicalExtent(float32(max(1, widget.bounds.width.int32) + pad))
+  let height = physicalExtent(float32(max(1, widget.bounds.height.int32) + pad))
   # Colour only. raylib's own loadRenderTexture also attaches a 32-bit depth
   # renderbuffer, which a 2D widget never reads: about as much memory again,
   # per widget, for nothing (10,000 widgets held 341 MB of colour alone).
@@ -143,12 +145,16 @@ proc drawRenderTexture*(tex: RenderTexture2D, x, y: float32, snap = true) =
   ## half pixel (a centred child, say), and a texture blitted there is
   ## resampled, which smears its text into a doubled ghost. `snap = false`
   ## keeps the exact position, for a `subpixel` widget gliding smoothly.
+  ##
+  ## The texture is physical pixels (pixel_density.nim) and (x, y) logical: it is
+  ## drawn at its logical size, which the scale in force maps back to 1:1.
   let w = tex.texture.width.float32
   let h = tex.texture.height.float32
   drawTexture(tex.texture,
               Rectangle(x: 0, y: 0, width: w, height: -h),
-              (if snap: Vector2(x: round(x), y: round(y)) else: Vector2(x: x, y: y)),
-              White)
+              Rectangle(x: (if snap: snapLogical(x) else: x), y: (if snap: snapLogical(y) else: y),
+                        width: w / pixelScale, height: h / pixelScale),
+              Vector2(x: 0, y: 0), 0.0, White)
 
 proc intersect*(a, b: Rect): Rect =
   ## The overlapping part of two rectangles, or a zero-sized rect when they do
@@ -167,15 +173,17 @@ proc blitPart(tex: RenderTexture2D, dest, clip: Rect, tint: Color) =
     return
   let texH = tex.texture.height.float32
   # The source rectangle, in upright coordinates: how far into the texture the
-  # visible part starts.
-  let sx = visible.x - dest.x
-  let uy = visible.y - dest.y
+  # visible part starts -- in texels, which are physical pixels.
+  let s = pixelScale
+  let sx = (visible.x - dest.x) * s
+  let uy = (visible.y - dest.y) * s
+  let sh = visible.height * s
   # Then flipped. With a negative source height raylib samples stored rows
   # [sy, sy + sh] and turns them over, and the framebuffer stores them
   # bottom-up -- so the upright rows [uy, uy + sh] live at sy = texH - uy - sh.
-  let sy = texH - uy - visible.height
+  let sy = texH - uy - sh
   drawTexture(tex.texture,
-              Rectangle(x: sx, y: sy, width: visible.width, height: -visible.height),
+              Rectangle(x: sx, y: sy, width: visible.width * s, height: -sh),
               Rectangle(x: visible.x, y: visible.y,
                         width: visible.width, height: visible.height),
               Vector2(x: 0, y: 0), 0.0, tint)
@@ -203,15 +211,15 @@ proc drawRenderTexturePart*(tex: RenderTexture2D, dest: Rect, clip: Rect, soft =
   ## With `soft`, a clip edge between two pixels is not rounded: the pixels it
   ## cuts through are drawn in proportion to how much of them is inside, so a
   ## clip that moves by a fraction of a pixel moves visibly (Clip).
-  let dest = Rect(x: round(dest.x), y: round(dest.y),
-                  width: tex.texture.width.float32,
-                  height: tex.texture.height.float32)
+  let dest = Rect(x: snapLogical(dest.x), y: snapLogical(dest.y),
+                  width: tex.texture.width.float32 / pixelScale,
+                  height: tex.texture.height.float32 / pixelScale)
   if not soft:
-    let clipL = round(clip.x)
-    let clipT = round(clip.y)
+    let clipL = snapLogical(clip.x)
+    let clipT = snapLogical(clip.y)
     blitPart(tex, dest, Rect(x: clipL, y: clipT,
-                             width: round(clip.x + clip.width) - clipL,
-                             height: round(clip.y + clip.height) - clipT), White)
+                             width: snapLogical(clip.x + clip.width) - clipL,
+                             height: snapLogical(clip.y + clip.height) - clipT), White)
     return
   # The whole pixels inside, at full strength; then each cut row and column.
   let l = clip.x
@@ -523,8 +531,10 @@ proc paintSignature(widget: Widget): int =
 proc textureFits(widget: Widget): bool =
   let pad = int32(widget.texturePad * 2)
   widget.cachedTexture.isSome and
-    widget.cachedTexture.get.texture.width == max(1, widget.bounds.width.int32) + pad and
-    widget.cachedTexture.get.texture.height == max(1, widget.bounds.height.int32) + pad
+    widget.cachedTexture.get.texture.width ==
+      physicalExtent(float32(max(1, widget.bounds.width.int32) + pad)) and
+    widget.cachedTexture.get.texture.height ==
+      physicalExtent(float32(max(1, widget.bounds.height.int32) + pad))
 
 proc ensureTextureFor(widget: Widget) =
   ## Give `widget` a render texture of its current size, keeping the one it has
@@ -620,6 +630,10 @@ proc renderToTexture(widget: Widget, changed: seq[Rect], partialOk: bool) =
     echo "PAINT ", widget.getTypeName(), " ", widget.stringId, " own=", widget.ownDirty, " regions=", regions.len, " ", passes, " bounds=", widget.bounds
 
   beginTextureMode(widget.cachedTexture.get())
+  # Widgets draw in logical pixels; the texture is physical (pixel_density.nim).
+  if pixelScale != 1:
+    rlgl.pushMatrix()
+    rlgl.scalef(pixelScale, pixelScale, 1)
   let originalX = widget.bounds.x
   let originalY = widget.bounds.y
   for repainted in passes:
@@ -628,10 +642,12 @@ proc renderToTexture(widget: Widget, changed: seq[Rect], partialOk: bool) =
       # scissor boxes count from the bottom of the framebuffer, textures included
       rlgl.drawRenderBatchActive()
       rlgl.enableScissorTest()
-      rlgl.scissor(repainted.x.int32,
+      # (in texels: physical pixels)
+      let ps = pixelScale
+      rlgl.scissor(int32(floor(repainted.x * ps)),
                    int32(widget.cachedTexture.get.texture.height.float32 -
-                         (repainted.y + repainted.height)),
-                   repainted.width.int32, repainted.height.int32)
+                         ceil((repainted.y + repainted.height) * ps)),
+                   int32(ceil(repainted.width * ps)), int32(ceil(repainted.height * ps)))
     clearBackground(Color(r: 0, g: 0, b: 0, a: 0))   # Transparent background
 
     # `render` draws at widget.bounds, and the texture's origin is the widget's
@@ -656,6 +672,9 @@ proc renderToTexture(widget: Widget, changed: seq[Rect], partialOk: bool) =
     if region.isSome:
       rlgl.drawRenderBatchActive()
       rlgl.disableScissorTest()
+  if pixelScale != 1:
+    rlgl.drawRenderBatchActive()
+    rlgl.popMatrix()
   endTextureMode()
   widget.isDirty = false
   widget.paintPass = renderPassNumber

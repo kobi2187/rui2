@@ -23,6 +23,20 @@ for pkg in naylib yaml db_connector; do
   p="$(nimble path "$pkg" 2>/dev/null | tail -1)"; [ -n "$p" ] && DEP="$DEP --path:$p"
 done
 JNI="$ROOT/mobile/android/rui/src/main/jniLibs"
+# rui_widgets' data sources import db_connector/db_sqlite, whose functions Nim
+# loads from libsqlite3.so when the program starts. Android gives apps no such
+# library (SQLite is not a public NDK library), so every RUI program would
+# print "could not load: libsqlite3.so" and exit before its first line. Link
+# SQLite in instead: the amalgamation, built by the NDK, and --dynlibOverride.
+SQLITE_VERSION=3500400; SQLITE_YEAR=2025
+SQLITE_HOME="${RUI_MOBILE_HOME:-$HOME/rui-mobile-tools}/sqlite"
+SQLITE_DIR="$SQLITE_HOME/sqlite-amalgamation-$SQLITE_VERSION"
+if [ ! -f "$SQLITE_DIR/sqlite3.c" ]; then
+  mkdir -p "$SQLITE_HOME"
+  curl -fsSL --retry 4 -o "$SQLITE_HOME/sqlite.zip" \
+    "https://www.sqlite.org/$SQLITE_YEAR/sqlite-amalgamation-$SQLITE_VERSION.zip"
+  (cd "$SQLITE_HOME" && unzip -qo sqlite.zip)
+fi
 for abi in "${ABIS[@]}"; do
   case "$abi" in
     arm64-v8a)   cpu=arm64; triple=aarch64-linux-android ;;
@@ -30,15 +44,23 @@ for abi in "${ABIS[@]}"; do
     x86_64)      cpu=amd64; triple=x86_64-linux-android ;;
     *) echo "unknown ABI $abi"; exit 2 ;;
   esac
-  mkdir -p "$JNI/$abi"
+  mkdir -p "$JNI/$abi" "$SQLITE_HOME/$abi"
   CC="$TC/$triple$API-clang"
+  SQLITE_O="$SQLITE_HOME/$abi/sqlite3-$SQLITE_VERSION-meta.o"
+  [ -f "$SQLITE_O" ] || "$CC" -c -O2 -fPIC -DSQLITE_THREADSAFE=1 -DSQLITE_OMIT_LOAD_EXTENSION \
+    -DSQLITE_ENABLE_COLUMN_METADATA -o "$SQLITE_O" "$SQLITE_DIR/sqlite3.c"
   ( cd "$ROOT" && nim c --hints:off --warnings:off -d:release \
       --os:android --cpu:$cpu --app:lib --noMain -d:useGraphics \
       -d:AndroidNdk="$ANDROID_NDK_HOME" \
       --cc:clang --clang.exe:"$CC" --clang.linkerexe:"$CC" \
       --passL:"-Wl,-z,max-page-size=16384" \
+      --dynlibOverride:sqlite3 --passL:"$SQLITE_O" \
       $DEP --nimcache:"/tmp/rui_android_nc_$abi" \
       -o:"$JNI/$abi/libmain.so" "$MAIN" )
+  # Nothing may be left to dlopen at start-up but Android's public libraries.
+  if strings "$JNI/$abi/libmain.so" | grep -q 'libsqlite3.so'; then
+    echo "  $abi: libmain.so still loads libsqlite3.so at run time"; exit 1
+  fi
   echo "  $abi: $JNI/$abi/libmain.so ($(du -h "$JNI/$abi/libmain.so" | cut -f1))"
 done
 # The stb engine looks for fonts in the APK's assets/fonts first.

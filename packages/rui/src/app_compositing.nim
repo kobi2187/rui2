@@ -13,8 +13,8 @@ proc drawScriptingIndicator() =
   const
     scriptColor = Color(r: 255, g: 165, b: 0, a: 200)
     indicatorText = "SCRIPTING"
-  let screenWidth = getScreenWidth()
-  let screenHeight = getScreenHeight()
+  let screenWidth = int32(logicalScreenWidth())
+  let screenHeight = int32(logicalScreenHeight())
 
   for inset in 0'i32 .. 3'i32:
     drawRectangleLines(inset, inset, screenWidth - inset * 2,
@@ -68,10 +68,11 @@ proc renderFrame(app: App) =
   ## whatever the window itself draws over it.
   perfTime(phScreen):
     beginDrawing()
-    app.drawWindowBackground()
-    app.compositeRoot()
-    if app.beingScripted:
-      drawScriptingIndicator()
+    scaledDrawing:                  # logical pixels onto the physical screen
+      app.drawWindowBackground()
+      app.compositeRoot()
+      if app.beingScripted:
+        drawScriptingIndicator()
   if app.probe != nil and app.probe.enabled:
     perfTime(phReadback):
       app.probe.capture()       # exactly what is about to be presented

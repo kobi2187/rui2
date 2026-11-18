@@ -29,9 +29,7 @@ proc overlayBounds*(widget: Widget): Rect =
   while root.parent != nil: root = root.parent
   if root != widget and root.bounds.width > 0 and root.bounds.height > 0:
     return root.bounds
-  Rect(x: 0, y: 0,
-       width: float32(getScreenWidth()),
-       height: float32(getScreenHeight()))
+  Rect(x: 0, y: 0, width: logicalScreenWidth(), height: logicalScreenHeight())
 
 const ModalLayer* = 100
 
